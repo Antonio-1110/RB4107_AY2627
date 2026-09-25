@@ -49,6 +49,7 @@ their own; the table says where they are applied.
 | 10 Initial safety behaviour | [`firmware/10_safety_behaviour`](firmware/10_safety_behaviour) | ESP32-S3 |
 | 11 Non-blocking timing | [`firmware/11_non_blocking_timing`](firmware/11_non_blocking_timing) | ESP32-S3 |
 | 12 FreeRTOS architecture | [`firmware/12_freertos_architecture`](firmware/12_freertos_architecture) | ESP32-S3 |
+| 13 Buzzer driver | [`firmware/13_buzzer`](firmware/13_buzzer) | ESP32-S3 |
 
 ## Toolchain
 
