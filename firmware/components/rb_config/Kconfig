@@ -491,6 +491,107 @@ menu "RB4107 configuration"
 
     endmenu
 
+    menu "Network (ESP32-S3)"
+
+        choice RB_NET_TYPE
+            prompt "Controller network interface"
+            default RB_NET_ETHERNET
+            help
+                OPEN QUESTION: Ethernet or Wi-Fi for the final S3 -> MQTT path.
+            config RB_NET_ETHERNET
+                bool "Ethernet (on-board W5500)"
+            config RB_NET_WIFI
+                bool "Wi-Fi station"
+            config RB_NET_NONE
+                bool "none (local safety only)"
+        endchoice
+
+        menu "W5500 Ethernet"
+            depends on RB_NET_ETHERNET
+
+            comment "Pins from legacy/main_controller/main/system_config.h"
+
+            config RB_ETH_SPI_HOST
+                int "SPI host (1 = SPI2, 2 = SPI3)"
+                range 1 2
+                default 1
+
+            config RB_ETH_SPI_MHZ
+                int "SPI clock (MHz)"
+                range 5 40
+                default 20
+
+            config RB_ETH_MOSI_GPIO
+                int "MOSI GPIO"
+                default 13
+
+            config RB_ETH_MISO_GPIO
+                int "MISO GPIO"
+                default 14
+
+            config RB_ETH_SCLK_GPIO
+                int "SCLK GPIO"
+                default 15
+
+            config RB_ETH_CS_GPIO
+                int "CS GPIO"
+                default 16
+
+            config RB_ETH_INT_GPIO
+                int "INT GPIO (-1 = poll)"
+                range -1 48
+                default 12
+
+            config RB_ETH_POLL_MS
+                int "Poll period when INT is not used (ms)"
+                range 1 1000
+                default 10
+
+            config RB_ETH_RST_GPIO
+                int "PHY reset GPIO (-1 = not connected)"
+                range -1 48
+                default -1
+
+        endmenu
+
+        menu "Wi-Fi station"
+            depends on RB_NET_WIFI
+
+            config RB_WIFI_SSID
+                string "SSID"
+                default ""
+
+            config RB_WIFI_PASSWORD
+                string "Password"
+                default ""
+                help
+                    Stored in sdkconfig, which is git-ignored. Never commit it.
+
+            config RB_WIFI_MAX_BACKOFF_MS
+                int "Longest reconnect back-off (ms)"
+                range 1000 300000
+                default 30000
+
+        endmenu
+
+    endmenu
+
+    menu "MQTT broker (MacBook)"
+
+        config RB_BROKER_HOST
+            string "Broker host (MacBook LAN IP or hostname)"
+            default ""
+            help
+                The MacBook running Mosquitto. See tools/mqtt/README.md for how
+                to find its LAN IP. Set it here rather than in code.
+
+        config RB_BROKER_PORT
+            int "Broker port"
+            range 1 65535
+            default 1883
+
+    endmenu
+
     menu "Safety logic (ESP32-S3)"
 
         comment "Defaults answer the open questions provisionally; see docs/safety_state_machine.md"
