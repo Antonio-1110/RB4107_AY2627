@@ -65,6 +65,7 @@ their own; the table says where they are applied.
 | 26 Configuration | cross-cutting: [`docs/configuration.md`](docs/configuration.md), `firmware/components/rb_config/Kconfig` | all |
 | 27 Diagnostic mode | [`firmware/27_diagnostic_mode`](firmware/27_diagnostic_mode) | ESP32-S3 |
 | 28 State machine testing | [`firmware/28_state_machine_tests`](firmware/28_state_machine_tests), `tools/run_host_tests.sh` | ESP32-S3 + host (linux target) |
+| 29 End-to-end integration | [`firmware/29_end_to_end`](firmware/29_end_to_end) (+ 05 on the C6), `tools/diagnostics/e2e_check.py` | ESP32-S3 + ESP32-C6 |
 
 ## Toolchain
 
