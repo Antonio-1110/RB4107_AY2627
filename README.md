@@ -63,6 +63,7 @@ their own; the table says where they are applied.
 | 24 Persistent Django MQTT subscriber | [`backend/django`](backend/django) → `python manage.py mqtt_subscriber` | MacBook |
 | 25 Logging | cross-cutting: [`docs/logging.md`](docs/logging.md), `firmware/components/rb_log` | all |
 | 26 Configuration | cross-cutting: [`docs/configuration.md`](docs/configuration.md), `firmware/components/rb_config/Kconfig` | all |
+| 27 Diagnostic mode | [`firmware/27_diagnostic_mode`](firmware/27_diagnostic_mode) | ESP32-S3 |
 
 ## Toolchain
 

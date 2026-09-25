@@ -678,6 +678,29 @@ menu "RB4107 configuration"
                 For bench or QEMU runs without the relay board. Never enable
                 this on the installed system.
 
+        config RB_DIAG_CONSOLE
+            bool "Diagnostic console (esp_console REPL on the serial port)"
+            default n
+
+        config RB_DIAG_TEST_TIMERS_AT_BOOT
+            bool "Start with accelerated test timers"
+            default n
+
+        config RB_DIAG_TEST_WARNING_S
+            int "Test mode: unattended time before WARNING (s)"
+            range 1 600
+            default 5
+
+        config RB_DIAG_TEST_SHUTDOWN_S
+            int "Test mode: shutdown timeout (s)"
+            range 2 600
+            default 10
+
+        config RB_DIAG_TEST_FAULT_SHUTDOWN_S
+            int "Test mode: shut down after this long in FAULT (s, 0 = never)"
+            range 0 600
+            default 10
+
     endmenu
 
     menu "Safety logic (ESP32-S3)"

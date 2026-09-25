@@ -924,15 +924,15 @@ Avoid magic numbers.
 
 Provide development/diagnostic functionality.
 
-- [ ] Print latest presence reading.
-- [ ] Print thermal features.
-- [ ] Print ESP-NOW packet information.
-- [ ] Print node health.
-- [ ] Print safety state.
-- [ ] Print active faults.
-- [ ] Print MQTT connection status.
-- [ ] Allow simulated sensor inputs where practical.
-- [ ] Allow accelerated safety timers for testing.
+- [x] Print latest presence reading.
+- [x] Print thermal features.
+- [x] Print ESP-NOW packet information.
+- [x] Print node health.
+- [x] Print safety state.
+- [x] Print active faults.
+- [x] Print MQTT connection status.
+- [x] Allow simulated sensor inputs where practical.
+- [x] Allow accelerated safety timers for testing.
 
 Example:
 
