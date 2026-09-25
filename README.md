@@ -57,6 +57,7 @@ their own; the table says where they are applied.
 | 18 MacBook MQTT broker | [`tools/mqtt`](tools/mqtt) (not an ESP32 project) | MacBook |
 | 19 MQTT client on the S3 | [`firmware/19_mqtt_client`](firmware/19_mqtt_client) | ESP32-S3 |
 | 20 MQTT topic structure | [`firmware/20_mqtt_topics`](firmware/20_mqtt_topics), spec in [`docs/mqtt_topics.md`](docs/mqtt_topics.md) | ESP32-S3 |
+| 21 MQTT JSON schema | [`firmware/21_mqtt_json`](firmware/21_mqtt_json), spec in [`docs/mqtt_schema.md`](docs/mqtt_schema.md) | ESP32-S3 |
 
 ## Toolchain
 

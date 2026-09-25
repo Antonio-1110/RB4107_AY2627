@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "rb_config.h"
+#include "rb_json.h"
 #include "rb_mqtt.h"
 #include "rb_net.h"
 #include "rb_topics.h"
@@ -18,6 +19,8 @@
 static const char *TAG = "MQTT";
 
 static char s_status_topic[64];
+static char s_online[128];
+static char s_offline[128];
 static bool s_started;
 
 static void on_net(rb_net_state_t state, void *ctx)
@@ -25,8 +28,10 @@ static void on_net(rb_net_state_t state, void *ctx)
     if (state == RB_NET_CONNECTED && !s_started) {
         rb_mqtt_config_t cfg = rb_mqtt_config_from_kconfig();
         cfg.status_topic = s_status_topic;
-        cfg.online_payload = "{\"online\":true}";
-        cfg.offline_payload = "{\"online\":false}";
+        rb_json_controller_status(CONFIG_RB_MQTT_CONTROLLER_ID, true, s_online, sizeof(s_online));
+        rb_json_controller_status(CONFIG_RB_MQTT_CONTROLLER_ID, false, s_offline, sizeof(s_offline));
+        cfg.online_payload = s_online;
+        cfg.offline_payload = s_offline;
         s_started = rb_mqtt_start(&cfg, NULL, NULL) == ESP_OK;
     }
 }

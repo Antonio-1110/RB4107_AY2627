@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rb4107.local/schema/rb4107_mqtt.schema.json",
+  "title": "RB4107 MQTT payloads, schema_version 1",
+  "description": "Every message the ESP32-S3 controller publishes under rb4107/#. Produced by firmware/components/rb_json. Unknown extra fields are allowed so the schema can grow (e.g. more sensors).",
+  "type": "object",
+  "required": ["schema_version", "type"],
+  "properties": {
+    "schema_version": {"const": 1}
+  },
+  "oneOf": [
+    {"$ref": "#/$defs/telemetry"},
+    {"$ref": "#/$defs/heartbeat"},
+    {"$ref": "#/$defs/faults"},
+    {"$ref": "#/$defs/presence_msg"},
+    {"$ref": "#/$defs/thermal_msg"},
+    {"$ref": "#/$defs/node_status"},
+    {"$ref": "#/$defs/event"},
+    {"$ref": "#/$defs/controller_status"}
+  ],
+  "$defs": {
+    "header": {
+      "type": "object",
+      "required": ["schema_version", "type", "controller_id", "timestamp", "uptime_ms", "sequence"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "type": {"type": "string"},
+        "controller_id": {"type": "string", "minLength": 1},
+        "timestamp": {"type": ["string", "null"], "description": "ISO 8601 with offset; null while the controller's wall clock is not set"},
+        "uptime_ms": {"type": "integer", "minimum": 0},
+        "sequence": {"type": "integer", "minimum": 0}
+      }
+    },
+    "nullable_number": {"type": ["number", "null"]},
+    "nullable_bool": {"type": ["boolean", "null"]},
+    "safety_state": {"enum": ["BOOT", "SELF_TEST", "IDLE", "MONITORING", "UNATTENDED", "WARNING", "SHUTDOWN", "FAULT"]},
+    "node_link": {"enum": ["NEVER_SEEN", "ONLINE", "STALE", "OFFLINE"]},
+    "presence": {
+      "type": "object",
+      "required": ["valid", "detected", "moving", "stationary", "distance_m"],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "detected": {"$ref": "#/$defs/nullable_bool"},
+        "moving": {"$ref": "#/$defs/nullable_bool"},
+        "stationary": {"$ref": "#/$defs/nullable_bool"},
+        "distance_m": {"$ref": "#/$defs/nullable_number"}
+      },
+      "if": {"properties": {"valid": {"const": false}}},
+      "then": {"properties": {"detected": {"type": "null"}, "moving": {"type": "null"}, "stationary": {"type": "null"}}}
+    },
+    "thermal": {
+      "type": "object",
+      "required": ["valid", "max_c", "min_c", "mean_c", "hot_region_c", "rate_c_per_min", "pixels_above_threshold"],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "max_c": {"$ref": "#/$defs/nullable_number"},
+        "min_c": {"$ref": "#/$defs/nullable_number"},
+        "mean_c": {"$ref": "#/$defs/nullable_number"},
+        "hot_region_c": {"$ref": "#/$defs/nullable_number"},
+        "rate_c_per_min": {"$ref": "#/$defs/nullable_number"},
+        "pixels_above_threshold": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "telemetry": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["protocol_version", "sensor_node", "node_link", "presence", "thermal", "safety", "faults"],
+      "properties": {
+        "type": {"const": "telemetry"},
+        "protocol_version": {"type": "integer", "minimum": 0},
+        "sensor_node": {"type": "string"},
+        "node_link": {"$ref": "#/$defs/node_link"},
+        "presence": {"$ref": "#/$defs/presence"},
+        "thermal": {"$ref": "#/$defs/thermal"},
+        "safety": {
+          "type": "object",
+          "required": ["state", "state_ms", "unattended_ms", "buzzer", "shutdown", "test_timers"],
+          "properties": {
+            "state": {"$ref": "#/$defs/safety_state"},
+            "state_ms": {"type": "integer", "minimum": 0},
+            "unattended_ms": {"type": "integer", "minimum": 0},
+            "buzzer": {"enum": ["OFF", "WARNING", "SHUTDOWN", "FAULT"]},
+            "shutdown": {"type": "boolean"},
+            "test_timers": {"type": "boolean"}
+          }
+        },
+        "faults": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "heartbeat": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["safety_state", "safety_loop_count"],
+      "properties": {
+        "type": {"const": "heartbeat"},
+        "safety_state": {"$ref": "#/$defs/safety_state"},
+        "safety_loop_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "faults": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["faults"],
+      "properties": {
+        "type": {"const": "faults"},
+        "faults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "class"],
+            "properties": {"name": {"type": "string"}, "class": {"enum": ["SAFETY", "TELEMETRY"]}}
+          }
+        }
+      }
+    },
+    "presence_msg": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "presence"],
+      "properties": {"type": {"const": "presence"}, "sensor_node": {"type": "string"}, "presence": {"$ref": "#/$defs/presence"}}
+    },
+    "thermal_msg": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "thermal"],
+      "properties": {"type": {"const": "thermal"}, "sensor_node": {"type": "string"}, "thermal": {"$ref": "#/$defs/thermal"}}
+    },
+    "node_status": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "link", "presence_valid", "thermal_valid", "node_fault_flags", "missed_packets", "restarts"],
+      "properties": {
+        "type": {"const": "node_status"},
+        "sensor_node": {"type": "string"},
+        "link": {"$ref": "#/$defs/node_link"},
+        "presence_valid": {"type": "boolean"},
+        "thermal_valid": {"type": "boolean"},
+        "node_fault_flags": {"type": "integer", "minimum": 0},
+        "missed_packets": {"type": "integer", "minimum": 0},
+        "restarts": {"type": "integer", "minimum": 0}
+      }
+    },
+    "event": {
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["event", "safety", "fault"],
+      "properties": {
+        "type": {"const": "event"},
+        "event": {"enum": ["state_change", "warning", "shutdown", "fault_raised", "fault_cleared"]},
+        "safety": {
+          "type": "object",
+          "required": ["state", "from_state", "reason", "unattended_ms"],
+          "properties": {
+            "state": {"$ref": "#/$defs/safety_state"},
+            "from_state": {"oneOf": [{"$ref": "#/$defs/safety_state"}, {"type": "null"}]},
+            "reason": {"type": ["string", "null"]},
+            "unattended_ms": {"type": "integer", "minimum": 0}
+          }
+        },
+        "fault": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "object", "required": ["name", "class"], "properties": {"name": {"type": "string"}, "class": {"enum": ["SAFETY", "TELEMETRY"]}}}
+          ]
+        }
+      }
+    },
+    "controller_status": {
+      "description": "Retained rb4107/controller/status payload (also the MQTT Last Will).",
+      "type": "object",
+      "required": ["schema_version", "type", "controller_id", "online"],
+      "properties": {
+        "type": {"const": "controller_status"},
+        "controller_id": {"type": "string"},
+        "online": {"type": "boolean"}
+      }
+    }
+  }
+}

@@ -12,7 +12,7 @@ the MacBook (`tools/mqtt/start_broker.sh`).
 | Detect disconnect | `MQTT_EVENT_DISCONNECTED` plus keep-alive (`RB_MQTT_KEEPALIVE_S`) |
 | Automatic reconnect | every `RB_MQTT_RECONNECT_MS` |
 | Connection state | `DISCONNECTED` / `CONNECTING` / `CONNECTED`, logged on change |
-| Presence on the broker | retained `{"online":true}` on `<prefix>/controller/status`, Last Will `{"online":false}` |
+| Presence on the broker | retained `controller_status` message (`"online": true`) on `<prefix>/controller/status`, with a Last Will saying `"online": false` |
 
 The MQTT state is kept completely separate from the safety state. Publishing
 never happens on the safety task. It uses `esp_mqtt_client_enqueue`, so the

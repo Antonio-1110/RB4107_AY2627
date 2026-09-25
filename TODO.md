@@ -775,11 +775,11 @@ Example telemetry:
 }
 ```
 
-- [ ] Define schema version.
-- [ ] Implement serialization.
-- [ ] Validate generated JSON.
-- [ ] Document schema.
-- [ ] Keep room for additional sensors.
+- [x] Define schema version.
+- [x] Implement serialization.
+- [x] Validate generated JSON.
+- [x] Document schema.
+- [x] Keep room for additional sensors.
 
 ---
 
