@@ -601,16 +601,16 @@ Create centralized fault handling.
 
 Potential faults:
 
-- [ ] C4002 unavailable.
-- [ ] MLX90640 unavailable.
-- [ ] Sensor node offline.
-- [ ] Invalid ESP-NOW packet.
-- [ ] ESP-NOW communication failure.
-- [ ] RTC failure.
-- [ ] Network disconnected.
-- [ ] MQTT disconnected.
-- [ ] Internal queue overflow.
-- [ ] Other hardware faults.
+- [x] C4002 unavailable.
+- [x] MLX90640 unavailable.
+- [x] Sensor node offline.
+- [x] Invalid ESP-NOW packet.
+- [x] ESP-NOW communication failure.
+- [x] RTC failure.
+- [x] Network disconnected.
+- [x] MQTT disconnected.
+- [x] Internal queue overflow.
+- [x] Other hardware faults.
 
 Distinguish between:
 

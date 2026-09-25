@@ -72,6 +72,8 @@ typedef struct {
 typedef struct {
     /* Drive the buzzer and relay. Must not block. */
     void (*apply_outputs)(const safety_outputs_t *outputs, void *ctx);
+    /* Called at the start of every safety-loop iteration (fault polling etc.). Must not block. */
+    void (*tick)(uint32_t now_ms, void *ctx);
     /* Polled while in SELF_TEST. NULL = pass straight away. */
     safety_selftest_t (*self_test)(void *ctx);
     /* Any safety-relevant fault active (fault manager)? */
@@ -110,6 +112,9 @@ bool rb_controller_post_event(const rb_event_t *event);
 bool rb_controller_next_event(rb_event_t *out, TickType_t wait);
 
 void rb_controller_get_snapshot(rb_snapshot_t *out);
+
+/* Number of events dropped because the event queue was full. */
+uint32_t rb_controller_events_dropped(void);
 
 /* Operator reset / acknowledge (button, console). Consumed by the safety task. */
 void rb_controller_request_reset(void);

@@ -123,6 +123,10 @@ static void safety_task(void *arg)
                      (unsigned long)pending.warning_timeout_ms, (unsigned long)pending.shutdown_timeout_ms);
         }
 
+        if (s_hooks.tick != NULL) {
+            s_hooks.tick(now, s_hooks.ctx);
+        }
+
         /* Sensor-node health. */
         const uint32_t events = sensor_node_evaluate(&node, &s_cfg.health, now);
         if (events != 0) {
@@ -219,6 +223,14 @@ void rb_controller_get_snapshot(rb_snapshot_t *out)
         *out = s_snapshot;
         xSemaphoreGive(s_snapshot_lock);
     }
+}
+
+uint32_t rb_controller_events_dropped(void)
+{
+    portENTER_CRITICAL(&s_req_lock);
+    const uint32_t n = s_events_dropped;
+    portEXIT_CRITICAL(&s_req_lock);
+    return n;
 }
 
 void rb_controller_request_reset(void)
