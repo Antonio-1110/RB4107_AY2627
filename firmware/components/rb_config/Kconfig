@@ -1,0 +1,33 @@
+menu "RB4107 configuration"
+
+    comment "Values marked UNCONFIRMED have not been verified on real hardware."
+
+    menu "Sensor node (ESP32-C6)"
+
+        config RB_NODE_ID
+            int "Sensor node ID"
+            range 1 65535
+            default 1
+            help
+                Identifier this sensor node puts in every ESP-NOW packet. The
+                controller only accepts IDs listed in "Expected sensor node ID".
+
+        config RB_NODE_STATUS_LED_GPIO
+            int "Status LED GPIO (-1 = none)"
+            range -1 30
+            default 15
+            help
+                FireBeetle 2 ESP32-C6 on-board LED. UNCONFIRMED: check the
+                board silkscreen/schematic.
+
+        config RB_NODE_HEALTH_LOG_PERIOD_MS
+            int "Board health log period (ms)"
+            range 1000 600000
+            default 10000
+            help
+                How often the node logs uptime and heap statistics. Kept slow
+                so the serial monitor is not flooded.
+
+    endmenu
+
+endmenu
