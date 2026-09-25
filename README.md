@@ -50,6 +50,7 @@ their own; the table says where they are applied.
 | 11 Non-blocking timing | [`firmware/11_non_blocking_timing`](firmware/11_non_blocking_timing) | ESP32-S3 |
 | 12 FreeRTOS architecture | [`firmware/12_freertos_architecture`](firmware/12_freertos_architecture) | ESP32-S3 |
 | 13 Buzzer driver | [`firmware/13_buzzer`](firmware/13_buzzer) | ESP32-S3 |
+| 14 Relay / shutdown driver | [`firmware/14_relay_shutdown`](firmware/14_relay_shutdown) | ESP32-S3 |
 
 ## Toolchain
 
