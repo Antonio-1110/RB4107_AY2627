@@ -21,6 +21,10 @@ MQTT Broker — MacBook
 Django MQTT Subscriber
 ```
 
+> **Status legend:** `[x]` = implemented in this repository. Items that need
+> physical hardware (flashing, wiring, measurements) stay `[ ]` until someone
+> has checked them on the bench. See `README.md` for the section → folder map.
+
 > **Critical architectural requirement:**  
 > The local safety system must continue operating if MQTT, Django, the MacBook, or the network becomes unavailable.
 
@@ -30,7 +34,7 @@ Anything downstream of Django is currently out of scope.
 
 # 0. Repository / Project Structure
 
-- [ ] Establish clean repository structure for the different software components.
+- [x] Establish clean repository structure for the different software components.
 
 Suggested structure:
 
@@ -87,27 +91,27 @@ The C6 should **not** contain the overall cooking safety state machine.
 
 ## 1.1 Basic ESP-IDF Project
 
-- [ ] Create ESP-IDF project for FireBeetle ESP32-C6.
-- [ ] Verify build.
+- [x] Create ESP-IDF project for FireBeetle ESP32-C6.
+- [x] Verify build.
 - [ ] Verify flashing.
 - [ ] Verify serial logging.
 - [ ] Verify board remains stable after hardware assembly.
-- [ ] Create centralized pin/configuration definitions.
+- [x] Create centralized pin/configuration definitions.
 
 ---
 
 # 2. C4002 Integration
 
-- [ ] Identify exact C4002 communication interface being used.
+- [x] Identify exact C4002 communication interface being used.
 - [ ] Confirm required UART/GPIO configuration.
-- [ ] Initialize C4002.
-- [ ] Read presence information.
-- [ ] Read moving/stationary target information if supported.
-- [ ] Read target distance if supported.
-- [ ] Add validity/error detection.
+- [x] Initialize C4002.
+- [x] Read presence information.
+- [x] Read moving/stationary target information if supported.
+- [x] Read target distance if supported.
+- [x] Add validity/error detection.
 - [ ] Test continuous operation.
 - [ ] Investigate current false static-presence detections.
-- [ ] Expose configurable C4002 sensitivity/detection parameters where supported.
+- [x] Expose configurable C4002 sensitivity/detection parameters where supported.
 
 Create a clean internal representation similar to:
 

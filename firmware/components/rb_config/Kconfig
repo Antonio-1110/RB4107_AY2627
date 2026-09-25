@@ -28,6 +28,115 @@ menu "RB4107 configuration"
                 How often the node logs uptime and heap statistics. Kept slow
                 so the serial monitor is not flooded.
 
+        menu "C4002 presence sensor"
+
+            config RB_C4002_UART_PORT
+                int "UART port"
+                range 0 1
+                default 1
+
+            config RB_C4002_RX_GPIO
+                int "ESP32 RX GPIO (wired to C4002 TX)"
+                range 0 30
+                default 17
+                help
+                    UNCONFIRMED: set this to match your wiring.
+
+            config RB_C4002_TX_GPIO
+                int "ESP32 TX GPIO (wired to C4002 RX)"
+                range 0 30
+                default 16
+                help
+                    UNCONFIRMED: set this to match your wiring.
+
+            config RB_C4002_OUT_GPIO
+                int "C4002 OUT pin GPIO (-1 = not wired)"
+                range -1 30
+                default -1
+
+            config RB_C4002_BAUD
+                int "Baud rate"
+                default 115200
+
+            config RB_C4002_STALE_TIMEOUT_MS
+                int "Reading goes invalid after (ms) without a report"
+                range 200 60000
+                default 3000
+                help
+                    Make this several report periods long. After it expires the
+                    reading is invalid, which is not the same as "no presence".
+
+            config RB_C4002_APPLY_SETTINGS
+                bool "Push the detection settings below to the sensor at boot"
+                default y
+
+            config RB_C4002_REPORT_PERIOD_DS
+                int "Report period (0.1 s units)"
+                range 1 255
+                default 5
+                depends on RB_C4002_APPLY_SETTINGS
+
+            config RB_C4002_RANGE_MIN_CM
+                int "Detection range minimum (cm)"
+                range 0 1100
+                default 0
+                depends on RB_C4002_APPLY_SETTINGS
+
+            config RB_C4002_RANGE_MAX_CM
+                int "Detection range maximum (cm)"
+                range 0 1100
+                default 1100
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    Shrinking this to the cooking area is one of the knobs for
+                    the false static-presence investigation.
+
+            choice RB_C4002_RESOLUTION
+                prompt "Distance gate resolution"
+                default RB_C4002_RESOLUTION_80CM
+                depends on RB_C4002_APPLY_SETTINGS
+                config RB_C4002_RESOLUTION_80CM
+                    bool "80 cm (15 gates, ~11 m)"
+                config RB_C4002_RESOLUTION_20CM
+                    bool "20 cm (25 gates, ~4.9 m)"
+            endchoice
+
+            config RB_C4002_MOTION_SENSITIVITY
+                int "Motion sensitivity group (0 low, 1 mid, 2 high)"
+                range 0 2
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+
+            config RB_C4002_PRESENCE_SENSITIVITY
+                int "Static presence sensitivity group (0 low, 1 mid, 2 high)"
+                range 0 2
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    Lower this if the sensor reports static presence when
+                    nobody is there.
+
+            config RB_C4002_DISAPPEAR_DELAY_S
+                int "Target disappear delay (s)"
+                range 0 65535
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    How long the sensor keeps reporting a target after it has
+                    gone.
+
+            config RB_C4002_ENV_CALIBRATION_AT_BOOT
+                bool "Run environment calibration at boot (area must be empty)"
+                default n
+
+            config RB_C4002_ENV_CALIBRATION_S
+                int "Environment calibration duration (s)"
+                range 1 600
+                default 30
+                depends on RB_C4002_ENV_CALIBRATION_AT_BOOT
+
+        endmenu
+
     endmenu
 
 endmenu
