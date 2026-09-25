@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Editors
+*~
+*.swp
+.vscode/
+.idea/
+
+# ESP-IDF build outputs (every firmware/NN_* project)
+build/
+build_*/
+sdkconfig
+sdkconfig.old
+managed_components/
+compile_commands.json
+.cache/
+
+# Python / Django
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.sqlite3
+.env
+
+# Logs
+*.log
