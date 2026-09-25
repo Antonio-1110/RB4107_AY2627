@@ -15,6 +15,7 @@
 #include "fault_manager.h"
 #include "rb_app_faults.h"
 #include "rb_config.h"
+#include "rb_log.h"
 #include "rb_connectivity.h"
 #include "rb_controller.h"
 #include "rb_espnow.h"
@@ -48,6 +49,7 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 
 void app_main(void)
 {
+    rb_log_init();
     const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
     ESP_ERROR_CHECK(rb_controller_init(&cfg)); /* queues first: boot faults are events too */
     rb_app_faults_init();

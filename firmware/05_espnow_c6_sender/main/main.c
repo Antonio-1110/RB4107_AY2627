@@ -14,12 +14,14 @@
 #include "node_link.h"
 #include "node_thermal.h"
 #include "rb_config.h"
+#include "rb_log.h"
 #include "rb_node_sensors.h"
 
 static const char *TAG = "NODE";
 
 void app_main(void)
 {
+    rb_log_init();
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     ESP_LOGI(TAG, "RB4107 sensor node %d, MAC " MACSTR, CONFIG_RB_NODE_ID, MAC2STR(mac));

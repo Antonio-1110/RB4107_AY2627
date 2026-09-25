@@ -891,9 +891,9 @@ Examples:
 [OUTPUT][WARN] shutdown relay activated
 ```
 
-- [ ] Add appropriate logging to every major subsystem.
-- [ ] Avoid excessive logs inside high-frequency loops.
-- [ ] Make debug verbosity configurable.
+- [x] Add appropriate logging to every major subsystem.
+- [x] Avoid excessive logs inside high-frequency loops.
+- [x] Make debug verbosity configurable.
 
 ---
 

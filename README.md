@@ -61,6 +61,7 @@ their own; the table says where they are applied.
 | 22 MQTT publishing strategy | [`firmware/22_mqtt_publishing`](firmware/22_mqtt_publishing) | ESP32-S3 |
 | 23 Django project (MQTT ingestion) | [`backend/django`](backend/django) (not an ESP32 project) | MacBook |
 | 24 Persistent Django MQTT subscriber | [`backend/django`](backend/django) → `python manage.py mqtt_subscriber` | MacBook |
+| 25 Logging | cross-cutting: [`docs/logging.md`](docs/logging.md), `firmware/components/rb_log` | all |
 
 ## Toolchain
 
