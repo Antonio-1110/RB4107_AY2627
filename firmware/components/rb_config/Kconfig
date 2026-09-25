@@ -340,6 +340,19 @@ menu "RB4107 configuration"
                     A full queue drops packets and counts them as a queue
                     overflow fault.
 
+            config RB_CTRL_NODE_STALE_MS
+                int "Node STALE after (ms) without a packet"
+                range 200 60000
+                default 2000
+                help
+                    Make this a few node data periods long. While STALE the
+                    node's readings count as UNKNOWN, not as "safe".
+
+            config RB_CTRL_NODE_OFFLINE_MS
+                int "Node OFFLINE after (ms) without a packet"
+                range 500 600000
+                default 10000
+
         endmenu
 
     endmenu
