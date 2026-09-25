@@ -38,6 +38,7 @@ their own; the table says where they are applied.
 |---|---|---|
 | 0 Repository structure | this layout | – |
 | 1 ESP32-C6 sensor node base | [`firmware/01_c6_sensor_node_base`](firmware/01_c6_sensor_node_base) | ESP32-C6 |
+| 2 C4002 integration | [`firmware/02_c4002_integration`](firmware/02_c4002_integration) | ESP32-C6 |
 
 ## Toolchain
 
