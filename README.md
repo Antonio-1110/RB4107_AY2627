@@ -40,6 +40,7 @@ their own; the table says where they are applied.
 | 1 ESP32-C6 sensor node base | [`firmware/01_c6_sensor_node_base`](firmware/01_c6_sensor_node_base) | ESP32-C6 |
 | 2 C4002 integration | [`firmware/02_c4002_integration`](firmware/02_c4002_integration) | ESP32-C6 |
 | 3 MLX90640 integration + thermal features | [`firmware/03_mlx90640_integration`](firmware/03_mlx90640_integration) | ESP32-C6 |
+| 4 Shared ESP-NOW protocol | [`firmware/04_espnow_protocol`](firmware/04_espnow_protocol), spec in [`docs/protocol.md`](docs/protocol.md) | ESP32-C6 or S3 |
 
 ## Toolchain
 
