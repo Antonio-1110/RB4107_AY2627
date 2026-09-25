@@ -408,18 +408,18 @@ FAULT
 
 ## IDLE → MONITORING
 
-- [ ] Detect thermal condition indicating active cooking/heating.
-- [ ] Transition into MONITORING.
+- [x] Detect thermal condition indicating active cooking/heating.
+- [x] Transition into MONITORING.
 
 ## MONITORING → UNATTENDED
 
-- [ ] Detect absence of person.
-- [ ] Start unattended timer.
+- [x] Detect absence of person.
+- [x] Start unattended timer.
 
 ## UNATTENDED → MONITORING
 
-- [ ] Detect person returning.
-- [ ] Cancel/reset unattended timer.
+- [x] Detect person returning.
+- [x] Cancel/reset unattended timer.
 
 ## UNATTENDED → WARNING
 
@@ -429,8 +429,8 @@ Initial prototype target:
 ~60 seconds unattended
 ```
 
-- [ ] Make timeout configurable.
-- [ ] Activate warning behaviour.
+- [x] Make timeout configurable.
+- [x] Activate warning behaviour.
 
 ## WARNING → SHUTDOWN
 
@@ -440,14 +440,14 @@ Initial prototype target:
 ~90 seconds
 ```
 
-- [ ] Clarify whether 90 s means total unattended time or 90 s after warning.
-- [ ] Keep timing configurable.
-- [ ] Activate shutdown output.
+- [ ] Clarify whether 90 s means total unattended time or 90 s after warning. *(Both supported: `RB_SAFETY_SHUTDOWN_TIMING`; default = total unattended time.)*
+- [x] Keep timing configurable.
+- [x] Activate shutdown output.
 
 ## Temperature Interaction
 
-- [ ] Keep architecture ready for temperature trend to modify timer/state behaviour.
-- [ ] Do NOT hard-code unverified thermal assumptions.
+- [x] Keep architecture ready for temperature trend to modify timer/state behaviour.
+- [x] Do NOT hard-code unverified thermal assumptions.
 - [ ] Collect experimental data first.
 
 ---
