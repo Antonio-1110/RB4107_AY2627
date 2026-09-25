@@ -25,6 +25,10 @@ static buzzer_pattern_t pattern_for(safety_buzzer_t request)
 
 esp_err_t rb_outputs_init(void)
 {
+#if CONFIG_RB_OUTPUTS_SIMULATED
+    ESP_LOGW(TAG, "outputs SIMULATED: buzzer and relay are only logged (diagnostics only)");
+    return ESP_OK;
+#endif
     const buzzer_config_t bcfg = buzzer_config_from_kconfig();
     esp_err_t berr = buzzer_init(&bcfg);
     if (berr != ESP_OK) {
@@ -42,6 +46,15 @@ esp_err_t rb_outputs_init(void)
 
 void rb_outputs_apply(const safety_outputs_t *outputs)
 {
+#if CONFIG_RB_OUTPUTS_SIMULATED
+    static safety_outputs_t last = {.buzzer = SAFETY_BUZZER_OFF, .shutdown = false};
+    if (outputs->buzzer != last.buzzer || outputs->shutdown != last.shutdown) {
+        ESP_LOGW(TAG, "[simulated] buzzer=%s shutdown=%s", safety_buzzer_name(outputs->buzzer),
+                 outputs->shutdown ? "ACTIVE" : "released");
+        last = *outputs;
+    }
+    return;
+#endif
     buzzer_set_pattern(pattern_for(outputs->buzzer));
     if (!s_relay_ok) {
         return;

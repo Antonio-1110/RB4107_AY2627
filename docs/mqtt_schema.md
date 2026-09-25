@@ -47,10 +47,21 @@ Check any capture with `tools/diagnostics/validate_json.py`.
 
 ## `event` (topics `events/warning`, `events/shutdown`, `events/fault`)
 
-`event` is one of `state_change`, `warning`, `shutdown`, `fault_raised`,
-`fault_cleared`. State changes that are neither a warning nor a shutdown are
-published on `controller/state` as a fresh `telemetry` message; the
-`state_change` value is reserved for future use.
+`event` is one of:
+
+| `event` | Topic | When |
+|---|---|---|
+| `warning` | `events/warning` | the controller entered WARNING |
+| `shutdown` | `events/shutdown` | the controller entered SHUTDOWN (relay activated) |
+| `state_change` | `events/fault` | the controller entered the FAULT state |
+| `fault_raised` / `fault_cleared` | `events/fault` | an individual fault changed (`fault` names it) |
+
+Every state transition also publishes a fresh `telemetry` message on
+`controller/state` straight away, at QoS 1.
+
+Events that happen before the first broker connection (the boot-time "no
+data yet" faults) are not replayed. The retained `controller/faults` message
+always holds the current set.
 
 ```json
 {

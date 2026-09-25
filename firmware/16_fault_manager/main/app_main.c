@@ -63,10 +63,11 @@ static void demo_task(void *arg)
 
 void app_main(void)
 {
+    const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
+    ESP_ERROR_CHECK(rb_controller_init(&cfg)); /* queues first: boot faults are events too */
     rb_outputs_init();
     rb_app_faults_init();
 
-    const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
     const rb_controller_hooks_t hooks = {
         .apply_outputs = apply_outputs,
         .tick = rb_app_faults_tick,

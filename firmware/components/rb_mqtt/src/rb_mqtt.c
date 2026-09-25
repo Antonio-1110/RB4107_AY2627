@@ -113,8 +113,14 @@ esp_err_t rb_mqtt_publish(const char *topic, const char *payload, int qos, bool 
         count(&s_stats.dropped);
         return ESP_ERR_INVALID_STATE;
     }
-    /* enqueue: the actual network I/O happens in the MQTT task, not here. */
-    const int id = esp_mqtt_client_enqueue(s_client, topic, payload, 0, qos, retain, true);
+    /*
+     * Send from the calling (telemetry) task. QoS 1 stays in the outbox until
+     * acknowledged, and is queued automatically while disconnected. Using
+     * esp_mqtt_client_enqueue() for everything was tried and rejected: QoS 0
+     * items then pile up in the outbox faster than the MQTT task drains them
+     * and crowd out the QoS 1 events.
+     */
+    const int id = esp_mqtt_client_publish(s_client, topic, payload, 0, qos, retain);
     if (id < 0) {
         count(&s_stats.dropped);
         return id == -2 ? ESP_ERR_NO_MEM : ESP_FAIL;

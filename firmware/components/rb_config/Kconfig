@@ -627,6 +627,38 @@ menu "RB4107 configuration"
                 unreachable. QoS 0 telemetry is simply dropped while
                 disconnected.
 
+        config RB_MQTT_TELEMETRY_PERIOD_MS
+            int "Periodic telemetry interval (ms)"
+            range 200 60000
+            default 1000
+            help
+                Routine telemetry (QoS 0). State changes, warnings, shutdowns
+                and faults are published as soon as they happen, whatever this
+                is set to.
+
+        config RB_MQTT_PUBLISH_SENSOR_TOPICS
+            bool "Also publish per-node presence/thermal topics every period"
+            default y
+
+    endmenu
+
+    menu "Diagnostics / simulation"
+
+        config RB_SIM_NODE
+            bool "Simulated sensor node instead of ESP-NOW"
+            default n
+            help
+                Feeds simulated sensor packets into the controller in place
+                of the real C6 (diagnostic mode, QEMU tests). The safety logic
+                is exactly the same; only the source of the packets changes.
+
+        config RB_OUTPUTS_SIMULATED
+            bool "Simulated outputs (log only, don't drive the buzzer/relay)"
+            default n
+            help
+                For bench or QEMU runs without the relay board. Never enable
+                this on the installed system.
+
     endmenu
 
     menu "Safety logic (ESP32-S3)"

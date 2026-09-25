@@ -180,18 +180,27 @@ static void safety_task(void *arg)
     }
 }
 
-esp_err_t rb_controller_start(const rb_controller_config_t *config, const rb_controller_hooks_t *hooks)
+esp_err_t rb_controller_init(const rb_controller_config_t *config)
 {
-    ESP_RETURN_ON_FALSE(config != NULL && safety_config_valid(&config->safety), ESP_ERR_INVALID_ARG, TAG,
-                        "invalid safety configuration");
-    s_cfg = *config;
-    if (hooks != NULL) {
-        s_hooks = *hooks;
+    if (s_rx_queue != NULL) {
+        return ESP_OK;
     }
     s_rx_queue = xQueueCreate(config->rx_queue_len, sizeof(rb_espnow_rx_t));
     s_event_queue = xQueueCreate(config->event_queue_len, sizeof(rb_event_t));
     s_snapshot_lock = xSemaphoreCreateMutex();
     ESP_RETURN_ON_FALSE(s_rx_queue && s_event_queue && s_snapshot_lock, ESP_ERR_NO_MEM, TAG, "no memory");
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_start(const rb_controller_config_t *config, const rb_controller_hooks_t *hooks)
+{
+    ESP_RETURN_ON_FALSE(config != NULL && safety_config_valid(&config->safety), ESP_ERR_INVALID_ARG, TAG,
+                        "invalid safety configuration");
+    ESP_RETURN_ON_ERROR(rb_controller_init(config), TAG, "queues");
+    s_cfg = *config;
+    if (hooks != NULL) {
+        s_hooks = *hooks;
+    }
     ESP_RETURN_ON_FALSE(xTaskCreate(safety_task, "safety", SAFETY_TASK_STACK, NULL, config->safety_task_priority, NULL) ==
                             pdPASS,
                         ESP_ERR_NO_MEM, TAG, "safety task");

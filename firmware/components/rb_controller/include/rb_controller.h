@@ -97,6 +97,13 @@ typedef struct {
 
 rb_controller_config_t rb_controller_config_from_kconfig(void);
 
+/*
+ * Create the queues. Call it before anything that posts events (e.g. the
+ * fault manager at boot) so no early event is lost. rb_controller_start()
+ * calls it if needed.
+ */
+esp_err_t rb_controller_init(const rb_controller_config_t *config);
+
 esp_err_t rb_controller_start(const rb_controller_config_t *config, const rb_controller_hooks_t *hooks);
 
 /* Queue the ESP-NOW receiver posts to (item type rb_espnow_rx_t). */
