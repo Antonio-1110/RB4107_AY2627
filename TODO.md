@@ -59,9 +59,9 @@ RB4107/
 ```
 
 - [x] Keep shared communication definitions synchronized between C6 and S3.
-- [ ] Avoid monolithic firmware files.
-- [ ] Centralize configurable parameters.
-- [ ] Document build/flash/test procedures.
+- [x] Avoid monolithic firmware files.
+- [x] Centralize configurable parameters.
+- [x] Document build/flash/test procedures.
 
 ---
 
@@ -110,7 +110,7 @@ The C6 should **not** contain the overall cooking safety state machine.
 - [x] Read target distance if supported.
 - [x] Add validity/error detection.
 - [ ] Test continuous operation.
-- [ ] Investigate current false static-presence detections.
+- [ ] Investigate current false static-presence detections. *(Hypotheses, tooling and knobs: `firmware/02_c4002_integration/README.md`.)*
 - [x] Expose configurable C4002 sensitivity/detection parameters where supported.
 
 Create a clean internal representation similar to:
@@ -1070,10 +1070,10 @@ Sensors → C6 → Serial Monitor
 
 ## Milestone 2 — ESP-NOW
 
-- [ ] Define shared protocol.
-- [ ] Implement C6 sender.
-- [ ] Implement S3 receiver.
-- [ ] Implement node health monitoring.
+- [x] Define shared protocol.
+- [x] Implement C6 sender.
+- [x] Implement S3 receiver.
+- [x] Implement node health monitoring.
 
 ### Success
 
@@ -1087,10 +1087,10 @@ Sensors → C6 → ESP-NOW → S3 → Serial Monitor
 
 Use simulated sensor data initially.
 
-- [ ] Implement states.
-- [ ] Implement timers.
-- [ ] Implement transitions.
-- [ ] Implement tests.
+- [x] Implement states.
+- [x] Implement timers.
+- [x] Implement transitions.
+- [x] Implement tests.
 
 ### Success
 
@@ -1106,8 +1106,8 @@ Correct State Transitions
 
 ## Milestone 4 — Physical Safety Outputs
 
-- [ ] Integrate buzzer.
-- [ ] Integrate relay.
+- [x] Integrate buzzer.
+- [x] Integrate relay.
 - [ ] Verify boot state.
 - [ ] Verify shutdown behaviour.
 
@@ -1123,7 +1123,7 @@ State Machine
 
 ## Milestone 5 — Full Sensor Integration
 
-- [ ] Feed actual ESP-NOW sensor data into safety state machine.
+- [x] Feed actual ESP-NOW sensor data into safety state machine.
 - [ ] Tune presence behaviour.
 - [ ] Collect thermal data.
 - [ ] Begin threshold experimentation.
@@ -1142,7 +1142,7 @@ Physical Outputs
 
 ## Milestone 6 — Ethernet
 
-- [ ] Configure S3 Ethernet.
+- [x] Configure S3 Ethernet.
 - [ ] Connect to LAN.
 - [ ] Verify MacBook connectivity.
 
@@ -1150,11 +1150,11 @@ Physical Outputs
 
 ## Milestone 7 — MQTT
 
-- [ ] Install/configure Mosquitto.
-- [ ] Implement S3 MQTT client.
-- [ ] Publish telemetry.
-- [ ] Publish events.
-- [ ] Implement reconnect.
+- [ ] Install/configure Mosquitto. *(Config + scripts ready in `tools/mqtt`; install on the MacBook.)*
+- [x] Implement S3 MQTT client.
+- [x] Publish telemetry.
+- [x] Publish events.
+- [x] Implement reconnect.
 
 ### Success
 
@@ -1166,10 +1166,10 @@ S3 → Ethernet → Mosquitto → mosquitto_sub
 
 ## Milestone 8 — Django
 
-- [ ] Create Django project.
-- [ ] Implement persistent MQTT subscriber.
-- [ ] Parse/validate telemetry.
-- [ ] Log events.
+- [x] Create Django project.
+- [x] Implement persistent MQTT subscriber.
+- [x] Parse/validate telemetry.
+- [x] Log events.
 
 ### Success
 
@@ -1211,6 +1211,8 @@ Do not silently invent answers to these.
 - [ ] Whether Ethernet or Wi-Fi will be used for final S3 → MQTT communication.
 
 Mark unresolved hardware dependencies clearly instead of guessing.
+
+> Status of every question (configurable default or bench check): [`docs/open_questions.md`](docs/open_questions.md).
 
 ---
 
