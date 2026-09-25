@@ -17,6 +17,8 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static rb_espnow_tx_stats_t s_tx;
 static uint32_t s_sequence;
 static bool s_started;
+static QueueHandle_t s_rx_queue;
+static rb_espnow_rx_stats_t s_rx;
 
 static void on_sent(const esp_now_send_info_t *info, esp_now_send_status_t status)
 {
@@ -106,5 +108,52 @@ void rb_espnow_get_tx_stats(rb_espnow_tx_stats_t *out)
 {
     portENTER_CRITICAL(&s_lock);
     *out = s_tx;
+    portEXIT_CRITICAL(&s_lock);
+}
+
+static void on_received(const esp_now_recv_info_t *info, const uint8_t *data, int len)
+{
+    rb_espnow_rx_t item;
+    const rb_decode_result_t res = rb_protocol_decode(data, len > 0 ? (size_t)len : 0, &item.packet);
+
+    portENTER_CRITICAL(&s_lock);
+    switch (res) {
+    case RB_DECODE_OK: break;
+    case RB_DECODE_ERR_LENGTH: s_rx.bad_length++; break;
+    case RB_DECODE_ERR_MAGIC: s_rx.bad_magic++; break;
+    case RB_DECODE_ERR_VERSION: s_rx.bad_version++; break;
+    case RB_DECODE_ERR_TYPE: s_rx.bad_type++; break;
+    case RB_DECODE_ERR_CRC: s_rx.bad_crc++; break;
+    }
+    portEXIT_CRITICAL(&s_lock);
+    if (res != RB_DECODE_OK) {
+        return;
+    }
+
+    memcpy(item.src_mac, info->src_addr, 6);
+    item.rssi = info->rx_ctrl != NULL ? (int8_t)info->rx_ctrl->rssi : 0;
+    item.rx_ms = (uint32_t)(esp_timer_get_time() / 1000);
+    /* Runs in the Wi-Fi task: never block here. */
+    const bool queued = xQueueSend(s_rx_queue, &item, 0) == pdTRUE;
+    portENTER_CRITICAL(&s_lock);
+    if (queued) {
+        s_rx.received++;
+    } else {
+        s_rx.queue_overflow++;
+    }
+    portEXIT_CRITICAL(&s_lock);
+}
+
+esp_err_t rb_espnow_start_receiver(QueueHandle_t queue)
+{
+    ESP_RETURN_ON_FALSE(s_started && queue != NULL, ESP_ERR_INVALID_STATE, TAG, "start ESP-NOW first");
+    s_rx_queue = queue;
+    return esp_now_register_recv_cb(on_received);
+}
+
+void rb_espnow_get_rx_stats(rb_espnow_rx_stats_t *out)
+{
+    portENTER_CRITICAL(&s_lock);
+    *out = s_rx;
     portEXIT_CRITICAL(&s_lock);
 }

@@ -323,6 +323,25 @@ menu "RB4107 configuration"
             range 1000 600000
             default 10000
 
+        menu "Sensor node link"
+
+            config RB_CTRL_NODE_ID
+                int "Expected sensor node ID"
+                range 1 65535
+                default 1
+                help
+                    Packets from any other node ID are counted and dropped.
+
+            config RB_CTRL_RX_QUEUE_LEN
+                int "ESP-NOW receive queue length"
+                range 4 64
+                default 16
+                help
+                    A full queue drops packets and counts them as a queue
+                    overflow fault.
+
+        endmenu
+
     endmenu
 
 endmenu
