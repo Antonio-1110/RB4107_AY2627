@@ -19,7 +19,9 @@ See the root [`README.md`](../README.md) for the section → folder map.
 ## Managed dependencies and offline builds
 
 Two components use packages from the Espressif component registry, which
-`idf.py` downloads on the first build:
+`idf.py` downloads on the first build. The component manager reads the
+manifests of every component in `firmware/components`, so any project may
+download them once, even if it doesn't compile them:
 
 | Component | Registry package | Why |
 |---|---|---|
