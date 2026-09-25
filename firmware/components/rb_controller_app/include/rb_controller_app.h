@@ -15,7 +15,7 @@ extern "C" {
  *   3. safety task (state machine, node health, outputs, faults)
  *   4. sensor input: ESP-NOW receiver, or the simulated node (RB_SIM_NODE)
  *   5. telemetry task, then network/SNTP/MQTT (nothing above waits for these)
- *   6. diagnostic console (RB_DIAG_CONSOLE)
+ *   6. diagnostic console (RB_DIAG_CONSOLE), continuity monitor (RB_DIAG_CONTINUITY_MONITOR)
  */
 esp_err_t rb_controller_app_start(void);
 

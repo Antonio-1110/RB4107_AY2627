@@ -18,7 +18,7 @@ Flow:
 
 For the second variant (MacBook disconnected entirely), unplug the MacBook's
 network or power it off instead. This script can't observe that, so use
-the S3 serial log (project 30) as the record.
+the S3 serial log (firmware 29, continuity monitor) as the record.
 
 Needs: pip install paho-mqtt
 """

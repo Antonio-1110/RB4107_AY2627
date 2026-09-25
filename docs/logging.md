@@ -55,7 +55,7 @@ The Django subscriber uses the same shape: `[MQTT][WARNING] broker disconnected 
 | Where | How |
 |---|---|
 | Global default | `idf.py menuconfig` → Component config → Log → *Default log verbosity* |
-| DEBUG available at runtime | set *Maximum log verbosity* to Debug (`CONFIG_LOG_MAXIMUM_LEVEL_DEBUG`), which projects 27/29/30 already do |
+| DEBUG available at runtime | set *Maximum log verbosity* to Debug (`CONFIG_LOG_MAXIMUM_LEVEL_DEBUG`), which firmware 29 already does |
 | Per tag at boot | menuconfig → *RB4107 configuration* → *Logging*: `RB_LOG_DEBUG_TAGS="ESPNOW,SAFETY"`, `RB_LOG_QUIET_TAGS="TELEMETRY"` |
-| Per tag at runtime | diagnostic console (project 27): `log SAFETY debug` |
+| Per tag at runtime | diagnostic console (firmware 29): `log SAFETY debug` |
 | Django | `RB4107_LOG_LEVEL=DEBUG python manage.py mqtt_subscriber` |

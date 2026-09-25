@@ -1,9 +1,0 @@
-CONFIG_IDF_TARGET="esp32s3"
-# Waveshare ESP32-S3-ETH-8DI-8RO: at least 4 MB flash; the networked builds
-# need more than the default 1 MB app partition.
-CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
-CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
-# Diagnostic build: console, simulated node, DEBUG available at runtime.
-CONFIG_RB_DIAG_CONSOLE=y
-CONFIG_RB_SIM_NODE=y
-CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y

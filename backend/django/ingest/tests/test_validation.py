@@ -14,7 +14,7 @@ def payload(obj) -> bytes:
 
 
 class FirmwareSamplesTest(SimpleTestCase):
-    """Messages captured from the real firmware (project 22 in QEMU) must be accepted."""
+    """Messages captured from the real firmware (controller running in QEMU) must be accepted."""
 
     def test_all_firmware_samples_are_valid(self):
         self.assertGreaterEqual(len(SAMPLES), 10)

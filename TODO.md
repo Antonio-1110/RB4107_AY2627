@@ -34,7 +34,7 @@ Anything downstream of Django is currently out of scope.
 
 # 0. Repository / Project Structure
 
-- [x] Establish clean repository structure for the different software components.
+- [x] Establish clean repository structure for the different software components. *(10 ESP-IDF projects in `firmware/` + shared components; see `README.md` for which folder covers each section.)*
 
 Suggested structure:
 

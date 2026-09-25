@@ -6,6 +6,7 @@
 #include "rb_app_faults.h"
 #include "rb_config.h"
 #include "rb_connectivity.h"
+#include "rb_continuity.h"
 #include "rb_controller.h"
 #include "rb_diag.h"
 #include "rb_espnow.h"
@@ -65,6 +66,9 @@ esp_err_t rb_controller_app_start(void)
 
 #if CONFIG_RB_DIAG_CONSOLE
     rb_diag_start();
+#endif
+#if CONFIG_RB_DIAG_CONTINUITY_MONITOR
+    rb_continuity_start();
 #endif
     return ESP_OK;
 }

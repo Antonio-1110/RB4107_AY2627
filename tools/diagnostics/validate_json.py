@@ -3,7 +3,6 @@
 
 Accepts any text: every line holding a JSON object is checked, so it works on
     - `mosquitto_sub -t 'rb4107/#' -v` output (topic, space, JSON),
-    - firmware serial logs (project 21 prints one JSON document per line),
     - plain files with one JSON document per line.
 
 Usage:

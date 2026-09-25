@@ -2,6 +2,10 @@
 
 TODO section 28. Targets: **ESP32-S3** and the **host PC** (ESP-IDF `linux` target).
 
+This project also covers the logic-only sections, which no longer have
+projects of their own: 4 (protocol), 9 (state machine), 10 (behaviour with
+the menuconfig timings), 11 (timers on a simulated clock) and 21 (JSON).
+
 Unity tests for the logic that decides safety. It is all plain C with
 timestamps passed in, so the tests run a simulated clock and need no
 hardware.
@@ -36,15 +40,16 @@ idf.py build flash monitor                              # prints "ALL TESTS PASS
 | Sensor node disappears / returns | `test_health_online_stale_offline_and_recovery`, `test_node_disappears_and_returns` (node health → state machine) |
 | MQTT disconnects / reconnects | `test_mqtt_disconnect_and_reconnect_do_not_affect_safety` |
 
-Plus: self-test pass/fail/timeout, latched SHUTDOWN and reset, reset
+Plus: the menuconfig safety settings are valid and give the configured
+warning/shutdown timing (`test_kconfig.c`); self-test pass/fail/timeout, latched SHUTDOWN and reset, reset
 restarting the timing, heat detected after the person already left, the
 optional rate threshold, the timing hook only ever shortening, 32-bit clock
 wrap-around, config validation, the sequence tracking edge cases, protocol
 corruption on every byte, C4002 frame resync and errors, thermal features,
 JSON null/escaping/overflow, and the topic table.
 
-**Result:** 47 tests, 0 failures, both on the host (linux target) and on
-the ESP32-S3 (QEMU).
+**Result:** 49 tests, 0 failures on the host (linux target). The first 47
+were also run on the ESP32-S3 in QEMU, all passing.
 
 These tests found two real bugs, both fixed in `safety.c`. After a self-test
 failure or timeout, FAULT recovered to IDLE straight away because its exit

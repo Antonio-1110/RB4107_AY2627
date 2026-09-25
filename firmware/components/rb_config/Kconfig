@@ -682,6 +682,15 @@ menu "RB4107 configuration"
             bool "Diagnostic console (esp_console REPL on the serial port)"
             default n
 
+        config RB_DIAG_CONTINUITY_MONITOR
+            bool "Critical-failure continuity monitor"
+            default n
+            help
+                While MQTT is down, log every 5 s that the safety loop is
+                alive (state, node link, buzzer, relay), and print a PASS/FAIL
+                verdict when it reconnects (TODO section 30). Runs at
+                priority 1, below everything it measures.
+
         config RB_DIAG_TEST_TIMERS_AT_BOOT
             bool "Start with accelerated test timers"
             default n

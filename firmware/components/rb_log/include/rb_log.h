@@ -9,7 +9,7 @@
  *   fast loop. RB_LOG_EVERY_MS() rate-limits a line that could repeat.
  * - Verbosity: CONFIG_LOG_DEFAULT_LEVEL globally, RB_LOG_DEBUG_TAGS /
  *   RB_LOG_QUIET_TAGS per tag at boot, or `log <tag> <level>` in the
- *   diagnostic console (project 27).
+ *   diagnostic console (firmware 29).
  */
 #include <stdint.h>
 #include "esp_log.h"

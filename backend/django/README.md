@@ -97,5 +97,5 @@ python manage.py test ingest
 ```
 
 The fixtures in `ingest/tests/firmware_samples.jsonl` are real messages
-published by the firmware (project 22, run in QEMU against Mosquitto). The
+published by the controller firmware (run in QEMU against Mosquitto). The
 broker integration test is skipped when no broker is running.

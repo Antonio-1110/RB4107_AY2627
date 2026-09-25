@@ -13,4 +13,4 @@
 | 9 | Experimental thresholds configurable | every threshold and timeout in menuconfig, flagged UNVERIFIED |
 | 10 | State machine independently testable | pure C with injected time; 47 Unity tests on host and target (28) |
 | 11 | Log state transitions and faults clearly | transition callback → `SAFETY` log + MQTT event; fault manager logs every raise/clear (25) |
-| 12 | One milestone at a time | one ESP-IDF project per TODO section, each building on the previous components (this repository's layout) |
+| 12 | One milestone at a time | bring-up projects test each sensor and board part on its own (02, 03, 06, 13, 14, 15, 17) before the full firmwares (05, 29); unit tests (28) check the logic before hardware |

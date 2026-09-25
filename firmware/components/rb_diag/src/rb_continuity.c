@@ -1,4 +1,4 @@
-#include "continuity_monitor.h"
+#include "rb_continuity.h"
 
 #include <inttypes.h>
 #include "esp_log.h"
@@ -78,7 +78,7 @@ static void monitor_task(void *arg)
     }
 }
 
-esp_err_t continuity_monitor_start(void)
+esp_err_t rb_continuity_start(void)
 {
     return xTaskCreate(monitor_task, "continuity", 4096, NULL, 1, NULL) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }

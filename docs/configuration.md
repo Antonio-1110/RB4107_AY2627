@@ -183,6 +183,12 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 |---|---|---|---|---|
 | `CONFIG_RB_SIM_NODE` | Simulated sensor node instead of ESP-NOW | `n` |  |  |
 | `CONFIG_RB_OUTPUTS_SIMULATED` | Simulated outputs (log only, don't drive the buzzer/relay) | `n` |  |  |
+| `CONFIG_RB_DIAG_CONSOLE` | Diagnostic console (esp_console REPL on the serial port) | `n` |  |  |
+| `CONFIG_RB_DIAG_CONTINUITY_MONITOR` | Critical-failure continuity monitor | `n` |  |  |
+| `CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT` | Start with accelerated test timers | `n` |  |  |
+| `CONFIG_RB_DIAG_TEST_WARNING_S` | Test mode: unattended time before WARNING (s) | `5` | 1 – 600 |  |
+| `CONFIG_RB_DIAG_TEST_SHUTDOWN_S` | Test mode: shutdown timeout (s) | `10` | 2 – 600 |  |
+| `CONFIG_RB_DIAG_TEST_FAULT_SHUTDOWN_S` | Test mode: shut down after this long in FAULT (s, 0 = never) | `10` | 0 – 600 |  |
 
 ## Safety logic (ESP32-S3)
 

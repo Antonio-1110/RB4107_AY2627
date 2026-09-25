@@ -5,8 +5,14 @@
  *     -> safety state machine -> buzzer + shutdown relay
  *     -> Ethernet -> Mosquitto (MacBook) -> Django subscriber
  *
+ * This is the production S3 firmware and also covers:
+ *   - section 27 (diagnostic mode): serial console, plus the simulated node
+ *     with sdkconfig.qemu or RB_SIM_NODE,
+ *   - section 30 (critical failure test): continuity monitor
+ *     (RB_DIAG_CONTINUITY_MONITOR).
+ *
  * Every component is wired in components/rb_controller_app; the test
- * procedure is in README.md.
+ * procedures are in README.md.
  */
 #include "esp_err.h"
 #include "rb_controller_app.h"

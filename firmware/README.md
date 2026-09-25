@@ -1,9 +1,18 @@
 # Firmware
 
-Every numbered folder in here is a standalone ESP-IDF project for one section of
-[`TODO.md`](../TODO.md). They share code through [`components/`](components):
-each project's `CMakeLists.txt` adds `../components` to `EXTRA_COMPONENT_DIRS`
-and builds only the components its `main` requires.
+Every numbered folder in here is a standalone ESP-IDF project, numbered after
+the [`TODO.md`](../TODO.md) section it starts from. They share code through
+[`components/`](components): each project's `CMakeLists.txt` adds
+`../components` to `EXTRA_COMPONENT_DIRS` and builds only the components its
+`main` requires.
+
+| Project | Role |
+|---|---|
+| **05_espnow_c6_sender** | complete C6 sensor-node firmware |
+| **29_end_to_end** | complete S3 controller firmware (with diagnostic console and critical-failure monitor) |
+| 28_state_machine_tests | unit tests, on the PC (linux target) or the board |
+| 02_c4002_integration, 03_mlx90640_integration | C6 sensor bring-up: one sensor at a time |
+| 06_s3_controller_base, 13_buzzer, 14_relay_shutdown, 15_rtc_time, 17_s3_network | S3 hardware bring-up: one board part at a time |
 
 Build any project the usual way:
 
