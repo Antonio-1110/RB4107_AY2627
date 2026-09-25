@@ -732,9 +732,9 @@ rb4107/
     └── fault
 ```
 
-- [ ] Finalize topic naming.
-- [ ] Document topics.
-- [ ] Keep topic prefix configurable.
+- [x] Finalize topic naming.
+- [x] Document topics.
+- [x] Keep topic prefix configurable.
 
 ---
 
