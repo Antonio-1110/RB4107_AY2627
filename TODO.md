@@ -664,14 +664,14 @@ Wi-Fi may remain available as an alternative if needed.
 Use **Mosquitto** unless there is a strong reason to choose another broker.
 
 - [ ] Install Mosquitto.
-- [ ] Configure broker.
-- [ ] Allow connections from LAN.
+- [x] Configure broker.
+- [x] Allow connections from LAN.
 - [ ] Start broker.
 - [ ] Determine MacBook LAN IP.
 - [ ] Verify port 1883 availability.
 - [ ] Test local publish/subscribe.
 - [ ] Test publish/subscribe from another LAN device.
-- [ ] Document commands in README.
+- [x] Document commands in README.
 
 Initial architecture:
 
