@@ -58,7 +58,7 @@ RB4107/
 └── README.md
 ```
 
-- [ ] Keep shared communication definitions synchronized between C6 and S3.
+- [x] Keep shared communication definitions synchronized between C6 and S3.
 - [ ] Avoid monolithic firmware files.
 - [ ] Centralize configurable parameters.
 - [ ] Document build/flash/test procedures.
@@ -184,17 +184,17 @@ struct ThermalReading {
 
 Create a shared/versioned communication protocol.
 
-- [ ] Define protocol version.
-- [ ] Define node ID.
-- [ ] Define sequence number.
-- [ ] Define message types.
-- [ ] Define sensor validity flags.
-- [ ] Define heartbeat mechanism.
-- [ ] Define fault message.
-- [ ] Verify packet size against ESP-NOW limits.
-- [ ] Consider struct packing/alignment.
-- [ ] Add compile-time size checks.
-- [ ] Document protocol.
+- [x] Define protocol version.
+- [x] Define node ID.
+- [x] Define sequence number.
+- [x] Define message types.
+- [x] Define sensor validity flags.
+- [x] Define heartbeat mechanism.
+- [x] Define fault message.
+- [x] Verify packet size against ESP-NOW limits.
+- [x] Consider struct packing/alignment.
+- [x] Add compile-time size checks.
+- [x] Document protocol.
 
 Example:
 
