@@ -546,12 +546,12 @@ buzzer_set_pattern(...);
 
 # 14. Relay / Shutdown Driver
 
-- [ ] Identify correct Waveshare relay interface.
-- [ ] Confirm relay polarity.
-- [ ] Determine safe boot state.
-- [ ] Implement initialization.
-- [ ] Implement shutdown activation.
-- [ ] Implement shutdown release/reset.
+- [x] Identify correct Waveshare relay interface. *(TCA9554 @0x20 per legacy code; verify on board.)*
+- [ ] Confirm relay polarity. *(Configurable: `RB_SHUTDOWN_POLARITY`, `RB_RELAY_ACTIVE_LEVEL`.)*
+- [ ] Determine safe boot state. *(Configurable: `RB_SHUTDOWN_BOOT_STATE`; glitch-free init order implemented.)*
+- [x] Implement initialization.
+- [x] Implement shutdown activation.
+- [x] Implement shutdown release/reset.
 
 Suggested API:
 

@@ -358,6 +358,51 @@ menu "RB4107 configuration"
 
         endmenu
 
+        menu "Shutdown relay"
+
+            config RB_SHUTDOWN_RELAY_CHANNEL
+                int "Relay channel used for shutdown (1-8)"
+                range 1 8
+                default 1
+
+            config RB_RELAY_ACTIVE_LEVEL
+                int "TCA9554 output level that energises a relay"
+                range 0 1
+                default 1
+                help
+                    From legacy/main_controller (TCA9554_ACTIVE_LEVEL = 1).
+                    UNCONFIRMED.
+
+            choice RB_SHUTDOWN_POLARITY
+                prompt "Relay polarity"
+                default RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN
+                help
+                    OPEN QUESTION: depends on how the appliance is wired to
+                    the relay contacts.
+                config RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN
+                    bool "energise relay to shut down (appliance on NC contact)"
+                config RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN
+                    bool "de-energise relay to shut down (appliance on NO contact, fail-safe)"
+            endchoice
+
+            choice RB_SHUTDOWN_BOOT_STATE
+                prompt "Shutdown output at boot"
+                default RB_SHUTDOWN_BOOT_RELEASED
+                help
+                    OPEN QUESTION: safe relay state during boot.
+                config RB_SHUTDOWN_BOOT_RELEASED
+                    bool "released (appliance powered)"
+                config RB_SHUTDOWN_BOOT_ACTIVE
+                    bool "active (appliance off until the controller is running)"
+            endchoice
+
+            config RB_SHUTDOWN_VERIFY_PERIOD_MS
+                int "Read back and verify the relay output every (ms)"
+                range 100 60000
+                default 1000
+
+        endmenu
+
         menu "Sensor node link"
 
             config RB_CTRL_NODE_ID
