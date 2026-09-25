@@ -824,19 +824,19 @@ Do not flood MQTT with unnecessary raw thermal frames.
 
 Scope is currently only MQTT ingestion.
 
-- [ ] Create Django project.
-- [ ] Create appropriate Django app.
-- [ ] Add MQTT dependency.
-- [ ] Add configuration for broker address.
-- [ ] Connect to Mosquitto.
-- [ ] Subscribe to `rb4107/#`.
-- [ ] Receive messages.
-- [ ] Parse JSON.
-- [ ] Validate protocol/schema version.
-- [ ] Validate required fields.
-- [ ] Log incoming telemetry.
-- [ ] Log incoming events.
-- [ ] Handle malformed messages safely.
+- [x] Create Django project.
+- [x] Create appropriate Django app.
+- [x] Add MQTT dependency.
+- [x] Add configuration for broker address.
+- [x] Connect to Mosquitto.
+- [x] Subscribe to `rb4107/#`.
+- [x] Receive messages.
+- [x] Parse JSON.
+- [x] Validate protocol/schema version.
+- [x] Validate required fields.
+- [x] Log incoming telemetry.
+- [x] Log incoming events.
+- [x] Handle malformed messages safely.
 
 No frontend/dashboard is required yet.
 

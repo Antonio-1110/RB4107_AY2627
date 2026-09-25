@@ -59,6 +59,7 @@ their own; the table says where they are applied.
 | 20 MQTT topic structure | [`firmware/20_mqtt_topics`](firmware/20_mqtt_topics), spec in [`docs/mqtt_topics.md`](docs/mqtt_topics.md) | ESP32-S3 |
 | 21 MQTT JSON schema | [`firmware/21_mqtt_json`](firmware/21_mqtt_json), spec in [`docs/mqtt_schema.md`](docs/mqtt_schema.md) | ESP32-S3 |
 | 22 MQTT publishing strategy | [`firmware/22_mqtt_publishing`](firmware/22_mqtt_publishing) | ESP32-S3 |
+| 23 Django project (MQTT ingestion) | [`backend/django`](backend/django) (not an ESP32 project) | MacBook |
 
 ## Toolchain
 
