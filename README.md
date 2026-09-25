@@ -55,6 +55,7 @@ their own; the table says where they are applied.
 | 16 Fault manager | [`firmware/16_fault_manager`](firmware/16_fault_manager) | ESP32-S3 |
 | 17 S3 network (Ethernet / Wi-Fi) | [`firmware/17_s3_network`](firmware/17_s3_network) | ESP32-S3 |
 | 18 MacBook MQTT broker | [`tools/mqtt`](tools/mqtt) (not an ESP32 project) | MacBook |
+| 19 MQTT client on the S3 | [`firmware/19_mqtt_client`](firmware/19_mqtt_client) | ESP32-S3 |
 
 ## Toolchain
 

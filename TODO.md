@@ -689,12 +689,12 @@ Do not hard-code the MacBook address deep in firmware.
 
 # 19. MQTT Client on S3
 
-- [ ] Initialize ESP-IDF MQTT client.
-- [ ] Configure broker IP.
-- [ ] Connect.
-- [ ] Detect disconnect.
-- [ ] Automatically reconnect.
-- [ ] Track connection state.
+- [x] Initialize ESP-IDF MQTT client.
+- [x] Configure broker IP.
+- [x] Connect.
+- [x] Detect disconnect.
+- [x] Automatically reconnect.
+- [x] Track connection state.
 
 Internal states:
 

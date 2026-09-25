@@ -12,10 +12,15 @@
 #include "esp_wifi.h"
 #include "rb_config.h"
 #include "rb_wifi.h"
-#if CONFIG_RB_NET_ETHERNET
+#if CONFIG_RB_NET_ETHERNET || CONFIG_RB_NET_QEMU_OPENETH
 #include "esp_eth.h"
+#endif
+#if CONFIG_RB_NET_ETHERNET
 #include "esp_eth_mac_w5500.h"
 #include "esp_eth_phy_w5500.h"
+#endif
+#if CONFIG_RB_NET_QEMU_OPENETH
+#include "esp_eth_mac_openeth.h"
 #endif
 
 static const char *TAG = "NET";
@@ -48,7 +53,7 @@ static void on_got_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     set_state(RB_NET_CONNECTED);
 }
 
-#if CONFIG_RB_NET_ETHERNET
+#if CONFIG_RB_NET_ETHERNET || CONFIG_RB_NET_QEMU_OPENETH
 
 static void on_eth_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
@@ -65,6 +70,47 @@ static void on_eth_event(void *arg, esp_event_base_t base, int32_t id, void *dat
         break;
     }
 }
+
+/* Install the Ethernet driver, attach it to a DHCP netif and start it. */
+static esp_err_t attach_ethernet(esp_eth_mac_t *mac, esp_eth_phy_t *phy, const char *name)
+{
+    ESP_RETURN_ON_FALSE(mac && phy, ESP_FAIL, TAG, "%s driver", name);
+    const esp_eth_config_t eth_cfg = ETH_DEFAULT_CONFIG(mac, phy);
+    esp_eth_handle_t eth = NULL;
+    ESP_RETURN_ON_ERROR(esp_eth_driver_install(&eth_cfg, &eth), TAG, "%s not responding (check SPI pins)", name);
+
+    /* The W5500 has no factory MAC address: use the one reserved for Ethernet in eFuse. */
+    uint8_t mac_addr[6];
+    ESP_RETURN_ON_ERROR(esp_read_mac(mac_addr, ESP_MAC_ETH), TAG, "MAC");
+    ESP_RETURN_ON_ERROR(esp_eth_ioctl(eth, ETH_CMD_S_MAC_ADDR, mac_addr), TAG, "set MAC");
+
+    const esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
+    esp_netif_t *netif = esp_netif_new(&netif_cfg);
+    ESP_RETURN_ON_ERROR(esp_netif_attach(netif, esp_eth_new_netif_glue(eth)), TAG, "netif");
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, on_eth_event, NULL), TAG, "eth events");
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, on_got_ip, NULL), TAG, "ip events");
+    set_state(RB_NET_DOWN);
+    ESP_LOGI(TAG, "%s Ethernet started, MAC " MACSTR, name, MAC2STR(mac_addr));
+    /* Link loss and DHCP renewal are handled by esp_eth / esp_netif. */
+    return esp_eth_start(eth);
+}
+
+#endif
+
+#if CONFIG_RB_NET_QEMU_OPENETH
+
+static esp_err_t start_qemu_openeth(void)
+{
+    eth_mac_config_t mac_cfg = ETH_MAC_DEFAULT_CONFIG();
+    eth_phy_config_t phy_cfg = ETH_PHY_DEFAULT_CONFIG();
+    phy_cfg.autonego_timeout_ms = 100;
+    ESP_LOGW(TAG, "using QEMU emulated Ethernet: test builds only");
+    return attach_ethernet(esp_eth_mac_new_openeth(&mac_cfg), esp_eth_phy_new_generic(&phy_cfg), "QEMU OpenETH");
+}
+
+#endif
+
+#if CONFIG_RB_NET_ETHERNET
 
 static esp_err_t start_ethernet(void)
 {
@@ -98,24 +144,7 @@ static esp_err_t start_ethernet(void)
     esp_eth_phy_t *phy = esp_eth_phy_new_w5500(&phy_cfg);
     ESP_RETURN_ON_FALSE(mac && phy, ESP_FAIL, TAG, "W5500 driver");
 
-    const esp_eth_config_t eth_cfg = ETH_DEFAULT_CONFIG(mac, phy);
-    esp_eth_handle_t eth = NULL;
-    ESP_RETURN_ON_ERROR(esp_eth_driver_install(&eth_cfg, &eth), TAG, "W5500 not responding (check SPI pins)");
-
-    /* The W5500 has no factory MAC address: use the one reserved for Ethernet in eFuse. */
-    uint8_t mac_addr[6];
-    ESP_RETURN_ON_ERROR(esp_read_mac(mac_addr, ESP_MAC_ETH), TAG, "MAC");
-    ESP_RETURN_ON_ERROR(esp_eth_ioctl(eth, ETH_CMD_S_MAC_ADDR, mac_addr), TAG, "set MAC");
-
-    const esp_netif_config_t netif_cfg = ESP_NETIF_DEFAULT_ETH();
-    esp_netif_t *netif = esp_netif_new(&netif_cfg);
-    ESP_RETURN_ON_ERROR(esp_netif_attach(netif, esp_eth_new_netif_glue(eth)), TAG, "netif");
-    ESP_RETURN_ON_ERROR(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, on_eth_event, NULL), TAG, "eth events");
-    ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, on_got_ip, NULL), TAG, "ip events");
-    set_state(RB_NET_DOWN);
-    ESP_LOGI(TAG, "W5500 Ethernet started, MAC " MACSTR, MAC2STR(mac_addr));
-    /* Link loss and DHCP renewal are handled by esp_eth / esp_netif. */
-    return esp_eth_start(eth);
+    return attach_ethernet(mac, phy, "W5500");
 }
 
 #elif CONFIG_RB_NET_WIFI
@@ -181,6 +210,8 @@ esp_err_t rb_net_start(rb_net_state_cb_t cb, void *ctx)
     ESP_RETURN_ON_FALSE(err == ESP_OK || err == ESP_ERR_INVALID_STATE, err, TAG, "event loop");
 #if CONFIG_RB_NET_ETHERNET
     return start_ethernet();
+#elif CONFIG_RB_NET_QEMU_OPENETH
+    return start_qemu_openeth();
 #else
     return start_wifi();
 #endif
@@ -200,7 +231,7 @@ const char *rb_net_state_name(rb_net_state_t state)
 
 const char *rb_net_interface_name(void)
 {
-#if CONFIG_RB_NET_ETHERNET
+#if CONFIG_RB_NET_ETHERNET || CONFIG_RB_NET_QEMU_OPENETH
     return "Ethernet";
 #elif CONFIG_RB_NET_WIFI
     return "Wi-Fi";
