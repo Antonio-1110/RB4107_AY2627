@@ -9,8 +9,8 @@
  * - The broker publishes a retained Last Will ("offline") on the status topic
  *   if the controller disappears; "online" is published on every connect.
  * - Its state is completely separate from the safety state. Only the
- *   telemetry task calls into it; the safety task never does, so an MQTT
- *   stall can't hold up safety processing.
+ *   telemetry task publishes; the safety task never does, so an MQTT stall
+ *   can't hold up safety processing.
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -50,10 +50,10 @@ rb_mqtt_config_t rb_mqtt_config_from_kconfig(void);
 esp_err_t rb_mqtt_start(const rb_mqtt_config_t *config, rb_mqtt_state_cb_t cb, void *ctx);
 
 /*
- * Queue a message. QoS 0 is dropped while disconnected (stale telemetry is
+ * Publish a message. QoS 0 is dropped while disconnected (stale telemetry is
  * worthless); QoS 1 is kept in the bounded outbox and sent after reconnect.
- * May wait briefly on the client's internal lock, so call it from the
- * telemetry task only.
+ * Can block for the network timeout while the link is bad, so call it from
+ * the telemetry task only, never from the safety task.
  */
 esp_err_t rb_mqtt_publish(const char *topic, const char *payload, int qos, bool retain);
 

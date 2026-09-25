@@ -33,7 +33,7 @@ rb4107/
 | `sensors/<node>/status` | 1 | yes | on node ONLINE/STALE/OFFLINE and sensor validity changes |
 | `events/warning` | 1 | no | entering WARNING |
 | `events/shutdown` | 1 | no | entering SHUTDOWN |
-| `events/fault` | 1 | no | fault raised or cleared; entering FAULT |
+| `events/fault` | 1 | no | fault raised or cleared (incl. node offline/restored); entering the FAULT state |
 
 Retained topics let a subscriber that starts later (e.g. Django) see the
 current status, state and faults straight away.

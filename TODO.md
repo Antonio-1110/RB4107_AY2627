@@ -793,19 +793,19 @@ Initial target:
 ~1 Hz
 ```
 
-- [ ] Make frequency configurable.
+- [x] Make frequency configurable.
 
 ## Event-driven publishing
 
 Immediately publish:
 
-- [ ] State transitions.
-- [ ] Warning activation.
-- [ ] Shutdown activation.
-- [ ] Fault raised.
-- [ ] Fault cleared.
-- [ ] Sensor node offline.
-- [ ] Sensor node restored.
+- [x] State transitions.
+- [x] Warning activation.
+- [x] Shutdown activation.
+- [x] Fault raised.
+- [x] Fault cleared.
+- [x] Sensor node offline.
+- [x] Sensor node restored.
 
 Candidate QoS:
 
@@ -814,7 +814,7 @@ Routine telemetry → QoS 0
 Important events  → QoS 1
 ```
 
-- [ ] Confirm final QoS choices.
+- [x] Confirm final QoS choices.
 
 Do not flood MQTT with unnecessary raw thermal frames.
 
