@@ -42,6 +42,7 @@ their own; the table says where they are applied.
 | 3 MLX90640 integration + thermal features | [`firmware/03_mlx90640_integration`](firmware/03_mlx90640_integration) | ESP32-C6 |
 | 4 Shared ESP-NOW protocol | [`firmware/04_espnow_protocol`](firmware/04_espnow_protocol), spec in [`docs/protocol.md`](docs/protocol.md) | ESP32-C6 or S3 |
 | 5 ESP-NOW C6 sender (complete sensor node) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | ESP32-C6 |
+| 6 ESP32-S3 controller base | [`firmware/06_s3_controller_base`](firmware/06_s3_controller_base) | ESP32-S3 |
 
 ## Toolchain
 

@@ -281,4 +281,48 @@ menu "RB4107 configuration"
 
     endmenu
 
+    menu "Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)"
+
+        comment "Defaults come from legacy/main_controller/main/system_config.h"
+
+        config RB_S3_I2C_PORT
+            int "Board I2C port"
+            range 0 1
+            default 0
+
+        config RB_S3_I2C_SDA_GPIO
+            int "Board I2C SDA GPIO"
+            range 0 48
+            default 42
+
+        config RB_S3_I2C_SCL_GPIO
+            int "Board I2C SCL GPIO"
+            range 0 48
+            default 41
+
+        config RB_S3_I2C_HZ
+            int "Board I2C clock (Hz)"
+            range 100000 400000
+            default 100000
+
+        config RB_S3_TCA9554_ADDRESS
+            hex "TCA9554 relay expander I2C address"
+            default 0x20
+
+        config RB_S3_PCF85063_ADDRESS
+            hex "PCF85063 RTC I2C address"
+            default 0x51
+
+        config RB_S3_BOOT_BUTTON_GPIO
+            int "BOOT button GPIO (-1 = none)"
+            range -1 48
+            default 0
+
+        config RB_S3_HEALTH_LOG_PERIOD_MS
+            int "Controller health log period (ms)"
+            range 1000 600000
+            default 10000
+
+    endmenu
+
 endmenu
