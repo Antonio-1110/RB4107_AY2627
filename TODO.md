@@ -347,13 +347,13 @@ STALE
 OFFLINE
 ```
 
-- [ ] Define configurable stale timeout.
-- [ ] Define configurable offline timeout.
-- [ ] Detect missing packets.
-- [ ] Detect invalid sensor readings.
-- [ ] Detect sensor recovery.
-- [ ] Generate fault events.
-- [ ] Generate recovery events.
+- [x] Define configurable stale timeout.
+- [x] Define configurable offline timeout.
+- [x] Detect missing packets.
+- [x] Detect invalid sensor readings.
+- [x] Detect sensor recovery.
+- [x] Generate fault events.
+- [x] Generate recovery events.
 
 > Missing sensor data must never automatically mean "safe."
 

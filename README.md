@@ -44,6 +44,7 @@ their own; the table says where they are applied.
 | 5 ESP-NOW C6 sender (complete sensor node) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | ESP32-C6 |
 | 6 ESP32-S3 controller base | [`firmware/06_s3_controller_base`](firmware/06_s3_controller_base) | ESP32-S3 |
 | 7 ESP-NOW S3 receiver | [`firmware/07_espnow_s3_receiver`](firmware/07_espnow_s3_receiver) | ESP32-S3 |
+| 8 Sensor node health monitoring | [`firmware/08_sensor_health`](firmware/08_sensor_health) | ESP32-S3 |
 
 ## Toolchain
 

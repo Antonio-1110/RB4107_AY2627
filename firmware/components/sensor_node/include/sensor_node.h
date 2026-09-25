@@ -70,6 +70,49 @@ void sensor_node_init(sensor_node_state_t *node, uint32_t node_id);
 /* Apply one decoded packet received at now_ms. */
 node_seq_result_t sensor_node_on_packet(sensor_node_state_t *node, const rb_packet_t *pkt, uint32_t now_ms);
 
+/* ---- Health monitoring (TODO section 8) ---- */
+
+typedef struct {
+    uint32_t stale_timeout_ms;    /* no packet for this long: ONLINE -> STALE */
+    uint32_t offline_timeout_ms;  /* no packet for this long: -> OFFLINE */
+} sensor_node_health_config_t;
+
+/* Events returned by sensor_node_evaluate(), as a bitmask. */
+typedef enum {
+    NODE_EVT_ONLINE = 1u << 0,            /* entered ONLINE (first contact or recovery) */
+    NODE_EVT_STALE = 1u << 1,
+    NODE_EVT_OFFLINE = 1u << 2,
+    NODE_EVT_PRESENCE_VALID = 1u << 3,    /* presence became usable (recovery) */
+    NODE_EVT_PRESENCE_INVALID = 1u << 4,  /* presence became unusable (fault) */
+    NODE_EVT_THERMAL_VALID = 1u << 5,
+    NODE_EVT_THERMAL_INVALID = 1u << 6,
+} node_event_t;
+
+/*
+ * Sensor inputs as the safety logic sees them. Anything not backed by
+ * fresh, valid data from an ONLINE node is UNKNOWN or invalid, never
+ * "no presence" or "cold".
+ */
+typedef struct {
+    rb_tristate_t presence;       /* person present? */
+    bool thermal_valid;
+    float hot_region_temp_c;      /* NAN unless thermal_valid */
+    float max_temp_c;
+    float temp_rate_c_per_min;
+    uint16_t pixels_above_threshold;
+    node_link_state_t link;
+    uint16_t node_fault_flags;
+} node_inputs_t;
+
+/*
+ * Re-evaluate link state and sensor validity at now_ms. Returns the
+ * node_event_t bits for what changed since the previous call.
+ */
+uint32_t sensor_node_evaluate(sensor_node_state_t *node, const sensor_node_health_config_t *cfg, uint32_t now_ms);
+
+/* Current inputs for the safety logic (uses the state from the last evaluate). */
+void sensor_node_inputs(const sensor_node_state_t *node, node_inputs_t *out);
+
 const char *node_seq_result_name(node_seq_result_t result);
 const char *node_link_state_name(node_link_state_t state);
 
