@@ -648,12 +648,12 @@ Local LAN
 MacBook
 ```
 
-- [ ] Configure Waveshare Ethernet interface.
+- [x] Configure Waveshare Ethernet interface.
 - [ ] Obtain IP address.
 - [ ] Verify LAN connectivity.
 - [ ] Verify communication with MacBook.
-- [ ] Log network state.
-- [ ] Implement reconnect/recovery behaviour.
+- [x] Log network state.
+- [x] Implement reconnect/recovery behaviour.
 
 Wi-Fi may remain available as an alternative if needed.
 

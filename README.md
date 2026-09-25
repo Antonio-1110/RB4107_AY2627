@@ -53,6 +53,7 @@ their own; the table says where they are applied.
 | 14 Relay / shutdown driver | [`firmware/14_relay_shutdown`](firmware/14_relay_shutdown) | ESP32-S3 |
 | 15 RTC / time | [`firmware/15_rtc_time`](firmware/15_rtc_time) | ESP32-S3 |
 | 16 Fault manager | [`firmware/16_fault_manager`](firmware/16_fault_manager) | ESP32-S3 |
+| 17 S3 network (Ethernet / Wi-Fi) | [`firmware/17_s3_network`](firmware/17_s3_network) | ESP32-S3 |
 
 ## Toolchain
 
