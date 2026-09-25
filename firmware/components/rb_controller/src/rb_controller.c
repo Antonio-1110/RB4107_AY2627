@@ -6,6 +6,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "rb_config.h"
+#include "rb_log.h"
 #include "rb_espnow.h"
 #include "rb_safety_config.h"
 #include "rb_time.h"
@@ -51,6 +52,7 @@ bool rb_controller_post_event(const rb_event_t *event)
         portENTER_CRITICAL(&s_req_lock);
         s_events_dropped++;
         portEXIT_CRITICAL(&s_req_lock);
+        RB_LOG_EVERY_MS(5000, ESP_LOGW, TAG, "event queue full: telemetry is behind, events dropped");
         return false;
     }
     return true;

@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include "mlx90640.h"
 #include "rb_config.h"
+#include "rb_log.h"
 #include "rb_node_sensors.h"
 #include "thermal_features.h"
 
@@ -41,10 +42,9 @@ static void thermal_task(void *arg)
     for (;;) {
         esp_err_t err = mlx90640_read_frame(s_frame, NULL, CONFIG_RB_MLX_FRAME_TIMEOUT_MS);
         if (err != ESP_OK) {
-            /* Log the first failure and then every 20th, to keep the console readable. */
-            if (failures++ % 20 == 0) {
-                ESP_LOGE(TAG, "frame read failed (%s), %lu so far", esp_err_to_name(err), (unsigned long)failures);
-            }
+            failures++;
+            RB_LOG_EVERY_MS(5000, ESP_LOGE, TAG, "frame read failed (%s), %lu so far", esp_err_to_name(err),
+                            (unsigned long)failures);
             vTaskDelay(pdMS_TO_TICKS(200));
             continue;
         }

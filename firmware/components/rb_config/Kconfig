@@ -2,6 +2,25 @@ menu "RB4107 configuration"
 
     comment "Values marked UNCONFIRMED have not been verified on real hardware."
 
+    menu "Logging"
+
+        config RB_LOG_DEBUG_TAGS
+            string "Tags to raise to DEBUG at boot (comma separated)"
+            default ""
+            help
+                e.g. "ESPNOW,SAFETY". Needs "Component config -> Log ->
+                Maximum log verbosity" set to Debug (sdkconfig option
+                CONFIG_LOG_MAXIMUM_LEVEL_DEBUG); otherwise DEBUG lines are
+                compiled out.
+
+        config RB_LOG_QUIET_TAGS
+            string "Tags to lower to WARN at boot (comma separated)"
+            default ""
+            help
+                e.g. "TELEMETRY,NET" to keep the console focused on safety.
+
+    endmenu
+
     menu "ESP-NOW link (shared by node and controller)"
 
         config RB_ESPNOW_CHANNEL
