@@ -73,7 +73,7 @@ static void safety_task(void *arg)
     static safety_sm_t sm;
     safety_init(&sm, &cfg, on_transition, NULL, rb_time_mono_ms());
     safety_inputs_t in = {.presence = RB_UNKNOWN, .self_test = SAFETY_SELFTEST_PASS};
-    uint32_t processed = 0, last_report = 0, cycle_start = rb_time_mono_ms();
+    uint32_t processed = 0, last_report = 0;
 
     for (;;) {
         sim_update_t u;
@@ -85,11 +85,8 @@ static void safety_task(void *arg)
             processed++;
         }
         const uint32_t now = rb_time_mono_ms();
-        /* Operator reset at the end of each cycle so the demo repeats. */
-        in.reset_request = sm.state == SAFETY_SHUTDOWN && rb_time_elapsed(now, cycle_start, CYCLE_MS - 1000);
-        if (rb_time_elapsed(now, cycle_start, CYCLE_MS)) {
-            cycle_start += CYCLE_MS;
-        }
+        /* The returning cook resets the shutdown so the demo repeats every cycle. */
+        in.reset_request = sm.state == SAFETY_SHUTDOWN && in.presence == RB_TRUE;
         safety_step(&sm, &in, now);
 
         if (rb_time_elapsed(now, last_report, 1000)) {
