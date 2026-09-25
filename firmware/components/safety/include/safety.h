@@ -115,7 +115,7 @@ struct safety_inputs {
     bool thermal_valid;
     float hot_region_temp_c;
     float temp_rate_c_per_min;
-    safety_selftest_t self_test;
+    safety_selftest_t self_test;            /* must stay PASS after SELF_TEST, otherwise FAULT */
     bool reset_request;                     /* operator reset / acknowledge (e.g. button) */
     bool safety_fault;                      /* any other safety-relevant fault (fault manager) */
 };

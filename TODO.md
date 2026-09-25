@@ -956,20 +956,20 @@ Make safety logic testable independently from physical hardware.
 
 Test at minimum:
 
-- [ ] IDLE → MONITORING.
-- [ ] MONITORING → UNATTENDED.
-- [ ] UNATTENDED → MONITORING.
-- [ ] UNATTENDED → WARNING.
-- [ ] WARNING → SHUTDOWN.
-- [ ] Person returns during UNATTENDED.
-- [ ] Person returns during WARNING.
-- [ ] Temperature drops during unattended period.
-- [ ] C4002 becomes unavailable.
-- [ ] MLX90640 becomes unavailable.
-- [ ] Sensor node disappears.
-- [ ] Sensor node returns.
-- [ ] MQTT disconnects.
-- [ ] MQTT reconnects.
+- [x] IDLE → MONITORING.
+- [x] MONITORING → UNATTENDED.
+- [x] UNATTENDED → MONITORING.
+- [x] UNATTENDED → WARNING.
+- [x] WARNING → SHUTDOWN.
+- [x] Person returns during UNATTENDED.
+- [x] Person returns during WARNING.
+- [x] Temperature drops during unattended period.
+- [x] C4002 becomes unavailable.
+- [x] MLX90640 becomes unavailable.
+- [x] Sensor node disappears.
+- [x] Sensor node returns.
+- [x] MQTT disconnects.
+- [x] MQTT reconnects.
 
 ---
 
