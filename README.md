@@ -67,22 +67,62 @@ their own; the table says where they are applied.
 | 28 State machine testing | [`firmware/28_state_machine_tests`](firmware/28_state_machine_tests), `tools/run_host_tests.sh` | ESP32-S3 + host (linux target) |
 | 29 End-to-end integration | [`firmware/29_end_to_end`](firmware/29_end_to_end) (+ 05 on the C6), `tools/diagnostics/e2e_check.py` | ESP32-S3 + ESP32-C6 |
 | 30 Critical failure test | [`firmware/30_critical_failure_test`](firmware/30_critical_failure_test), `tools/diagnostics/critical_failure_test.py` | ESP32-S3 + MacBook |
+| 31 Development order | milestone checkboxes in [`TODO.md`](TODO.md); the numbered folders follow this order | – |
+| 32 Open questions | [`docs/open_questions.md`](docs/open_questions.md): each one is a menuconfig option or a bench check | – |
+| 33 Engineering rules | [`docs/engineering_rules.md`](docs/engineering_rules.md): where each rule is enforced | – |
+
+The two firmwares you normally flash are **05** (C6 sensor node) and **29**
+(S3 controller). The other folders are the step-by-step bring-up and test
+projects for each section.
 
 ## Toolchain
 
 - ESP-IDF **v6.1** (matches `legacy/main_controller/dependencies.lock`).
-- Some components pull managed dependencies from the Espressif component
-  registry (`espressif/mqtt`, `espressif/w5500`) the first time you build.
+- `rb_net` and `rb_mqtt` pull `espressif/w5500` and `espressif/mqtt` from the
+  Espressif component registry on the first build. The component manager reads
+  every manifest in `firmware/components`, so any project may download them
+  once. Offline builds: see [`firmware/README.md`](firmware/README.md).
+- Backend: Python 3.11+, `backend/django/requirements.txt`. Broker: Mosquitto 2.x.
 
 ## Build / flash / test
 
 ```bash
 . $IDF_PATH/export.sh
-cd firmware/01_c6_sensor_node_base
+cd firmware/<NN_project>
 idf.py build
 idf.py -p /dev/tty.usbmodemXXXX flash monitor
+idf.py menuconfig          # RB4107 configuration: pins, timeouts, thresholds, broker, node IDs
 ```
 
-All tunables (pins, timeouts, thresholds, broker address, node IDs, ...) are in
-`idf.py menuconfig` → **RB4107 configuration**. Values that have not been
-confirmed on real hardware are labelled `UNCONFIRMED` in their help text.
+Values not yet confirmed on hardware are labelled `UNCONFIRMED` /
+`OPEN QUESTION` / `UNVERIFIED` in menuconfig. They are listed in
+[`docs/configuration.md`](docs/configuration.md) and
+[`docs/open_questions.md`](docs/open_questions.md).
+
+| What | Command |
+|---|---|
+| Unit tests on the PC (firmware + Django) | `tools/run_host_tests.sh` |
+| Broker on the MacBook | `tools/mqtt/start_broker.sh` |
+| Django subscriber | `cd backend/django && python manage.py mqtt_subscriber` |
+| Watch / validate MQTT traffic | `tools/mqtt/watch.sh`, `tools/diagnostics/validate_json.py` |
+| End-to-end checklist | `tools/diagnostics/e2e_check.py` (project 29) |
+| Critical failure test | `tools/diagnostics/critical_failure_test.py` (project 30) |
+| Try the controller without hardware | project 27 or 29 in QEMU, see [`firmware/19_mqtt_client/README.md`](firmware/19_mqtt_client/README.md) |
+
+## Verification status
+
+What has been checked without hardware, and how:
+
+| Checked | How |
+|---|---|
+| All 26 ESP-IDF projects build (ESP-IDF v6.1, C6 and S3) | clean builds, no warnings |
+| Safety logic, node health, faults, protocol, C4002 parser, thermal features, JSON | 47 Unity tests pass on the host (linux target) and on the ESP32-S3 in QEMU (project 28) |
+| Real-time behaviour, MQTT client, publishing, diagnostic console | firmware run in QEMU with emulated Ethernet against Mosquitto (11, 19–22, 27, 29, 30) |
+| JSON payloads | every captured message validated against `docs/schema/rb4107_mqtt.schema.json` |
+| Django ingestion | 22 tests (fixtures are real firmware output), plus manual runs through broker outages and `SIGTERM` |
+| Critical failure path | QEMU rehearsal: WARNING and SHUTDOWN with the broker down, both verdicts PASS |
+
+Still to be done on the bench (the unchecked boxes in `TODO.md`): anything
+involving the real sensors, the ESP-NOW radio link, the buzzer, the relay,
+the RTC battery, the W5500 and the MacBook's network. The pin maps come from
+the legacy code or board silkscreens and need confirming.
