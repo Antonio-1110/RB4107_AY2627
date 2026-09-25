@@ -527,11 +527,11 @@ Safety task MUST continue
 
 # 13. Buzzer Driver
 
-- [ ] Determine correct Waveshare buzzer interface/pin.
-- [ ] Implement initialization.
-- [ ] Implement ON.
-- [ ] Implement OFF.
-- [ ] Implement non-blocking warning pattern if needed.
+- [ ] Determine correct Waveshare buzzer interface/pin. *(Default GPIO46 active-high from the legacy code; GPIO vs PWM selectable in menuconfig.)*
+- [x] Implement initialization.
+- [x] Implement ON.
+- [x] Implement OFF.
+- [x] Implement non-blocking warning pattern if needed.
 
 Suggested abstraction:
 

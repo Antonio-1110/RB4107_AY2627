@@ -323,6 +323,41 @@ menu "RB4107 configuration"
             range 1000 600000
             default 10000
 
+        menu "Buzzer"
+
+            config RB_BUZZER_GPIO
+                int "Buzzer GPIO (-1 = none)"
+                range -1 48
+                default 46
+                help
+                    From legacy/main_controller. UNCONFIRMED: check the
+                    Waveshare schematic.
+
+            config RB_BUZZER_ACTIVE_LEVEL
+                int "Level that sounds the buzzer"
+                range 0 1
+                default 1
+
+            choice RB_BUZZER_DRIVE
+                prompt "Buzzer type"
+                default RB_BUZZER_DRIVE_GPIO
+                help
+                    UNCONFIRMED: an active buzzer only needs a DC level, a
+                    passive one needs a tone (PWM).
+                config RB_BUZZER_DRIVE_GPIO
+                    bool "active buzzer (GPIO level)"
+                config RB_BUZZER_DRIVE_PWM
+                    bool "passive buzzer (LEDC PWM tone)"
+            endchoice
+
+            config RB_BUZZER_TONE_HZ
+                int "Tone frequency (Hz)"
+                range 200 10000
+                default 2700
+                depends on RB_BUZZER_DRIVE_PWM
+
+        endmenu
+
         menu "Sensor node link"
 
             config RB_CTRL_NODE_ID
