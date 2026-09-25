@@ -901,20 +901,20 @@ Examples:
 
 Centralize configuration for:
 
-- [ ] GPIO assignments.
-- [ ] Relay polarity.
-- [ ] ESP-NOW peer MAC address.
-- [ ] Node IDs.
-- [ ] Sensor timeouts.
-- [ ] Presence filtering/debounce.
-- [ ] Temperature thresholds.
-- [ ] Temperature-rate thresholds.
-- [ ] Warning timeout.
-- [ ] Shutdown timeout.
-- [ ] MQTT broker address.
-- [ ] MQTT port.
-- [ ] MQTT topic prefix.
-- [ ] MQTT telemetry frequency.
+- [x] GPIO assignments.
+- [x] Relay polarity.
+- [x] ESP-NOW peer MAC address.
+- [x] Node IDs.
+- [x] Sensor timeouts.
+- [x] Presence filtering/debounce.
+- [x] Temperature thresholds.
+- [x] Temperature-rate thresholds.
+- [x] Warning timeout.
+- [x] Shutdown timeout.
+- [x] MQTT broker address.
+- [x] MQTT port.
+- [x] MQTT topic prefix.
+- [x] MQTT telemetry frequency.
 
 Avoid magic numbers.
 
