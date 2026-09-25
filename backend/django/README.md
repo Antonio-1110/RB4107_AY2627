@@ -31,6 +31,45 @@ python manage.py check
 | `RB4107_LOG_LEVEL` | `INFO` | `DEBUG` also logs every routine message |
 | `RB4107_SCHEMA_FILE` | `../../docs/schema/rb4107_mqtt.schema.json` | the same schema the firmware is tested against |
 
+## Run the persistent subscriber (TODO section 24)
+
+```bash
+python manage.py mqtt_subscriber                      # uses the environment variables above
+python manage.py mqtt_subscriber --host 192.168.1.127 --stats-interval 30
+```
+
+It runs until Ctrl-C / `SIGTERM`. Example output:
+
+```text
+[MQTT][INFO] connecting to localhost:1883 as rb4107-django-subscriber
+[MQTT][INFO] broker connected (localhost:1883, session new)
+[MQTT][INFO] subscribed to rb4107/# (Granted QoS 1)
+[TELEMETRY][INFO] controller_01 seq=4127 2026-09-26T00:00:00+08:00 | state=UNATTENDED unattended=18.4s ...
+[EVENT][WARNING] controller_01 WARNING: UNATTENDED -> WARNING (unattended timeout), unattended 60.0s
+[MQTT][WARNING] rejected message on rb4107/events/warning: malformed JSON: ...
+[MQTT][WARNING] broker disconnected (Unspecified error); reconnecting
+[MQTT][INFO] broker connected (localhost:1883, session new)
+[MQTT][INFO] status: connected, received 1234, rejected 1 | event=3, faults=4, heartbeat=300, ...
+[MQTT][INFO] shutting down
+[MQTT][INFO] subscriber stopped (received 1240, rejected 1)
+```
+
+| Requirement | Implementation |
+|---|---|
+| Management command | `ingest/management/commands/mqtt_subscriber.py` |
+| Connect / subscribe | `ingest/subscriber.py`, which resubscribes on every (re)connect |
+| Reconnect after broker failure | paho `loop_forever(retry_first_connection=True)` with back-off `RECONNECT_MIN_S`–`RECONNECT_MAX_S`; also covers a broker that isn't up yet when the subscriber starts |
+| Graceful shutdown | `SIGINT`/`SIGTERM` → clean MQTT disconnect, then exit |
+| Connection status | logged on every connect/disconnect, plus a `status:` line every `--stats-interval` s |
+| Missed events while down | persistent session (fixed client ID, `clean_session=False`), so the broker queues QoS 1 events |
+
+These were checked by hand against Mosquitto 2.0.18: broker down at startup,
+malformed message, broker restart, `SIGTERM`. `ingest/tests/test_subscriber.py`
+automates the round trip whenever a broker is running.
+
+To keep it running on the MacBook, use a terminal tab, `tmux`, or a launchd
+agent.
+
 ## How messages are handled
 
 `ingest/validation.py`: every message is
@@ -58,4 +97,5 @@ python manage.py test ingest
 ```
 
 The fixtures in `ingest/tests/firmware_samples.jsonl` are real messages
-published by the firmware (project 22, run in QEMU against Mosquitto).
+published by the firmware (project 22, run in QEMU against Mosquitto). The
+broker integration test is skipped when no broker is running.

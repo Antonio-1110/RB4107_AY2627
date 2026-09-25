@@ -22,6 +22,7 @@ class Subscriber:
     def __init__(self, config: dict, handle: Callable[[validation.Message], None] = handlers.handle):
         self.config = config
         self.handle = handle
+        self.prefix = validation.topic_prefix(config["TOPIC"])
         self.received = 0
         self.rejected = 0
         self.connected = threading.Event()
@@ -63,7 +64,7 @@ class Subscriber:
     def _on_message(self, client, userdata, message):
         self.received += 1
         try:
-            msg = validation.parse(message.topic, message.payload)
+            msg = validation.parse(message.topic, message.payload, self.prefix)
         except validation.InvalidMessage as exc:
             self.rejected += 1
             log.warning("rejected message on %s: %s", message.topic, exc)
@@ -80,3 +81,18 @@ class Subscriber:
         self.client.reconnect_delay_set(self.config["RECONNECT_MIN_S"], self.config["RECONNECT_MAX_S"])
         log.info("connecting to %s:%d as %s", self.config["HOST"], self.config["PORT"], self.config["CLIENT_ID"])
         self.client.connect_async(self.config["HOST"], self.config["PORT"], keepalive=self.config["KEEPALIVE_S"])
+
+    def run_forever(self) -> None:
+        """Block until stop() is called. paho reconnects on its own, with back-off
+        between RECONNECT_MIN_S and RECONNECT_MAX_S, including when the broker
+        is not up yet at start."""
+        self.connect()
+        self.client.loop_forever(retry_first_connection=True)
+        log.info("subscriber stopped (received %d, rejected %d)", self.received, self.rejected)
+
+    def stop(self) -> None:
+        """Graceful shutdown: disconnect cleanly and let run_forever() return."""
+        if not self._stopping:
+            self._stopping = True
+            log.info("shutting down")
+            self.client.disconnect()
