@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "rb_protocol.h"
 
 #ifdef __cplusplus
@@ -36,6 +38,35 @@ esp_err_t rb_espnow_add_peer(const uint8_t mac[6]);
 esp_err_t rb_espnow_send(const uint8_t mac[6], rb_packet_t *pkt);
 
 void rb_espnow_get_tx_stats(rb_espnow_tx_stats_t *out);
+
+/* ---- Receiver (controller side) ---- */
+
+/* One validated packet, as posted to the receive queue. */
+typedef struct {
+    rb_packet_t packet;
+    uint8_t src_mac[6];
+    int8_t rssi;
+    uint32_t rx_ms;             /* controller monotonic time of reception */
+} rb_espnow_rx_t;
+
+typedef struct {
+    uint32_t received;          /* valid packets queued */
+    uint32_t bad_length;
+    uint32_t bad_magic;
+    uint32_t bad_version;
+    uint32_t bad_type;
+    uint32_t bad_crc;
+    uint32_t queue_overflow;    /* dropped because the consumer fell behind */
+} rb_espnow_rx_stats_t;
+
+/*
+ * Validate every received frame (length, magic, version, type, CRC) and post
+ * good ones to queue (item type rb_espnow_rx_t) without blocking. Call
+ * rb_espnow_start() first.
+ */
+esp_err_t rb_espnow_start_receiver(QueueHandle_t queue);
+
+void rb_espnow_get_rx_stats(rb_espnow_rx_stats_t *out);
 
 #ifdef __cplusplus
 }

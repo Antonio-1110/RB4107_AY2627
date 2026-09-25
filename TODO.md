@@ -308,15 +308,15 @@ main/
 
 # 7. ESP-NOW — S3 Receiver
 
-- [ ] Initialize ESP-NOW.
-- [ ] Receive C6 packets.
-- [ ] Validate protocol version.
-- [ ] Validate packet size.
-- [ ] Validate node ID.
-- [ ] Track sequence number.
-- [ ] Track last packet timestamp.
-- [ ] Detect duplicate/out-of-order packets where relevant.
-- [ ] Update internal sensor-node state.
+- [x] Initialize ESP-NOW.
+- [x] Receive C6 packets.
+- [x] Validate protocol version.
+- [x] Validate packet size.
+- [x] Validate node ID.
+- [x] Track sequence number.
+- [x] Track last packet timestamp.
+- [x] Detect duplicate/out-of-order packets where relevant.
+- [x] Update internal sensor-node state.
 
 Candidate:
 
