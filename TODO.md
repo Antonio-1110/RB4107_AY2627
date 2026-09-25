@@ -573,23 +573,23 @@ Use two different concepts of time.
 
 Use for:
 
-- [ ] Unattended timer.
-- [ ] Warning timer.
-- [ ] Sensor timeout.
-- [ ] Communication timeout.
-- [ ] State duration.
+- [x] Unattended timer.
+- [x] Warning timer.
+- [x] Sensor timeout.
+- [x] Communication timeout.
+- [x] State duration.
 
 ## RTC / Wall Clock
 
 Use for:
 
-- [ ] Event timestamps.
-- [ ] Logs.
-- [ ] MQTT messages.
+- [x] Event timestamps.
+- [x] Logs.
+- [x] MQTT messages.
 
-- [ ] Initialize Waveshare RTC.
+- [x] Initialize Waveshare RTC.
 - [ ] Verify RTC persistence.
-- [ ] Provide clean time API.
+- [x] Provide clean time API.
 
 Safety timing must NOT depend on wall-clock correctness.
 

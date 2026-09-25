@@ -51,6 +51,7 @@ their own; the table says where they are applied.
 | 12 FreeRTOS architecture | [`firmware/12_freertos_architecture`](firmware/12_freertos_architecture) | ESP32-S3 |
 | 13 Buzzer driver | [`firmware/13_buzzer`](firmware/13_buzzer) | ESP32-S3 |
 | 14 Relay / shutdown driver | [`firmware/14_relay_shutdown`](firmware/14_relay_shutdown) | ESP32-S3 |
+| 15 RTC / time | [`firmware/15_rtc_time`](firmware/15_rtc_time) | ESP32-S3 |
 
 ## Toolchain
 
