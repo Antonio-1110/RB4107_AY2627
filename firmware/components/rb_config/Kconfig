@@ -403,6 +403,29 @@ menu "RB4107 configuration"
 
         endmenu
 
+        menu "Time / RTC"
+
+            config RB_TIME_TZ
+                string "POSIX time zone for log/MQTT timestamps"
+                default "SGT-8"
+                help
+                    Only affects how wall-clock time is displayed. The RTC keeps
+                    UTC. Safety timing never uses wall-clock time.
+
+            config RB_TIME_NTP_SERVER
+                string "SNTP server (empty = don't sync over the network)"
+                default "pool.ntp.org"
+
+            config RB_TIME_SET_RTC_FROM_BUILD
+                bool "If the RTC is invalid at boot, set it to the firmware build time"
+                default n
+                help
+                    Bench testing only: gives the RTC a plausible time so its
+                    persistence across power cycles can be checked without a
+                    network.
+
+        endmenu
+
         menu "Sensor node link"
 
             config RB_CTRL_NODE_ID
