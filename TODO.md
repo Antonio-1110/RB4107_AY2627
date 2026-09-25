@@ -302,7 +302,7 @@ main/
     └── system_config.h
 ```
 
-- [ ] Adjust structure if ESP-IDF components provide cleaner separation.
+- [x] Adjust structure if ESP-IDF components provide cleaner separation.
 
 ---
 
