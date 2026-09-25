@@ -357,4 +357,96 @@ menu "RB4107 configuration"
 
     endmenu
 
+    menu "Safety logic (ESP32-S3)"
+
+        comment "Defaults answer the open questions provisionally; see docs/safety_state_machine.md"
+
+        config RB_SAFETY_SELF_TEST_TIMEOUT_MS
+            int "Self-test timeout (ms)"
+            range 1000 120000
+            default 10000
+
+        config RB_SAFETY_HEAT_ON_DC
+            int "Cooking detected at hot-region temperature (0.1 degC)"
+            range 0 3000
+            default 500
+            help
+                IDLE -> MONITORING threshold. UNVERIFIED placeholder (50.0 degC):
+                set it from collected thermal data.
+
+        config RB_SAFETY_HEAT_OFF_DC
+            int "Cooking over below hot-region temperature (0.1 degC)"
+            range 0 3000
+            default 400
+            help
+                Hysteresis. Must not be above the "cooking detected" value.
+                UNVERIFIED placeholder.
+
+        config RB_SAFETY_ABSENCE_DEBOUNCE_MS
+            int "Absence must last (ms) before UNATTENDED"
+            range 0 60000
+            default 2000
+
+        config RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS
+            int "Presence must last (ms) to cancel UNATTENDED/WARNING"
+            range 0 60000
+            default 0
+            help
+                Raise this if spurious static detections by the C4002 cancel
+                the unattended timer.
+
+        config RB_SAFETY_WARNING_TIMEOUT_S
+            int "Unattended time before WARNING (s)"
+            range 1 3600
+            default 60
+
+        config RB_SAFETY_SHUTDOWN_TIMEOUT_S
+            int "Shutdown timeout (s)"
+            range 1 3600
+            default 90
+            help
+                Meaning depends on "Shutdown timeout counts from" below.
+
+        choice RB_SAFETY_SHUTDOWN_TIMING
+            prompt "Shutdown timeout counts from"
+            default RB_SAFETY_SHUTDOWN_FROM_UNATTENDED
+            help
+                OPEN QUESTION: is 90 s total unattended time or 90 s after the warning?
+            config RB_SAFETY_SHUTDOWN_FROM_UNATTENDED
+                bool "start of UNATTENDED (total unattended time)"
+            config RB_SAFETY_SHUTDOWN_FROM_WARNING
+                bool "start of WARNING"
+        endchoice
+
+        choice RB_SAFETY_WARNING_EXIT
+            prompt "Person returns during WARNING"
+            default RB_SAFETY_WARNING_EXIT_PRESENCE
+            help
+                OPEN QUESTION.
+            config RB_SAFETY_WARNING_EXIT_PRESENCE
+                bool "return to MONITORING"
+            config RB_SAFETY_WARNING_EXIT_ACK
+                bool "stay in WARNING until the person acknowledges (reset input)"
+        endchoice
+
+        choice RB_SAFETY_COOLING
+            prompt "Temperature falls while UNATTENDED/WARNING"
+            default RB_SAFETY_COOLING_KEEP_TIMERS
+            help
+                OPEN QUESTION.
+            config RB_SAFETY_COOLING_KEEP_TIMERS
+                bool "keep the timers running"
+            config RB_SAFETY_COOLING_RETURN_TO_IDLE
+                bool "return to IDLE and cancel the timers"
+        endchoice
+
+        config RB_SAFETY_FAULT_SHUTDOWN_S
+            int "Shut down after this long in FAULT (s, 0 = never)"
+            range 0 3600
+            default 90
+            help
+                OPEN QUESTION: what to do when a safety-critical sensor fails.
+
+    endmenu
+
 endmenu
