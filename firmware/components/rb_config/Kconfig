@@ -504,6 +504,13 @@ menu "RB4107 configuration"
                 bool "Wi-Fi station"
             config RB_NET_NONE
                 bool "none (local safety only)"
+            config RB_NET_QEMU_OPENETH
+                bool "QEMU emulated Ethernet (testing only, never on hardware)"
+                select ETH_USE_OPENETH
+                help
+                    Lets the controller firmware run in QEMU (idf.py qemu with
+                    -nic user,model=open_eth) and reach a broker on the host
+                    machine: MQTT/Django tests without hardware.
         endchoice
 
         menu "W5500 Ethernet"
@@ -589,6 +596,36 @@ menu "RB4107 configuration"
             int "Broker port"
             range 1 65535
             default 1883
+
+        config RB_MQTT_CONTROLLER_ID
+            string "Controller ID (MQTT client ID and JSON controller_id)"
+            default "controller_01"
+
+        config RB_MQTT_TOPIC_PREFIX
+            string "Topic prefix"
+            default "rb4107"
+
+        config RB_MQTT_KEEPALIVE_S
+            int "Keep-alive (s)"
+            range 5 600
+            default 15
+            help
+                Also sets how quickly the broker publishes the Last Will
+                ("offline") if the controller disappears (about 1.5x this).
+
+        config RB_MQTT_RECONNECT_MS
+            int "Reconnect interval (ms)"
+            range 1000 120000
+            default 5000
+
+        config RB_MQTT_OUTBOX_LIMIT_KB
+            int "Outbox limit while disconnected (KB)"
+            range 4 256
+            default 32
+            help
+                QoS 1 events are kept up to this size while the broker is
+                unreachable. QoS 0 telemetry is simply dropped while
+                disconnected.
 
     endmenu
 
