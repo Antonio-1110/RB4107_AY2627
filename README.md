@@ -47,6 +47,7 @@ their own; the table says where they are applied.
 | 8 Sensor node health monitoring | [`firmware/08_sensor_health`](firmware/08_sensor_health) | ESP32-S3 |
 | 9 Safety state machine | [`firmware/09_safety_state_machine`](firmware/09_safety_state_machine), design in [`docs/safety_state_machine.md`](docs/safety_state_machine.md) | ESP32-S3 |
 | 10 Initial safety behaviour | [`firmware/10_safety_behaviour`](firmware/10_safety_behaviour) | ESP32-S3 |
+| 11 Non-blocking timing | [`firmware/11_non_blocking_timing`](firmware/11_non_blocking_timing) | ESP32-S3 |
 
 ## Toolchain
 
