@@ -48,8 +48,8 @@ wrap-around, config validation, the sequence tracking edge cases, protocol
 corruption on every byte, C4002 frame resync and errors, thermal features,
 JSON null/escaping/overflow, and the topic table.
 
-**Result:** 49 tests, 0 failures on the host (linux target). The first 47
-were also run on the ESP32-S3 in QEMU, all passing.
+**Result:** 49 tests, 0 failures, both on the host (linux target) and on
+the ESP32-S3 (QEMU).
 
 These tests found two real bugs, both fixed in `safety.c`. After a self-test
 failure or timeout, FAULT recovered to IDLE straight away because its exit
