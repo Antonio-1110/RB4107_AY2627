@@ -464,10 +464,10 @@ for safety behaviour.
 
 Use:
 
-- [ ] `esp_timer`
-- [ ] FreeRTOS timing
-- [ ] monotonic timestamps
-- [ ] state-entry timestamps
+- [x] `esp_timer`
+- [x] FreeRTOS timing
+- [x] monotonic timestamps
+- [x] state-entry timestamps
 
 Pattern:
 
