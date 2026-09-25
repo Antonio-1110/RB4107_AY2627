@@ -146,6 +146,9 @@ uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms)
 
 static const char *sensor_fault_reason(const safety_inputs_t *in)
 {
+    if (in->self_test != SAFETY_SELFTEST_PASS) {
+        return "self-test not passed";
+    }
     if (in->safety_fault) {
         return "safety-relevant fault active";
     }
@@ -159,7 +162,12 @@ static const char *sensor_fault_reason(const safety_inputs_t *in)
 static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 {
     const safety_config_t *cfg = &sm->cfg;
-    const bool sensors_ok = in->presence != RB_UNKNOWN && in->thermal_valid && !in->safety_fault;
+    /*
+     * Everything the machine needs to protect the kitchen. The self-test must
+     * have passed: a failed or never-completed self-test keeps FAULT latched.
+     */
+    const bool sensors_ok = in->presence != RB_UNKNOWN && in->thermal_valid && !in->safety_fault &&
+                            in->self_test == SAFETY_SELFTEST_PASS;
 
     const bool absent_confirmed = sm->absent_timing && elapsed(now, sm->absent_since_ms, cfg->absence_debounce_ms);
     const bool present_confirmed =

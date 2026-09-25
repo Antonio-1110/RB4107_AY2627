@@ -17,7 +17,7 @@ Unit tests: [`firmware/28_state_machine_tests`](../firmware/28_state_machine_tes
 |---|---|---|
 | `presence` (tri-state) | C4002 via ESP-NOW (`sensor_node_inputs`) | `RB_UNKNOWN` → FAULT. It is never read as "absent" or "present". |
 | `thermal_valid`, `hot_region_temp_c` | MLX90640 features via ESP-NOW | invalid → FAULT |
-| `self_test` | controller self-test (outputs, RTC, ...) | FAIL or timeout → FAULT |
+| `self_test` | controller self-test (outputs working) | must read PASS after SELF_TEST; FAIL, timeout or not-yet-passed → FAULT, latched until it passes |
 | `reset_request` | operator button | leaves SHUTDOWN; acknowledges WARNING in *exit-on-ack* mode |
 | `safety_fault` | fault manager (safety-relevant faults) | → FAULT |
 
@@ -42,7 +42,7 @@ Unit tests: [`firmware/28_state_machine_tests`](../firmware/28_state_machine_tes
 | WARNING | heat stopped **and** cooling policy = return-to-idle | IDLE |
 | WARNING | shutdown timer expired (see timing mode) | SHUTDOWN |
 | SHUTDOWN | operator reset (latched until then) | IDLE |
-| FAULT | sensors OK again → IDLE / MONITORING / UNATTENDED depending on heat and presence | |
+| FAULT | sensors OK **and** self-test PASS again → IDLE / MONITORING / UNATTENDED depending on heat and presence | |
 | FAULT | shutdown already due on the unattended timeline | SHUTDOWN |
 | FAULT | in FAULT for `fault_shutdown_timeout_ms` (0 = never) | SHUTDOWN |
 

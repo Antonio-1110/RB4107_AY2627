@@ -64,6 +64,7 @@ their own; the table says where they are applied.
 | 25 Logging | cross-cutting: [`docs/logging.md`](docs/logging.md), `firmware/components/rb_log` | all |
 | 26 Configuration | cross-cutting: [`docs/configuration.md`](docs/configuration.md), `firmware/components/rb_config/Kconfig` | all |
 | 27 Diagnostic mode | [`firmware/27_diagnostic_mode`](firmware/27_diagnostic_mode) | ESP32-S3 |
+| 28 State machine testing | [`firmware/28_state_machine_tests`](firmware/28_state_machine_tests), `tools/run_host_tests.sh` | ESP32-S3 + host (linux target) |
 
 ## Toolchain
 
