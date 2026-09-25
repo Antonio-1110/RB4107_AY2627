@@ -135,12 +135,12 @@ struct PresenceReading {
 
 # 3. MLX90640 Integration
 
-- [ ] Configure I2C.
-- [ ] Initialize MLX90640.
-- [ ] Read complete 32 × 24 thermal frame.
-- [ ] Verify all 768 temperature readings.
-- [ ] Check sensor error conditions.
-- [ ] Add invalid-reading detection.
+- [x] Configure I2C.
+- [x] Initialize MLX90640.
+- [x] Read complete 32 × 24 thermal frame.
+- [x] Verify all 768 temperature readings.
+- [x] Check sensor error conditions.
+- [x] Add invalid-reading detection.
 - [ ] Test thermal readings at different distances.
 - [ ] Test thermal readings against different heat sources.
 
@@ -148,13 +148,13 @@ struct PresenceReading {
 
 Implement derived features such as:
 
-- [ ] Maximum temperature.
-- [ ] Minimum temperature.
-- [ ] Mean temperature.
-- [ ] Hottest-region temperature.
-- [ ] Number of pixels above threshold.
-- [ ] Temperature rate of change.
-- [ ] Sensor validity.
+- [x] Maximum temperature.
+- [x] Minimum temperature.
+- [x] Mean temperature.
+- [x] Hottest-region temperature.
+- [x] Number of pixels above threshold.
+- [x] Temperature rate of change.
+- [x] Sensor validity.
 
 Candidate structure:
 
@@ -174,9 +174,9 @@ struct ThermalReading {
 };
 ```
 
-- [ ] Make thresholds configurable.
-- [ ] Keep raw thermal frame accessible for diagnostics.
-- [ ] Do NOT continuously transmit the entire 768-pixel frame unless diagnostic mode requires it.
+- [x] Make thresholds configurable.
+- [x] Keep raw thermal frame accessible for diagnostics.
+- [x] Do NOT continuously transmit the entire 768-pixel frame unless diagnostic mode requires it.
 
 ---
 

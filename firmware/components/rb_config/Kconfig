@@ -137,6 +137,111 @@ menu "RB4107 configuration"
 
         endmenu
 
+        menu "MLX90640 thermal sensor"
+
+            config RB_MLX_I2C_PORT
+                int "I2C port"
+                range 0 1
+                default 0
+
+            config RB_MLX_SDA_GPIO
+                int "SDA GPIO"
+                range 0 30
+                default 19
+                help
+                    UNCONFIRMED: FireBeetle 2 ESP32-C6 silkscreen SDA; check your wiring.
+
+            config RB_MLX_SCL_GPIO
+                int "SCL GPIO"
+                range 0 30
+                default 20
+                help
+                    UNCONFIRMED: FireBeetle 2 ESP32-C6 silkscreen SCL; check your wiring.
+
+            config RB_MLX_I2C_HZ
+                int "I2C clock (Hz)"
+                range 100000 1000000
+                default 400000
+                help
+                    Start at 100 kHz if the wiring is long or unverified.
+
+            config RB_MLX_ADDRESS
+                hex "I2C address"
+                default 0x33
+
+            choice RB_MLX_REFRESH
+                prompt "Sub-page refresh rate"
+                default RB_MLX_REFRESH_4HZ
+                help
+                    A full frame needs two sub-pages, so 4 Hz gives 2 frames/s.
+                config RB_MLX_REFRESH_2HZ
+                    bool "2 Hz"
+                config RB_MLX_REFRESH_4HZ
+                    bool "4 Hz"
+                config RB_MLX_REFRESH_8HZ
+                    bool "8 Hz"
+            endchoice
+
+            config RB_MLX_EMISSIVITY_PCT
+                int "Emissivity (percent)"
+                range 10 100
+                default 95
+
+            config RB_MLX_FRAME_TIMEOUT_MS
+                int "Frame read timeout (ms)"
+                range 100 10000
+                default 2000
+
+        endmenu
+
+        menu "Thermal feature extraction"
+
+            config RB_THERMAL_HOT_PIXEL_THRESHOLD_DC
+                int "Hot pixel threshold (0.1 degC)"
+                range -400 3000
+                default 500
+                help
+                    Pixels at or above this count towards pixels_above_threshold.
+                    UNVERIFIED placeholder (50.0 degC): set it from measurements.
+
+            config RB_THERMAL_HOT_REGION_RADIUS
+                int "Hot region radius (pixels)"
+                range 0 4
+                default 1
+                help
+                    1 averages the 3x3 square around the hottest pixel.
+
+            config RB_THERMAL_RATE_WINDOW_S
+                int "Rate-of-change window (s)"
+                range 4 600
+                default 30
+
+            config RB_THERMAL_VALID_MIN_DC
+                int "Lowest plausible pixel temperature (0.1 degC)"
+                range -400 0
+                default -400
+
+            config RB_THERMAL_VALID_MAX_DC
+                int "Highest plausible pixel temperature (0.1 degC)"
+                range 500 4000
+                default 3000
+
+            config RB_THERMAL_MAX_INVALID_PIXELS
+                int "Invalid pixels tolerated per frame"
+                range 0 768
+                default 8
+
+            config RB_THERMAL_DIAG_DUMP_EVERY
+                int "Dump the raw frame over serial every N frames (0 = never)"
+                range 0 10000
+                default 0
+                help
+                    Diagnostic only. Prints the 768 temperatures as one CSV
+                    line prefixed with FRAME, which
+                    tools/diagnostics/thermal_frame_view.py can render.
+
+        endmenu
+
     endmenu
 
 endmenu
