@@ -230,15 +230,15 @@ Do not assume arbitrary C structs are automatically safe wire protocols.
 
 # 5. ESP-NOW — C6 Sender
 
-- [ ] Initialize ESP-NOW.
-- [ ] Configure S3 as peer.
-- [ ] Implement packet transmission.
-- [ ] Increment sequence numbers.
-- [ ] Track send success/failure.
-- [ ] Implement periodic heartbeat.
-- [ ] Implement sensor-data publishing.
-- [ ] Implement sensor-fault publishing.
-- [ ] Log useful diagnostics without flooding serial output.
+- [x] Initialize ESP-NOW.
+- [x] Configure S3 as peer.
+- [x] Implement packet transmission.
+- [x] Increment sequence numbers.
+- [x] Track send success/failure.
+- [x] Implement periodic heartbeat.
+- [x] Implement sensor-data publishing.
+- [x] Implement sensor-fault publishing.
+- [x] Log useful diagnostics without flooding serial output.
 
 Test:
 
