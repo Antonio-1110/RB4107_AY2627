@@ -90,6 +90,7 @@ typedef struct {
     /* Heat detection (UNVERIFIED placeholders until thermal data is collected). */
     float heat_on_temp_c;                   /* hot-region temp that means cooking has started */
     float heat_off_temp_c;                  /* hysteresis: cooking considered over below this */
+    float heat_on_rate_c_per_min;           /* also "cooking" when rising this fast (above heat_off); 0 = off */
 
     /* Presence filtering. */
     uint32_t absence_debounce_ms;           /* continuous absence needed before UNATTENDED */

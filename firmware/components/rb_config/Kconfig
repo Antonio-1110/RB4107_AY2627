@@ -705,6 +705,16 @@ menu "RB4107 configuration"
                 Hysteresis. Must not be above the "cooking detected" value.
                 UNVERIFIED placeholder.
 
+        config RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN
+            int "Also detect cooking when rising at least (0.1 degC/min), 0 = off"
+            range 0 10000
+            default 0
+            help
+                Temperature-rate threshold. When non-zero, a hot region that
+                is above the "cooking over" temperature and rising at least
+                this fast also counts as cooking. Off by default: set it only
+                once thermal data has been collected (UNVERIFIED).
+
         config RB_SAFETY_ABSENCE_DEBOUNCE_MS
             int "Absence must last (ms) before UNATTENDED"
             range 0 60000

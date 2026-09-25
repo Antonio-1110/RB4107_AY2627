@@ -33,6 +33,9 @@ bool safety_config_valid(const safety_config_t *cfg)
     if (!isfinite(cfg->heat_on_temp_c) || !isfinite(cfg->heat_off_temp_c) || cfg->heat_off_temp_c > cfg->heat_on_temp_c) {
         return false;
     }
+    if (!isfinite(cfg->heat_on_rate_c_per_min) || cfg->heat_on_rate_c_per_min < 0.0f) {
+        return false;
+    }
     return true;
 }
 
@@ -305,8 +308,11 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
 {
     /* Heat detector with hysteresis. Invalid thermal data leaves it unchanged (FAULT handles that case). */
     if (in->thermal_valid && isfinite(in->hot_region_temp_c)) {
-        sm->heat_active = sm->heat_active ? in->hot_region_temp_c >= sm->cfg.heat_off_temp_c
-                                          : in->hot_region_temp_c >= sm->cfg.heat_on_temp_c;
+        const float t = in->hot_region_temp_c;
+        const bool rising_fast = sm->cfg.heat_on_rate_c_per_min > 0.0f && isfinite(in->temp_rate_c_per_min) &&
+                                 in->temp_rate_c_per_min >= sm->cfg.heat_on_rate_c_per_min &&
+                                 t >= sm->cfg.heat_off_temp_c;
+        sm->heat_active = sm->heat_active ? t >= sm->cfg.heat_off_temp_c : (t >= sm->cfg.heat_on_temp_c || rising_fast);
     }
 
     /* Presence debounce timers. UNKNOWN stops both. */
