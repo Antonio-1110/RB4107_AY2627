@@ -115,7 +115,7 @@ What has been checked without hardware, and how:
 
 | Checked | How |
 |---|---|
-| All 26 ESP-IDF projects build (ESP-IDF v6.1, C6 and S3) | clean builds, no warnings |
+| All 25 ESP-IDF projects build (ESP-IDF v6.1, C6 and S3) | clean builds, no warnings |
 | Safety logic, node health, faults, protocol, C4002 parser, thermal features, JSON | 47 Unity tests pass on the host (linux target) and on the ESP32-S3 in QEMU (project 28) |
 | Real-time behaviour, MQTT client, publishing, diagnostic console | firmware run in QEMU with emulated Ethernet against Mosquitto (11, 19–22, 27, 29, 30) |
 | JSON payloads | every captured message validated against `docs/schema/rb4107_mqtt.schema.json` |
