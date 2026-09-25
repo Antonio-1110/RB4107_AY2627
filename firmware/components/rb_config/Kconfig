@@ -2,6 +2,20 @@ menu "RB4107 configuration"
 
     comment "Values marked UNCONFIRMED have not been verified on real hardware."
 
+    menu "ESP-NOW link (shared by node and controller)"
+
+        config RB_ESPNOW_CHANNEL
+            int "Wi-Fi channel used for ESP-NOW"
+            range 1 13
+            default 1
+            help
+                The node and the controller must use the same channel. If the
+                controller joins a Wi-Fi network (section 17), ESP-NOW has to
+                use that access point's channel. OPEN QUESTION: final S3
+                ESP-NOW/Wi-Fi configuration.
+
+    endmenu
+
     menu "Sensor node (ESP32-C6)"
 
         config RB_NODE_ID
@@ -27,6 +41,29 @@ menu "RB4107 configuration"
             help
                 How often the node logs uptime and heap statistics. Kept slow
                 so the serial monitor is not flooded.
+
+        config RB_NODE_CONTROLLER_MAC
+            string "Controller (ESP32-S3) Wi-Fi STA MAC address"
+            default "FF:FF:FF:FF:FF:FF"
+            help
+                Where the node sends its ESP-NOW packets. Copy the MAC that
+                project 06 prints at boot. The default is broadcast, which is
+                fine on the bench but should be replaced for real use.
+
+        config RB_NODE_DATA_PERIOD_MS
+            int "SENSOR_DATA transmit period (ms)"
+            range 100 10000
+            default 500
+
+        config RB_NODE_HEARTBEAT_PERIOD_MS
+            int "HEARTBEAT transmit period (ms)"
+            range 200 60000
+            default 1000
+
+        config RB_MLX_STALE_TIMEOUT_MS
+            int "Thermal reading goes invalid after (ms) without a good frame"
+            range 500 60000
+            default 3000
 
         menu "C4002 presence sensor"
 
