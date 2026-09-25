@@ -37,6 +37,7 @@ their own; the table says where they are applied.
 | TODO section | Where | Target |
 |---|---|---|
 | 0 Repository structure | this layout | – |
+| 1 ESP32-C6 sensor node base | [`firmware/01_c6_sensor_node_base`](firmware/01_c6_sensor_node_base) | ESP32-C6 |
 
 ## Toolchain
 
