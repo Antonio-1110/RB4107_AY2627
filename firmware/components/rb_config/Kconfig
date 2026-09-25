@@ -355,6 +355,37 @@ menu "RB4107 configuration"
 
         endmenu
 
+        menu "Tasks"
+
+            config RB_CTRL_SAFETY_TASK_PRIO
+                int "Safety task priority"
+                range 5 22
+                default 12
+                help
+                    Must stay above every telemetry/network task.
+
+            config RB_CTRL_SAFETY_TICK_MS
+                int "Safety task tick (ms)"
+                range 10 1000
+                default 100
+                help
+                    Longest the safety task waits between state machine steps.
+
+            config RB_CTRL_EVENT_QUEUE_LEN
+                int "Event queue length (safety -> telemetry)"
+                range 4 128
+                default 32
+                help
+                    The safety task never blocks on this queue. When it is full
+                    the event is dropped and counted.
+
+            config RB_CTRL_TELEMETRY_TASK_PRIO
+                int "Telemetry task priority"
+                range 1 10
+                default 3
+
+        endmenu
+
     endmenu
 
     menu "Safety logic (ESP32-S3)"

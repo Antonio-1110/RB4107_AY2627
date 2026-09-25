@@ -508,12 +508,12 @@ Diagnostics
 Fault monitoring
 ```
 
-- [ ] Keep safety processing higher priority than telemetry.
-- [ ] Avoid unnecessary tasks.
-- [ ] Avoid uncontrolled global shared state.
-- [ ] Use queues where appropriate.
-- [ ] Use task notifications/event groups where appropriate.
-- [ ] Protect genuinely shared resources.
+- [x] Keep safety processing higher priority than telemetry.
+- [x] Avoid unnecessary tasks.
+- [x] Avoid uncontrolled global shared state.
+- [x] Use queues where appropriate.
+- [x] Use task notifications/event groups where appropriate.
+- [x] Protect genuinely shared resources.
 
 Critical requirement:
 
