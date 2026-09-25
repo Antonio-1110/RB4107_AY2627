@@ -395,12 +395,12 @@ Also support:
 FAULT
 ```
 
-- [ ] Define state enum.
-- [ ] Implement state-entry logic.
-- [ ] Implement state-exit logic.
-- [ ] Implement explicit transition conditions.
-- [ ] Log every transition.
-- [ ] Keep state logic independent from MQTT.
+- [x] Define state enum.
+- [x] Implement state-entry logic.
+- [x] Implement state-exit logic.
+- [x] Implement explicit transition conditions.
+- [x] Log every transition.
+- [x] Keep state logic independent from MQTT.
 
 ---
 
