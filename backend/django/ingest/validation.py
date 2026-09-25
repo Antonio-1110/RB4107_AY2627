@@ -71,7 +71,7 @@ def _validators(schema_file: Path) -> dict[str, jsonschema.Draft202012Validator]
 
 def topic_kind(topic: str, prefix: str | None = None) -> str:
     """Map a concrete topic onto its pattern: rb4107/sensors/node_01/thermal -> sensors/*/thermal."""
-    prefix = prefix or settings.RB4107_MQTT["TOPIC"].split("/#")[0].rstrip("/")
+    prefix = prefix or topic_prefix(settings.RB4107_MQTT["TOPIC"])
     if not topic.startswith(prefix + "/"):
         raise InvalidMessage(f"topic outside prefix '{prefix}'")
     parts = topic[len(prefix) + 1:].split("/")
@@ -83,9 +83,14 @@ def topic_kind(topic: str, prefix: str | None = None) -> str:
     return kind
 
 
-def parse(topic: str, payload: bytes) -> Message:
-    """Decode and validate one MQTT message."""
-    kind = topic_kind(topic)
+def topic_prefix(subscription: str) -> str:
+    """'rb4107/#' -> 'rb4107'."""
+    return subscription.split("/#")[0].rstrip("/")
+
+
+def parse(topic: str, payload: bytes, prefix: str | None = None) -> Message:
+    """Decode and validate one MQTT message. prefix defaults to the configured subscription's."""
+    kind = topic_kind(topic, prefix)
     if len(payload) > MAX_PAYLOAD_BYTES:
         raise InvalidMessage(f"payload too large ({len(payload)} bytes)")
     try:

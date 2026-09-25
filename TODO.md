@@ -854,13 +854,13 @@ Preferred interface:
 python manage.py mqtt_subscriber
 ```
 
-- [ ] Create Django management command.
-- [ ] Connect to broker.
-- [ ] Subscribe.
-- [ ] Process messages.
-- [ ] Reconnect after broker failure.
-- [ ] Handle graceful shutdown.
-- [ ] Log connection status.
+- [x] Create Django management command.
+- [x] Connect to broker.
+- [x] Subscribe.
+- [x] Process messages.
+- [x] Reconnect after broker failure.
+- [x] Handle graceful shutdown.
+- [x] Log connection status.
 
 Architecture:
 
