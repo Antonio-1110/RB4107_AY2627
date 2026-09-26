@@ -1,5 +1,9 @@
 # 28 – State machine testing
 
+> **Test-only project, not part of the running system.** It runs the unit tests. To run the
+> system, flash [`05_espnow_c6_sender`](../05_espnow_c6_sender) on the C6 and
+> [`29_end_to_end`](../29_end_to_end) on the S3.
+
 TODO section 28. Targets: **ESP32-S3** and the **host PC** (ESP-IDF `linux` target).
 
 This project also covers the logic-only sections, which no longer have

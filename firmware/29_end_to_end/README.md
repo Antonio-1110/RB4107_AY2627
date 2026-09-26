@@ -1,5 +1,8 @@
 # 29 – ESP32-S3 controller (end-to-end, diagnostics, critical failure test)
 
+> **System firmware: flash this on the ESP32-S3.** Together with
+> [`05_espnow_c6_sender`](../05_espnow_c6_sender) on the C6, this is the running system.
+
 The production controller firmware for the **Waveshare ESP32-S3-ETH-8DI-8RO**.
 It covers TODO sections **29** (end-to-end integration), **27** (diagnostic
 mode) and **30** (critical failure test). Every component is wired in

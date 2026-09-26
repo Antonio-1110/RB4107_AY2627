@@ -1,5 +1,9 @@
 # 03 – MLX90640 thermal sensor integration
 
+> **Test-only project, not part of the running system.** It checks one part on its own and replaces the system firmware on that board. To run the
+> system, flash [`05_espnow_c6_sender`](../05_espnow_c6_sender) on the C6 and
+> [`29_end_to_end`](../29_end_to_end) on the S3.
+
 TODO section 3 and 3.1. Target: **FireBeetle 2 ESP32-C6** + **MLX90640 (32×24)**.
 
 ## Wiring (menuconfig defaults, UNCONFIRMED)

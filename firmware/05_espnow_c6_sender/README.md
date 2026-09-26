@@ -1,5 +1,8 @@
 # 05 – ESP32-C6 sensor node (ESP-NOW sender)
 
+> **System firmware: flash this on the ESP32-C6.** Together with
+> [`29_end_to_end`](../29_end_to_end) on the S3, this is the running system.
+
 TODO sections 1 and 5. Target: **FireBeetle 2 ESP32-C6** with the C4002 and
 MLX90640. This is the **complete sensor-node firmware**.
 
@@ -31,7 +34,7 @@ while it runs. Logs go over the native USB-Serial/JTAG.
 
 ## Setup
 
-1. Flash project 06 (or 29) on the S3 and copy the MAC address it prints.
+1. Flash project 29 on the S3 (or 06 during bring-up) and copy the MAC address it prints.
 2. `idf.py menuconfig` → *RB4107 configuration*:
    - *Sensor node* → `RB_NODE_CONTROLLER_MAC` = that MAC,
    - *ESP-NOW link* → `RB_ESPNOW_CHANNEL` = same value as on the S3.

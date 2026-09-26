@@ -6,13 +6,25 @@ the [`TODO.md`](../TODO.md) section it starts from. They share code through
 `../components` to `EXTRA_COMPONENT_DIRS` and builds only the components its
 `main` requires.
 
-| Project | Role |
+## System firmware: flash these two
+
+| Board | Project |
 |---|---|
-| **05_espnow_c6_sender** | complete C6 sensor-node firmware |
-| **29_end_to_end** | complete S3 controller firmware (with diagnostic console and critical-failure monitor) |
-| 28_state_machine_tests | unit tests, on the PC (linux target) or the board |
-| 02_c4002_integration, 03_mlx90640_integration | C6 sensor bring-up: one sensor at a time |
-| 06_s3_controller_base, 13_buzzer, 14_relay_shutdown, 15_rtc_time, 17_s3_network | S3 hardware bring-up: one board part at a time |
+| ESP32-C6 sensor node | **[`05_espnow_c6_sender`](05_espnow_c6_sender)** |
+| ESP32-S3 controller | **[`29_end_to_end`](29_end_to_end)** (includes the diagnostic console and critical-failure monitor) |
+
+Setup order: [`29_end_to_end/README.md`](29_end_to_end/README.md#setup).
+
+## Test-only projects: not part of the running system
+
+Flashing one of these replaces the system firmware on that board. Flash 05 or
+29 back when you're done.
+
+| Project | Board | Purpose |
+|---|---|---|
+| 02_c4002_integration, 03_mlx90640_integration | C6 | sensor bring-up: one sensor at a time |
+| 06_s3_controller_base, 13_buzzer, 14_relay_shutdown, 15_rtc_time, 17_s3_network | S3 | hardware bring-up: one board part at a time |
+| 28_state_machine_tests | PC or S3 | unit tests (linux target on the PC) |
 
 Build any project the usual way:
 

@@ -27,16 +27,28 @@ RB4107_AY2627/
 └── TODO.md
 ```
 
-There are 10 ESP-IDF projects:
+## What to flash to run the system
 
-- **05** (C6 sensor node) and **29** (S3 controller) are the two firmwares
-  you normally flash. 29 also contains the diagnostic console and the
-  critical-failure monitor.
-- **28** holds the unit tests, which run on a PC or on the board.
-- **02, 03, 06, 13, 14, 15, 17** are hardware bring-up projects. Each tests one
-  sensor or board part on its own, so you can check the wiring and see sensible
-  readings before running the full firmware, and isolate a part when something
-  misbehaves.
+The working system is **exactly two firmwares**, one per board, plus the broker
+and Django on the MacBook:
+
+| Board | Flash this project | What it is |
+|---|---|---|
+| ESP32-C6 (FireBeetle 2, with C4002 + MLX90640) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | **Sensor node firmware**: reads both sensors and sends them to the S3 over ESP-NOW |
+| ESP32-S3 (Waveshare ETH-8DI-8RO) | [`firmware/29_end_to_end`](firmware/29_end_to_end) | **Controller firmware**: safety state machine, buzzer, shutdown relay, RTC, Ethernet, MQTT, diagnostic console |
+| MacBook | [`tools/mqtt`](tools/mqtt) + [`backend/django`](backend/django) | Mosquitto broker and Django subscriber (not ESP32 projects) |
+
+Setup steps (broker, MAC address, channel):
+[`firmware/29_end_to_end/README.md`](firmware/29_end_to_end/README.md#setup).
+
+**Every other project is for testing only and is not part of the running
+system.** Flashing one of them replaces the system firmware on that board;
+flash 05 / 29 back afterwards.
+
+| Project | Purpose |
+|---|---|
+| 02, 03 (C6) and 06, 13, 14, 15, 17 (S3) | hardware bring-up: test one sensor or board part on its own, to check the wiring and readings before running the full firmware, or to isolate a part that misbehaves |
+| 28 | unit tests of the safety logic, protocol and JSON, on a PC or on the S3 |
 
 The rest of each TODO section lives in shared components and docs (table
 below). The broker and Django don't run on an ESP32 and live in `tools/` and
@@ -51,7 +63,7 @@ below). The broker and Django don't run on an ESP32 and live in `tools/` and
 | 2 C4002 integration | [`firmware/02_c4002_integration`](firmware/02_c4002_integration) | ESP32-C6 |
 | 3 MLX90640 integration + thermal features | [`firmware/03_mlx90640_integration`](firmware/03_mlx90640_integration) | ESP32-C6 |
 | 4 Shared ESP-NOW protocol | `firmware/components/rb_protocol`, spec in [`docs/protocol.md`](docs/protocol.md), tests in 28 | C6 + S3 |
-| 5 ESP-NOW C6 sender (**complete sensor node**) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | ESP32-C6 |
+| 5 ESP-NOW C6 sender (**system firmware: flash on the C6**) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | ESP32-C6 |
 | 6 ESP32-S3 controller base | [`firmware/06_s3_controller_base`](firmware/06_s3_controller_base) | ESP32-S3 |
 | 7 ESP-NOW S3 receiver | [`firmware/29_end_to_end`](firmware/29_end_to_end), described in [`docs/architecture.md`](docs/architecture.md), tests in 28 | ESP32-S3 |
 | 8 Sensor node health monitoring | same as 7 | ESP32-S3 |
@@ -75,7 +87,7 @@ below). The broker and Django don't run on an ESP32 and live in `tools/` and
 | 26 Configuration | cross-cutting: [`docs/configuration.md`](docs/configuration.md), `firmware/components/rb_config/Kconfig` | all |
 | 27 Diagnostic mode | [`firmware/29_end_to_end`](firmware/29_end_to_end) (console, `sdkconfig.qemu`) | ESP32-S3 |
 | 28 State machine testing | [`firmware/28_state_machine_tests`](firmware/28_state_machine_tests), `tools/run_host_tests.sh` | ESP32-S3 + host (linux target) |
-| 29 End-to-end integration (**complete controller**) | [`firmware/29_end_to_end`](firmware/29_end_to_end) (+ 05 on the C6), `tools/diagnostics/e2e_check.py` | ESP32-S3 + ESP32-C6 |
+| 29 End-to-end integration (**system firmware: flash on the S3**) | [`firmware/29_end_to_end`](firmware/29_end_to_end) (+ 05 on the C6), `tools/diagnostics/e2e_check.py` | ESP32-S3 + ESP32-C6 |
 | 30 Critical failure test | [`firmware/29_end_to_end`](firmware/29_end_to_end) (continuity monitor), `tools/diagnostics/critical_failure_test.py` | ESP32-S3 + MacBook |
 | 31 Development order | milestone checkboxes in [`TODO.md`](TODO.md) | – |
 | 32 Open questions | [`docs/open_questions.md`](docs/open_questions.md): each one is a menuconfig option or a bench check | – |
