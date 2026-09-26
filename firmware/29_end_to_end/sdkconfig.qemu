@@ -1,0 +1,13 @@
+# Overlay for running this firmware without hardware (QEMU, section 27
+# diagnostic mode). Use it together with sdkconfig.defaults:
+#
+#   idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+#          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.qemu" \
+#          qemu --qemu-extra-args="-nic user,model=open_eth"
+#
+# Never flash a build with this overlay onto the real controller.
+CONFIG_RB_NET_QEMU_OPENETH=y
+CONFIG_RB_BROKER_HOST="10.0.2.2"
+CONFIG_RB_SIM_NODE=y
+CONFIG_RB_OUTPUTS_SIMULATED=y
+CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT=y

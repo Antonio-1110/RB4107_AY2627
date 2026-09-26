@@ -1,0 +1,4 @@
+dependencies:
+  idf: ">=6.0"
+  # W5500 SPI Ethernet driver (moved out of ESP-IDF in v6.0).
+  espressif/w5500: "^2.0.0"

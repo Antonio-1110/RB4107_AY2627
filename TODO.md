@@ -21,6 +21,10 @@ MQTT Broker — MacBook
 Django MQTT Subscriber
 ```
 
+> **Status legend:** `[x]` = implemented in this repository. Items that need
+> physical hardware (flashing, wiring, measurements) stay `[ ]` until someone
+> has checked them on the bench. See `README.md` for the section → folder map.
+
 > **Critical architectural requirement:**  
 > The local safety system must continue operating if MQTT, Django, the MacBook, or the network becomes unavailable.
 
@@ -30,7 +34,7 @@ Anything downstream of Django is currently out of scope.
 
 # 0. Repository / Project Structure
 
-- [ ] Establish clean repository structure for the different software components.
+- [x] Establish clean repository structure for the different software components. *(10 ESP-IDF projects in `firmware/` + shared components; see `README.md` for which folder covers each section.)*
 
 Suggested structure:
 
@@ -54,10 +58,10 @@ RB4107/
 └── README.md
 ```
 
-- [ ] Keep shared communication definitions synchronized between C6 and S3.
-- [ ] Avoid monolithic firmware files.
-- [ ] Centralize configurable parameters.
-- [ ] Document build/flash/test procedures.
+- [x] Keep shared communication definitions synchronized between C6 and S3.
+- [x] Avoid monolithic firmware files.
+- [x] Centralize configurable parameters.
+- [x] Document build/flash/test procedures.
 
 ---
 
@@ -87,27 +91,27 @@ The C6 should **not** contain the overall cooking safety state machine.
 
 ## 1.1 Basic ESP-IDF Project
 
-- [ ] Create ESP-IDF project for FireBeetle ESP32-C6.
-- [ ] Verify build.
+- [x] Create ESP-IDF project for FireBeetle ESP32-C6.
+- [x] Verify build.
 - [ ] Verify flashing.
 - [ ] Verify serial logging.
 - [ ] Verify board remains stable after hardware assembly.
-- [ ] Create centralized pin/configuration definitions.
+- [x] Create centralized pin/configuration definitions.
 
 ---
 
 # 2. C4002 Integration
 
-- [ ] Identify exact C4002 communication interface being used.
+- [x] Identify exact C4002 communication interface being used.
 - [ ] Confirm required UART/GPIO configuration.
-- [ ] Initialize C4002.
-- [ ] Read presence information.
-- [ ] Read moving/stationary target information if supported.
-- [ ] Read target distance if supported.
-- [ ] Add validity/error detection.
+- [x] Initialize C4002.
+- [x] Read presence information.
+- [x] Read moving/stationary target information if supported.
+- [x] Read target distance if supported.
+- [x] Add validity/error detection.
 - [ ] Test continuous operation.
-- [ ] Investigate current false static-presence detections.
-- [ ] Expose configurable C4002 sensitivity/detection parameters where supported.
+- [ ] Investigate current false static-presence detections. *(Hypotheses, tooling and knobs: `firmware/02_c4002_integration/README.md`.)*
+- [x] Expose configurable C4002 sensitivity/detection parameters where supported.
 
 Create a clean internal representation similar to:
 
@@ -131,12 +135,12 @@ struct PresenceReading {
 
 # 3. MLX90640 Integration
 
-- [ ] Configure I2C.
-- [ ] Initialize MLX90640.
-- [ ] Read complete 32 × 24 thermal frame.
-- [ ] Verify all 768 temperature readings.
-- [ ] Check sensor error conditions.
-- [ ] Add invalid-reading detection.
+- [x] Configure I2C.
+- [x] Initialize MLX90640.
+- [x] Read complete 32 × 24 thermal frame.
+- [x] Verify all 768 temperature readings.
+- [x] Check sensor error conditions.
+- [x] Add invalid-reading detection.
 - [ ] Test thermal readings at different distances.
 - [ ] Test thermal readings against different heat sources.
 
@@ -144,13 +148,13 @@ struct PresenceReading {
 
 Implement derived features such as:
 
-- [ ] Maximum temperature.
-- [ ] Minimum temperature.
-- [ ] Mean temperature.
-- [ ] Hottest-region temperature.
-- [ ] Number of pixels above threshold.
-- [ ] Temperature rate of change.
-- [ ] Sensor validity.
+- [x] Maximum temperature.
+- [x] Minimum temperature.
+- [x] Mean temperature.
+- [x] Hottest-region temperature.
+- [x] Number of pixels above threshold.
+- [x] Temperature rate of change.
+- [x] Sensor validity.
 
 Candidate structure:
 
@@ -170,9 +174,9 @@ struct ThermalReading {
 };
 ```
 
-- [ ] Make thresholds configurable.
-- [ ] Keep raw thermal frame accessible for diagnostics.
-- [ ] Do NOT continuously transmit the entire 768-pixel frame unless diagnostic mode requires it.
+- [x] Make thresholds configurable.
+- [x] Keep raw thermal frame accessible for diagnostics.
+- [x] Do NOT continuously transmit the entire 768-pixel frame unless diagnostic mode requires it.
 
 ---
 
@@ -180,17 +184,17 @@ struct ThermalReading {
 
 Create a shared/versioned communication protocol.
 
-- [ ] Define protocol version.
-- [ ] Define node ID.
-- [ ] Define sequence number.
-- [ ] Define message types.
-- [ ] Define sensor validity flags.
-- [ ] Define heartbeat mechanism.
-- [ ] Define fault message.
-- [ ] Verify packet size against ESP-NOW limits.
-- [ ] Consider struct packing/alignment.
-- [ ] Add compile-time size checks.
-- [ ] Document protocol.
+- [x] Define protocol version.
+- [x] Define node ID.
+- [x] Define sequence number.
+- [x] Define message types.
+- [x] Define sensor validity flags.
+- [x] Define heartbeat mechanism.
+- [x] Define fault message.
+- [x] Verify packet size against ESP-NOW limits.
+- [x] Consider struct packing/alignment.
+- [x] Add compile-time size checks.
+- [x] Document protocol.
 
 Example:
 
@@ -226,15 +230,15 @@ Do not assume arbitrary C structs are automatically safe wire protocols.
 
 # 5. ESP-NOW — C6 Sender
 
-- [ ] Initialize ESP-NOW.
-- [ ] Configure S3 as peer.
-- [ ] Implement packet transmission.
-- [ ] Increment sequence numbers.
-- [ ] Track send success/failure.
-- [ ] Implement periodic heartbeat.
-- [ ] Implement sensor-data publishing.
-- [ ] Implement sensor-fault publishing.
-- [ ] Log useful diagnostics without flooding serial output.
+- [x] Initialize ESP-NOW.
+- [x] Configure S3 as peer.
+- [x] Implement packet transmission.
+- [x] Increment sequence numbers.
+- [x] Track send success/failure.
+- [x] Implement periodic heartbeat.
+- [x] Implement sensor-data publishing.
+- [x] Implement sensor-fault publishing.
+- [x] Log useful diagnostics without flooding serial output.
 
 Test:
 
@@ -298,21 +302,21 @@ main/
     └── system_config.h
 ```
 
-- [ ] Adjust structure if ESP-IDF components provide cleaner separation.
+- [x] Adjust structure if ESP-IDF components provide cleaner separation.
 
 ---
 
 # 7. ESP-NOW — S3 Receiver
 
-- [ ] Initialize ESP-NOW.
-- [ ] Receive C6 packets.
-- [ ] Validate protocol version.
-- [ ] Validate packet size.
-- [ ] Validate node ID.
-- [ ] Track sequence number.
-- [ ] Track last packet timestamp.
-- [ ] Detect duplicate/out-of-order packets where relevant.
-- [ ] Update internal sensor-node state.
+- [x] Initialize ESP-NOW.
+- [x] Receive C6 packets.
+- [x] Validate protocol version.
+- [x] Validate packet size.
+- [x] Validate node ID.
+- [x] Track sequence number.
+- [x] Track last packet timestamp.
+- [x] Detect duplicate/out-of-order packets where relevant.
+- [x] Update internal sensor-node state.
 
 Candidate:
 
@@ -343,13 +347,13 @@ STALE
 OFFLINE
 ```
 
-- [ ] Define configurable stale timeout.
-- [ ] Define configurable offline timeout.
-- [ ] Detect missing packets.
-- [ ] Detect invalid sensor readings.
-- [ ] Detect sensor recovery.
-- [ ] Generate fault events.
-- [ ] Generate recovery events.
+- [x] Define configurable stale timeout.
+- [x] Define configurable offline timeout.
+- [x] Detect missing packets.
+- [x] Detect invalid sensor readings.
+- [x] Detect sensor recovery.
+- [x] Generate fault events.
+- [x] Generate recovery events.
 
 > Missing sensor data must never automatically mean "safe."
 
@@ -391,12 +395,12 @@ Also support:
 FAULT
 ```
 
-- [ ] Define state enum.
-- [ ] Implement state-entry logic.
-- [ ] Implement state-exit logic.
-- [ ] Implement explicit transition conditions.
-- [ ] Log every transition.
-- [ ] Keep state logic independent from MQTT.
+- [x] Define state enum.
+- [x] Implement state-entry logic.
+- [x] Implement state-exit logic.
+- [x] Implement explicit transition conditions.
+- [x] Log every transition.
+- [x] Keep state logic independent from MQTT.
 
 ---
 
@@ -404,18 +408,18 @@ FAULT
 
 ## IDLE → MONITORING
 
-- [ ] Detect thermal condition indicating active cooking/heating.
-- [ ] Transition into MONITORING.
+- [x] Detect thermal condition indicating active cooking/heating.
+- [x] Transition into MONITORING.
 
 ## MONITORING → UNATTENDED
 
-- [ ] Detect absence of person.
-- [ ] Start unattended timer.
+- [x] Detect absence of person.
+- [x] Start unattended timer.
 
 ## UNATTENDED → MONITORING
 
-- [ ] Detect person returning.
-- [ ] Cancel/reset unattended timer.
+- [x] Detect person returning.
+- [x] Cancel/reset unattended timer.
 
 ## UNATTENDED → WARNING
 
@@ -425,8 +429,8 @@ Initial prototype target:
 ~60 seconds unattended
 ```
 
-- [ ] Make timeout configurable.
-- [ ] Activate warning behaviour.
+- [x] Make timeout configurable.
+- [x] Activate warning behaviour.
 
 ## WARNING → SHUTDOWN
 
@@ -436,14 +440,14 @@ Initial prototype target:
 ~90 seconds
 ```
 
-- [ ] Clarify whether 90 s means total unattended time or 90 s after warning.
-- [ ] Keep timing configurable.
-- [ ] Activate shutdown output.
+- [ ] Clarify whether 90 s means total unattended time or 90 s after warning. *(Both supported: `RB_SAFETY_SHUTDOWN_TIMING`; default = total unattended time.)*
+- [x] Keep timing configurable.
+- [x] Activate shutdown output.
 
 ## Temperature Interaction
 
-- [ ] Keep architecture ready for temperature trend to modify timer/state behaviour.
-- [ ] Do NOT hard-code unverified thermal assumptions.
+- [x] Keep architecture ready for temperature trend to modify timer/state behaviour.
+- [x] Do NOT hard-code unverified thermal assumptions.
 - [ ] Collect experimental data first.
 
 ---
@@ -460,10 +464,10 @@ for safety behaviour.
 
 Use:
 
-- [ ] `esp_timer`
-- [ ] FreeRTOS timing
-- [ ] monotonic timestamps
-- [ ] state-entry timestamps
+- [x] `esp_timer`
+- [x] FreeRTOS timing
+- [x] monotonic timestamps
+- [x] state-entry timestamps
 
 Pattern:
 
@@ -504,12 +508,12 @@ Diagnostics
 Fault monitoring
 ```
 
-- [ ] Keep safety processing higher priority than telemetry.
-- [ ] Avoid unnecessary tasks.
-- [ ] Avoid uncontrolled global shared state.
-- [ ] Use queues where appropriate.
-- [ ] Use task notifications/event groups where appropriate.
-- [ ] Protect genuinely shared resources.
+- [x] Keep safety processing higher priority than telemetry.
+- [x] Avoid unnecessary tasks.
+- [x] Avoid uncontrolled global shared state.
+- [x] Use queues where appropriate.
+- [x] Use task notifications/event groups where appropriate.
+- [x] Protect genuinely shared resources.
 
 Critical requirement:
 
@@ -523,11 +527,11 @@ Safety task MUST continue
 
 # 13. Buzzer Driver
 
-- [ ] Determine correct Waveshare buzzer interface/pin.
-- [ ] Implement initialization.
-- [ ] Implement ON.
-- [ ] Implement OFF.
-- [ ] Implement non-blocking warning pattern if needed.
+- [ ] Determine correct Waveshare buzzer interface/pin. *(Default GPIO46 active-high from the legacy code; GPIO vs PWM selectable in menuconfig.)*
+- [x] Implement initialization.
+- [x] Implement ON.
+- [x] Implement OFF.
+- [x] Implement non-blocking warning pattern if needed.
 
 Suggested abstraction:
 
@@ -542,12 +546,12 @@ buzzer_set_pattern(...);
 
 # 14. Relay / Shutdown Driver
 
-- [ ] Identify correct Waveshare relay interface.
-- [ ] Confirm relay polarity.
-- [ ] Determine safe boot state.
-- [ ] Implement initialization.
-- [ ] Implement shutdown activation.
-- [ ] Implement shutdown release/reset.
+- [x] Identify correct Waveshare relay interface. *(TCA9554 @0x20 per legacy code; verify on board.)*
+- [ ] Confirm relay polarity. *(Configurable: `RB_SHUTDOWN_POLARITY`, `RB_RELAY_ACTIVE_LEVEL`.)*
+- [ ] Determine safe boot state. *(Configurable: `RB_SHUTDOWN_BOOT_STATE`; glitch-free init order implemented.)*
+- [x] Implement initialization.
+- [x] Implement shutdown activation.
+- [x] Implement shutdown release/reset.
 
 Suggested API:
 
@@ -569,23 +573,23 @@ Use two different concepts of time.
 
 Use for:
 
-- [ ] Unattended timer.
-- [ ] Warning timer.
-- [ ] Sensor timeout.
-- [ ] Communication timeout.
-- [ ] State duration.
+- [x] Unattended timer.
+- [x] Warning timer.
+- [x] Sensor timeout.
+- [x] Communication timeout.
+- [x] State duration.
 
 ## RTC / Wall Clock
 
 Use for:
 
-- [ ] Event timestamps.
-- [ ] Logs.
-- [ ] MQTT messages.
+- [x] Event timestamps.
+- [x] Logs.
+- [x] MQTT messages.
 
-- [ ] Initialize Waveshare RTC.
+- [x] Initialize Waveshare RTC.
 - [ ] Verify RTC persistence.
-- [ ] Provide clean time API.
+- [x] Provide clean time API.
 
 Safety timing must NOT depend on wall-clock correctness.
 
@@ -597,16 +601,16 @@ Create centralized fault handling.
 
 Potential faults:
 
-- [ ] C4002 unavailable.
-- [ ] MLX90640 unavailable.
-- [ ] Sensor node offline.
-- [ ] Invalid ESP-NOW packet.
-- [ ] ESP-NOW communication failure.
-- [ ] RTC failure.
-- [ ] Network disconnected.
-- [ ] MQTT disconnected.
-- [ ] Internal queue overflow.
-- [ ] Other hardware faults.
+- [x] C4002 unavailable.
+- [x] MLX90640 unavailable.
+- [x] Sensor node offline.
+- [x] Invalid ESP-NOW packet.
+- [x] ESP-NOW communication failure.
+- [x] RTC failure.
+- [x] Network disconnected.
+- [x] MQTT disconnected.
+- [x] Internal queue overflow.
+- [x] Other hardware faults.
 
 Distinguish between:
 
@@ -644,12 +648,12 @@ Local LAN
 MacBook
 ```
 
-- [ ] Configure Waveshare Ethernet interface.
+- [x] Configure Waveshare Ethernet interface.
 - [ ] Obtain IP address.
 - [ ] Verify LAN connectivity.
 - [ ] Verify communication with MacBook.
-- [ ] Log network state.
-- [ ] Implement reconnect/recovery behaviour.
+- [x] Log network state.
+- [x] Implement reconnect/recovery behaviour.
 
 Wi-Fi may remain available as an alternative if needed.
 
@@ -660,14 +664,14 @@ Wi-Fi may remain available as an alternative if needed.
 Use **Mosquitto** unless there is a strong reason to choose another broker.
 
 - [ ] Install Mosquitto.
-- [ ] Configure broker.
-- [ ] Allow connections from LAN.
+- [x] Configure broker.
+- [x] Allow connections from LAN.
 - [ ] Start broker.
 - [ ] Determine MacBook LAN IP.
 - [ ] Verify port 1883 availability.
 - [ ] Test local publish/subscribe.
 - [ ] Test publish/subscribe from another LAN device.
-- [ ] Document commands in README.
+- [x] Document commands in README.
 
 Initial architecture:
 
@@ -685,12 +689,12 @@ Do not hard-code the MacBook address deep in firmware.
 
 # 19. MQTT Client on S3
 
-- [ ] Initialize ESP-IDF MQTT client.
-- [ ] Configure broker IP.
-- [ ] Connect.
-- [ ] Detect disconnect.
-- [ ] Automatically reconnect.
-- [ ] Track connection state.
+- [x] Initialize ESP-IDF MQTT client.
+- [x] Configure broker IP.
+- [x] Connect.
+- [x] Detect disconnect.
+- [x] Automatically reconnect.
+- [x] Track connection state.
 
 Internal states:
 
@@ -728,9 +732,9 @@ rb4107/
     └── fault
 ```
 
-- [ ] Finalize topic naming.
-- [ ] Document topics.
-- [ ] Keep topic prefix configurable.
+- [x] Finalize topic naming.
+- [x] Document topics.
+- [x] Keep topic prefix configurable.
 
 ---
 
@@ -771,11 +775,11 @@ Example telemetry:
 }
 ```
 
-- [ ] Define schema version.
-- [ ] Implement serialization.
-- [ ] Validate generated JSON.
-- [ ] Document schema.
-- [ ] Keep room for additional sensors.
+- [x] Define schema version.
+- [x] Implement serialization.
+- [x] Validate generated JSON.
+- [x] Document schema.
+- [x] Keep room for additional sensors.
 
 ---
 
@@ -789,19 +793,19 @@ Initial target:
 ~1 Hz
 ```
 
-- [ ] Make frequency configurable.
+- [x] Make frequency configurable.
 
 ## Event-driven publishing
 
 Immediately publish:
 
-- [ ] State transitions.
-- [ ] Warning activation.
-- [ ] Shutdown activation.
-- [ ] Fault raised.
-- [ ] Fault cleared.
-- [ ] Sensor node offline.
-- [ ] Sensor node restored.
+- [x] State transitions.
+- [x] Warning activation.
+- [x] Shutdown activation.
+- [x] Fault raised.
+- [x] Fault cleared.
+- [x] Sensor node offline.
+- [x] Sensor node restored.
 
 Candidate QoS:
 
@@ -810,7 +814,7 @@ Routine telemetry → QoS 0
 Important events  → QoS 1
 ```
 
-- [ ] Confirm final QoS choices.
+- [x] Confirm final QoS choices.
 
 Do not flood MQTT with unnecessary raw thermal frames.
 
@@ -820,19 +824,19 @@ Do not flood MQTT with unnecessary raw thermal frames.
 
 Scope is currently only MQTT ingestion.
 
-- [ ] Create Django project.
-- [ ] Create appropriate Django app.
-- [ ] Add MQTT dependency.
-- [ ] Add configuration for broker address.
-- [ ] Connect to Mosquitto.
-- [ ] Subscribe to `rb4107/#`.
-- [ ] Receive messages.
-- [ ] Parse JSON.
-- [ ] Validate protocol/schema version.
-- [ ] Validate required fields.
-- [ ] Log incoming telemetry.
-- [ ] Log incoming events.
-- [ ] Handle malformed messages safely.
+- [x] Create Django project.
+- [x] Create appropriate Django app.
+- [x] Add MQTT dependency.
+- [x] Add configuration for broker address.
+- [x] Connect to Mosquitto.
+- [x] Subscribe to `rb4107/#`.
+- [x] Receive messages.
+- [x] Parse JSON.
+- [x] Validate protocol/schema version.
+- [x] Validate required fields.
+- [x] Log incoming telemetry.
+- [x] Log incoming events.
+- [x] Handle malformed messages safely.
 
 No frontend/dashboard is required yet.
 
@@ -850,13 +854,13 @@ Preferred interface:
 python manage.py mqtt_subscriber
 ```
 
-- [ ] Create Django management command.
-- [ ] Connect to broker.
-- [ ] Subscribe.
-- [ ] Process messages.
-- [ ] Reconnect after broker failure.
-- [ ] Handle graceful shutdown.
-- [ ] Log connection status.
+- [x] Create Django management command.
+- [x] Connect to broker.
+- [x] Subscribe.
+- [x] Process messages.
+- [x] Reconnect after broker failure.
+- [x] Handle graceful shutdown.
+- [x] Log connection status.
 
 Architecture:
 
@@ -887,9 +891,9 @@ Examples:
 [OUTPUT][WARN] shutdown relay activated
 ```
 
-- [ ] Add appropriate logging to every major subsystem.
-- [ ] Avoid excessive logs inside high-frequency loops.
-- [ ] Make debug verbosity configurable.
+- [x] Add appropriate logging to every major subsystem.
+- [x] Avoid excessive logs inside high-frequency loops.
+- [x] Make debug verbosity configurable.
 
 ---
 
@@ -897,20 +901,20 @@ Examples:
 
 Centralize configuration for:
 
-- [ ] GPIO assignments.
-- [ ] Relay polarity.
-- [ ] ESP-NOW peer MAC address.
-- [ ] Node IDs.
-- [ ] Sensor timeouts.
-- [ ] Presence filtering/debounce.
-- [ ] Temperature thresholds.
-- [ ] Temperature-rate thresholds.
-- [ ] Warning timeout.
-- [ ] Shutdown timeout.
-- [ ] MQTT broker address.
-- [ ] MQTT port.
-- [ ] MQTT topic prefix.
-- [ ] MQTT telemetry frequency.
+- [x] GPIO assignments.
+- [x] Relay polarity.
+- [x] ESP-NOW peer MAC address.
+- [x] Node IDs.
+- [x] Sensor timeouts.
+- [x] Presence filtering/debounce.
+- [x] Temperature thresholds.
+- [x] Temperature-rate thresholds.
+- [x] Warning timeout.
+- [x] Shutdown timeout.
+- [x] MQTT broker address.
+- [x] MQTT port.
+- [x] MQTT topic prefix.
+- [x] MQTT telemetry frequency.
 
 Avoid magic numbers.
 
@@ -920,15 +924,15 @@ Avoid magic numbers.
 
 Provide development/diagnostic functionality.
 
-- [ ] Print latest presence reading.
-- [ ] Print thermal features.
-- [ ] Print ESP-NOW packet information.
-- [ ] Print node health.
-- [ ] Print safety state.
-- [ ] Print active faults.
-- [ ] Print MQTT connection status.
-- [ ] Allow simulated sensor inputs where practical.
-- [ ] Allow accelerated safety timers for testing.
+- [x] Print latest presence reading.
+- [x] Print thermal features.
+- [x] Print ESP-NOW packet information.
+- [x] Print node health.
+- [x] Print safety state.
+- [x] Print active faults.
+- [x] Print MQTT connection status.
+- [x] Allow simulated sensor inputs where practical.
+- [x] Allow accelerated safety timers for testing.
 
 Example:
 
@@ -952,20 +956,20 @@ Make safety logic testable independently from physical hardware.
 
 Test at minimum:
 
-- [ ] IDLE → MONITORING.
-- [ ] MONITORING → UNATTENDED.
-- [ ] UNATTENDED → MONITORING.
-- [ ] UNATTENDED → WARNING.
-- [ ] WARNING → SHUTDOWN.
-- [ ] Person returns during UNATTENDED.
-- [ ] Person returns during WARNING.
-- [ ] Temperature drops during unattended period.
-- [ ] C4002 becomes unavailable.
-- [ ] MLX90640 becomes unavailable.
-- [ ] Sensor node disappears.
-- [ ] Sensor node returns.
-- [ ] MQTT disconnects.
-- [ ] MQTT reconnects.
+- [x] IDLE → MONITORING.
+- [x] MONITORING → UNATTENDED.
+- [x] UNATTENDED → MONITORING.
+- [x] UNATTENDED → WARNING.
+- [x] WARNING → SHUTDOWN.
+- [x] Person returns during UNATTENDED.
+- [x] Person returns during WARNING.
+- [x] Temperature drops during unattended period.
+- [x] C4002 becomes unavailable.
+- [x] MLX90640 becomes unavailable.
+- [x] Sensor node disappears.
+- [x] Sensor node returns.
+- [x] MQTT disconnects.
+- [x] MQTT reconnects.
 
 ---
 
@@ -1066,10 +1070,10 @@ Sensors → C6 → Serial Monitor
 
 ## Milestone 2 — ESP-NOW
 
-- [ ] Define shared protocol.
-- [ ] Implement C6 sender.
-- [ ] Implement S3 receiver.
-- [ ] Implement node health monitoring.
+- [x] Define shared protocol.
+- [x] Implement C6 sender.
+- [x] Implement S3 receiver.
+- [x] Implement node health monitoring.
 
 ### Success
 
@@ -1083,10 +1087,10 @@ Sensors → C6 → ESP-NOW → S3 → Serial Monitor
 
 Use simulated sensor data initially.
 
-- [ ] Implement states.
-- [ ] Implement timers.
-- [ ] Implement transitions.
-- [ ] Implement tests.
+- [x] Implement states.
+- [x] Implement timers.
+- [x] Implement transitions.
+- [x] Implement tests.
 
 ### Success
 
@@ -1102,8 +1106,8 @@ Correct State Transitions
 
 ## Milestone 4 — Physical Safety Outputs
 
-- [ ] Integrate buzzer.
-- [ ] Integrate relay.
+- [x] Integrate buzzer.
+- [x] Integrate relay.
 - [ ] Verify boot state.
 - [ ] Verify shutdown behaviour.
 
@@ -1119,7 +1123,7 @@ State Machine
 
 ## Milestone 5 — Full Sensor Integration
 
-- [ ] Feed actual ESP-NOW sensor data into safety state machine.
+- [x] Feed actual ESP-NOW sensor data into safety state machine.
 - [ ] Tune presence behaviour.
 - [ ] Collect thermal data.
 - [ ] Begin threshold experimentation.
@@ -1138,7 +1142,7 @@ Physical Outputs
 
 ## Milestone 6 — Ethernet
 
-- [ ] Configure S3 Ethernet.
+- [x] Configure S3 Ethernet.
 - [ ] Connect to LAN.
 - [ ] Verify MacBook connectivity.
 
@@ -1146,11 +1150,11 @@ Physical Outputs
 
 ## Milestone 7 — MQTT
 
-- [ ] Install/configure Mosquitto.
-- [ ] Implement S3 MQTT client.
-- [ ] Publish telemetry.
-- [ ] Publish events.
-- [ ] Implement reconnect.
+- [ ] Install/configure Mosquitto. *(Config + scripts ready in `tools/mqtt`; install on the MacBook.)*
+- [x] Implement S3 MQTT client.
+- [x] Publish telemetry.
+- [x] Publish events.
+- [x] Implement reconnect.
 
 ### Success
 
@@ -1162,10 +1166,10 @@ S3 → Ethernet → Mosquitto → mosquitto_sub
 
 ## Milestone 8 — Django
 
-- [ ] Create Django project.
-- [ ] Implement persistent MQTT subscriber.
-- [ ] Parse/validate telemetry.
-- [ ] Log events.
+- [x] Create Django project.
+- [x] Implement persistent MQTT subscriber.
+- [x] Parse/validate telemetry.
+- [x] Log events.
 
 ### Success
 
@@ -1207,6 +1211,8 @@ Do not silently invent answers to these.
 - [ ] Whether Ethernet or Wi-Fi will be used for final S3 → MQTT communication.
 
 Mark unresolved hardware dependencies clearly instead of guessing.
+
+> Status of every question (configurable default or bench check): [`docs/open_questions.md`](docs/open_questions.md).
 
 ---
 

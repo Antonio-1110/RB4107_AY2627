@@ -1,0 +1,817 @@
+menu "RB4107 configuration"
+
+    comment "Values marked UNCONFIRMED have not been verified on real hardware."
+
+    menu "Logging"
+
+        config RB_LOG_DEBUG_TAGS
+            string "Tags to raise to DEBUG at boot (comma separated)"
+            default ""
+            help
+                e.g. "ESPNOW,SAFETY". Needs "Component config -> Log ->
+                Maximum log verbosity" set to Debug (sdkconfig option
+                CONFIG_LOG_MAXIMUM_LEVEL_DEBUG); otherwise DEBUG lines are
+                compiled out.
+
+        config RB_LOG_QUIET_TAGS
+            string "Tags to lower to WARN at boot (comma separated)"
+            default ""
+            help
+                e.g. "TELEMETRY,NET" to keep the console focused on safety.
+
+    endmenu
+
+    menu "ESP-NOW link (shared by node and controller)"
+
+        config RB_ESPNOW_CHANNEL
+            int "Wi-Fi channel used for ESP-NOW"
+            range 1 13
+            default 1
+            help
+                The node and the controller must use the same channel. If the
+                controller joins a Wi-Fi network (section 17), ESP-NOW has to
+                use that access point's channel. OPEN QUESTION: final S3
+                ESP-NOW/Wi-Fi configuration.
+
+    endmenu
+
+    menu "Sensor node (ESP32-C6)"
+
+        config RB_NODE_ID
+            int "Sensor node ID"
+            range 1 65535
+            default 1
+            help
+                Identifier this sensor node puts in every ESP-NOW packet. The
+                controller only accepts IDs listed in "Expected sensor node ID".
+
+        config RB_NODE_STATUS_LED_GPIO
+            int "Status LED GPIO (-1 = none)"
+            range -1 30
+            default 15
+            help
+                FireBeetle 2 ESP32-C6 on-board LED. UNCONFIRMED: check the
+                board silkscreen/schematic.
+
+        config RB_NODE_HEALTH_LOG_PERIOD_MS
+            int "Board health log period (ms)"
+            range 1000 600000
+            default 10000
+            help
+                How often the node logs uptime and heap statistics. Kept slow
+                so the serial monitor is not flooded.
+
+        config RB_NODE_CONTROLLER_MAC
+            string "Controller (ESP32-S3) Wi-Fi STA MAC address"
+            default "FF:FF:FF:FF:FF:FF"
+            help
+                Where the node sends its ESP-NOW packets. Copy the MAC that
+                project 06 prints at boot. The default is broadcast, which is
+                fine on the bench but should be replaced for real use.
+
+        config RB_NODE_DATA_PERIOD_MS
+            int "SENSOR_DATA transmit period (ms)"
+            range 100 10000
+            default 500
+
+        config RB_NODE_HEARTBEAT_PERIOD_MS
+            int "HEARTBEAT transmit period (ms)"
+            range 200 60000
+            default 1000
+
+        config RB_MLX_STALE_TIMEOUT_MS
+            int "Thermal reading goes invalid after (ms) without a good frame"
+            range 500 60000
+            default 3000
+
+        menu "C4002 presence sensor"
+
+            config RB_C4002_UART_PORT
+                int "UART port"
+                range 0 1
+                default 1
+
+            config RB_C4002_RX_GPIO
+                int "ESP32 RX GPIO (wired to C4002 TX)"
+                range 0 30
+                default 17
+                help
+                    UNCONFIRMED: set this to match your wiring.
+
+            config RB_C4002_TX_GPIO
+                int "ESP32 TX GPIO (wired to C4002 RX)"
+                range 0 30
+                default 16
+                help
+                    UNCONFIRMED: set this to match your wiring.
+
+            config RB_C4002_OUT_GPIO
+                int "C4002 OUT pin GPIO (-1 = not wired)"
+                range -1 30
+                default -1
+
+            config RB_C4002_BAUD
+                int "Baud rate"
+                default 115200
+
+            config RB_C4002_STALE_TIMEOUT_MS
+                int "Reading goes invalid after (ms) without a report"
+                range 200 60000
+                default 3000
+                help
+                    Make this several report periods long. After it expires the
+                    reading is invalid, which is not the same as "no presence".
+
+            config RB_C4002_APPLY_SETTINGS
+                bool "Push the detection settings below to the sensor at boot"
+                default y
+
+            config RB_C4002_REPORT_PERIOD_DS
+                int "Report period (0.1 s units)"
+                range 1 255
+                default 5
+                depends on RB_C4002_APPLY_SETTINGS
+
+            config RB_C4002_RANGE_MIN_CM
+                int "Detection range minimum (cm)"
+                range 0 1100
+                default 0
+                depends on RB_C4002_APPLY_SETTINGS
+
+            config RB_C4002_RANGE_MAX_CM
+                int "Detection range maximum (cm)"
+                range 0 1100
+                default 1100
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    Shrinking this to the cooking area is one of the knobs for
+                    the false static-presence investigation.
+
+            choice RB_C4002_RESOLUTION
+                prompt "Distance gate resolution"
+                default RB_C4002_RESOLUTION_80CM
+                depends on RB_C4002_APPLY_SETTINGS
+                config RB_C4002_RESOLUTION_80CM
+                    bool "80 cm (15 gates, ~11 m)"
+                config RB_C4002_RESOLUTION_20CM
+                    bool "20 cm (25 gates, ~4.9 m)"
+            endchoice
+
+            config RB_C4002_MOTION_SENSITIVITY
+                int "Motion sensitivity group (0 low, 1 mid, 2 high)"
+                range 0 2
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+
+            config RB_C4002_PRESENCE_SENSITIVITY
+                int "Static presence sensitivity group (0 low, 1 mid, 2 high)"
+                range 0 2
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    Lower this if the sensor reports static presence when
+                    nobody is there.
+
+            config RB_C4002_DISAPPEAR_DELAY_S
+                int "Target disappear delay (s)"
+                range 0 65535
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    How long the sensor keeps reporting a target after it has
+                    gone.
+
+            config RB_C4002_ENV_CALIBRATION_AT_BOOT
+                bool "Run environment calibration at boot (area must be empty)"
+                default n
+
+            config RB_C4002_ENV_CALIBRATION_S
+                int "Environment calibration duration (s)"
+                range 1 600
+                default 30
+                depends on RB_C4002_ENV_CALIBRATION_AT_BOOT
+
+        endmenu
+
+        menu "MLX90640 thermal sensor"
+
+            config RB_MLX_I2C_PORT
+                int "I2C port"
+                range 0 1
+                default 0
+
+            config RB_MLX_SDA_GPIO
+                int "SDA GPIO"
+                range 0 30
+                default 19
+                help
+                    UNCONFIRMED: FireBeetle 2 ESP32-C6 silkscreen SDA; check your wiring.
+
+            config RB_MLX_SCL_GPIO
+                int "SCL GPIO"
+                range 0 30
+                default 20
+                help
+                    UNCONFIRMED: FireBeetle 2 ESP32-C6 silkscreen SCL; check your wiring.
+
+            config RB_MLX_I2C_HZ
+                int "I2C clock (Hz)"
+                range 100000 1000000
+                default 400000
+                help
+                    Start at 100 kHz if the wiring is long or unverified.
+
+            config RB_MLX_ADDRESS
+                hex "I2C address"
+                default 0x33
+
+            choice RB_MLX_REFRESH
+                prompt "Sub-page refresh rate"
+                default RB_MLX_REFRESH_4HZ
+                help
+                    A full frame needs two sub-pages, so 4 Hz gives 2 frames/s.
+                config RB_MLX_REFRESH_2HZ
+                    bool "2 Hz"
+                config RB_MLX_REFRESH_4HZ
+                    bool "4 Hz"
+                config RB_MLX_REFRESH_8HZ
+                    bool "8 Hz"
+            endchoice
+
+            config RB_MLX_EMISSIVITY_PCT
+                int "Emissivity (percent)"
+                range 10 100
+                default 95
+
+            config RB_MLX_FRAME_TIMEOUT_MS
+                int "Frame read timeout (ms)"
+                range 100 10000
+                default 2000
+
+        endmenu
+
+        menu "Thermal feature extraction"
+
+            config RB_THERMAL_HOT_PIXEL_THRESHOLD_DC
+                int "Hot pixel threshold (0.1 degC)"
+                range -400 3000
+                default 500
+                help
+                    Pixels at or above this count towards pixels_above_threshold.
+                    UNVERIFIED placeholder (50.0 degC): set it from measurements.
+
+            config RB_THERMAL_HOT_REGION_RADIUS
+                int "Hot region radius (pixels)"
+                range 0 4
+                default 1
+                help
+                    1 averages the 3x3 square around the hottest pixel.
+
+            config RB_THERMAL_RATE_WINDOW_S
+                int "Rate-of-change window (s)"
+                range 4 600
+                default 30
+
+            config RB_THERMAL_VALID_MIN_DC
+                int "Lowest plausible pixel temperature (0.1 degC)"
+                range -400 0
+                default -400
+
+            config RB_THERMAL_VALID_MAX_DC
+                int "Highest plausible pixel temperature (0.1 degC)"
+                range 500 4000
+                default 3000
+
+            config RB_THERMAL_MAX_INVALID_PIXELS
+                int "Invalid pixels tolerated per frame"
+                range 0 768
+                default 8
+
+            config RB_THERMAL_DIAG_DUMP_EVERY
+                int "Dump the raw frame over serial every N frames (0 = never)"
+                range 0 10000
+                default 0
+                help
+                    Diagnostic only. Prints the 768 temperatures as one CSV
+                    line prefixed with FRAME, which
+                    tools/diagnostics/thermal_frame_view.py can render.
+
+        endmenu
+
+    endmenu
+
+    menu "Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)"
+
+        comment "Defaults come from legacy/main_controller/main/system_config.h"
+
+        config RB_S3_I2C_PORT
+            int "Board I2C port"
+            range 0 1
+            default 0
+
+        config RB_S3_I2C_SDA_GPIO
+            int "Board I2C SDA GPIO"
+            range 0 48
+            default 42
+
+        config RB_S3_I2C_SCL_GPIO
+            int "Board I2C SCL GPIO"
+            range 0 48
+            default 41
+
+        config RB_S3_I2C_HZ
+            int "Board I2C clock (Hz)"
+            range 100000 400000
+            default 100000
+
+        config RB_S3_TCA9554_ADDRESS
+            hex "TCA9554 relay expander I2C address"
+            default 0x20
+
+        config RB_S3_PCF85063_ADDRESS
+            hex "PCF85063 RTC I2C address"
+            default 0x51
+
+        config RB_S3_BOOT_BUTTON_GPIO
+            int "BOOT button GPIO (-1 = none)"
+            range -1 48
+            default 0
+
+        config RB_S3_HEALTH_LOG_PERIOD_MS
+            int "Controller health log period (ms)"
+            range 1000 600000
+            default 10000
+
+        menu "Buzzer"
+
+            config RB_BUZZER_GPIO
+                int "Buzzer GPIO (-1 = none)"
+                range -1 48
+                default 46
+                help
+                    From legacy/main_controller. UNCONFIRMED: check the
+                    Waveshare schematic.
+
+            config RB_BUZZER_ACTIVE_LEVEL
+                int "Level that sounds the buzzer"
+                range 0 1
+                default 1
+
+            choice RB_BUZZER_DRIVE
+                prompt "Buzzer type"
+                default RB_BUZZER_DRIVE_GPIO
+                help
+                    UNCONFIRMED: an active buzzer only needs a DC level, a
+                    passive one needs a tone (PWM).
+                config RB_BUZZER_DRIVE_GPIO
+                    bool "active buzzer (GPIO level)"
+                config RB_BUZZER_DRIVE_PWM
+                    bool "passive buzzer (LEDC PWM tone)"
+            endchoice
+
+            config RB_BUZZER_TONE_HZ
+                int "Tone frequency (Hz)"
+                range 200 10000
+                default 2700
+                depends on RB_BUZZER_DRIVE_PWM
+
+        endmenu
+
+        menu "Shutdown relay"
+
+            config RB_SHUTDOWN_RELAY_CHANNEL
+                int "Relay channel used for shutdown (1-8)"
+                range 1 8
+                default 1
+
+            config RB_RELAY_ACTIVE_LEVEL
+                int "TCA9554 output level that energises a relay"
+                range 0 1
+                default 1
+                help
+                    From legacy/main_controller (TCA9554_ACTIVE_LEVEL = 1).
+                    UNCONFIRMED.
+
+            choice RB_SHUTDOWN_POLARITY
+                prompt "Relay polarity"
+                default RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN
+                help
+                    OPEN QUESTION: depends on how the appliance is wired to
+                    the relay contacts.
+                config RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN
+                    bool "energise relay to shut down (appliance on NC contact)"
+                config RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN
+                    bool "de-energise relay to shut down (appliance on NO contact, fail-safe)"
+            endchoice
+
+            choice RB_SHUTDOWN_BOOT_STATE
+                prompt "Shutdown output at boot"
+                default RB_SHUTDOWN_BOOT_RELEASED
+                help
+                    OPEN QUESTION: safe relay state during boot.
+                config RB_SHUTDOWN_BOOT_RELEASED
+                    bool "released (appliance powered)"
+                config RB_SHUTDOWN_BOOT_ACTIVE
+                    bool "active (appliance off until the controller is running)"
+            endchoice
+
+            config RB_SHUTDOWN_VERIFY_PERIOD_MS
+                int "Read back and verify the relay output every (ms)"
+                range 100 60000
+                default 1000
+
+        endmenu
+
+        menu "Time / RTC"
+
+            config RB_TIME_TZ
+                string "POSIX time zone for log/MQTT timestamps"
+                default "SGT-8"
+                help
+                    Only affects how wall-clock time is displayed. The RTC keeps
+                    UTC. Safety timing never uses wall-clock time.
+
+            config RB_TIME_NTP_SERVER
+                string "SNTP server (empty = don't sync over the network)"
+                default "pool.ntp.org"
+
+            config RB_TIME_SET_RTC_FROM_BUILD
+                bool "If the RTC is invalid at boot, set it to the firmware build time"
+                default n
+                help
+                    Bench testing only: gives the RTC a plausible time so its
+                    persistence across power cycles can be checked without a
+                    network.
+
+        endmenu
+
+        menu "Sensor node link"
+
+            config RB_CTRL_NODE_ID
+                int "Expected sensor node ID"
+                range 1 65535
+                default 1
+                help
+                    Packets from any other node ID are counted and dropped.
+
+            config RB_CTRL_RX_QUEUE_LEN
+                int "ESP-NOW receive queue length"
+                range 4 64
+                default 16
+                help
+                    A full queue drops packets and counts them as a queue
+                    overflow fault.
+
+            config RB_CTRL_NODE_STALE_MS
+                int "Node STALE after (ms) without a packet"
+                range 200 60000
+                default 2000
+                help
+                    Make this a few node data periods long. While STALE the
+                    node's readings count as UNKNOWN, not as "safe".
+
+            config RB_CTRL_NODE_OFFLINE_MS
+                int "Node OFFLINE after (ms) without a packet"
+                range 500 600000
+                default 10000
+
+        endmenu
+
+        menu "Tasks"
+
+            config RB_CTRL_SAFETY_TASK_PRIO
+                int "Safety task priority"
+                range 5 22
+                default 12
+                help
+                    Must stay above every telemetry/network task.
+
+            config RB_CTRL_SAFETY_TICK_MS
+                int "Safety task tick (ms)"
+                range 10 1000
+                default 100
+                help
+                    Longest the safety task waits between state machine steps.
+
+            config RB_CTRL_EVENT_QUEUE_LEN
+                int "Event queue length (safety -> telemetry)"
+                range 4 128
+                default 32
+                help
+                    The safety task never blocks on this queue. When it is full
+                    the event is dropped and counted.
+
+            config RB_CTRL_TELEMETRY_TASK_PRIO
+                int "Telemetry task priority"
+                range 1 10
+                default 3
+
+        endmenu
+
+    endmenu
+
+    menu "Network (ESP32-S3)"
+
+        choice RB_NET_TYPE
+            prompt "Controller network interface"
+            default RB_NET_ETHERNET
+            help
+                OPEN QUESTION: Ethernet or Wi-Fi for the final S3 -> MQTT path.
+            config RB_NET_ETHERNET
+                bool "Ethernet (on-board W5500)"
+            config RB_NET_WIFI
+                bool "Wi-Fi station"
+            config RB_NET_NONE
+                bool "none (local safety only)"
+            config RB_NET_QEMU_OPENETH
+                bool "QEMU emulated Ethernet (testing only, never on hardware)"
+                select ETH_USE_OPENETH
+                help
+                    Lets the controller firmware run in QEMU (idf.py qemu with
+                    -nic user,model=open_eth) and reach a broker on the host
+                    machine: MQTT/Django tests without hardware.
+        endchoice
+
+        menu "W5500 Ethernet"
+            depends on RB_NET_ETHERNET
+
+            comment "Pins from legacy/main_controller/main/system_config.h"
+
+            config RB_ETH_SPI_HOST
+                int "SPI host (1 = SPI2, 2 = SPI3)"
+                range 1 2
+                default 1
+
+            config RB_ETH_SPI_MHZ
+                int "SPI clock (MHz)"
+                range 5 40
+                default 20
+
+            config RB_ETH_MOSI_GPIO
+                int "MOSI GPIO"
+                default 13
+
+            config RB_ETH_MISO_GPIO
+                int "MISO GPIO"
+                default 14
+
+            config RB_ETH_SCLK_GPIO
+                int "SCLK GPIO"
+                default 15
+
+            config RB_ETH_CS_GPIO
+                int "CS GPIO"
+                default 16
+
+            config RB_ETH_INT_GPIO
+                int "INT GPIO (-1 = poll)"
+                range -1 48
+                default 12
+
+            config RB_ETH_POLL_MS
+                int "Poll period when INT is not used (ms)"
+                range 1 1000
+                default 10
+
+            config RB_ETH_RST_GPIO
+                int "PHY reset GPIO (-1 = not connected)"
+                range -1 48
+                default -1
+
+        endmenu
+
+        menu "Wi-Fi station"
+            depends on RB_NET_WIFI
+
+            config RB_WIFI_SSID
+                string "SSID"
+                default ""
+
+            config RB_WIFI_PASSWORD
+                string "Password"
+                default ""
+                help
+                    Stored in sdkconfig, which is git-ignored. Never commit it.
+
+            config RB_WIFI_MAX_BACKOFF_MS
+                int "Longest reconnect back-off (ms)"
+                range 1000 300000
+                default 30000
+
+        endmenu
+
+    endmenu
+
+    menu "MQTT broker (MacBook)"
+
+        config RB_BROKER_HOST
+            string "Broker host (MacBook LAN IP or hostname)"
+            default ""
+            help
+                The MacBook running Mosquitto. See tools/mqtt/README.md for how
+                to find its LAN IP. Set it here rather than in code.
+
+        config RB_BROKER_PORT
+            int "Broker port"
+            range 1 65535
+            default 1883
+
+        config RB_MQTT_CONTROLLER_ID
+            string "Controller ID (MQTT client ID and JSON controller_id)"
+            default "controller_01"
+
+        config RB_MQTT_TOPIC_PREFIX
+            string "Topic prefix"
+            default "rb4107"
+
+        config RB_MQTT_KEEPALIVE_S
+            int "Keep-alive (s)"
+            range 5 600
+            default 15
+            help
+                Also sets how quickly the broker publishes the Last Will
+                ("offline") if the controller disappears (about 1.5x this).
+
+        config RB_MQTT_RECONNECT_MS
+            int "Reconnect interval (ms)"
+            range 1000 120000
+            default 5000
+
+        config RB_MQTT_OUTBOX_LIMIT_KB
+            int "Outbox limit while disconnected (KB)"
+            range 4 256
+            default 32
+            help
+                QoS 1 events are kept up to this size while the broker is
+                unreachable. QoS 0 telemetry is simply dropped while
+                disconnected.
+
+        config RB_MQTT_TELEMETRY_PERIOD_MS
+            int "Periodic telemetry interval (ms)"
+            range 200 60000
+            default 1000
+            help
+                Routine telemetry (QoS 0). State changes, warnings, shutdowns
+                and faults are published as soon as they happen, whatever this
+                is set to.
+
+        config RB_MQTT_PUBLISH_SENSOR_TOPICS
+            bool "Also publish per-node presence/thermal topics every period"
+            default y
+
+    endmenu
+
+    menu "Diagnostics / simulation"
+
+        config RB_SIM_NODE
+            bool "Simulated sensor node instead of ESP-NOW"
+            default n
+            help
+                Feeds simulated sensor packets into the controller in place
+                of the real C6 (diagnostic mode, QEMU tests). The safety logic
+                is exactly the same; only the source of the packets changes.
+
+        config RB_OUTPUTS_SIMULATED
+            bool "Simulated outputs (log only, don't drive the buzzer/relay)"
+            default n
+            help
+                For bench or QEMU runs without the relay board. Never enable
+                this on the installed system.
+
+        config RB_DIAG_CONSOLE
+            bool "Diagnostic console (esp_console REPL on the serial port)"
+            default n
+
+        config RB_DIAG_CONTINUITY_MONITOR
+            bool "Critical-failure continuity monitor"
+            default n
+            help
+                While MQTT is down, log every 5 s that the safety loop is
+                alive (state, node link, buzzer, relay), and print a PASS/FAIL
+                verdict when it reconnects (TODO section 30). Runs at
+                priority 1, below everything it measures.
+
+        config RB_DIAG_TEST_TIMERS_AT_BOOT
+            bool "Start with accelerated test timers"
+            default n
+
+        config RB_DIAG_TEST_WARNING_S
+            int "Test mode: unattended time before WARNING (s)"
+            range 1 600
+            default 5
+
+        config RB_DIAG_TEST_SHUTDOWN_S
+            int "Test mode: shutdown timeout (s)"
+            range 2 600
+            default 10
+
+        config RB_DIAG_TEST_FAULT_SHUTDOWN_S
+            int "Test mode: shut down after this long in FAULT (s, 0 = never)"
+            range 0 600
+            default 10
+
+    endmenu
+
+    menu "Safety logic (ESP32-S3)"
+
+        comment "Defaults answer the open questions provisionally; see docs/safety_state_machine.md"
+
+        config RB_SAFETY_SELF_TEST_TIMEOUT_MS
+            int "Self-test timeout (ms)"
+            range 1000 120000
+            default 10000
+
+        config RB_SAFETY_HEAT_ON_DC
+            int "Cooking detected at hot-region temperature (0.1 degC)"
+            range 0 3000
+            default 500
+            help
+                IDLE -> MONITORING threshold. UNVERIFIED placeholder (50.0 degC):
+                set it from collected thermal data.
+
+        config RB_SAFETY_HEAT_OFF_DC
+            int "Cooking over below hot-region temperature (0.1 degC)"
+            range 0 3000
+            default 400
+            help
+                Hysteresis. Must not be above the "cooking detected" value.
+                UNVERIFIED placeholder.
+
+        config RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN
+            int "Also detect cooking when rising at least (0.1 degC/min), 0 = off"
+            range 0 10000
+            default 0
+            help
+                Temperature-rate threshold. When non-zero, a hot region that
+                is above the "cooking over" temperature and rising at least
+                this fast also counts as cooking. Off by default: set it only
+                once thermal data has been collected (UNVERIFIED).
+
+        config RB_SAFETY_ABSENCE_DEBOUNCE_MS
+            int "Absence must last (ms) before UNATTENDED"
+            range 0 60000
+            default 2000
+
+        config RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS
+            int "Presence must last (ms) to cancel UNATTENDED/WARNING"
+            range 0 60000
+            default 0
+            help
+                Raise this if spurious static detections by the C4002 cancel
+                the unattended timer.
+
+        config RB_SAFETY_WARNING_TIMEOUT_S
+            int "Unattended time before WARNING (s)"
+            range 1 3600
+            default 60
+
+        config RB_SAFETY_SHUTDOWN_TIMEOUT_S
+            int "Shutdown timeout (s)"
+            range 1 3600
+            default 90
+            help
+                Meaning depends on "Shutdown timeout counts from" below.
+
+        choice RB_SAFETY_SHUTDOWN_TIMING
+            prompt "Shutdown timeout counts from"
+            default RB_SAFETY_SHUTDOWN_FROM_UNATTENDED
+            help
+                OPEN QUESTION: is 90 s total unattended time or 90 s after the warning?
+            config RB_SAFETY_SHUTDOWN_FROM_UNATTENDED
+                bool "start of UNATTENDED (total unattended time)"
+            config RB_SAFETY_SHUTDOWN_FROM_WARNING
+                bool "start of WARNING"
+        endchoice
+
+        choice RB_SAFETY_WARNING_EXIT
+            prompt "Person returns during WARNING"
+            default RB_SAFETY_WARNING_EXIT_PRESENCE
+            help
+                OPEN QUESTION.
+            config RB_SAFETY_WARNING_EXIT_PRESENCE
+                bool "return to MONITORING"
+            config RB_SAFETY_WARNING_EXIT_ACK
+                bool "stay in WARNING until the person acknowledges (reset input)"
+        endchoice
+
+        choice RB_SAFETY_COOLING
+            prompt "Temperature falls while UNATTENDED/WARNING"
+            default RB_SAFETY_COOLING_KEEP_TIMERS
+            help
+                OPEN QUESTION.
+            config RB_SAFETY_COOLING_KEEP_TIMERS
+                bool "keep the timers running"
+            config RB_SAFETY_COOLING_RETURN_TO_IDLE
+                bool "return to IDLE and cancel the timers"
+        endchoice
+
+        config RB_SAFETY_FAULT_SHUTDOWN_S
+            int "Shut down after this long in FAULT (s, 0 = never)"
+            range 0 3600
+            default 90
+            help
+                OPEN QUESTION: what to do when a safety-critical sensor fails.
+
+    endmenu
+
+endmenu
