@@ -18,13 +18,18 @@ extern "C" {
 #endif
 
 typedef enum {
-    FAULT_C4002_UNAVAILABLE = 0,   /* presence data missing/invalid */
-    FAULT_MLX_UNAVAILABLE,         /* thermal data missing/invalid */
-    FAULT_NODE_OFFLINE,            /* no packets from the sensor node */
+    /* One per sensor node; the order matches node_slot_t (A, B, thermal). */
+    FAULT_PRESENCE_A_UNAVAILABLE = 0,  /* presence node A: C4002 reading missing/invalid */
+    FAULT_PRESENCE_B_UNAVAILABLE,      /* presence node B: C4002 reading missing/invalid */
+    FAULT_THERMAL_UNAVAILABLE,         /* thermal node: MLX90640 reading missing/invalid */
+    FAULT_PRESENCE_A_NODE_OFFLINE,     /* no packets from presence node A */
+    FAULT_PRESENCE_B_NODE_OFFLINE,     /* no packets from presence node B */
+    FAULT_THERMAL_NODE_OFFLINE,        /* no packets from the thermal node */
     FAULT_SHUTDOWN_OUTPUT,         /* relay expander failed to write/verify */
     FAULT_SELF_TEST,               /* controller self-test failed */
     FAULT_ESPNOW_INVALID_PACKET,   /* malformed/foreign packets received */
-    FAULT_ESPNOW_LINK_DEGRADED,    /* node STALE or packets being missed */
+    FAULT_ESPNOW_LINK_DEGRADED,    /* a node is STALE */
+    FAULT_ESPNOW_UNKNOWN_NODE,     /* packets from an unconfigured node ID, or a node with the wrong role */
     FAULT_RTC,                     /* RTC unavailable: timestamps only */
     FAULT_NETWORK_DOWN,
     FAULT_MQTT_DOWN,

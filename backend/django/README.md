@@ -76,7 +76,7 @@ agent.
 
 1. checked against the topic tree (`rb4107/controller/...`, `sensors/<node>/...`, `events/...`),
 2. decoded as UTF-8 JSON (at most 8 KB, and it must be an object),
-3. checked for a supported `schema_version` (currently 1),
+3. checked for a supported `schema_version` (currently 2),
 4. checked for a `type` allowed on that topic,
 5. validated against the JSON Schema, with required fields and field types.
 

@@ -3,9 +3,10 @@
 Software for the RB4107 cooking-safety prototype. The work plan is [`TODO.md`](TODO.md).
 
 ```text
-C4002 + MLX90640 → ESP32-C6 sensor node → ESP-NOW → ESP32-S3 controller
-                                                     ├── local safety state machine → buzzer, shutdown relay
-                                                     └── Ethernet / Wi-Fi → Mosquitto (MacBook) → Django subscriber
+C4002 #1 → ESP32-C6 presence node A ─┐
+C4002 #2 → ESP32-C6 presence node B ─┼─ ESP-NOW → ESP32-S3 controller
+MLX90640 → ESP32-C6 thermal node    ─┘            ├── local safety state machine → buzzer, shutdown relay
+                                                  └── Ethernet / Wi-Fi → Mosquitto (MacBook) → Django subscriber
 ```
 
 The local safety path on the ESP32-S3 must keep working when MQTT, Django, the
@@ -29,13 +30,14 @@ RB4107_AY2627/
 
 ## What to flash to run the system
 
-The working system is **exactly two firmwares**, one per board, plus the broker
-and Django on the MacBook:
+The working system is **three firmwares on four boards**, plus the broker and
+Django on the MacBook:
 
 | Board | Flash this project | What it is |
 |---|---|---|
-| ESP32-C6 (FireBeetle 2, with C4002 + MLX90640) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | **Sensor node firmware**: reads both sensors and sends them to the S3 over ESP-NOW |
-| ESP32-S3 (Waveshare ETH-8DI-8RO) | [`firmware/29_end_to_end`](firmware/29_end_to_end) | **Controller firmware**: safety state machine, buzzer, shutdown relay, RTC, Ethernet, MQTT, diagnostic console |
+| ESP32-C6 + C4002 radar, ×2 | [`firmware/05a_c6_presence_node`](firmware/05a_c6_presence_node) | **Presence node firmware**: reads one radar and sends it to the S3 over ESP-NOW. Same firmware on both boards, node ID 1 and 2 (see its README) |
+| ESP32-C6 + MLX90640 | [`firmware/05b_c6_thermal_node`](firmware/05b_c6_thermal_node) | **Thermal node firmware**: reads the thermal camera, extracts features and sends them over ESP-NOW. Node ID 3 |
+| ESP32-S3 (Waveshare ETH-8DI-8RO) | [`firmware/29_end_to_end`](firmware/29_end_to_end) | **Controller firmware**: combines the two radars, runs the safety state machine, buzzer, shutdown relay, RTC, Ethernet, MQTT, diagnostic console |
 | MacBook | [`tools/mqtt`](tools/mqtt) + [`backend/django`](backend/django) | Mosquitto broker and Django subscriber (not ESP32 projects) |
 
 Setup steps (broker, MAC address, channel):
@@ -43,7 +45,7 @@ Setup steps (broker, MAC address, channel):
 
 **Every other project is for testing only and is not part of the running
 system.** Flashing one of them replaces the system firmware on that board;
-flash 05 / 29 back afterwards.
+flash 05a / 05b / 29 back afterwards.
 
 | Project | Purpose |
 |---|---|
@@ -59,11 +61,11 @@ below). The broker and Django don't run on an ESP32 and live in `tools/` and
 | TODO section | Where | Target |
 |---|---|---|
 | 0 Repository structure | this layout | – |
-| 1 ESP32-C6 base project | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) (boot info, MAC, health log); sensor bring-up in 02/03 | ESP32-C6 |
+| 1 ESP32-C6 base project | `firmware/components/rb_node_app` (boot info, MAC, health log) in 05a and 05b; sensor bring-up in 02/03 | ESP32-C6 |
 | 2 C4002 integration | [`firmware/02_c4002_integration`](firmware/02_c4002_integration) | ESP32-C6 |
 | 3 MLX90640 integration + thermal features | [`firmware/03_mlx90640_integration`](firmware/03_mlx90640_integration) | ESP32-C6 |
 | 4 Shared ESP-NOW protocol | `firmware/components/rb_protocol`, spec in [`docs/protocol.md`](docs/protocol.md), tests in 28 | C6 + S3 |
-| 5 ESP-NOW C6 sender (**system firmware: flash on the C6**) | [`firmware/05_espnow_c6_sender`](firmware/05_espnow_c6_sender) | ESP32-C6 |
+| 5 ESP-NOW C6 sender (**system firmware: flash on the C6 boards**) | [`firmware/05a_c6_presence_node`](firmware/05a_c6_presence_node) (×2) and [`firmware/05b_c6_thermal_node`](firmware/05b_c6_thermal_node) | ESP32-C6 |
 | 6 ESP32-S3 controller base | [`firmware/06_s3_controller_base`](firmware/06_s3_controller_base) | ESP32-S3 |
 | 7 ESP-NOW S3 receiver | [`firmware/29_end_to_end`](firmware/29_end_to_end), described in [`docs/architecture.md`](docs/architecture.md), tests in 28 | ESP32-S3 |
 | 8 Sensor node health monitoring | same as 7 | ESP32-S3 |
@@ -133,12 +135,13 @@ What has been checked without hardware, and how:
 
 | Checked | How |
 |---|---|
-| All 10 ESP-IDF projects build (ESP-IDF v6.1, C6 and S3) | clean builds, no warnings |
-| Safety logic, node health, faults, protocol, C4002 parser, thermal features, JSON | 49 Unity tests pass on the host (linux target) and on the ESP32-S3 in QEMU (project 28) |
-| Real-time behaviour, MQTT client, publishing, diagnostic console, continuity monitor | controller firmware run in QEMU with emulated Ethernet against Mosquitto |
+| All 11 ESP-IDF projects build (ESP-IDF v6.1, C6 and S3) | clean builds, no warnings |
+| Safety logic, node health, combining the two radars, faults, protocol, C4002 parser, thermal features, JSON | 57 Unity tests pass on the host (linux target) and on the ESP32-S3 in QEMU (project 28) |
+| Real-time behaviour, MQTT client, publishing, diagnostic console, continuity monitor | controller firmware run in QEMU with emulated Ethernet against Mosquitto, fed by three simulated nodes |
+| Losing one radar or the thermal node | QEMU: the node's SAFETY fault is raised and the controller goes to FAULT, and recovers when the node returns |
 | JSON payloads | every captured message validated against `docs/schema/rb4107_mqtt.schema.json` |
-| Django ingestion | 22 tests (fixtures are real firmware output), plus manual runs through broker outages and `SIGTERM` |
-| Critical failure path | QEMU rehearsal: WARNING and SHUTDOWN with the broker down, both verdicts PASS |
+| Django ingestion | 23 tests (fixtures are real firmware output), plus manual runs through broker outages and `SIGTERM` |
+| Critical failure path | QEMU rehearsal: WARNING and SHUTDOWN with the broker down, continuity monitor verdict PASS |
 
 Still to be done on the bench (the unchecked boxes in `TODO.md`): anything
 involving the real sensors, the ESP-NOW radio link, the buzzer, the relay,

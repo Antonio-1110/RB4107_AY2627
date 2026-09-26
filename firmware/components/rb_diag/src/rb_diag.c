@@ -35,21 +35,25 @@ safety_config_t rb_diag_test_safety_config(void)
     return cfg;
 }
 
-static const char *tri(bool valid, bool value, const char *yes, const char *no)
-{
-    return !valid ? "UNKNOWN" : (value ? yes : no);
-}
-
 /* ---- print commands ---- */
 
 static int cmd_presence(int argc, char **argv)
 {
     rb_snapshot_t s;
     rb_controller_get_snapshot(&s);
-    const presence_reading_t *p = &s.node.latest_data.presence;
-    printf("presence: %s (valid=%d moving=%d stationary=%d distance=%.2f m, node ts %" PRIu32 " ms)\n",
-           tri(s.node.presence_ok, p->presence_detected, "PRESENT", "ABSENT"), s.node.presence_ok, p->moving_target,
-           p->stationary_target, p->distance_m, p->timestamp_ms);
+    printf("presence (combined, used by the state machine): %s\n", rb_tristate_presence_name(s.inputs.presence));
+    for (int slot = NODE_SLOT_PRESENCE_A; slot <= NODE_SLOT_PRESENCE_B; slot++) {
+        const sensor_node_state_t *n = &s.nodes.nodes[slot];
+        if (!s.nodes.enabled[slot]) {
+            printf("  %-10s not configured\n", node_slot_name(slot));
+            continue;
+        }
+        const presence_reading_t *p = &n->presence;
+        printf("  %-10s node_%02" PRIu32 ": %s (valid=%d moving=%d stationary=%d distance=%.2f m, node ts %" PRIu32
+               " ms)\n",
+               node_slot_name(slot), n->node_id, rb_tristate_presence_name(sensor_node_presence(n)), n->sensor_ok,
+               p->moving_target, p->stationary_target, p->distance_m, p->timestamp_ms);
+    }
     return 0;
 }
 
@@ -57,10 +61,11 @@ static int cmd_thermal(int argc, char **argv)
 {
     rb_snapshot_t s;
     rb_controller_get_snapshot(&s);
-    const thermal_reading_t *t = &s.node.latest_data.thermal;
-    printf("thermal: %s max=%.1f min=%.1f mean=%.1f hot-region=%.1f C rate=%.2f C/min px>thr=%u\n",
-           s.node.thermal_ok ? "valid" : "INVALID", t->max_temp_c, t->min_temp_c, t->mean_temp_c, t->hot_region_temp_c,
-           t->temp_rate_c_per_min, t->pixels_above_threshold);
+    const sensor_node_state_t *n = &s.nodes.nodes[NODE_SLOT_THERMAL];
+    const thermal_reading_t *t = &n->thermal;
+    printf("thermal node_%02" PRIu32 ": %s max=%.1f min=%.1f mean=%.1f hot-region=%.1f C rate=%.2f C/min px>thr=%u\n",
+           n->node_id, n->sensor_ok ? "valid" : "INVALID", t->max_temp_c, t->min_temp_c, t->mean_temp_c,
+           t->hot_region_temp_c, t->temp_rate_c_per_min, t->pixels_above_threshold);
     return 0;
 }
 
@@ -71,13 +76,20 @@ static int cmd_espnow(int argc, char **argv)
     rb_snapshot_t s;
     rb_controller_get_snapshot(&s);
     printf("espnow rx: ok=%" PRIu32 " bad len=%" PRIu32 " magic=%" PRIu32 " version=%" PRIu32 " type=%" PRIu32
-           " crc=%" PRIu32 " queue overflow=%" PRIu32 "\n",
-           rx.received, rx.bad_length, rx.bad_magic, rx.bad_version, rx.bad_type, rx.bad_crc, rx.queue_overflow);
-    printf("node_%02" PRIu32 ": packets=%" PRIu32 " last seq=%" PRIu32 " (%" PRIu32 " ms ago) missed=%" PRIu32
-           " dup=%" PRIu32 " out-of-order=%" PRIu32 " restarts=%" PRIu32 " wrong-node=%" PRIu32 "\n",
-           s.node.node_id, s.node.packets, s.node.last_sequence,
-           s.node.packets ? rb_time_mono_ms() - s.node.last_received_ms : 0, s.node.missed, s.node.duplicates,
-           s.node.out_of_order, s.node.restarts, s.node.wrong_node);
+           " crc=%" PRIu32 " role=%" PRIu32 " queue overflow=%" PRIu32 " | unknown node=%" PRIu32 "\n",
+           rx.received, rx.bad_length, rx.bad_magic, rx.bad_version, rx.bad_type, rx.bad_crc, rx.bad_role,
+           rx.queue_overflow, s.nodes.unknown_node);
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        if (!s.nodes.enabled[slot]) {
+            continue;
+        }
+        const sensor_node_state_t *n = &s.nodes.nodes[slot];
+        printf("  %-10s node_%02" PRIu32 ": packets=%" PRIu32 " last seq=%" PRIu32 " (%" PRIu32 " ms ago) missed=%" PRIu32
+               " dup=%" PRIu32 " out-of-order=%" PRIu32 " restarts=%" PRIu32 " wrong-role=%" PRIu32 "\n",
+               node_slot_name(slot), n->node_id, n->packets, n->last_sequence,
+               n->packets ? rb_time_mono_ms() - n->last_received_ms : 0, n->missed, n->duplicates, n->out_of_order,
+               n->restarts, n->wrong_role);
+    }
     return 0;
 }
 
@@ -85,9 +97,16 @@ static int cmd_node(int argc, char **argv)
 {
     rb_snapshot_t s;
     rb_controller_get_snapshot(&s);
-    printf("node_%02" PRIu32 ": link %s, presence %s, thermal %s, node fault flags 0x%04x\n", s.node.node_id,
-           node_link_state_name(s.node.link), s.node.presence_ok ? "valid" : "INVALID",
-           s.node.thermal_ok ? "valid" : "INVALID", s.node.node_fault_flags);
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        const sensor_node_state_t *n = &s.nodes.nodes[slot];
+        if (!s.nodes.enabled[slot]) {
+            printf("%-10s not configured\n", node_slot_name(slot));
+            continue;
+        }
+        printf("%-10s node_%02" PRIu32 ": link %s, %s reading %s, node fault flags 0x%04x\n", node_slot_name(slot),
+               n->node_id, node_link_state_name(n->link), rb_node_role_name(n->role),
+               n->sensor_ok ? "valid" : "INVALID", n->node_fault_flags);
+    }
     return 0;
 }
 
@@ -151,11 +170,41 @@ static int cmd_status(int argc, char **argv)
 
 /* ---- control commands ---- */
 
+/* "a" / "b" / "thermal" / "all" -> sim node mask. */
+static int parse_nodes(int argc, char **argv, int idx)
+{
+    if (argc <= idx || strcmp(argv[idx], "all") == 0) {
+        return (1 << RB_SIM_NODE_COUNT) - 1;
+    }
+    if (strcmp(argv[idx], "a") == 0) {
+        return 1 << RB_SIM_PRESENCE_A;
+    }
+    if (strcmp(argv[idx], "b") == 0) {
+        return 1 << RB_SIM_PRESENCE_B;
+    }
+    if (strcmp(argv[idx], "thermal") == 0) {
+        return 1 << RB_SIM_THERMAL;
+    }
+    if (strcmp(argv[idx], "presence") == 0) {
+        return (1 << RB_SIM_PRESENCE_A) | (1 << RB_SIM_PRESENCE_B);
+    }
+    return 0;
+}
+
+static void set_nodes(bool *field, int mask, bool value)
+{
+    for (int i = 0; i < RB_SIM_NODE_COUNT; i++) {
+        if (mask & (1 << i)) {
+            field[i] = value;
+        }
+    }
+}
+
 static int cmd_sim(int argc, char **argv)
 {
     if (argc < 2) {
-        printf("usage: sim on|off|present|absent|presence-invalid|thermal-invalid|thermal-valid|node-off|node-on\n"
-               "       sim temp <degC> [rate C/min]\n");
+        printf("usage: sim on | present | absent | temp <degC> [rate C/min]\n"
+               "       sim node-off|node-on|invalid|valid [a|b|thermal|presence|all]   (default all)\n");
         return 1;
     }
 #if CONFIG_RB_SIM_NODE
@@ -168,44 +217,46 @@ static int cmd_sim(int argc, char **argv)
     const char *a = argv[1];
     if (strcmp(a, "on") == 0) {
         if (!started) {
-            printf("starting simulated node %d: power off the real sensor node, it uses the same node ID\n",
-                   CONFIG_RB_CTRL_NODE_ID);
-            rb_sim_start(CONFIG_RB_CTRL_NODE_ID, 500);
+            const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
+            printf("starting simulated nodes: power off the real sensor nodes, they use the same node IDs\n");
+            rb_sim_start(cfg.nodes.presence_node_ids, cfg.nodes.presence_node_count, cfg.nodes.thermal_node_id, 500);
             started = true;
             return 0;
         }
-        in.node_online = true;
+        set_nodes(in.online, parse_nodes(argc, argv, 2), true);
     } else if (!started) {
         printf("simulation not running (use 'sim on')\n");
         return 1;
-    } else if (strcmp(a, "off") == 0 || strcmp(a, "node-off") == 0) {
-        in.node_online = false;
-    } else if (strcmp(a, "node-on") == 0) {
-        in.node_online = true;
     } else if (strcmp(a, "present") == 0) {
-        in.presence_valid = true;
         in.person_present = true;
     } else if (strcmp(a, "absent") == 0) {
-        in.presence_valid = true;
         in.person_present = false;
-    } else if (strcmp(a, "presence-invalid") == 0) {
-        in.presence_valid = false;
-    } else if (strcmp(a, "thermal-invalid") == 0) {
-        in.thermal_valid = false;
-    } else if (strcmp(a, "thermal-valid") == 0) {
-        in.thermal_valid = true;
     } else if (strcmp(a, "temp") == 0 && argc >= 3) {
         in.hot_region_c = strtof(argv[2], NULL);
         in.rate_c_per_min = argc >= 4 ? strtof(argv[3], NULL) : 0.0f;
-        in.thermal_valid = true;
+    } else if (strcmp(a, "node-off") == 0 || strcmp(a, "off") == 0 || strcmp(a, "node-on") == 0 ||
+               strcmp(a, "invalid") == 0 || strcmp(a, "valid") == 0) {
+        const int mask = parse_nodes(argc, argv, 2);
+        if (mask == 0) {
+            printf("unknown node '%s' (a, b, thermal, presence or all)\n", argv[2]);
+            return 1;
+        }
+        if (strcmp(a, "invalid") == 0 || strcmp(a, "valid") == 0) {
+            set_nodes(in.valid, mask, strcmp(a, "valid") == 0);
+        } else {
+            set_nodes(in.online, mask, strcmp(a, "node-on") == 0);
+        }
     } else {
         printf("unknown sim command '%s'\n", a);
         return 1;
     }
     rb_sim_set(&in);
-    printf("sim: node %s, presence %s, thermal %s %.1f C (%.1f C/min)\n", in.node_online ? "online" : "OFF",
-           !in.presence_valid ? "INVALID" : (in.person_present ? "present" : "absent"),
-           in.thermal_valid ? "valid" : "INVALID", in.hot_region_c, in.rate_c_per_min);
+    static const char *const NAMES[] = {"presence_a", "presence_b", "thermal"};
+    for (int i = 0; i < RB_SIM_NODE_COUNT; i++) {
+        printf("sim %-10s %s, reading %s\n", NAMES[i], in.online[i] ? "online" : "OFF", in.valid[i] ? "valid" : "INVALID");
+    }
+    printf("sim person %s, hot region %.1f C (%.1f C/min)\n", in.person_present ? "present" : "absent", in.hot_region_c,
+           in.rate_c_per_min);
     return 0;
 }
 
@@ -273,14 +324,14 @@ esp_err_t rb_diag_start(void)
 #endif
     esp_console_register_help_command();
     add("status", "Everything below in one go", cmd_status);
-    add("presence", "Latest presence reading", cmd_presence);
-    add("thermal", "Latest thermal features", cmd_thermal);
-    add("espnow", "ESP-NOW receive statistics and sequence tracking", cmd_espnow);
-    add("node", "Sensor-node health", cmd_node);
+    add("presence", "Combined presence and each presence node's reading", cmd_presence);
+    add("thermal", "Latest thermal features from the thermal node", cmd_thermal);
+    add("espnow", "ESP-NOW receive statistics and per-node sequence tracking", cmd_espnow);
+    add("node", "Health of every sensor node", cmd_node);
     add("safety", "Safety state, timers and outputs", cmd_safety);
     add("faults", "Active faults", cmd_faults);
     add("mqtt", "Network and MQTT status", cmd_mqtt);
-    add("sim", "Simulated sensor inputs (see 'sim' for usage)", cmd_sim);
+    add("sim", "Simulated sensor nodes (see 'sim' for usage)", cmd_sim);
     add("timers", "timers test|normal: accelerated safety timers", cmd_timers);
     add("reset", "Operator reset / acknowledge", cmd_reset);
     add("log", "log <TAG|*> <level>: change log verbosity", cmd_log);

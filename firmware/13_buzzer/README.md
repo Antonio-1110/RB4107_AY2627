@@ -1,8 +1,9 @@
 # 13 – Buzzer driver
 
 > **Test-only project, not part of the running system.** It checks one part on its own and replaces the system firmware on that board. To run the
-> system, flash [`05_espnow_c6_sender`](../05_espnow_c6_sender) on the C6 and
-> [`29_end_to_end`](../29_end_to_end) on the S3.
+> system, flash [`05a_c6_presence_node`](../05a_c6_presence_node) on the two
+> presence C6 boards, [`05b_c6_thermal_node`](../05b_c6_thermal_node) on the
+> thermal C6 board and [`29_end_to_end`](../29_end_to_end) on the S3.
 
 TODO section 13. Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
 

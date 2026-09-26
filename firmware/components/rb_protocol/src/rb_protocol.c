@@ -6,12 +6,17 @@
 #define DIST_UNKNOWN 0xFFFFu
 #define CENTI_UNKNOWN INT16_MIN
 
+/* PRESENCE_DATA flags. */
 enum {
     FLAG_PRESENCE_VALID = 1u << 0,
     FLAG_PRESENCE_DETECTED = 1u << 1,
     FLAG_PRESENCE_MOVING = 1u << 2,
     FLAG_PRESENCE_STATIONARY = 1u << 3,
-    FLAG_THERMAL_VALID = 1u << 4,
+};
+
+/* THERMAL_DATA flags. */
+enum {
+    FLAG_THERMAL_VALID = 1u << 0,
 };
 
 /* ---- little-endian writer / reader ---- */
@@ -99,10 +104,21 @@ static float from_cm(uint16_t cm)
 static size_t packet_len(rb_msg_type_t type)
 {
     switch (type) {
-    case RB_MSG_SENSOR_DATA: return RB_PKT_SENSOR_DATA_LEN;
+    case RB_MSG_PRESENCE_DATA: return RB_PKT_PRESENCE_DATA_LEN;
+    case RB_MSG_THERMAL_DATA: return RB_PKT_THERMAL_DATA_LEN;
     case RB_MSG_HEARTBEAT: return RB_PKT_HEARTBEAT_LEN;
     case RB_MSG_SENSOR_FAULT: return RB_PKT_SENSOR_FAULT_LEN;
     default: return 0;
+    }
+}
+
+/* A data message may only come from a node of the matching role. */
+static bool role_ok(rb_node_role_t role, rb_msg_type_t type)
+{
+    switch (role) {
+    case RB_NODE_ROLE_PRESENCE: return type != RB_MSG_THERMAL_DATA;
+    case RB_NODE_ROLE_THERMAL: return type != RB_MSG_PRESENCE_DATA;
+    default: return false;
     }
 }
 
@@ -121,7 +137,7 @@ uint16_t rb_crc16(const uint8_t *data, size_t len)
 size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
 {
     const size_t total = packet_len(pkt->type);
-    if (total == 0 || buf == NULL || buf_len < total) {
+    if (total == 0 || buf == NULL || buf_len < total || !role_ok(pkt->role, pkt->type)) {
         return 0;
     }
     writer_t w = {.p = buf, .n = 0};
@@ -129,23 +145,27 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
     put_u8(&w, RB_PROTOCOL_MAGIC >> 8);
     put_u8(&w, RB_PROTOCOL_VERSION);
     put_u8(&w, (uint8_t)pkt->type);
+    put_u8(&w, (uint8_t)pkt->role);
     put_u32(&w, pkt->node_id);
     put_u32(&w, pkt->sequence);
     put_u32(&w, pkt->uptime_ms);
 
     switch (pkt->type) {
-    case RB_MSG_SENSOR_DATA: {
-        const presence_reading_t *p = &pkt->body.sensor.presence;
-        const thermal_reading_t *t = &pkt->body.sensor.thermal;
+    case RB_MSG_PRESENCE_DATA: {
+        const presence_reading_t *p = &pkt->body.presence;
         uint8_t flags = 0;
         flags |= p->valid ? FLAG_PRESENCE_VALID : 0;
         flags |= p->presence_detected ? FLAG_PRESENCE_DETECTED : 0;
         flags |= p->moving_target ? FLAG_PRESENCE_MOVING : 0;
         flags |= p->stationary_target ? FLAG_PRESENCE_STATIONARY : 0;
-        flags |= t->valid ? FLAG_THERMAL_VALID : 0;
         put_u8(&w, flags);
         put_u16(&w, to_cm(p->distance_m));
         put_u32(&w, p->timestamp_ms);
+        break;
+    }
+    case RB_MSG_THERMAL_DATA: {
+        const thermal_reading_t *t = &pkt->body.thermal;
+        put_u8(&w, t->valid ? FLAG_THERMAL_VALID : 0);
         put_u16(&w, (uint16_t)to_centi(t->max_temp_c));
         put_u16(&w, (uint16_t)to_centi(t->min_temp_c));
         put_u16(&w, (uint16_t)to_centi(t->mean_temp_c));
@@ -195,19 +215,23 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
     if (rb_crc16(buf, len - RB_CRC_LEN) != (uint16_t)(buf[len - 2] | (buf[len - 1] << 8))) {
         return RB_DECODE_ERR_CRC;
     }
+    const rb_node_role_t role = (rb_node_role_t)buf[4];
+    if (!role_ok(role, type)) {
+        return RB_DECODE_ERR_ROLE;
+    }
 
     memset(out, 0, sizeof(*out));
-    reader_t r = {.p = buf, .n = 4};
+    reader_t r = {.p = buf, .n = 5};
     out->protocol_version = buf[2];
     out->type = type;
+    out->role = role;
     out->node_id = get_u32(&r);
     out->sequence = get_u32(&r);
     out->uptime_ms = get_u32(&r);
 
     switch (type) {
-    case RB_MSG_SENSOR_DATA: {
-        presence_reading_t *p = &out->body.sensor.presence;
-        thermal_reading_t *t = &out->body.sensor.thermal;
+    case RB_MSG_PRESENCE_DATA: {
+        presence_reading_t *p = &out->body.presence;
         const uint8_t flags = get_u8(&r);
         p->valid = flags & FLAG_PRESENCE_VALID;
         p->presence_detected = flags & FLAG_PRESENCE_DETECTED;
@@ -215,7 +239,11 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         p->stationary_target = flags & FLAG_PRESENCE_STATIONARY;
         p->distance_m = from_cm(get_u16(&r));
         p->timestamp_ms = get_u32(&r);
-        t->valid = flags & FLAG_THERMAL_VALID;
+        break;
+    }
+    case RB_MSG_THERMAL_DATA: {
+        thermal_reading_t *t = &out->body.thermal;
+        t->valid = get_u8(&r) & FLAG_THERMAL_VALID;
         t->max_temp_c = from_centi((int16_t)get_u16(&r));
         t->min_temp_c = from_centi((int16_t)get_u16(&r));
         t->mean_temp_c = from_centi((int16_t)get_u16(&r));
@@ -248,6 +276,7 @@ const char *rb_decode_result_name(rb_decode_result_t result)
     case RB_DECODE_ERR_VERSION: return "unsupported version";
     case RB_DECODE_ERR_TYPE: return "unknown message type";
     case RB_DECODE_ERR_CRC: return "CRC mismatch";
+    case RB_DECODE_ERR_ROLE: return "bad node role";
     default: return "?";
     }
 }
@@ -255,9 +284,19 @@ const char *rb_decode_result_name(rb_decode_result_t result)
 const char *rb_msg_type_name(rb_msg_type_t type)
 {
     switch (type) {
-    case RB_MSG_SENSOR_DATA: return "SENSOR_DATA";
+    case RB_MSG_PRESENCE_DATA: return "PRESENCE_DATA";
+    case RB_MSG_THERMAL_DATA: return "THERMAL_DATA";
     case RB_MSG_HEARTBEAT: return "HEARTBEAT";
     case RB_MSG_SENSOR_FAULT: return "SENSOR_FAULT";
+    default: return "?";
+    }
+}
+
+const char *rb_node_role_name(rb_node_role_t role)
+{
+    switch (role) {
+    case RB_NODE_ROLE_PRESENCE: return "presence";
+    case RB_NODE_ROLE_THERMAL: return "thermal";
     default: return "?";
     }
 }

@@ -74,7 +74,7 @@ RB4107_MQTT = {
 
 # The same JSON Schema the firmware is tested against (docs/schema).
 RB4107_SCHEMA_FILE = Path(env("RB4107_SCHEMA_FILE", str(REPO_ROOT / "docs" / "schema" / "rb4107_mqtt.schema.json")))
-RB4107_SUPPORTED_SCHEMA_VERSIONS = {1}
+RB4107_SUPPORTED_SCHEMA_VERSIONS = {2}
 
 # --- Logging ---------------------------------------------------------------
 # Log lines look like the firmware's: [MQTT][INFO] broker connected

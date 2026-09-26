@@ -1,8 +1,10 @@
 # 28 – State machine testing
 
-> **Test-only project, not part of the running system.** It runs the unit tests. To run the
-> system, flash [`05_espnow_c6_sender`](../05_espnow_c6_sender) on the C6 and
-> [`29_end_to_end`](../29_end_to_end) on the S3.
+> **Test-only project, not part of the running system.** It runs the unit
+> tests. To run the system, flash
+> [`05a_c6_presence_node`](../05a_c6_presence_node) on the two presence C6
+> boards, [`05b_c6_thermal_node`](../05b_c6_thermal_node) on the thermal C6
+> board and [`29_end_to_end`](../29_end_to_end) on the S3.
 
 TODO section 28. Targets: **ESP32-S3** and the **host PC** (ESP-IDF `linux` target).
 
@@ -41,7 +43,9 @@ idf.py build flash monitor                              # prints "ALL TESTS PASS
 | Temperature drops during the unattended period | `test_temperature_drops_during_unattended` (both policies) |
 | C4002 becomes unavailable | `test_c4002_unavailable_is_not_absence`, `test_c4002_recovers`, `test_sensor_loss_never_delays_shutdown`, `test_invalid_reading_from_live_node` |
 | MLX90640 becomes unavailable | `test_mlx_unavailable`, `test_fault_clears_with_person_absent_keeps_timeline` |
-| Sensor node disappears / returns | `test_health_online_stale_offline_and_recovery`, `test_node_disappears_and_returns` (node health → state machine) |
+| Sensor node disappears / returns | `test_health_online_stale_offline_and_recovery`, `test_radar_disappears_and_returns` (node health → state machine) |
+| Two radars combined (strict) | `test_presence_fuse_truth_table` (either sees a person → PRESENT; ABSENT only if both valid and empty; otherwise UNKNOWN), `test_node_set_routes_and_combines`, `test_either_radar_keeps_attended`, `test_node_set_single_radar` |
+| Misconfigured node | `test_wrong_role_is_dropped`, `test_role_must_match_data`, `test_node_set_config_validation` |
 | MQTT disconnects / reconnects | `test_mqtt_disconnect_and_reconnect_do_not_affect_safety` |
 
 Plus: the menuconfig safety settings are valid and give the configured
@@ -49,10 +53,10 @@ warning/shutdown timing (`test_kconfig.c`); self-test pass/fail/timeout, latched
 restarting the timing, heat detected after the person already left, the
 optional rate threshold, the timing hook only ever shortening, 32-bit clock
 wrap-around, config validation, the sequence tracking edge cases, protocol
-corruption on every byte, C4002 frame resync and errors, thermal features,
+presence/thermal packet round trips and corruption on every byte, C4002 frame resync and errors, thermal features,
 JSON null/escaping/overflow, and the topic table.
 
-**Result:** 49 tests, 0 failures, both on the host (linux target) and on
+**Result:** 57 tests, 0 failures, both on the host (linux target) and on
 the ESP32-S3 (QEMU).
 
 These tests found two real bugs, both fixed in `safety.c`. After a self-test

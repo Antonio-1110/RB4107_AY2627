@@ -1,27 +1,14 @@
-/*
- * TODO sections 1 and 5: the complete ESP32-C6 sensor node.
- *
- *   C4002 ──┐
- *           ├─→ C6 → ESP-NOW → S3
- *   MLX90640┘
- *
- * The node only acquires, filters, extracts features and transmits. The
- * safety state machine runs on the S3 (firmware 29). The boot report and the
- * periodic heap/uptime line cover section 1 ("board stays stable after
- * hardware assembly"); the status LED blinks while the firmware runs.
- */
+#include "rb_node_board.h"
+
 #include <inttypes.h>
+#include <stdbool.h>
 #include "driver/gpio.h"
 #include "esp_chip_info.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
-#include "node_link.h"
-#include "node_thermal.h"
 #include "rb_config.h"
-#include "rb_log.h"
-#include "rb_node_sensors.h"
 
 static const char *TAG = "NODE";
 
@@ -43,14 +30,14 @@ static const char *reset_reason_name(esp_reset_reason_t reason)
     }
 }
 
-static void log_board_info(void)
+static void log_board_info(const char *what)
 {
     esp_chip_info_t chip;
     esp_chip_info(&chip);
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     const esp_reset_reason_t reason = esp_reset_reason();
-    ESP_LOGI(TAG, "RB4107 sensor node %d (FireBeetle 2 ESP32-C6 rev v%d.%d, IDF %s)", CONFIG_RB_NODE_ID,
+    ESP_LOGI(TAG, "RB4107 %s, node ID %d (ESP32-C6 rev v%d.%d, IDF %s)", what, CONFIG_RB_NODE_ID,
              chip.revision / 100, chip.revision % 100, esp_get_idf_version());
     ESP_LOGI(TAG, "Wi-Fi STA MAC " MACSTR " (ESP-NOW source address)", MAC2STR(mac));
     if (reason == ESP_RST_BROWNOUT || reason == ESP_RST_PANIC || reason == ESP_RST_INT_WDT ||
@@ -74,9 +61,11 @@ static void status_led_toggle(void *arg)
     gpio_set_level((gpio_num_t)CONFIG_RB_NODE_STATUS_LED_GPIO, on);
 }
 
-/* Periodic jobs on esp_timer: nothing here ever blocks a task. */
-static void start_board_timers(void)
+void rb_node_board_start(const char *what)
 {
+    log_board_info(what);
+
+    /* Periodic jobs on esp_timer: nothing here ever blocks a task. */
     esp_timer_handle_t timer;
     const esp_timer_create_args_t health = {.callback = health_log, .name = "health_log"};
     ESP_ERROR_CHECK(esp_timer_create(&health, &timer));
@@ -89,18 +78,4 @@ static void start_board_timers(void)
         ESP_ERROR_CHECK(esp_timer_create(&blink, &timer));
         ESP_ERROR_CHECK(esp_timer_start_periodic(timer, 500 * 1000));
     }
-}
-
-void app_main(void)
-{
-    rb_log_init();
-    log_board_info();
-    start_board_timers();
-
-    /* A failed sensor is reported as a fault over ESP-NOW; it doesn't stop the node. */
-    if (rb_node_c4002_start() != ESP_OK) {
-        ESP_LOGE(TAG, "C4002 not configured; presence will be reported INVALID until it responds");
-    }
-    ESP_ERROR_CHECK(node_thermal_start());
-    ESP_ERROR_CHECK(node_link_start());
 }

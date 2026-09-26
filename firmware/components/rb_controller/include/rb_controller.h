@@ -8,7 +8,7 @@
  *                                        +-> event queue -> telemetry task (MQTT, lower priority)
  *                                        +-> snapshot (mutex) -> diagnostics / telemetry
  *
- * The safety task owns the sensor-node state and the state machine; nothing
+ * The safety task owns the sensor-node states and the state machine; nothing
  * else touches them. It never blocks on anything the telemetry side owns:
  * events are posted with a zero timeout and the snapshot lock is only held
  * for a struct copy. An MQTT stall therefore can't stop safety processing.
@@ -42,6 +42,7 @@ typedef struct {
             const char *reason;   /* string literal owned by the safety component */
         } state;
         struct {
+            node_slot_t slot;
             uint32_t node_id;
             uint32_t events;
         } node;
@@ -60,8 +61,8 @@ typedef struct {
     safety_outputs_t outputs;
     const char *last_reason;
     uint32_t transitions;
-    sensor_node_state_t node;
-    node_inputs_t inputs;
+    node_set_t nodes;             /* every sensor node's state */
+    node_inputs_t inputs;         /* combined inputs; presence is what the state machine used */
     uint32_t loop_count;          /* safety loop iterations: proves the task is alive */
     uint32_t last_loop_ms;
     uint32_t events_dropped;
@@ -78,8 +79,8 @@ typedef struct {
     safety_selftest_t (*self_test)(void *ctx);
     /* Any safety-relevant fault active (fault manager)? */
     bool (*safety_fault_active)(void *ctx);
-    /* Told about node health events (fault manager raises/clears faults here). */
-    void (*node_events)(const sensor_node_state_t *node, uint32_t events, void *ctx);
+    /* Told about one node's health events (fault manager raises/clears faults here). */
+    void (*node_events)(const sensor_node_state_t *node, node_slot_t slot, uint32_t events, void *ctx);
     /* Last chance to change the inputs (diagnostic simulation, section 27). */
     void (*override_inputs)(safety_inputs_t *inputs, void *ctx);
     void *ctx;
@@ -88,7 +89,7 @@ typedef struct {
 typedef struct {
     safety_config_t safety;
     sensor_node_health_config_t health;
-    uint32_t node_id;
+    node_set_config_t nodes;
     uint32_t rx_queue_len;
     uint32_t event_queue_len;
     uint32_t tick_ms;
@@ -122,6 +123,12 @@ void rb_controller_get_snapshot(rb_snapshot_t *out);
 
 /* Number of events dropped because the event queue was full. */
 uint32_t rb_controller_events_dropped(void);
+
+/*
+ * Packets dropped because their node ID isn't configured or the node has the
+ * wrong role (a misconfigured node). Only valid from the safety task's hooks.
+ */
+uint32_t rb_controller_foreign_packets(void);
 
 /* Operator reset / acknowledge (button, console). Consumed by the safety task. */
 void rb_controller_request_reset(void);

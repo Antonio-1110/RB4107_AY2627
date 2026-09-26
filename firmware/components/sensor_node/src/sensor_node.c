@@ -5,10 +5,11 @@
 
 #define NODE_RESTART_UPTIME_MARGIN_MS 1000u
 
-void sensor_node_init(sensor_node_state_t *node, uint32_t node_id)
+void sensor_node_init(sensor_node_state_t *node, uint32_t node_id, rb_node_role_t role)
 {
     memset(node, 0, sizeof(*node));
     node->node_id = node_id;
+    node->role = role;
     node->link = NODE_LINK_NEVER_SEEN;
 }
 
@@ -38,8 +39,12 @@ static node_seq_result_t classify(const sensor_node_state_t *node, const rb_pack
 node_seq_result_t sensor_node_on_packet(sensor_node_state_t *node, const rb_packet_t *pkt, uint32_t now_ms)
 {
     if (pkt->node_id != node->node_id) {
-        node->wrong_node++;
         return NODE_SEQ_WRONG_NODE;
+    }
+    /* e.g. a thermal node flashed with a presence node's ID: never mix their data. */
+    if (pkt->role != node->role) {
+        node->wrong_role++;
+        return NODE_SEQ_WRONG_ROLE;
     }
     const node_seq_result_t res = classify(node, pkt);
     switch (res) {
@@ -65,8 +70,13 @@ node_seq_result_t sensor_node_on_packet(sensor_node_state_t *node, const rb_pack
     node->last_received_ms = now_ms;
 
     switch (pkt->type) {
-    case RB_MSG_SENSOR_DATA:
-        node->latest_data = pkt->body.sensor;
+    case RB_MSG_PRESENCE_DATA:
+        node->presence = pkt->body.presence;
+        node->latest_data_rx_ms = now_ms;
+        node->has_data = true;
+        break;
+    case RB_MSG_THERMAL_DATA:
+        node->thermal = pkt->body.thermal;
         node->latest_data_rx_ms = now_ms;
         node->has_data = true;
         break;
@@ -109,39 +119,126 @@ uint32_t sensor_node_evaluate(sensor_node_state_t *node, const sensor_node_healt
 
     /* A reading only counts if the node is ONLINE and the data itself is fresh. */
     const bool data_fresh = node->online && node->has_data && (now_ms - node->latest_data_rx_ms) < cfg->stale_timeout_ms;
-    const bool presence_ok = data_fresh && node->latest_data.presence.valid;
-    const bool thermal_ok = data_fresh && node->latest_data.thermal.valid;
-    if (presence_ok != node->presence_ok) {
-        events |= presence_ok ? NODE_EVT_PRESENCE_VALID : NODE_EVT_PRESENCE_INVALID;
-        node->presence_ok = presence_ok;
-    }
-    if (thermal_ok != node->thermal_ok) {
-        events |= thermal_ok ? NODE_EVT_THERMAL_VALID : NODE_EVT_THERMAL_INVALID;
-        node->thermal_ok = thermal_ok;
+    const bool valid = node->role == RB_NODE_ROLE_PRESENCE ? node->presence.valid : node->thermal.valid;
+    const bool sensor_ok = data_fresh && valid;
+    if (sensor_ok != node->sensor_ok) {
+        events |= sensor_ok ? NODE_EVT_SENSOR_VALID : NODE_EVT_SENSOR_INVALID;
+        node->sensor_ok = sensor_ok;
     }
     return events;
 }
 
-void sensor_node_inputs(const sensor_node_state_t *node, node_inputs_t *out)
+rb_tristate_t sensor_node_presence(const sensor_node_state_t *node)
+{
+    if (node->role != RB_NODE_ROLE_PRESENCE || !node->sensor_ok) {
+        return RB_UNKNOWN;
+    }
+    return node->presence.presence_detected ? RB_TRUE : RB_FALSE;
+}
+
+/* ---- The set of nodes ---- */
+
+bool node_set_config_valid(const node_set_config_t *cfg)
+{
+    if (cfg->presence_node_count < 1 || cfg->presence_node_count > NODE_SET_MAX_PRESENCE || cfg->thermal_node_id == 0) {
+        return false;
+    }
+    for (int i = 0; i < cfg->presence_node_count; i++) {
+        const uint32_t id = cfg->presence_node_ids[i];
+        if (id == 0 || id == cfg->thermal_node_id) {
+            return false;
+        }
+        for (int j = 0; j < i; j++) {
+            if (id == cfg->presence_node_ids[j]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void node_set_init(node_set_t *set, const node_set_config_t *cfg)
+{
+    memset(set, 0, sizeof(*set));
+    for (int i = 0; i < NODE_SET_MAX_PRESENCE; i++) {
+        const node_slot_t slot = (node_slot_t)(NODE_SLOT_PRESENCE_A + i);
+        sensor_node_init(&set->nodes[slot], cfg->presence_node_ids[i], RB_NODE_ROLE_PRESENCE);
+        set->enabled[slot] = i < cfg->presence_node_count;
+    }
+    sensor_node_init(&set->nodes[NODE_SLOT_THERMAL], cfg->thermal_node_id, RB_NODE_ROLE_THERMAL);
+    set->enabled[NODE_SLOT_THERMAL] = true;
+}
+
+node_seq_result_t node_set_on_packet(node_set_t *set, const rb_packet_t *pkt, uint32_t now_ms, node_slot_t *slot_out)
+{
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        if (set->enabled[slot] && set->nodes[slot].node_id == pkt->node_id) {
+            if (slot_out != NULL) {
+                *slot_out = (node_slot_t)slot;
+            }
+            return sensor_node_on_packet(&set->nodes[slot], pkt, now_ms);
+        }
+    }
+    if (slot_out != NULL) {
+        *slot_out = NODE_SLOT_COUNT;
+    }
+    set->unknown_node++;
+    return NODE_SEQ_WRONG_NODE;
+}
+
+void node_set_evaluate(node_set_t *set, const sensor_node_health_config_t *cfg, uint32_t now_ms,
+                       uint32_t events[NODE_SLOT_COUNT])
+{
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        events[slot] = set->enabled[slot] ? sensor_node_evaluate(&set->nodes[slot], cfg, now_ms) : 0;
+    }
+}
+
+rb_tristate_t presence_fuse(const rb_tristate_t *readings, size_t count)
+{
+    bool all_absent = count > 0;
+    for (size_t i = 0; i < count; i++) {
+        if (readings[i] == RB_TRUE) {
+            return RB_TRUE;
+        }
+        all_absent &= readings[i] == RB_FALSE;
+    }
+    return all_absent ? RB_FALSE : RB_UNKNOWN;
+}
+
+void node_set_inputs(const node_set_t *set, node_inputs_t *out)
 {
     memset(out, 0, sizeof(*out));
-    out->link = node->link;
-    out->node_fault_flags = node->node_fault_flags;
+    size_t n = 0;
+    for (int i = 0; i < NODE_SET_MAX_PRESENCE; i++) {
+        const node_slot_t slot = (node_slot_t)(NODE_SLOT_PRESENCE_A + i);
+        out->presence_each[i] = sensor_node_presence(&set->nodes[slot]);
+        if (set->enabled[slot]) {
+            n++;
+        }
+    }
+    /* Enabled presence slots are always the first n. */
+    out->presence = presence_fuse(out->presence_each, n);
 
-    const presence_reading_t *p = &node->latest_data.presence;
-    out->presence = !node->presence_ok ? RB_UNKNOWN : (p->presence_detected ? RB_TRUE : RB_FALSE);
+    const sensor_node_state_t *th = &set->nodes[NODE_SLOT_THERMAL];
+    const thermal_reading_t *t = &th->thermal;
+    out->thermal_valid = th->sensor_ok;
+    out->hot_region_temp_c = th->sensor_ok ? t->hot_region_temp_c : NAN;
+    out->max_temp_c = th->sensor_ok ? t->max_temp_c : NAN;
+    out->temp_rate_c_per_min = th->sensor_ok ? t->temp_rate_c_per_min : NAN;
+    out->pixels_above_threshold = th->sensor_ok ? t->pixels_above_threshold : 0;
+}
 
-    const thermal_reading_t *t = &node->latest_data.thermal;
-    out->thermal_valid = node->thermal_ok;
-    out->hot_region_temp_c = node->thermal_ok ? t->hot_region_temp_c : NAN;
-    out->max_temp_c = node->thermal_ok ? t->max_temp_c : NAN;
-    out->temp_rate_c_per_min = node->thermal_ok ? t->temp_rate_c_per_min : NAN;
-    out->pixels_above_threshold = node->thermal_ok ? t->pixels_above_threshold : 0;
+const char *node_slot_name(node_slot_t slot)
+{
+    static const char *const names[] = {"presence_a", "presence_b", "thermal"};
+    return (unsigned)slot < sizeof(names) / sizeof(names[0]) ? names[slot] : "?";
 }
 
 const char *node_seq_result_name(node_seq_result_t result)
 {
-    static const char *const names[] = {"first", "ok", "gap", "node-restart", "duplicate", "out-of-order", "wrong-node"};
+    static const char *const names[] = {"first",        "ok",           "gap",        "node-restart",
+                                        "duplicate",    "out-of-order", "wrong-node", "wrong-role"};
     return (unsigned)result < sizeof(names) / sizeof(names[0]) ? names[result] : "?";
 }
 
@@ -149,4 +246,9 @@ const char *node_link_state_name(node_link_state_t state)
 {
     static const char *const names[] = {"NEVER_SEEN", "ONLINE", "STALE", "OFFLINE"};
     return (unsigned)state < sizeof(names) / sizeof(names[0]) ? names[state] : "?";
+}
+
+const char *rb_tristate_presence_name(rb_tristate_t presence)
+{
+    return presence == RB_TRUE ? "PRESENT" : presence == RB_FALSE ? "ABSENT" : "UNKNOWN";
 }

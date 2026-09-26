@@ -56,6 +56,7 @@ typedef struct {
     uint32_t bad_version;
     uint32_t bad_type;
     uint32_t bad_crc;
+    uint32_t bad_role;          /* unknown role, or data that does not match the role */
     uint32_t queue_overflow;    /* dropped because the consumer fell behind */
 } rb_espnow_rx_stats_t;
 

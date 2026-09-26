@@ -6,13 +6,17 @@
 #include "freertos/semphr.h"
 
 static const fault_info_t FAULTS[FAULT_COUNT] = {
-    [FAULT_C4002_UNAVAILABLE] = {"c4002_unavailable", FAULT_CLASS_SAFETY},
-    [FAULT_MLX_UNAVAILABLE] = {"mlx90640_unavailable", FAULT_CLASS_SAFETY},
-    [FAULT_NODE_OFFLINE] = {"sensor_node_offline", FAULT_CLASS_SAFETY},
+    [FAULT_PRESENCE_A_UNAVAILABLE] = {"presence_a_unavailable", FAULT_CLASS_SAFETY},
+    [FAULT_PRESENCE_B_UNAVAILABLE] = {"presence_b_unavailable", FAULT_CLASS_SAFETY},
+    [FAULT_THERMAL_UNAVAILABLE] = {"thermal_unavailable", FAULT_CLASS_SAFETY},
+    [FAULT_PRESENCE_A_NODE_OFFLINE] = {"presence_a_node_offline", FAULT_CLASS_SAFETY},
+    [FAULT_PRESENCE_B_NODE_OFFLINE] = {"presence_b_node_offline", FAULT_CLASS_SAFETY},
+    [FAULT_THERMAL_NODE_OFFLINE] = {"thermal_node_offline", FAULT_CLASS_SAFETY},
     [FAULT_SHUTDOWN_OUTPUT] = {"shutdown_output_failure", FAULT_CLASS_SAFETY},
     [FAULT_SELF_TEST] = {"self_test_failed", FAULT_CLASS_SAFETY},
     [FAULT_ESPNOW_INVALID_PACKET] = {"espnow_invalid_packet", FAULT_CLASS_TELEMETRY},
     [FAULT_ESPNOW_LINK_DEGRADED] = {"espnow_link_degraded", FAULT_CLASS_TELEMETRY},
+    [FAULT_ESPNOW_UNKNOWN_NODE] = {"espnow_unknown_node", FAULT_CLASS_TELEMETRY},
     [FAULT_RTC] = {"rtc_failure", FAULT_CLASS_TELEMETRY},
     [FAULT_NETWORK_DOWN] = {"network_disconnected", FAULT_CLASS_TELEMETRY},
     [FAULT_MQTT_DOWN] = {"mqtt_disconnected", FAULT_CLASS_TELEMETRY},

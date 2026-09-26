@@ -5,10 +5,13 @@
 Build the software stack for the RB4107 cooking-safety prototype:
 
 ```text
-C4002 + MLX90640
-        ↓
-ESP32-C6 Sensor Node
-        ↓ ESP-NOW
+C4002 #1        C4002 #2        MLX90640
+   ↓               ↓               ↓
+ESP32-C6        ESP32-C6        ESP32-C6
+(presence A)    (presence B)    (thermal)
+        ↘          ↓          ↙
+               ESP-NOW
+                  ↓
 ESP32-S3 Central Controller
         ↓
 Local Safety State Machine
@@ -25,6 +28,13 @@ Django MQTT Subscriber
 > physical hardware (flashing, wiring, measurements) stay `[ ]` until someone
 > has checked them on the bench. See `README.md` for the section → folder map.
 
+> **Hardware update:** the sensing side is three ESP32-C6 mini boards, each
+> with one sensor: two C4002 radars (presence nodes A and B, project
+> `05a_c6_presence_node`) and one MLX90640 (thermal node, project
+> `05b_c6_thermal_node`). The S3 combines the two radars strictly (either sees
+> a person → present; absent only if both validly say so). Whether nodes
+> decide anything themselves ("edge") is still open (section 32).
+
 > **Critical architectural requirement:**  
 > The local safety system must continue operating if MQTT, Django, the MacBook, or the network becomes unavailable.
 
@@ -34,7 +44,7 @@ Anything downstream of Django is currently out of scope.
 
 # 0. Repository / Project Structure
 
-- [x] Establish clean repository structure for the different software components. *(10 ESP-IDF projects in `firmware/` + shared components; see `README.md` for which folder covers each section.)*
+- [x] Establish clean repository structure for the different software components. *(11 ESP-IDF projects in `firmware/` + shared components; see `README.md` for which folder covers each section.)*
 
 Suggested structure:
 
@@ -239,13 +249,14 @@ Do not assume arbitrary C structs are automatically safe wire protocols.
 - [x] Implement sensor-data publishing.
 - [x] Implement sensor-fault publishing.
 - [x] Log useful diagnostics without flooding serial output.
+- [x] One node per sensor: presence node firmware (`05a`, flashed twice with node IDs 1 and 2) and thermal node firmware (`05b`, node ID 3). Every packet carries the node's role.
 
 Test:
 
 ```text
-C4002 ──┐
-        ├─→ C6 → ESP-NOW → S3
-MLX90640┘
+C4002 #1 → C6 (node 1) ─┐
+C4002 #2 → C6 (node 2) ─┼─→ ESP-NOW → S3
+MLX90640 → C6 (node 3) ─┘
 ```
 
 ---
@@ -354,6 +365,7 @@ OFFLINE
 - [x] Detect sensor recovery.
 - [x] Generate fault events.
 - [x] Generate recovery events.
+- [x] Track each of the three nodes separately (own sequence, link state and SAFETY faults), and combine the two radars strictly.
 
 > Missing sensor data must never automatically mean "safe."
 
@@ -1209,6 +1221,9 @@ Do not silently invent answers to these.
 - [ ] Behaviour if temperature falls while unattended.
 - [ ] Behaviour when a safety-critical sensor fails.
 - [ ] Whether Ethernet or Wi-Fi will be used for final S3 → MQTT communication.
+- [ ] Exact ESP32-C6 mini board (pins, status LED) for the three nodes.
+- [ ] Whether the nodes decide anything at the edge, or only send readings to the S3.
+- [x] How to combine the two presence radars. *(Strict: either sees a person → PRESENT; ABSENT only if both validly say absent; otherwise UNKNOWN → FAULT.)*
 
 Mark unresolved hardware dependencies clearly instead of guessing.
 

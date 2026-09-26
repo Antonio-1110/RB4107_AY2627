@@ -31,7 +31,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "RB4107 controller (ESP32-S3 rev v%d.%d, %d cores, flash %" PRIu32 " MB, IDF %s)",
              chip.revision / 100, chip.revision % 100, chip.cores, flash_size / (1024 * 1024), esp_get_idf_version());
-    ESP_LOGI(TAG, "Wi-Fi STA MAC " MACSTR "  <- set this as RB_NODE_CONTROLLER_MAC on the sensor node", MAC2STR(mac));
+    ESP_LOGI(TAG, "Wi-Fi STA MAC " MACSTR "  <- set this as RB_NODE_CONTROLLER_MAC on every sensor node", MAC2STR(mac));
     ESP_LOGI(TAG, "reset reason %d", esp_reset_reason());
 
     rb_board_i2c_scan();

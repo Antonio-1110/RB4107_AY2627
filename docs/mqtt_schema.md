@@ -1,4 +1,4 @@
-# MQTT JSON schema (schema_version 1)
+# MQTT JSON schema (schema_version 2)
 
 Produced by [`firmware/components/rb_json`](../firmware/components/rb_json).
 Machine-readable: [`schema/rb4107_mqtt.schema.json`](schema/rb4107_mqtt.schema.json).
@@ -16,27 +16,35 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   QoS 0 messages; a drop back to a small number means a reboot.
 - **Unknown is `null`.** An invalid or missing presence reading has
   `"valid": false` and `"detected": null`, never `false`. Missing sensor data
-  is not "nobody there".
+  is not "nobody there". The combined `presence_state` is `UNKNOWN` in that
+  case, never `ABSENT`.
 - Readers must ignore fields they don't know. New sensors or fields can be
   added without bumping `schema_version`. Removing or changing the meaning of
   a field requires a bump.
 - `protocol_version` in telemetry is the ESP-NOW protocol version the sensor
   data arrived with (see [protocol.md](protocol.md)).
+- Version 2 (three sensor nodes) replaced the single node's `sensor_node`,
+  `node_link` and `presence` in `telemetry` with `presence_state` and
+  `nodes`, and `presence_valid` / `thermal_valid` in `node_status` with
+  `role` and `valid`.
 
 ## `telemetry` (topic `controller/state`)
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "type": "telemetry",
   "controller_id": "controller_01",
   "timestamp": "2026-09-26T00:00:00+08:00",
   "uptime_ms": 18400,
   "sequence": 4127,
-  "protocol_version": 1,
-  "sensor_node": "node_01",
-  "node_link": "ONLINE",
-  "presence": {"valid": true, "detected": false, "moving": false, "stationary": false, "distance_m": null},
+  "protocol_version": 2,
+  "presence_state": "ABSENT",
+  "nodes": [
+    {"sensor_node": "node_01", "role": "presence", "link": "ONLINE", "valid": true, "detected": false},
+    {"sensor_node": "node_02", "role": "presence", "link": "ONLINE", "valid": true, "detected": false},
+    {"sensor_node": "node_03", "role": "thermal", "link": "ONLINE", "valid": true, "detected": null}
+  ],
   "thermal": {"valid": true, "max_c": 84.2, "min_c": 21.0, "mean_c": 42.8, "hot_region_c": 80.1,
               "rate_c_per_min": 1.7, "pixels_above_threshold": 37},
   "safety": {"state": "UNATTENDED", "state_ms": 16400, "unattended_ms": 18400,
@@ -44,6 +52,14 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "faults": ["mqtt_disconnected"]
 }
 ```
+
+- `presence_state` is the two radars combined, exactly as the safety state
+  machine used it: `PRESENT` if either radar sees a person, `ABSENT` only if
+  both give a valid "absent", `UNKNOWN` otherwise.
+- `nodes` lists every configured sensor node. `detected` is only set for a
+  presence node with a valid reading; it is `null` for the thermal node and
+  for any node that is invalid, STALE or OFFLINE.
+- `thermal` is the thermal node's reading.
 
 ## `event` (topics `events/warning`, `events/shutdown`, `events/fault`)
 
@@ -65,7 +81,7 @@ always holds the current set.
 
 ```json
 {
-  "schema_version": 1, "type": "event", "controller_id": "controller_01",
+  "schema_version": 2, "type": "event", "controller_id": "controller_01",
   "timestamp": "2026-09-26T00:01:00+08:00", "uptime_ms": 78400, "sequence": 4128,
   "event": "warning",
   "safety": {"state": "WARNING", "from_state": "UNATTENDED", "reason": "unattended timeout", "unattended_ms": 60000},
@@ -81,7 +97,7 @@ For fault events, `fault` is `{"name": "mqtt_disconnected", "class": "TELEMETRY"
 |---|---|---|
 | `heartbeat` | `controller/heartbeat` | `safety_state`, `safety_loop_count` (goes up while the safety task is alive) |
 | `faults` | `controller/faults` | `faults: [{name, class}]` (active faults) |
-| `presence` | `sensors/<node>/presence` | `sensor_node`, `presence{...}` |
-| `thermal` | `sensors/<node>/thermal` | `sensor_node`, `thermal{...}` |
-| `node_status` | `sensors/<node>/status` | `sensor_node`, `link`, `presence_valid`, `thermal_valid`, `node_fault_flags`, `missed_packets`, `restarts` |
+| `presence` | `sensors/<node>/presence` (each presence node) | `sensor_node`, `presence{valid, detected, moving, stationary, distance_m}` |
+| `thermal` | `sensors/<node>/thermal` (the thermal node) | `sensor_node`, `thermal{...}` |
+| `node_status` | `sensors/<node>/status` | `sensor_node`, `role` (`presence` / `thermal`), `link`, `valid`, `node_fault_flags`, `missed_packets`, `restarts` |
 | `controller_status` | `controller/status` | `online` (retained; the Last Will publishes `false`) |

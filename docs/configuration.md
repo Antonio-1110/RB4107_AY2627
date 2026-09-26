@@ -27,7 +27,7 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 | `CONFIG_RB_NODE_STATUS_LED_GPIO` | Status LED GPIO (-1 = none) | `15` | -1 – 30 | ⚠ |
 | `CONFIG_RB_NODE_HEALTH_LOG_PERIOD_MS` | Board health log period (ms) | `10000` | 1000 – 600000 |  |
 | `CONFIG_RB_NODE_CONTROLLER_MAC` | Controller (ESP32-S3) Wi-Fi STA MAC address | `"FF:FF:FF:FF:FF:FF"` |  |  |
-| `CONFIG_RB_NODE_DATA_PERIOD_MS` | SENSOR_DATA transmit period (ms) | `500` | 100 – 10000 |  |
+| `CONFIG_RB_NODE_DATA_PERIOD_MS` | Data (PRESENCE_DATA / THERMAL_DATA) transmit period (ms) | `500` | 100 – 10000 |  |
 | `CONFIG_RB_NODE_HEARTBEAT_PERIOD_MS` | HEARTBEAT transmit period (ms) | `1000` | 200 – 60000 |  |
 | `CONFIG_RB_MLX_STALE_TIMEOUT_MS` | Thermal reading goes invalid after (ms) without a good frame | `3000` | 500 – 60000 |  |
 
@@ -121,7 +121,10 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `CONFIG_RB_CTRL_NODE_ID` | Expected sensor node ID | `1` | 1 – 65535 |  |
+| `CONFIG_RB_CTRL_PRESENCE_NODE_COUNT` | Number of presence nodes (C4002 radars) | `2` | 1 – 2 |  |
+| `CONFIG_RB_CTRL_PRESENCE_A_NODE_ID` | Presence node A ID | `1` | 1 – 65535 |  |
+| `CONFIG_RB_CTRL_PRESENCE_B_NODE_ID` | Presence node B ID | `2` | 1 – 65535 |  |
+| `CONFIG_RB_CTRL_THERMAL_NODE_ID` | Thermal node ID | `3` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |
@@ -181,7 +184,7 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `CONFIG_RB_SIM_NODE` | Simulated sensor node instead of ESP-NOW | `n` |  |  |
+| `CONFIG_RB_SIM_NODE` | Simulated sensor nodes instead of ESP-NOW | `n` |  |  |
 | `CONFIG_RB_OUTPUTS_SIMULATED` | Simulated outputs (log only, don't drive the buzzer/relay) | `n` |  |  |
 | `CONFIG_RB_DIAG_CONSOLE` | Diagnostic console (esp_console REPL on the serial port) | `n` |  |  |
 | `CONFIG_RB_DIAG_CONTINUITY_MONITOR` | Critical-failure continuity monitor | `n` |  |  |
@@ -213,7 +216,7 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 | GPIO assignments | `RB_C4002_*_GPIO`, `RB_MLX_S*_GPIO`, `RB_NODE_STATUS_LED_GPIO`, `RB_S3_I2C_*`, `RB_BUZZER_GPIO`, `RB_ETH_*_GPIO` |
 | Relay polarity | `RB_SHUTDOWN_POLARITY`, `RB_RELAY_ACTIVE_LEVEL`, `RB_SHUTDOWN_BOOT_STATE` |
 | ESP-NOW peer MAC | `RB_NODE_CONTROLLER_MAC`, `RB_ESPNOW_CHANNEL` |
-| Node IDs | `RB_NODE_ID` (node), `RB_CTRL_NODE_ID` (controller) |
+| Node IDs | `RB_NODE_ID` (each node; 1, 2 = presence, 3 = thermal), `RB_CTRL_PRESENCE_NODE_COUNT`, `RB_CTRL_PRESENCE_A_NODE_ID`, `RB_CTRL_PRESENCE_B_NODE_ID`, `RB_CTRL_THERMAL_NODE_ID` (controller) |
 | Sensor timeouts | `RB_C4002_STALE_TIMEOUT_MS`, `RB_MLX_STALE_TIMEOUT_MS`, `RB_CTRL_NODE_STALE_MS`, `RB_CTRL_NODE_OFFLINE_MS` |
 | Presence filtering/debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, C4002 sensor-side settings |
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC`, `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` |

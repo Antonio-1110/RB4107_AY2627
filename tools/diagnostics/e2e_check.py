@@ -28,8 +28,8 @@ TYPE_TO_DEF = {"telemetry": "telemetry", "heartbeat": "heartbeat", "faults": "fa
 CHECKS = [
     ("controller_online", "S3 connected to the broker (controller/status online)"),
     ("telemetry", "Telemetry appears in Mosquitto (controller/state)"),
-    ("presence_valid", "Presence readings reach the S3 (valid presence in telemetry)"),
-    ("presence_changes", "Presence changes are reported (seen both present and absent)"),
+    ("presence_valid", "Presence readings reach the S3 (every presence node valid in telemetry)"),
+    ("presence_changes", "Presence changes are reported (combined presence seen PRESENT and ABSENT)"),
     ("thermal_valid", "Thermal readings reach the S3 (valid thermal in telemetry)"),
     ("monitoring", "Safety state responds: MONITORING reached (cooking detected)"),
     ("unattended", "Safety state responds: UNATTENDED reached"),
@@ -72,11 +72,11 @@ def main() -> int:
             seen["controller_online"] = True
         if kind == "telemetry":
             seen["telemetry"] = True
-            p, t, s = doc["presence"], doc["thermal"], doc["safety"]
-            if p["valid"]:
-                seen["presence_valid"] = True
-                presence_values.add(p["detected"])
-                seen["presence_changes"] = presence_values >= {True, False}
+            t, s = doc["thermal"], doc["safety"]
+            radars = [n for n in doc["nodes"] if n["role"] == "presence"]
+            seen["presence_valid"] |= bool(radars) and all(n["valid"] for n in radars)
+            presence_values.add(doc["presence_state"])
+            seen["presence_changes"] = presence_values >= {"PRESENT", "ABSENT"}
             seen["thermal_valid"] |= t["valid"]
             seen["monitoring"] |= s["state"] == "MONITORING"
             seen["unattended"] |= s["state"] == "UNATTENDED"

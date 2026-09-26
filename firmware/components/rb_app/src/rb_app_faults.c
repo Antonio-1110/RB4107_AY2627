@@ -17,7 +17,14 @@ typedef struct {
     uint32_t last_increase_ms;
 } counter_watch_t;
 
-static counter_watch_t s_invalid, s_overflow, s_dropped;
+static counter_watch_t s_invalid, s_foreign, s_overflow, s_dropped;
+
+/* Per node slot (node_slot_t order). */
+static const fault_id_t UNAVAILABLE[NODE_SLOT_COUNT] = {FAULT_PRESENCE_A_UNAVAILABLE, FAULT_PRESENCE_B_UNAVAILABLE,
+                                                        FAULT_THERMAL_UNAVAILABLE};
+static const fault_id_t OFFLINE[NODE_SLOT_COUNT] = {FAULT_PRESENCE_A_NODE_OFFLINE, FAULT_PRESENCE_B_NODE_OFFLINE,
+                                                    FAULT_THERMAL_NODE_OFFLINE};
+static uint32_t s_stale_slots;   /* bit per slot: node currently STALE */
 
 static void on_fault_change(fault_id_t id, bool active, int32_t detail, void *ctx)
 {
@@ -35,39 +42,43 @@ static void on_fault_change(fault_id_t id, bool active, int32_t detail, void *ct
     rb_controller_post_event(&evt);
 }
 
-void rb_app_faults_init(void)
+void rb_app_faults_init(const node_set_config_t *nodes)
 {
     fault_manager_init(rb_time_mono_ms, on_fault_change, NULL);
-    /* Nothing has been received yet: these are genuinely unknown at boot. */
-    fault_raise(FAULT_NODE_OFFLINE, -1);
-    fault_raise(FAULT_C4002_UNAVAILABLE, -1);
-    fault_raise(FAULT_MLX_UNAVAILABLE, -1);
+    /* Nothing has been received yet: every configured node is genuinely unknown at boot. */
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        const bool configured = slot != NODE_SLOT_PRESENCE_B || nodes->presence_node_count > 1;
+        if (configured) {
+            fault_raise(OFFLINE[slot], -1);
+            fault_raise(UNAVAILABLE[slot], -1);
+        }
+    }
 }
 
-void rb_app_faults_node_events(const sensor_node_state_t *node, uint32_t events, void *ctx)
+void rb_app_faults_node_events(const sensor_node_state_t *node, node_slot_t slot, uint32_t events, void *ctx)
 {
-    const int32_t flags = node->node_fault_flags;
+    if ((unsigned)slot >= NODE_SLOT_COUNT) {
+        return;
+    }
     if (events & NODE_EVT_ONLINE) {
-        fault_clear(FAULT_NODE_OFFLINE);
-        fault_clear(FAULT_ESPNOW_LINK_DEGRADED);
+        fault_clear(OFFLINE[slot]);
+        s_stale_slots &= ~(1u << slot);
     }
     if (events & NODE_EVT_STALE) {
-        fault_raise(FAULT_ESPNOW_LINK_DEGRADED, (int32_t)node->missed);
+        s_stale_slots |= 1u << slot;
     }
     if (events & NODE_EVT_OFFLINE) {
-        fault_raise(FAULT_NODE_OFFLINE, 0);
+        fault_raise(OFFLINE[slot], (int32_t)node->node_id);
+        s_stale_slots &= ~(1u << slot); /* covered by the OFFLINE fault now */
     }
-    if (events & NODE_EVT_PRESENCE_INVALID) {
-        fault_raise(FAULT_C4002_UNAVAILABLE, flags);
+    /* One shared telemetry fault while any node is STALE (detail: the slot bits). */
+    fault_set(FAULT_ESPNOW_LINK_DEGRADED, s_stale_slots != 0, (int32_t)s_stale_slots);
+
+    if (events & NODE_EVT_SENSOR_INVALID) {
+        fault_raise(UNAVAILABLE[slot], node->node_fault_flags);
     }
-    if (events & NODE_EVT_PRESENCE_VALID) {
-        fault_clear(FAULT_C4002_UNAVAILABLE);
-    }
-    if (events & NODE_EVT_THERMAL_INVALID) {
-        fault_raise(FAULT_MLX_UNAVAILABLE, flags);
-    }
-    if (events & NODE_EVT_THERMAL_VALID) {
-        fault_clear(FAULT_MLX_UNAVAILABLE);
+    if (events & NODE_EVT_SENSOR_VALID) {
+        fault_clear(UNAVAILABLE[slot]);
     }
 }
 
@@ -87,8 +98,9 @@ void rb_app_faults_tick(uint32_t now_ms, void *ctx)
 {
     rb_espnow_rx_stats_t rx;
     rb_espnow_get_rx_stats(&rx);
-    watch_counter(&s_invalid, rx.bad_length + rx.bad_magic + rx.bad_version + rx.bad_type + rx.bad_crc,
+    watch_counter(&s_invalid, rx.bad_length + rx.bad_magic + rx.bad_version + rx.bad_type + rx.bad_crc + rx.bad_role,
                   FAULT_ESPNOW_INVALID_PACKET, now_ms);
+    watch_counter(&s_foreign, rb_controller_foreign_packets(), FAULT_ESPNOW_UNKNOWN_NODE, now_ms);
     watch_counter(&s_overflow, rx.queue_overflow, FAULT_RX_QUEUE_OVERFLOW, now_ms);
     watch_counter(&s_dropped, rb_controller_events_dropped(), FAULT_EVENT_QUEUE_OVERFLOW, now_ms);
     fault_set(FAULT_SHUTDOWN_OUTPUT, rb_outputs_fault(), 0);

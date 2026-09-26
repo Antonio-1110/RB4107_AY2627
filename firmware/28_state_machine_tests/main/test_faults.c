@@ -20,9 +20,14 @@ static void run(th_t *h, uint32_t ms)
 
 static void test_classification(void)
 {
-    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_NODE_OFFLINE)->fault_class);
-    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_C4002_UNAVAILABLE)->fault_class);
-    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_MLX_UNAVAILABLE)->fault_class);
+    /* Every sensor node, and every sensor, is safety-critical. */
+    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_PRESENCE_A_NODE_OFFLINE)->fault_class);
+    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_PRESENCE_B_NODE_OFFLINE)->fault_class);
+    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_THERMAL_NODE_OFFLINE)->fault_class);
+    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_PRESENCE_A_UNAVAILABLE)->fault_class);
+    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_PRESENCE_B_UNAVAILABLE)->fault_class);
+    TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_THERMAL_UNAVAILABLE)->fault_class);
+    TEST_ASSERT_EQUAL(FAULT_CLASS_TELEMETRY, fault_info(FAULT_ESPNOW_UNKNOWN_NODE)->fault_class);
     TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_SHUTDOWN_OUTPUT)->fault_class);
     TEST_ASSERT_EQUAL(FAULT_CLASS_TELEMETRY, fault_info(FAULT_MQTT_DOWN)->fault_class);
     TEST_ASSERT_EQUAL(FAULT_CLASS_TELEMETRY, fault_info(FAULT_NETWORK_DOWN)->fault_class);

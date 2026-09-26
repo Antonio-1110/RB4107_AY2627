@@ -42,8 +42,10 @@ menu "RB4107 configuration"
             range 1 65535
             default 1
             help
-                Identifier this sensor node puts in every ESP-NOW packet. The
-                controller only accepts IDs listed in "Expected sensor node ID".
+                Identifier this sensor node puts in every ESP-NOW packet. Each
+                node needs its own ID, matching the controller's "Sensor node
+                link" menu. Defaults: presence node A = 1, presence node B = 2,
+                thermal node = 3 (set by each project's sdkconfig files).
 
         config RB_NODE_STATUS_LED_GPIO
             int "Status LED GPIO (-1 = none)"
@@ -66,11 +68,12 @@ menu "RB4107 configuration"
             default "FF:FF:FF:FF:FF:FF"
             help
                 Where the node sends its ESP-NOW packets. Copy the MAC that
-                project 06 prints at boot. The default is broadcast, which is
-                fine on the bench but should be replaced for real use.
+                project 29 (or 06) prints at boot. The default is broadcast,
+                which is fine on the bench but should be replaced for real
+                use.
 
         config RB_NODE_DATA_PERIOD_MS
-            int "SENSOR_DATA transmit period (ms)"
+            int "Data (PRESENCE_DATA / THERMAL_DATA) transmit period (ms)"
             range 100 10000
             default 500
 
@@ -447,12 +450,39 @@ menu "RB4107 configuration"
 
         menu "Sensor node link"
 
-            config RB_CTRL_NODE_ID
-                int "Expected sensor node ID"
+            config RB_CTRL_PRESENCE_NODE_COUNT
+                int "Number of presence nodes (C4002 radars)"
+                range 1 2
+                default 2
+                help
+                    2 for the full system (two presence nodes). 1 runs with
+                    presence node A only, e.g. on the bench while the second
+                    radar isn't built yet. Every configured node that goes
+                    offline is a SAFETY fault.
+
+            config RB_CTRL_PRESENCE_A_NODE_ID
+                int "Presence node A ID"
                 range 1 65535
                 default 1
                 help
-                    Packets from any other node ID are counted and dropped.
+                    RB_NODE_ID of the first presence node (project 05a).
+
+            config RB_CTRL_PRESENCE_B_NODE_ID
+                int "Presence node B ID"
+                range 1 65535
+                default 2
+                help
+                    RB_NODE_ID of the second presence node (project 05a,
+                    flashed with node ID 2). Ignored when the number of
+                    presence nodes is 1.
+
+            config RB_CTRL_THERMAL_NODE_ID
+                int "Thermal node ID"
+                range 1 65535
+                default 3
+                help
+                    RB_NODE_ID of the thermal node (project 05b). Packets from
+                    any node ID not listed here are counted and dropped.
 
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
@@ -664,11 +694,12 @@ menu "RB4107 configuration"
     menu "Diagnostics / simulation"
 
         config RB_SIM_NODE
-            bool "Simulated sensor node instead of ESP-NOW"
+            bool "Simulated sensor nodes instead of ESP-NOW"
             default n
             help
-                Feeds simulated sensor packets into the controller in place
-                of the real C6 (diagnostic mode, QEMU tests). The safety logic
+                Feeds simulated packets from all configured sensor nodes (two
+                presence, one thermal) into the controller in place of the
+                real C6 boards (diagnostic mode, QEMU tests). The safety logic
                 is exactly the same; only the source of the packets changes.
 
         config RB_OUTPUTS_SIMULATED

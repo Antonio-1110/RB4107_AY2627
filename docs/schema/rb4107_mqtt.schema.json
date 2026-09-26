@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://rb4107.local/schema/rb4107_mqtt.schema.json",
-  "title": "RB4107 MQTT payloads, schema_version 1",
+  "title": "RB4107 MQTT payloads, schema_version 2",
   "description": "Every message the ESP32-S3 controller publishes under rb4107/#. Produced by firmware/components/rb_json. Unknown extra fields are allowed so the schema can grow (e.g. more sensors).",
   "type": "object",
   "required": ["schema_version", "type"],
   "properties": {
-    "schema_version": {"const": 1}
+    "schema_version": {"const": 2}
   },
   "oneOf": [
     {"$ref": "#/$defs/telemetry"},
@@ -23,7 +23,7 @@
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "timestamp", "uptime_ms", "sequence"],
       "properties": {
-        "schema_version": {"const": 1},
+        "schema_version": {"const": 2},
         "type": {"type": "string"},
         "controller_id": {"type": "string", "minLength": 1},
         "timestamp": {"type": ["string", "null"], "description": "ISO 8601 with offset; null while the controller's wall clock is not set"},
@@ -35,6 +35,21 @@
     "nullable_bool": {"type": ["boolean", "null"]},
     "safety_state": {"enum": ["BOOT", "SELF_TEST", "IDLE", "MONITORING", "UNATTENDED", "WARNING", "SHUTDOWN", "FAULT"]},
     "node_link": {"enum": ["NEVER_SEEN", "ONLINE", "STALE", "OFFLINE"]},
+    "node_role": {"enum": ["presence", "thermal"]},
+    "presence_state": {"enum": ["PRESENT", "ABSENT", "UNKNOWN"]},
+    "node_summary": {
+      "type": "object",
+      "required": ["sensor_node", "role", "link", "valid", "detected"],
+      "properties": {
+        "sensor_node": {"type": "string"},
+        "role": {"$ref": "#/$defs/node_role"},
+        "link": {"$ref": "#/$defs/node_link"},
+        "valid": {"type": "boolean"},
+        "detected": {"$ref": "#/$defs/nullable_bool", "description": "presence nodes with a valid reading only; null otherwise"}
+      },
+      "if": {"properties": {"valid": {"const": false}}},
+      "then": {"properties": {"detected": {"type": "null"}}}
+    },
     "presence": {
       "type": "object",
       "required": ["valid", "detected", "moving", "stationary", "distance_m"],
@@ -63,14 +78,13 @@
     },
     "telemetry": {
       "allOf": [{"$ref": "#/$defs/header"}],
-      "required": ["protocol_version", "sensor_node", "node_link", "presence", "thermal", "safety", "faults"],
+      "required": ["protocol_version", "presence_state", "nodes", "thermal", "safety", "faults"],
       "properties": {
         "type": {"const": "telemetry"},
         "protocol_version": {"type": "integer", "minimum": 0},
-        "sensor_node": {"type": "string"},
-        "node_link": {"$ref": "#/$defs/node_link"},
-        "presence": {"$ref": "#/$defs/presence"},
-        "thermal": {"$ref": "#/$defs/thermal"},
+        "presence_state": {"$ref": "#/$defs/presence_state", "description": "both presence nodes combined, as the safety state machine used it"},
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/node_summary"}},
+        "thermal": {"$ref": "#/$defs/thermal", "description": "the thermal node's reading"},
         "safety": {
           "type": "object",
           "required": ["state", "state_ms", "unattended_ms", "buzzer", "shutdown", "test_timers"],
@@ -122,13 +136,13 @@
     },
     "node_status": {
       "allOf": [{"$ref": "#/$defs/header"}],
-      "required": ["sensor_node", "link", "presence_valid", "thermal_valid", "node_fault_flags", "missed_packets", "restarts"],
+      "required": ["sensor_node", "role", "link", "valid", "node_fault_flags", "missed_packets", "restarts"],
       "properties": {
         "type": {"const": "node_status"},
         "sensor_node": {"type": "string"},
+        "role": {"$ref": "#/$defs/node_role"},
         "link": {"$ref": "#/$defs/node_link"},
-        "presence_valid": {"type": "boolean"},
-        "thermal_valid": {"type": "boolean"},
+        "valid": {"type": "boolean"},
         "node_fault_flags": {"type": "integer", "minimum": 0},
         "missed_packets": {"type": "integer", "minimum": 0},
         "restarts": {"type": "integer", "minimum": 0}

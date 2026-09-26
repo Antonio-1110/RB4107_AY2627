@@ -1,8 +1,9 @@
 # 17 – S3 network connectivity
 
 > **Test-only project, not part of the running system.** It checks one part on its own and replaces the system firmware on that board. To run the
-> system, flash [`05_espnow_c6_sender`](../05_espnow_c6_sender) on the C6 and
-> [`29_end_to_end`](../29_end_to_end) on the S3.
+> system, flash [`05a_c6_presence_node`](../05a_c6_presence_node) on the two
+> presence C6 boards, [`05b_c6_thermal_node`](../05b_c6_thermal_node) on the
+> thermal C6 board and [`29_end_to_end`](../29_end_to_end) on the S3.
 
 TODO section 17. Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
 
@@ -22,7 +23,7 @@ or a Wi-Fi station as the alternative (`RB_NET_TYPE`).
 | Reconnect / recovery | Ethernet: esp_eth handles link loss and DHCP renewal. Wi-Fi: exponential back-off up to `RB_WIFI_MAX_BACKOFF_MS`. |
 
 Wi-Fi note: with Wi-Fi the radio follows the access point's channel, so
-ESP-NOW has to use that same channel on the sensor node. The log warns if
+ESP-NOW has to use that same channel on every sensor node. The log warns if
 `RB_ESPNOW_CHANNEL` differs. This is one reason Ethernet is preferred.
 
 ## Dependencies

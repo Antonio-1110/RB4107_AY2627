@@ -8,8 +8,8 @@ Firmware uses ESP-IDF logging, one tag per subsystem:
 I (12835) SAFETY: MONITORING -> UNATTENDED (person absent)
 W (70935) SAFETY: UNATTENDED -> WARNING (unattended timeout)
 W (100935) OUTPUT: shutdown relay 1 ACTIVATED
-W (142435) SENSOR: node_01 STALE
-W (150435) FAULT: SAFETY fault RAISED: sensor_node_offline (detail 0)
+W (142435) SENSOR: presence_b node_02 STALE
+W (150435) FAULT: SAFETY fault RAISED: presence_b_node_offline (detail 2)
 W (8742) MQTT: broker disconnected; retrying every 5000 ms
 I (21282) MQTT: broker connected (mqtt://192.168.1.127:1883)
 E (2034) THERMAL: frame read failed (ESP_ERR_TIMEOUT), 1 so far
@@ -23,7 +23,7 @@ The Django subscriber uses the same shape: `[MQTT][WARNING] broker disconnected 
 |---|---|---|
 | `SAFETY` | state machine / safety task | every transition with its reason; config changes |
 | `OUTPUT` | buzzer, shutdown relay | pattern changes, relay activated/released, read-back faults |
-| `SENSOR` | controller view of the node, sensor-node glue | ONLINE/STALE/OFFLINE, presence/thermal lost/restored |
+| `SENSOR` | controller view of the three nodes, sensor-node glue | `<slot> node_NN` ONLINE/STALE/OFFLINE, sensor reading lost/restored, packets from unknown nodes |
 | `FAULT` | fault manager | every fault raised/cleared, with class |
 | `ESPNOW` | ESP-NOW link (node and controller) | tx/rx statistics summaries, sequence anomalies |
 | `C4002`, `PRESENCE` | C4002 driver / project 02 | settings applied, command failures, readings |
@@ -32,7 +32,7 @@ The Django subscriber uses the same shape: `[MQTT][WARNING] broker disconnected 
 | `MQTT` | MQTT client, telemetry | connection state changes, oversized payloads |
 | `RTC` | wall clock | restore from RTC, SNTP sync, RTC failure |
 | `NODE`, `CONTROLLER`, `BOARD` | boot and health lines | chip/MAC info, periodic heap/uptime |
-| `SIM` | simulated sensor node | scenario steps (diagnostics only) |
+| `SIM` | simulated sensor nodes | start-up line naming the simulated nodes (diagnostics only) |
 | `DIAG` | diagnostic console | command output |
 
 ## Rules

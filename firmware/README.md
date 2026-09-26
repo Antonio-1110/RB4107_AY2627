@@ -6,19 +6,20 @@ the [`TODO.md`](../TODO.md) section it starts from. They share code through
 `../components` to `EXTRA_COMPONENT_DIRS` and builds only the components its
 `main` requires.
 
-## System firmware: flash these two
+## System firmware: flash these three
 
 | Board | Project |
 |---|---|
-| ESP32-C6 sensor node | **[`05_espnow_c6_sender`](05_espnow_c6_sender)** |
+| ESP32-C6 presence node A and B (one C4002 each) | **[`05a_c6_presence_node`](05a_c6_presence_node)**: same firmware on both, node ID 1 and 2 |
+| ESP32-C6 thermal node (MLX90640) | **[`05b_c6_thermal_node`](05b_c6_thermal_node)**: node ID 3 |
 | ESP32-S3 controller | **[`29_end_to_end`](29_end_to_end)** (includes the diagnostic console and critical-failure monitor) |
 
 Setup order: [`29_end_to_end/README.md`](29_end_to_end/README.md#setup).
 
 ## Test-only projects: not part of the running system
 
-Flashing one of these replaces the system firmware on that board. Flash 05 or
-29 back when you're done.
+Flashing one of these replaces the system firmware on that board. Flash 05a,
+05b or 29 back when you're done.
 
 | Project | Board | Purpose |
 |---|---|---|

@@ -9,7 +9,10 @@ on the bench. Defaults are flagged `UNCONFIRMED` / `OPEN QUESTION` /
 |---|---|---|
 | Exact C4002 API/library | **Answered from DFRobot's official library**: UART 115200 8N1, framed protocol (`components/c4002/include/c4002_proto.h`). Needs confirming on hardware. | – |
 | Exact C4002 UART pins | Placeholder GPIO17 (RX) / GPIO16 (TX) | `RB_C4002_RX_GPIO`, `RB_C4002_TX_GPIO` |
-| Exact MLX90640 I2C pins | Placeholder GPIO19 (SDA) / GPIO20 (SCL), FireBeetle silkscreen | `RB_MLX_SDA_GPIO`, `RB_MLX_SCL_GPIO` |
+| Exact MLX90640 I2C pins | Placeholder GPIO19 (SDA) / GPIO20 (SCL), from the FireBeetle silkscreen; the nodes are now ESP32-C6 mini boards, so re-check | `RB_MLX_SDA_GPIO`, `RB_MLX_SCL_GPIO` |
+| Exact C6 mini board (LED, pins) | Not known yet; status LED placeholder GPIO15 | `RB_NODE_STATUS_LED_GPIO` and the pin options above |
+| Decide on the nodes (edge) or on the S3? | Not decided. Today nodes send readings and the S3 decides; the protocol has room to add node-side decisions later (see [protocol.md](protocol.md)) | – |
+| How to combine the two radars | **Decided: strict.** PRESENT if either sees a person; ABSENT only if both validly say absent; otherwise UNKNOWN → FAULT. Losing either radar is a SAFETY fault | `RB_CTRL_PRESENCE_NODE_COUNT` (1 = one radar, bench only) |
 | Exact S3 ESP-NOW/Wi-Fi configuration | Fixed channel (default 1) with Ethernet; with Wi-Fi it follows the AP channel (warning logged) | `RB_ESPNOW_CHANNEL`, `RB_NET_TYPE` |
 | Waveshare buzzer interface | Default GPIO46 active-high (legacy code); active or passive selectable | `RB_BUZZER_GPIO`, `RB_BUZZER_DRIVE` |
 | Waveshare relay interface | TCA9554 @0x20 on I2C SDA42/SCL41 (legacy code) | `RB_S3_TCA9554_ADDRESS`, `RB_S3_I2C_*` |
