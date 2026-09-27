@@ -50,6 +50,17 @@ every 5 s, the raw report plus parser statistics.
 
 Things to try, in order. Record what you observe for each.
 
+0. **Make sure the readings are new.** In DFRobot's Arduino driver,
+   `getNoteInfo()` declares its return value without initialising it
+   (`sRetResult_t ret;`). When no frame has arrived, `noteType` is whatever
+   was left on the stack, often `eResult` from the previous call. So the
+   `getAllResults` example keeps printing the *last* result again and again,
+   as if the sensor kept reporting the same thing. This driver only takes a
+   reading from a complete frame that passed its checksum. Every reading
+   has an age, and a reading older than `RB_C4002_STALE_TIMEOUT_MS` is
+   invalid. In this project's log, `age=` must stay below the report period
+   and `frames=` must keep going up. If `frames=` stops, the sensor has
+   stopped sending (check wiring, baud rate, report period).
 1. **Parse the report correctly.** DFRobot's Arduino driver `memcpy()`s the
    18-byte result into a naturally aligned struct, which garbles every field
    after `target_state` on 32-bit MCUs (the Python driver parses it packed).
