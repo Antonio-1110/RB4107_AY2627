@@ -68,9 +68,9 @@ menu "RB4107 configuration"
             default "FF:FF:FF:FF:FF:FF"
             help
                 Where the node sends its ESP-NOW packets. Copy the MAC that
-                project 29 (or 06) prints at boot. The default is broadcast,
-                which is fine on the bench but should be replaced for real
-                use.
+                the controller firmware (or testing/s3_board) prints at boot.
+                The default is broadcast, which is fine on the bench but
+                should be replaced for real use.
 
         config RB_NODE_DATA_PERIOD_MS
             int "Data (PRESENCE_DATA / THERMAL_DATA) transmit period (ms)"
@@ -471,14 +471,14 @@ menu "RB4107 configuration"
                 range 1 65535
                 default 1
                 help
-                    RB_NODE_ID of the first presence node (project 05a).
+                    RB_NODE_ID of the first presence node (firmware/presence_node).
 
             config RB_CTRL_PRESENCE_B_NODE_ID
                 int "Presence node B ID"
                 range 1 65535
                 default 2
                 help
-                    RB_NODE_ID of the second presence node (project 05a,
+                    RB_NODE_ID of the second presence node (firmware/presence_node,
                     flashed with node ID 2). Ignored when the number of
                     presence nodes is 1.
 
@@ -487,7 +487,7 @@ menu "RB4107 configuration"
                 range 1 65535
                 default 3
                 help
-                    RB_NODE_ID of the thermal node (project 05b). Packets from
+                    RB_NODE_ID of the thermal node (firmware/thermal_node). Packets from
                     any node ID not listed here are counted and dropped.
 
             config RB_CTRL_RX_QUEUE_LEN

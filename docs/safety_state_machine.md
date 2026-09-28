@@ -1,7 +1,7 @@
 # Safety state machine
 
 Implementation: [`firmware/components/safety`](../firmware/components/safety).
-Unit tests: [`firmware/28_state_machine_tests`](../firmware/28_state_machine_tests).
+Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 
 ```text
  BOOT ─→ SELF_TEST ─→ IDLE ─→ MONITORING ─→ UNATTENDED ─→ WARNING ─→ SHUTDOWN

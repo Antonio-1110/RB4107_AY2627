@@ -31,8 +31,8 @@ extern "C" {
  * controller can reject a node flashed with the wrong firmware or ID.
  */
 typedef enum {
-    RB_NODE_ROLE_PRESENCE = 1,   /* one C4002 radar (project 05a) */
-    RB_NODE_ROLE_THERMAL = 2,    /* one MLX90640 (project 05b) */
+    RB_NODE_ROLE_PRESENCE = 1,   /* one C4002 radar (firmware/presence_node) */
+    RB_NODE_ROLE_THERMAL = 2,    /* one MLX90640 (firmware/thermal_node) */
 } rb_node_role_t;
 
 typedef enum {

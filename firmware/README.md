@@ -1,42 +1,77 @@
 # Firmware
 
-Every numbered folder in here is a standalone ESP-IDF project, numbered after
-the [`TODO.md`](../TODO.md) section it starts from. They share code through
-[`components/`](components): each project's `CMakeLists.txt` adds
-`../components` to `EXTRA_COMPONENT_DIRS` and builds only the components its
-`main` requires.
-
-## System firmware: flash these three
-
-| Board | Project |
-|---|---|
-| ESP32-C6 presence node A and B (one C4002 each) | **[`05a_c6_presence_node`](05a_c6_presence_node)**: same firmware on both, node ID 1 and 2 |
-| ESP32-C6 thermal node (MLX90640) | **[`05b_c6_thermal_node`](05b_c6_thermal_node)**: node ID 3 |
-| ESP32-S3 controller | **[`29_end_to_end`](29_end_to_end)** (includes the diagnostic console and critical-failure monitor) |
-
-Setup order: [`29_end_to_end/README.md`](29_end_to_end/README.md#setup).
-
-## Test-only projects: not part of the running system
-
-Flashing one of these replaces the system firmware on that board. Flash 05a,
-05b or 29 back when you're done.
-
-| Project | Board | Purpose |
-|---|---|---|
-| 02_c4002_integration, 03_mlx90640_integration | C6 | sensor bring-up: one sensor at a time |
-| 06_s3_controller_base, 13_buzzer, 14_relay_shutdown, 15_rtc_time, 17_s3_network | S3 | hardware bring-up: one board part at a time |
-| 28_state_machine_tests | PC or S3 | unit tests (linux target on the PC) |
-
-Build any project the usual way:
-
-```bash
-cd firmware/<NN_project>
-idf.py build            # the target comes from sdkconfig.defaults
-idf.py -p <PORT> flash monitor
-idf.py menuconfig       # "RB4107 configuration" menu holds all tunables
+```text
+firmware/
+├── presence_node/    SYSTEM FIRMWARE  ESP32-C6 + C4002 radar (flash on both radar boards)
+├── thermal_node/     SYSTEM FIRMWARE  ESP32-C6 + MLX90640
+├── controller/       SYSTEM FIRMWARE  ESP32-S3 controller
+├── components/       shared code used by all of the above (drivers, protocol, safety logic, ...)
+└── testing/          test-only projects, never part of the running system
+    ├── c4002/        C6: radar on its own
+    ├── mlx90640/     C6: thermal camera on its own
+    ├── s3_board/     S3: board bring-up, prints its MAC
+    ├── buzzer/       S3: buzzer on its own
+    ├── relay/        S3: shutdown relay on its own
+    ├── rtc/          S3: real-time clock on its own
+    ├── network/      S3: Ethernet / Wi-Fi on its own
+    └── unit_tests/   safety logic tests, on the PC or the S3
 ```
 
-See the root [`README.md`](../README.md) for the section → folder map.
+## System firmware: one per board
+
+Each board runs exactly one firmware. There are three kinds of board, so
+three system firmwares:
+
+| Board | Flash | Node ID |
+|---|---|---|
+| ESP32-C6 + C4002, presence node A | **[`presence_node`](presence_node)** | 1 |
+| ESP32-C6 + C4002, presence node B | **[`presence_node`](presence_node)**, built with `sdkconfig.node_b` | 2 |
+| ESP32-C6 + MLX90640, thermal node | **[`thermal_node`](thermal_node)** | 3 |
+| ESP32-S3 controller | **[`controller`](controller)** (includes the diagnostic console and critical-failure monitor) | – |
+
+Setup order: [`controller/README.md`](controller/README.md#setup).
+
+"One firmware" is one `idf.py flash`: ESP-IDF writes the bootloader, the
+partition table and the application together, so you never pick files by
+hand.
+
+## Test-only projects (`testing/`)
+
+These exist to check one part at a time, on the bench, before the full
+firmware runs: is the radar wired correctly, does the relay click, does the
+RTC keep time, and so on. When something misbehaves in the full system, they
+also let you isolate the part. Each one is a complete, separate firmware, so
+flashing one **replaces** the system firmware on that board; flash
+`presence_node`, `thermal_node` or `controller` back when you're done.
+
+| Project | Board | Checks |
+|---|---|---|
+| [`testing/c4002`](testing/c4002) | C6 | C4002 UART wiring, readings, false detections |
+| [`testing/mlx90640`](testing/mlx90640) | C6 | MLX90640 I2C wiring, frames, temperatures |
+| [`testing/s3_board`](testing/s3_board) | S3 | board boots, prints the MAC the C6 nodes need |
+| [`testing/buzzer`](testing/buzzer) | S3 | buzzer pin and patterns |
+| [`testing/relay`](testing/relay) | S3 | relay polarity, boot state, shutdown |
+| [`testing/rtc`](testing/rtc) | S3 | RTC keeps time across power cycles |
+| [`testing/network`](testing/network) | S3 | Ethernet/Wi-Fi, IP address, reaching the MacBook |
+| [`testing/unit_tests`](testing/unit_tests) | PC or S3 | safety logic, protocol, JSON (no hardware needed) |
+
+## Building
+
+Any project, the usual way:
+
+```bash
+cd firmware/controller            # or presence_node, testing/relay, ...
+idf.py build                      # the target (C6 or S3) comes from sdkconfig.defaults
+idf.py -p <PORT> flash monitor
+idf.py menuconfig                 # "RB4107 configuration" menu holds all tunables
+```
+
+Every project adds `firmware/components` to `EXTRA_COMPONENT_DIRS` and builds
+only the components its `main` needs. Pins and other settings can also be
+set in a file instead of menuconfig; see
+[`docs/configuration.md`](../docs/configuration.md).
+
+See the root [`README.md`](../README.md) for the TODO section → folder map.
 
 ## Managed dependencies and offline builds
 

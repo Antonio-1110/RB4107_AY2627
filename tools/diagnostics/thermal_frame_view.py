@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render MLX90640 frames dumped by firmware/03_mlx90640_integration as ASCII.
+"""Render MLX90640 frames dumped by firmware/testing/mlx90640 as ASCII.
 
 Usage:
     idf.py -p PORT monitor | python3 thermal_frame_view.py

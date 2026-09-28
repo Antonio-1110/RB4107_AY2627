@@ -233,7 +233,7 @@ Every option can also be set in a text file, using its `CONFIG_` name:
 - **`<project>/sdkconfig.defaults`** (committed, shared with the team), e.g.
   `CONFIG_RB_C4002_RX_GPIO=5`. These only apply when the project has no
   `sdkconfig` yet, so delete `<project>/sdkconfig` after editing and rebuild.
-  For project 29 that also clears the Wi-Fi password, which you then enter
+  For project `controller` that also clears the Wi-Fi password, which you then enter
   again.
 - **`<project>/sdkconfig`** (generated, git-ignored, only on your machine):
   edit the line in place and run `idf.py build`.

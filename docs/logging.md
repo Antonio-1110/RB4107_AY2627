@@ -26,7 +26,7 @@ The Django subscriber uses the same shape: `[MQTT][WARNING] broker disconnected 
 | `SENSOR` | controller view of the three nodes, sensor-node glue | `<slot> node_NN` ONLINE/STALE/OFFLINE, sensor reading lost/restored, packets from unknown nodes |
 | `FAULT` | fault manager | every fault raised/cleared, with class |
 | `ESPNOW` | ESP-NOW link (node and controller) | tx/rx statistics summaries, sequence anomalies |
-| `C4002`, `PRESENCE` | C4002 driver / project 02 | settings applied, command failures, readings |
+| `C4002`, `PRESENCE` | C4002 driver / project `testing/c4002` | settings applied, command failures, readings |
 | `THERMAL` | MLX90640 driver and features | init, frame errors (rate-limited), feature summaries |
 | `NET`, `WIFI` | network | link up/down, IP address, reconnect back-off |
 | `MQTT` | MQTT client, telemetry | connection state changes, oversized payloads |
@@ -55,7 +55,7 @@ The Django subscriber uses the same shape: `[MQTT][WARNING] broker disconnected 
 | Where | How |
 |---|---|
 | Global default | `idf.py menuconfig` → Component config → Log → *Default log verbosity* |
-| DEBUG available at runtime | set *Maximum log verbosity* to Debug (`CONFIG_LOG_MAXIMUM_LEVEL_DEBUG`), which firmware 29 already does |
+| DEBUG available at runtime | set *Maximum log verbosity* to Debug (`CONFIG_LOG_MAXIMUM_LEVEL_DEBUG`), which firmware `controller` already does |
 | Per tag at boot | menuconfig → *RB4107 configuration* → *Logging*: `RB_LOG_DEBUG_TAGS="ESPNOW,SAFETY"`, `RB_LOG_QUIET_TAGS="TELEMETRY"` |
-| Per tag at runtime | diagnostic console (firmware 29): `log SAFETY debug` |
+| Per tag at runtime | diagnostic console (firmware `controller`): `log SAFETY debug` |
 | Django | `RB4107_LOG_LEVEL=DEBUG python manage.py mqtt_subscriber` |

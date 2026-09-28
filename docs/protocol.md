@@ -8,9 +8,9 @@ The system has three nodes, each with one sensor:
 
 | Node | Firmware | Default node ID | Role | Sends |
 |---|---|---|---|---|
-| presence node A | `05a_c6_presence_node` | 1 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
-| presence node B | `05a_c6_presence_node` (built with `sdkconfig.node_b`) | 2 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
-| thermal node | `05b_c6_thermal_node` | 3 | thermal | THERMAL_DATA, HEARTBEAT, SENSOR_FAULT |
+| presence node A | `presence_node` | 1 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
+| presence node B | `presence_node` (built with `sdkconfig.node_b`) | 2 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
+| thermal node | `thermal_node` | 3 | thermal | THERMAL_DATA, HEARTBEAT, SENSOR_FAULT |
 
 Version 1 carried presence and thermal data in one SENSOR_DATA packet from a
 single node. Version 2 splits them, and adds the sender's role to every

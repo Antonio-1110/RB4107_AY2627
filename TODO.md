@@ -30,8 +30,8 @@ Django MQTT Subscriber
 
 > **Hardware update:** the sensing side is three ESP32-C6 mini boards, each
 > with one sensor: two C4002 radars (presence nodes A and B, project
-> `05a_c6_presence_node`) and one MLX90640 (thermal node, project
-> `05b_c6_thermal_node`). The S3 combines the two radars strictly (either sees
+> `presence_node`) and one MLX90640 (thermal node, project
+> `thermal_node`). The S3 combines the two radars strictly (either sees
 > a person → present; absent only if both validly say so). Whether nodes
 > decide anything themselves ("edge") is still open (section 32).
 
@@ -120,7 +120,7 @@ The C6 should **not** contain the overall cooking safety state machine.
 - [x] Read target distance if supported.
 - [x] Add validity/error detection.
 - [ ] Test continuous operation.
-- [ ] Investigate current false static-presence detections. *(Hypotheses, tooling and knobs: `firmware/02_c4002_integration/README.md`.)*
+- [ ] Investigate current false static-presence detections. *(Hypotheses, tooling and knobs: `firmware/testing/c4002/README.md`.)*
 - [x] Expose configurable C4002 sensitivity/detection parameters where supported.
 
 Create a clean internal representation similar to:
@@ -249,7 +249,7 @@ Do not assume arbitrary C structs are automatically safe wire protocols.
 - [x] Implement sensor-data publishing.
 - [x] Implement sensor-fault publishing.
 - [x] Log useful diagnostics without flooding serial output.
-- [x] One node per sensor: presence node firmware (`05a`, flashed twice with node IDs 1 and 2) and thermal node firmware (`05b`, node ID 3). Every packet carries the node's role.
+- [x] One node per sensor: presence node firmware (`firmware/presence_node`, flashed twice with node IDs 1 and 2) and thermal node firmware (`firmware/thermal_node`, node ID 3). Every packet carries the node's role.
 
 Test:
 

@@ -1,6 +1,6 @@
 # ESP32-S3 controller architecture
 
-How the controller firmware (`firmware/29_end_to_end`, wired by
+How the controller firmware (`firmware/controller`, wired by
 `firmware/components/rb_controller_app`) is put together. This covers TODO
 sections 7, 8, 11, 12, 16, 19 and 22.
 
@@ -44,9 +44,9 @@ There are three sensor nodes, each an ESP32-C6 with one sensor (see
 
 | Slot | Node ID (menuconfig) | Firmware | Sends |
 |---|---|---|---|
-| presence A | `RB_CTRL_PRESENCE_A_NODE_ID` (1) | `05a_c6_presence_node` | C4002 reading |
-| presence B | `RB_CTRL_PRESENCE_B_NODE_ID` (2) | `05a_c6_presence_node` | C4002 reading |
-| thermal | `RB_CTRL_THERMAL_NODE_ID` (3) | `05b_c6_thermal_node` | MLX90640 features |
+| presence A | `RB_CTRL_PRESENCE_A_NODE_ID` (1) | `presence_node` | C4002 reading |
+| presence B | `RB_CTRL_PRESENCE_B_NODE_ID` (2) | `presence_node` | C4002 reading |
+| thermal | `RB_CTRL_THERMAL_NODE_ID` (3) | `thermal_node` | MLX90640 features |
 
 `RB_CTRL_PRESENCE_NODE_COUNT = 1` runs with presence A only (bench use).
 
