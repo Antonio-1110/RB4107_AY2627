@@ -5,19 +5,21 @@
 > presence C6 boards, [`05b_c6_thermal_node`](../05b_c6_thermal_node) on the
 > thermal C6 board and [`29_end_to_end`](../29_end_to_end) on the S3.
 
-TODO section 3 and 3.1. Target: **FireBeetle 2 ESP32-C6** + **MLX90640 (32×24)**.
+TODO section 3 and 3.1. Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **MLX90640 (32×24)**.
 
 ## Wiring (menuconfig defaults, UNCONFIRMED)
 
 | MLX90640 | ESP32-C6 |
 |---|---|
-| SDA | `RB_MLX_SDA_GPIO` = GPIO19 |
-| SCL | `RB_MLX_SCL_GPIO` = GPIO20 |
+| SDA | `RB_MLX_SDA_GPIO` = IO19 (header P4 pin 6) |
+| SCL | `RB_MLX_SCL_GPIO` = IO20 (header P4 pin 7) |
 | VIN / GND | 3.3 V / GND |
 
 Change them in `idf.py menuconfig` → *RB4107 configuration* → *Sensor node* →
-*MLX90640 thermal sensor*. The legacy Arduino sketch used SDA 21 / SCL 22, but
-that was a different board.
+*MLX90640 thermal sensor*. The DFR1117 schematic doesn't label any pin SDA/SCL,
+so check your wiring. The legacy Arduino sketch used SDA 21 / SCL 22; IO21 and
+IO22 are also on the DFR1117 (header P3 pins 7 and 6), so if the camera is
+wired that way, set 21 / 22.
 
 ## Software
 

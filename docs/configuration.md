@@ -24,7 +24,7 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_NODE_ID` | Sensor node ID | `1` | 1 – 65535 |  |
-| `CONFIG_RB_NODE_STATUS_LED_GPIO` | Status LED GPIO (-1 = none) | `15` | -1 – 30 | ⚠ |
+| `CONFIG_RB_NODE_STATUS_LED_GPIO` | Status LED GPIO (-1 = none) | `15` | -1 – 30 |  |
 | `CONFIG_RB_NODE_HEALTH_LOG_PERIOD_MS` | Board health log period (ms) | `10000` | 1000 – 600000 |  |
 | `CONFIG_RB_NODE_CONTROLLER_MAC` | Controller (ESP32-S3) Wi-Fi STA MAC address | `"FF:FF:FF:FF:FF:FF"` |  |  |
 | `CONFIG_RB_NODE_DATA_PERIOD_MS` | Data (PRESENCE_DATA / THERMAL_DATA) transmit period (ms) | `500` | 100 – 10000 |  |
@@ -36,8 +36,8 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_C4002_UART_PORT` | UART port | `1` | 0 – 1 |  |
-| `CONFIG_RB_C4002_RX_GPIO` | ESP32 RX GPIO (wired to C4002 TX) | `17` | 0 – 30 | ⚠ |
-| `CONFIG_RB_C4002_TX_GPIO` | ESP32 TX GPIO (wired to C4002 RX) | `16` | 0 – 30 | ⚠ |
+| `CONFIG_RB_C4002_RX_GPIO` | ESP32 RX GPIO (wired to C4002 TX) | `5` | 0 – 30 | ⚠ |
+| `CONFIG_RB_C4002_TX_GPIO` | ESP32 TX GPIO (wired to C4002 RX) | `4` | 0 – 30 | ⚠ |
 | `CONFIG_RB_C4002_OUT_GPIO` | C4002 OUT pin GPIO (-1 = not wired) | `-1` | -1 – 30 |  |
 | `CONFIG_RB_C4002_BAUD` | Baud rate | `115200` |  |  |
 | `CONFIG_RB_C4002_STALE_TIMEOUT_MS` | Reading goes invalid after (ms) without a report | `3000` | 200 – 60000 |  |
@@ -225,6 +225,18 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 | MQTT broker address / port | `RB_BROKER_HOST`, `RB_BROKER_PORT` |
 | MQTT topic prefix | `RB_MQTT_TOPIC_PREFIX` |
 | MQTT telemetry frequency | `RB_MQTT_TELEMETRY_PERIOD_MS` |
+
+### Setting values in a file instead of menuconfig
+
+Every option can also be set in a text file, using its `CONFIG_` name:
+
+- **`<project>/sdkconfig.defaults`** (committed, shared with the team), e.g.
+  `CONFIG_RB_C4002_RX_GPIO=5`. These only apply when the project has no
+  `sdkconfig` yet, so delete `<project>/sdkconfig` after editing and rebuild.
+  For project 29 that also clears the Wi-Fi password, which you then enter
+  again.
+- **`<project>/sdkconfig`** (generated, git-ignored, only on your machine):
+  edit the line in place and run `idf.py build`.
 
 Backend (Django) settings are environment variables; see
 [`backend/django/README.md`](../backend/django/README.md).

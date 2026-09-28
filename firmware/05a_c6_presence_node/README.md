@@ -5,7 +5,7 @@
 > and [`29_end_to_end`](../29_end_to_end) on the S3, this is the running
 > system.
 
-TODO sections 1, 2 and 5. Target: an **ESP32-C6 mini board** wired to one
+TODO sections 1, 2 and 5. Target: a **DFRobot DFR1117 ESP32-C6 mini** wired to one
 **DFRobot C4002** radar. The system has two of these boards; they run the same
 firmware and differ only in their node ID.
 
@@ -36,8 +36,9 @@ counts and the current reading. The status LED (`RB_NODE_STATUS_LED_GPIO`)
 blinks while it runs.
 
 Pins (menuconfig → *RB4107 configuration → Sensor node → C4002 presence
-sensor*) are placeholders, **UNCONFIRMED** for the C6 mini board: set them
-to match your wiring.
+sensor*) default to the DFR1117 board: C4002 TX → IO5, C4002 RX → IO4 (header
+P3), status LED IO15. The RX/TX direction is not confirmed; see
+[project 02](../02_c4002_integration/README.md#interface).
 
 ## Setup
 

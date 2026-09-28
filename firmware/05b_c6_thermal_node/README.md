@@ -5,7 +5,7 @@
 > presence boards and [`29_end_to_end`](../29_end_to_end) on the S3, this is
 > the running system.
 
-TODO sections 1, 3.1 and 5. Target: an **ESP32-C6 mini board** wired to one
+TODO sections 1, 3.1 and 5. Target: a **DFRobot DFR1117 ESP32-C6 mini** wired to one
 **MLX90640** (32×24) thermal camera looking at the hob.
 
 ```text
@@ -27,7 +27,8 @@ Board checks (section 1) are the same as on the presence node: boot report,
 periodic uptime/heap/ESP-NOW line, blinking status LED.
 
 Pins (menuconfig → *RB4107 configuration → Sensor node → MLX90640 thermal
-sensor*) are placeholders, **UNCONFIRMED** for the C6 mini board.
+sensor*) default to SDA IO19 / SCL IO20; the DFR1117 schematic doesn't label
+I2C pins, so check your wiring (see [project 03](../03_mlx90640_integration/README.md)).
 
 ## Setup
 

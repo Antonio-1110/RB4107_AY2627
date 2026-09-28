@@ -1221,7 +1221,7 @@ Do not silently invent answers to these.
 - [ ] Behaviour if temperature falls while unattended.
 - [ ] Behaviour when a safety-critical sensor fails.
 - [ ] Whether Ethernet or Wi-Fi will be used for final S3 → MQTT communication.
-- [ ] Exact ESP32-C6 mini board (pins, status LED) for the three nodes.
+- [x] Exact ESP32-C6 mini board (pins, status LED) for the three nodes. *(DFRobot DFR1117; C4002 on IO4/IO5, LED IO15; direction of IO4/IO5 and the MLX I2C pins still to confirm on the bench.)*
 - [ ] Whether the nodes decide anything at the edge, or only send readings to the S3.
 - [x] How to combine the two presence radars. *(Strict: either sees a person → PRESENT; ABSENT only if both validly say absent; otherwise UNKNOWN → FAULT.)*
 

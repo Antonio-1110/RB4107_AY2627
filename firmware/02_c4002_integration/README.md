@@ -5,7 +5,7 @@
 > presence C6 boards, [`05b_c6_thermal_node`](../05b_c6_thermal_node) on the
 > thermal C6 board and [`29_end_to_end`](../29_end_to_end) on the S3.
 
-TODO section 2. Target: **FireBeetle 2 ESP32-C6** + **DFRobot C4002 (SEN0691)**.
+TODO section 2. Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **DFRobot C4002 (SEN0691)**.
 
 ## Interface
 
@@ -15,15 +15,19 @@ The frame layout comes from the official
 documented in `components/c4002/include/c4002_proto.h`. An optional **OUT**
 pin also gives a digital "target present" level.
 
-| C4002 | ESP32-C6 (menuconfig default, UNCONFIRMED) |
+| C4002 | DFR1117 (menuconfig default) |
 |---|---|
-| TX | `RB_C4002_RX_GPIO` = GPIO17 |
-| RX | `RB_C4002_TX_GPIO` = GPIO16 |
+| TX | `RB_C4002_RX_GPIO` = IO5 (header P3 pin 4) |
+| RX | `RB_C4002_TX_GPIO` = IO4 (header P3 pin 3) |
 | OUT (optional) | `RB_C4002_OUT_GPIO` = not wired |
-| VCC / GND | 5 V / GND |
+| VCC / GND | 5 V (header P4 pin 3, VUSB: only live on USB power) / GND |
 
-The pins are placeholders. Set them in `idf.py menuconfig` → *RB4107 configuration*
-→ *Sensor node* → *C4002 presence sensor*.
+IO4 and IO5 come from the DFR1117 schematic (header P3). Which of the two is
+RX is **not confirmed**: if the log shows `frames=0`, swap the two values.
+IO16/IO17 (header P4, labelled TX/RX) would also work, but they are UART0,
+where the ROM prints its boot messages. Set the pins in `idf.py menuconfig` →
+*RB4107 configuration* → *Sensor node* → *C4002 presence sensor*, or in a file
+(see [`docs/configuration.md`](../../docs/configuration.md)).
 
 ## What the driver provides
 
