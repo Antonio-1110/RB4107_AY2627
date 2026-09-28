@@ -1,0 +1,5 @@
+CONFIG_IDF_TARGET="esp32c6"
+# Logs over the native USB-Serial/JTAG.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# The thermal node's ID (the controller expects 3 by default).
+CONFIG_RB_NODE_ID=3

@@ -45,8 +45,8 @@ class MalformedMessageTest(SimpleTestCase):
             validation.parse("rb4107/controller/state", b"[1, 2]")
 
     def test_unsupported_schema_version(self):
-        data = dict(self.sample("controller/state")["payload"], schema_version=2)
-        with self.assertRaisesMessage(InvalidMessage, "unsupported schema_version 2"):
+        data = dict(self.sample("controller/state")["payload"], schema_version=1)  # old single-node format
+        with self.assertRaisesMessage(InvalidMessage, "unsupported schema_version 1"):
             validation.parse("rb4107/controller/state", payload(data))
 
     def test_missing_required_field(self):
@@ -66,6 +66,12 @@ class MalformedMessageTest(SimpleTestCase):
         data["presence"] = {"valid": False, "detected": False, "moving": None, "stationary": None, "distance_m": None}
         with self.assertRaisesMessage(InvalidMessage, "presence/detected"):
             validation.parse(self.sample("presence")["topic"], payload(data))
+
+    def test_offline_node_must_not_report_a_person(self):
+        data = json.loads(json.dumps(self.sample("controller/state")["payload"]))
+        data["nodes"][0].update(link="OFFLINE", valid=False, detected=True)
+        with self.assertRaisesMessage(InvalidMessage, "nodes/0/detected"):
+            validation.parse("rb4107/controller/state", payload(data))
 
     def test_type_must_match_topic(self):
         data = self.sample("controller/heartbeat")["payload"]

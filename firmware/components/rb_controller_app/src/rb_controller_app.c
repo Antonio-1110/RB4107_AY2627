@@ -30,7 +30,7 @@ esp_err_t rb_controller_app_start(void)
 
     const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
     ESP_RETURN_ON_ERROR(rb_controller_init(&cfg), TAG, "controller queues");
-    rb_app_faults_init();
+    rb_app_faults_init(&cfg.nodes);
     if (rb_wallclock_init() != ESP_OK) {
         fault_raise(FAULT_RTC, 0); /* timestamps only: safety unaffected */
     }
@@ -50,7 +50,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 
 #if CONFIG_RB_SIM_NODE
-    ESP_RETURN_ON_ERROR(rb_sim_start(CONFIG_RB_CTRL_NODE_ID, 500), TAG, "simulated node");
+    ESP_RETURN_ON_ERROR(rb_sim_start(cfg.nodes.presence_node_ids, cfg.nodes.presence_node_count,
+                                     cfg.nodes.thermal_node_id, 500),
+                        TAG, "simulated nodes");
 #else
     ESP_RETURN_ON_ERROR(rb_espnow_start(CONFIG_RB_ESPNOW_CHANNEL), TAG, "ESP-NOW");
     ESP_RETURN_ON_ERROR(rb_espnow_start_receiver(rb_controller_rx_queue()), TAG, "ESP-NOW receiver");

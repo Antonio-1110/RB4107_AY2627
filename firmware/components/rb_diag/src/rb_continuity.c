@@ -54,9 +54,9 @@ static void monitor_task(void *arg)
                 last_report = now;
                 const uint32_t secs = (now - o.start_ms) / 1000;
                 ESP_LOGW(TAG, "MQTT down %" PRIu32 " s: safety loop %s (last iteration %" PRIu32 " ms ago, %" PRIu32
-                              " loops so far), state %s, node %s, buzzer %s, relay %s",
+                              " loops so far), state %s, presence %s, buzzer %s, relay %s",
                          secs, gap <= MAX_LOOP_GAP_MS ? "ALIVE" : "STALLED", gap, s.loop_count - o.start_loops,
-                         safety_state_name(s.state), node_link_state_name(s.node.link),
+                         safety_state_name(s.state), rb_tristate_presence_name(s.inputs.presence),
                          safety_buzzer_name(s.outputs.buzzer), s.outputs.shutdown ? "ACTIVE" : "released");
             }
             if (mqtt_up) {

@@ -18,11 +18,11 @@ static const char *TAG = "MQTT";
 
 #define TELEMETRY_STACK 6144
 #define TOPIC_LEN 96
-#define PAYLOAD_LEN 1024
+#define PAYLOAD_LEN 1536
 
 static char s_payload[PAYLOAD_LEN];
 static char s_timestamp[32];
-static char s_node_name[16];
+static char s_node_names[NODE_SLOT_COUNT][16];
 static uint32_t s_sequence;
 static rb_telemetry_stats_t s_stats;
 
@@ -66,26 +66,53 @@ static size_t collect_faults(rb_json_fault_t *out, size_t max)
     return n;
 }
 
-static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_json_fault_t *faults, size_t max_faults)
+/* Fill the per-node part of t (sensors/<node>/... messages) for one slot. */
+static void set_node(rb_telemetry_t *t, const rb_snapshot_t *snap, node_slot_t slot)
 {
-    memset(t, 0, sizeof(*t));
-    t->protocol_version = RB_PROTOCOL_VERSION;
-    rb_topic_node_name(snap->node.node_id, s_node_name, sizeof(s_node_name));
-    t->sensor_node = s_node_name;
-    t->node.link = node_link_state_name(snap->node.link);
-    t->node.missed = snap->node.missed;
-    t->node.restarts = snap->node.restarts;
-    t->node.fault_flags = snap->node.node_fault_flags;
+    const sensor_node_state_t *n = &snap->nodes.nodes[slot];
+    t->sensor_node = s_node_names[slot];
+    t->node.role = rb_node_role_name(n->role);
+    t->node.link = node_link_state_name(n->link);
+    t->node.valid = n->sensor_ok;
+    t->node.missed = n->missed;
+    t->node.restarts = n->restarts;
+    t->node.fault_flags = n->node_fault_flags;
 
-    const presence_reading_t *p = &snap->node.latest_data.presence;
-    t->presence.valid = snap->node.presence_ok;
+    const presence_reading_t *p = &n->presence;
+    t->presence.valid = n->role == RB_NODE_ROLE_PRESENCE && n->sensor_ok;
     t->presence.detected = p->presence_detected;
     t->presence.moving = p->moving_target;
     t->presence.stationary = p->stationary_target;
     t->presence.distance_m = p->distance_m;
+}
 
-    const thermal_reading_t *th = &snap->node.latest_data.thermal;
-    t->thermal.valid = snap->node.thermal_ok;
+static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_json_node_t *nodes,
+                            rb_json_fault_t *faults, size_t max_faults)
+{
+    memset(t, 0, sizeof(*t));
+    t->protocol_version = RB_PROTOCOL_VERSION;
+    t->presence_state = rb_tristate_presence_name(snap->inputs.presence);
+
+    size_t count = 0;
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        const sensor_node_state_t *n = &snap->nodes.nodes[slot];
+        rb_topic_node_name(n->node_id, s_node_names[slot], sizeof(s_node_names[slot]));
+        if (snap->nodes.enabled[slot]) {
+            nodes[count++] = (rb_json_node_t){
+                .name = s_node_names[slot],
+                .role = rb_node_role_name(n->role),
+                .link = node_link_state_name(n->link),
+                .valid = n->sensor_ok,
+                .detected = n->presence.presence_detected,
+            };
+        }
+    }
+    t->nodes = nodes;
+    t->node_count = count;
+
+    const sensor_node_state_t *th_node = &snap->nodes.nodes[NODE_SLOT_THERMAL];
+    const thermal_reading_t *th = &th_node->thermal;
+    t->thermal.valid = th_node->sensor_ok;
     t->thermal.max_c = th->max_temp_c;
     t->thermal.min_c = th->min_temp_c;
     t->thermal.mean_c = th->mean_temp_c;
@@ -109,9 +136,10 @@ static void publish_periodic(void)
 {
     rb_snapshot_t snap;
     rb_controller_get_snapshot(&snap);
+    rb_json_node_t nodes[NODE_SLOT_COUNT];
     rb_json_fault_t faults[FAULT_COUNT];
     rb_telemetry_t t;
-    build_telemetry(&t, &snap, faults, FAULT_COUNT);
+    build_telemetry(&t, &snap, nodes, faults, FAULT_COUNT);
     const uint32_t now = rb_time_mono_ms();
 
     t.hdr = header(now);
@@ -119,10 +147,19 @@ static void publish_periodic(void)
     t.hdr = header(now);
     publish(RB_TOPIC_CONTROLLER_HEARTBEAT, 0, rb_json_heartbeat(&t, s_payload, sizeof(s_payload)), -1);
 #if CONFIG_RB_MQTT_PUBLISH_SENSOR_TOPICS
-    t.hdr = header(now);
-    publish(RB_TOPIC_SENSOR_PRESENCE, snap.node.node_id, rb_json_presence(&t, s_payload, sizeof(s_payload)), -1);
-    t.hdr = header(now);
-    publish(RB_TOPIC_SENSOR_THERMAL, snap.node.node_id, rb_json_thermal(&t, s_payload, sizeof(s_payload)), -1);
+    for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+        if (!snap.nodes.enabled[slot]) {
+            continue;
+        }
+        const sensor_node_state_t *n = &snap.nodes.nodes[slot];
+        set_node(&t, &snap, (node_slot_t)slot);
+        t.hdr = header(now);
+        if (n->role == RB_NODE_ROLE_PRESENCE) {
+            publish(RB_TOPIC_SENSOR_PRESENCE, n->node_id, rb_json_presence(&t, s_payload, sizeof(s_payload)), -1);
+        } else {
+            publish(RB_TOPIC_SENSOR_THERMAL, n->node_id, rb_json_thermal(&t, s_payload, sizeof(s_payload)), -1);
+        }
+    }
 #endif
     s_stats.periodic++;
 }
@@ -131,9 +168,10 @@ static void publish_event(const rb_event_t *evt)
 {
     rb_snapshot_t snap;
     rb_controller_get_snapshot(&snap);
+    rb_json_node_t nodes[NODE_SLOT_COUNT];
     rb_json_fault_t faults[FAULT_COUNT];
     rb_telemetry_t t;
-    build_telemetry(&t, &snap, faults, FAULT_COUNT);
+    build_telemetry(&t, &snap, nodes, faults, FAULT_COUNT);
 
     rb_event_msg_t e = {
         .state = safety_state_name(snap.state),
@@ -176,6 +214,10 @@ static void publish_event(const rb_event_t *evt)
         break;
     }
     case RB_EVT_NODE:
+        if ((unsigned)evt->node.slot >= NODE_SLOT_COUNT) {
+            break;
+        }
+        set_node(&t, &snap, evt->node.slot);
         t.hdr = header(evt->mono_ms);
         publish(RB_TOPIC_SENSOR_STATUS, evt->node.node_id, rb_json_node_status(&t, s_payload, sizeof(s_payload)), -1);
         break;

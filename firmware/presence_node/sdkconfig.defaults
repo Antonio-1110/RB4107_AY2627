@@ -1,0 +1,7 @@
+CONFIG_IDF_TARGET="esp32c6"
+# USB-C goes to the native USB-Serial/JTAG, which keeps UART0/UART1 pins free
+# for the C4002.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# Presence node A. For presence node B, build with sdkconfig.node_b on top
+# (see README).
+CONFIG_RB_NODE_ID=1

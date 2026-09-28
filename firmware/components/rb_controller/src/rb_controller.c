@@ -22,6 +22,7 @@ static QueueHandle_t s_event_queue;
 static SemaphoreHandle_t s_snapshot_lock;
 static rb_snapshot_t s_snapshot;
 static uint32_t s_events_dropped;
+static uint32_t s_foreign_packets;   /* written and read by the safety task only */
 
 /* Configuration changes and reset requests from other tasks. */
 static portMUX_TYPE s_req_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -38,7 +39,11 @@ rb_controller_config_t rb_controller_config_from_kconfig(void)
             .stale_timeout_ms = CONFIG_RB_CTRL_NODE_STALE_MS,
             .offline_timeout_ms = CONFIG_RB_CTRL_NODE_OFFLINE_MS,
         },
-        .node_id = CONFIG_RB_CTRL_NODE_ID,
+        .nodes = {
+            .presence_node_ids = {CONFIG_RB_CTRL_PRESENCE_A_NODE_ID, CONFIG_RB_CTRL_PRESENCE_B_NODE_ID},
+            .presence_node_count = CONFIG_RB_CTRL_PRESENCE_NODE_COUNT,
+            .thermal_node_id = CONFIG_RB_CTRL_THERMAL_NODE_ID,
+        },
         .rx_queue_len = CONFIG_RB_CTRL_RX_QUEUE_LEN,
         .event_queue_len = CONFIG_RB_CTRL_EVENT_QUEUE_LEN,
         .tick_ms = CONFIG_RB_CTRL_SAFETY_TICK_MS,
@@ -74,28 +79,40 @@ static void on_transition(safety_state_t from, safety_state_t to, const char *re
     rb_controller_post_event(&evt);
 }
 
-static void log_node_events(const sensor_node_state_t *node, uint32_t events)
+static void log_node_events(const sensor_node_state_t *node, node_slot_t slot, uint32_t events)
 {
-    static const char *const NAMES[] = {"ONLINE", "STALE", "OFFLINE", "presence restored", "presence unavailable",
-                                        "thermal restored", "thermal unavailable"};
+    static const char *const NAMES[] = {"ONLINE", "STALE", "OFFLINE", "sensor reading restored",
+                                        "sensor reading unavailable"};
     for (unsigned bit = 0; bit < sizeof(NAMES) / sizeof(NAMES[0]); bit++) {
         if (events & (1u << bit)) {
-            const bool bad = (1u << bit) & (NODE_EVT_STALE | NODE_EVT_OFFLINE | NODE_EVT_PRESENCE_INVALID |
-                                            NODE_EVT_THERMAL_INVALID);
+            const bool bad = (1u << bit) & (NODE_EVT_STALE | NODE_EVT_OFFLINE | NODE_EVT_SENSOR_INVALID);
             if (bad) {
-                ESP_LOGW("SENSOR", "node_%02lu %s", (unsigned long)node->node_id, NAMES[bit]);
+                ESP_LOGW("SENSOR", "%s node_%02lu %s", node_slot_name(slot), (unsigned long)node->node_id, NAMES[bit]);
             } else {
-                ESP_LOGI("SENSOR", "node_%02lu %s", (unsigned long)node->node_id, NAMES[bit]);
+                ESP_LOGI("SENSOR", "%s node_%02lu %s", node_slot_name(slot), (unsigned long)node->node_id, NAMES[bit]);
             }
         }
+    }
+}
+
+static void on_packet(node_set_t *nodes, const rb_espnow_rx_t *rx)
+{
+    node_slot_t slot;
+    const node_seq_result_t res = node_set_on_packet(nodes, &rx->packet, rx->rx_ms, &slot);
+    if (res == NODE_SEQ_WRONG_NODE || res == NODE_SEQ_WRONG_ROLE) {
+        s_foreign_packets++;
+        RB_LOG_EVERY_MS(5000, ESP_LOGW, "SENSOR", "dropped packet from node_%02lu (%s node): %s",
+                        (unsigned long)rx->packet.node_id, rb_node_role_name(rx->packet.role),
+                        res == NODE_SEQ_WRONG_NODE ? "node ID not configured on the controller"
+                                                   : "configured for the other role (check RB_NODE_ID)");
     }
 }
 
 static void safety_task(void *arg)
 {
     static safety_sm_t sm;
-    static sensor_node_state_t node;
-    sensor_node_init(&node, s_cfg.node_id);
+    static node_set_t nodes;
+    node_set_init(&nodes, &s_cfg.nodes);
     safety_init(&sm, &s_cfg.safety, on_transition, NULL, rb_time_mono_ms());
     bool test_timers = false;
     uint32_t loops = 0;
@@ -105,7 +122,7 @@ static void safety_task(void *arg)
         rb_espnow_rx_t rx;
         if (xQueueReceive(s_rx_queue, &rx, pdMS_TO_TICKS(s_cfg.tick_ms)) == pdTRUE) {
             do {
-                sensor_node_on_packet(&node, &rx.packet, rx.rx_ms);
+                on_packet(&nodes, &rx);
             } while (xQueueReceive(s_rx_queue, &rx, 0) == pdTRUE);
         }
         const uint32_t now = rb_time_mono_ms();
@@ -129,20 +146,29 @@ static void safety_task(void *arg)
             s_hooks.tick(now, s_hooks.ctx);
         }
 
-        /* Sensor-node health. */
-        const uint32_t events = sensor_node_evaluate(&node, &s_cfg.health, now);
-        if (events != 0) {
-            log_node_events(&node, events);
-            const rb_event_t evt = {.type = RB_EVT_NODE, .mono_ms = now, .node = {.node_id = node.node_id, .events = events}};
+        /* Sensor-node health, one node at a time. */
+        uint32_t events[NODE_SLOT_COUNT];
+        node_set_evaluate(&nodes, &s_cfg.health, now, events);
+        for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
+            if (events[slot] == 0) {
+                continue;
+            }
+            const sensor_node_state_t *node = &nodes.nodes[slot];
+            log_node_events(node, (node_slot_t)slot, events[slot]);
+            const rb_event_t evt = {
+                .type = RB_EVT_NODE,
+                .mono_ms = now,
+                .node = {.slot = (node_slot_t)slot, .node_id = node->node_id, .events = events[slot]},
+            };
             rb_controller_post_event(&evt);
             if (s_hooks.node_events != NULL) {
-                s_hooks.node_events(&node, events, s_hooks.ctx);
+                s_hooks.node_events(node, (node_slot_t)slot, events[slot], s_hooks.ctx);
             }
         }
 
         /* Safety inputs -> state machine -> outputs. */
         node_inputs_t ni;
-        sensor_node_inputs(&node, &ni);
+        node_set_inputs(&nodes, &ni);
         safety_inputs_t in = {
             .presence = ni.presence,
             .thermal_valid = ni.thermal_valid,
@@ -170,7 +196,7 @@ static void safety_task(void *arg)
             s_snapshot.outputs = *out;
             s_snapshot.last_reason = sm.last_reason;
             s_snapshot.transitions = sm.transitions;
-            s_snapshot.node = node;
+            s_snapshot.nodes = nodes;
             s_snapshot.inputs = ni;
             s_snapshot.inputs.presence = in.presence; /* show what the state machine actually used */
             s_snapshot.loop_count = loops;
@@ -198,6 +224,8 @@ esp_err_t rb_controller_start(const rb_controller_config_t *config, const rb_con
 {
     ESP_RETURN_ON_FALSE(config != NULL && safety_config_valid(&config->safety), ESP_ERR_INVALID_ARG, TAG,
                         "invalid safety configuration");
+    ESP_RETURN_ON_FALSE(node_set_config_valid(&config->nodes), ESP_ERR_INVALID_ARG, TAG,
+                        "invalid sensor node IDs: every node needs its own non-zero ID");
     ESP_RETURN_ON_ERROR(rb_controller_init(config), TAG, "queues");
     s_cfg = *config;
     if (hooks != NULL) {
@@ -208,6 +236,14 @@ esp_err_t rb_controller_start(const rb_controller_config_t *config, const rb_con
                         ESP_ERR_NO_MEM, TAG, "safety task");
     ESP_LOGI(TAG, "safety task running at priority %lu, tick %lu ms", (unsigned long)config->safety_task_priority,
              (unsigned long)config->tick_ms);
+    if (config->nodes.presence_node_count == 1) {
+        ESP_LOGW(TAG, "sensor nodes: presence node_%02lu (ONE radar only), thermal node_%02lu",
+                 (unsigned long)config->nodes.presence_node_ids[0], (unsigned long)config->nodes.thermal_node_id);
+    } else {
+        ESP_LOGI(TAG, "sensor nodes: presence node_%02lu + node_%02lu, thermal node_%02lu",
+                 (unsigned long)config->nodes.presence_node_ids[0], (unsigned long)config->nodes.presence_node_ids[1],
+                 (unsigned long)config->nodes.thermal_node_id);
+    }
     return ESP_OK;
 }
 
@@ -242,6 +278,11 @@ uint32_t rb_controller_events_dropped(void)
     const uint32_t n = s_events_dropped;
     portEXIT_CRITICAL(&s_req_lock);
     return n;
+}
+
+uint32_t rb_controller_foreign_packets(void)
+{
+    return s_foreign_packets;
 }
 
 void rb_controller_request_reset(void)

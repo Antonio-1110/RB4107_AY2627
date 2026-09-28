@@ -58,7 +58,7 @@ def main() -> int:
         checked += 1
         msg_type = doc.get("type") if isinstance(doc, dict) else None
         label = f"{str(msg_type):<17}"
-        if msg_type not in by_type or doc.get("schema_version") != 1:
+        if msg_type not in by_type or doc.get("schema_version") != 2:
             failed += 1
             print(f"INVALID {label} unknown type or schema_version")
             continue

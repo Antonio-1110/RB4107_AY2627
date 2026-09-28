@@ -164,7 +164,7 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
         ESP_LOGI(TAG, "Wi-Fi associated, channel %u", rb_wifi_get_channel());
         if (rb_wifi_get_channel() != CONFIG_RB_ESPNOW_CHANNEL) {
             ESP_LOGW(TAG, "access point is on channel %u but RB_ESPNOW_CHANNEL is %d: ESP-NOW now uses channel %u, "
-                          "so the sensor node must match", rb_wifi_get_channel(), CONFIG_RB_ESPNOW_CHANNEL,
+                          "so every sensor node must match", rb_wifi_get_channel(), CONFIG_RB_ESPNOW_CHANNEL,
                      rb_wifi_get_channel());
         }
         set_state(RB_NET_LINK_UP);

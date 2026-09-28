@@ -7,7 +7,7 @@
 .vscode/
 .idea/
 
-# ESP-IDF build outputs (every firmware/NN_* project)
+# ESP-IDF build outputs (every project under firmware/)
 build/
 build_*/
 sdkconfig

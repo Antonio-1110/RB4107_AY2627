@@ -124,6 +124,7 @@ static void on_received(const esp_now_recv_info_t *info, const uint8_t *data, in
     case RB_DECODE_ERR_VERSION: s_rx.bad_version++; break;
     case RB_DECODE_ERR_TYPE: s_rx.bad_type++; break;
     case RB_DECODE_ERR_CRC: s_rx.bad_crc++; break;
+    case RB_DECODE_ERR_ROLE: s_rx.bad_role++; break;
     }
     portEXIT_CRITICAL(&s_lock);
     if (res != RB_DECODE_OK) {

@@ -1,0 +1,2 @@
+# Presence node B: same firmware, its own node ID.
+CONFIG_RB_NODE_ID=2

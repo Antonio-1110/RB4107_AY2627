@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#define RB_JSON_SCHEMA_VERSION 1
+#define RB_JSON_SCHEMA_VERSION 2
 
 typedef struct {
     const char *controller_id;
@@ -31,13 +31,30 @@ typedef struct {
     const char *fault_class;      /* "SAFETY" / "TELEMETRY" */
 } rb_json_fault_t;
 
+/* One sensor node, as listed in controller/state. */
+typedef struct {
+    const char *name;             /* "node_01" */
+    const char *role;             /* "presence" / "thermal" */
+    const char *link;             /* NEVER_SEEN / ONLINE / STALE / OFFLINE */
+    bool valid;                   /* fresh, valid reading from an ONLINE node */
+    bool detected;                /* presence nodes: person seen (only used when valid) */
+} rb_json_node_t;
+
 typedef struct {
     rb_json_header_t hdr;
     uint8_t protocol_version;     /* ESP-NOW protocol version of the node data */
 
+    /* controller/state: the combined view. */
+    const char *presence_state;   /* PRESENT / ABSENT / UNKNOWN, as the state machine used it */
+    const rb_json_node_t *nodes;
+    size_t node_count;
+
+    /* sensors/<node>/...: the one node a per-node message is about. */
     const char *sensor_node;      /* "node_01" */
     struct {
-        const char *link;         /* NEVER_SEEN / ONLINE / STALE / OFFLINE */
+        const char *role;
+        const char *link;
+        bool valid;
         uint32_t missed;
         uint32_t restarts;
         uint16_t fault_flags;     /* rb_sensor_fault_t bits reported by the node */
@@ -49,7 +66,7 @@ typedef struct {
         bool moving;
         bool stationary;
         float distance_m;
-    } presence;
+    } presence;                   /* sensors/<node>/presence */
 
     struct {
         bool valid;
@@ -59,7 +76,7 @@ typedef struct {
         float hot_region_c;
         float rate_c_per_min;
         uint16_t pixels_above_threshold;
-    } thermal;
+    } thermal;                    /* the thermal node: controller/state and sensors/<node>/thermal */
 
     struct {
         const char *state;

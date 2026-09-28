@@ -2,7 +2,8 @@
 
 Defined in [`firmware/components/rb_topics`](../firmware/components/rb_topics).
 The prefix `rb4107` is configurable (`RB_MQTT_TOPIC_PREFIX`). Node names are
-`node_<id>` with the ID zero-padded to two digits (`node_01`).
+`node_<id>` with the ID zero-padded to two digits. With the default IDs:
+`node_01` and `node_02` are the presence nodes, `node_03` the thermal node.
 
 ```text
 rb4107/
@@ -28,8 +29,8 @@ rb4107/
 | `controller/heartbeat` | 0 | no | every telemetry period |
 | `controller/state` | 0 | yes | every telemetry period, and right away on every state transition |
 | `controller/faults` | 1 | yes | on every fault raised/cleared |
-| `sensors/<node>/presence` | 0 | no | every telemetry period |
-| `sensors/<node>/thermal` | 0 | no | every telemetry period |
+| `sensors/<node>/presence` | 0 | no | every telemetry period, for each presence node (`node_01`, `node_02`) |
+| `sensors/<node>/thermal` | 0 | no | every telemetry period, for the thermal node (`node_03`) |
 | `sensors/<node>/status` | 1 | yes | on node ONLINE/STALE/OFFLINE and sensor validity changes |
 | `events/warning` | 1 | no | entering WARNING |
 | `events/shutdown` | 1 | no | entering SHUTDOWN |

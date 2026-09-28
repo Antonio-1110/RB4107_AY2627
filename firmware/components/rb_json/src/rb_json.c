@@ -1,6 +1,7 @@
 #include "rb_json.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "rb_json_writer.h"
 
@@ -105,6 +106,30 @@ static void node_fields(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_str(w, t->sensor_node);
 }
 
+static void nodes_arr(rb_json_writer_t *w, const rb_telemetry_t *t)
+{
+    rb_json_key(w, "nodes");
+    rb_json_arr_begin(w);
+    for (size_t i = 0; i < t->node_count; i++) {
+        const rb_json_node_t *n = &t->nodes[i];
+        rb_json_obj_begin(w);
+        rb_json_key(w, "sensor_node");
+        rb_json_str(w, n->name);
+        rb_json_key(w, "role");
+        rb_json_str(w, n->role);
+        rb_json_key(w, "link");
+        rb_json_str(w, n->link);
+        rb_json_key(w, "valid");
+        rb_json_bool(w, n->valid);
+        /* Only a valid presence reading says anything about a person. */
+        const bool presence = n->role != NULL && strcmp(n->role, "presence") == 0;
+        rb_json_key(w, "detected");
+        presence && n->valid ? rb_json_bool(w, n->detected) : rb_json_null(w);
+        rb_json_obj_end(w);
+    }
+    rb_json_arr_end(w);
+}
+
 size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
@@ -112,10 +137,9 @@ size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len)
     header(&w, &t->hdr, "telemetry");
     rb_json_key(&w, "protocol_version");
     rb_json_int(&w, t->protocol_version);
-    node_fields(&w, t);
-    rb_json_key(&w, "node_link");
-    rb_json_str(&w, t->node.link);
-    presence_obj(&w, t);
+    rb_json_key(&w, "presence_state");
+    rb_json_str(&w, t->presence_state);
+    nodes_arr(&w, t);
     thermal_obj(&w, t);
     safety_obj(&w, t);
     faults_arr(&w, t, false);
@@ -174,12 +198,12 @@ size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len)
     rb_json_init(&w, buf, len);
     header(&w, &t->hdr, "node_status");
     node_fields(&w, t);
+    rb_json_key(&w, "role");
+    rb_json_str(&w, t->node.role);
     rb_json_key(&w, "link");
     rb_json_str(&w, t->node.link);
-    rb_json_key(&w, "presence_valid");
-    rb_json_bool(&w, t->presence.valid);
-    rb_json_key(&w, "thermal_valid");
-    rb_json_bool(&w, t->thermal.valid);
+    rb_json_key(&w, "valid");
+    rb_json_bool(&w, t->node.valid);
     rb_json_key(&w, "node_fault_flags");
     rb_json_int(&w, t->node.fault_flags);
     rb_json_key(&w, "missed_packets");

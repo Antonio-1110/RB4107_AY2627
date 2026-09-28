@@ -23,10 +23,15 @@ _stats_lock = threading.Lock()
 stats: Counter = Counter()
 
 
-def _presence_text(p: dict) -> str:
-    if not p.get("valid"):
-        return "UNKNOWN"
-    return "present" if p.get("detected") else "absent"
+def _node_text(n: dict) -> str:
+    """node_01:present, node_02:OFFLINE, node_03:ok"""
+    if n["link"] != "ONLINE":
+        return f"{n['sensor_node']}:{n['link']}"
+    if not n["valid"]:
+        return f"{n['sensor_node']}:INVALID"
+    if n["role"] == "presence":
+        return f"{n['sensor_node']}:{'present' if n['detected'] else 'absent'}"
+    return f"{n['sensor_node']}:ok"
 
 
 def _num(value, unit: str = "") -> str:
@@ -37,10 +42,10 @@ def handle_telemetry(msg: Message) -> None:
     d = msg.data
     s, t = d["safety"], d["thermal"]
     telemetry_log.info(
-        "%s seq=%d %s | state=%s unattended=%.1fs buzzer=%s shutdown=%s | node %s %s | presence %s | hot %s rate %s | faults=%s",
+        "%s seq=%d %s | state=%s unattended=%.1fs buzzer=%s shutdown=%s | presence %s | nodes %s | hot %s rate %s | faults=%s",
         d["controller_id"], d["sequence"], d["timestamp"] or f"uptime {d['uptime_ms']} ms",
         s["state"], s["unattended_ms"] / 1000, s["buzzer"], s["shutdown"],
-        d["sensor_node"], d["node_link"], _presence_text(d["presence"]),
+        d["presence_state"], " ".join(_node_text(n) for n in d["nodes"]),
         _num(t["hot_region_c"], "C") if t["valid"] else "INVALID", _num(t["rate_c_per_min"], "C/min"),
         ",".join(d["faults"]) or "none",
     )
@@ -72,10 +77,9 @@ def handle_faults(msg: Message) -> None:
 
 def handle_node_status(msg: Message) -> None:
     d = msg.data
-    level = logging.INFO if d["link"] == "ONLINE" and d["presence_valid"] and d["thermal_valid"] else logging.WARNING
-    sensor_log.log(level, "%s %s presence_valid=%s thermal_valid=%s missed=%d restarts=%d",
-                   d["sensor_node"], d["link"], d["presence_valid"], d["thermal_valid"], d["missed_packets"],
-                   d["restarts"])
+    level = logging.INFO if d["link"] == "ONLINE" and d["valid"] else logging.WARNING
+    sensor_log.log(level, "%s (%s node) %s valid=%s missed=%d restarts=%d",
+                   d["sensor_node"], d["role"], d["link"], d["valid"], d["missed_packets"], d["restarts"])
 
 
 def handle_controller_status(msg: Message) -> None:
