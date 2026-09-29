@@ -1,8 +1,7 @@
 """Application layer for validated RB4107 messages (TODO section 23).
 
-For now it logs telemetry and events in a readable form. This is the one
-place to extend later (storage, alerts, a dashboard feed): add a handler to
-HANDLERS.
+Stores validated messages and logs telemetry and events in a readable form.
+The same persistent data powers the monitoring dashboard.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from collections import Counter
 from typing import Callable
 
 from .validation import Message
+from .storage import persist
 
 telemetry_log = logging.getLogger("rb4107.telemetry")
 event_log = logging.getLogger("rb4107.event")
@@ -106,6 +106,7 @@ HANDLERS: dict[str, Callable[[Message], None]] = {
 
 
 def handle(msg: Message) -> None:
+    persist(msg)
     with _stats_lock:
         stats[msg.type] += 1
     HANDLERS[msg.type](msg)

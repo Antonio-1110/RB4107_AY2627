@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from ingest import handlers, validation
 
@@ -13,7 +13,7 @@ def parsed(topic_suffix: str, event: str | None = None) -> validation.Message:
     return validation.parse(sample["topic"], json.dumps(sample["payload"]).encode())
 
 
-class HandlerLoggingTest(SimpleTestCase):
+class HandlerLoggingTest(TestCase):
     def test_telemetry_is_logged(self):
         with self.assertLogs("rb4107.telemetry", "INFO") as logs:
             handlers.handle(parsed("controller/state"))

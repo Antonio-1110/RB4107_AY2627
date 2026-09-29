@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from dataclasses import replace
 from typing import Callable
 
 import paho.mqtt.client as mqtt
@@ -19,13 +20,16 @@ log = logging.getLogger("rb4107.mqtt")
 
 
 class Subscriber:
-    def __init__(self, config: dict, handle: Callable[[validation.Message], None] = handlers.handle):
+    def __init__(self, config: dict, handle: Callable[[validation.Message], None] = handlers.handle, on_rejected=None):
         self.config = config
         self.handle = handle
+        self.on_rejected = on_rejected
         self.prefix = validation.topic_prefix(config["TOPIC"])
         self.received = 0
         self.rejected = 0
         self.connected = threading.Event()
+        self.subscribed = threading.Event()
+        self.last_error = ""
         self._stopping = False
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -42,7 +46,9 @@ class Subscriber:
     # --- callbacks (run in paho's network thread) ---
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
+        self.subscribed.clear()
         if reason_code.is_failure:
+            self.last_error = str(reason_code)
             log.warning("broker refused connection: %s", reason_code)
             return
         log.info("broker connected (%s:%d, session %s)", self.config["HOST"], self.config["PORT"],
@@ -50,15 +56,22 @@ class Subscriber:
         # (Re)subscribe on every connect so a reconnect never loses the subscription.
         client.subscribe(self.config["TOPIC"], qos=self.config["QOS"])
         self.connected.set()
+        self.last_error = ""
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         self.connected.clear()
+        self.subscribed.clear()
         if self._stopping:
             log.info("disconnected from broker")
         else:
             log.warning("broker disconnected (%s); reconnecting", reason_code)
 
     def _on_subscribe(self, client, userdata, mid, reason_codes, properties):
+        if any(rc.is_failure for rc in reason_codes):
+            self.last_error = "Broker rejected subscription"
+            self.subscribed.clear()
+        else:
+            self.subscribed.set()
         log.info("subscribed to %s (%s)", self.config["TOPIC"], ", ".join(str(rc) for rc in reason_codes))
 
     def _on_message(self, client, userdata, message):
@@ -68,10 +81,20 @@ class Subscriber:
         except validation.InvalidMessage as exc:
             self.rejected += 1
             log.warning("rejected message on %s: %s", message.topic, exc)
+            if self.on_rejected:
+                try:
+                    self.on_rejected(message.topic, message.payload, exc,
+                                     bool(getattr(message, "retain", False)), getattr(message, "qos", 0))
+                except Exception:
+                    self.last_error = "Could not persist rejected MQTT message"
+                    log.exception(self.last_error)
             return
         try:
-            self.handle(msg)
+            self.handle(replace(msg, retained=bool(getattr(message, "retain", False)),
+                                qos=getattr(message, "qos", 0), duplicate=bool(getattr(message, "dup", False))))
+            self.last_error = ""
         except Exception:  # a handler bug must not take the subscriber down
+            self.last_error = "Message persistence/handler failed; check subscriber logs"
             log.exception("handler failed for %s", message.topic)
 
     # --- lifecycle ---

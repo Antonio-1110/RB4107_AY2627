@@ -1,10 +1,11 @@
-# RB4107 Django backend: MQTT ingestion
+# RB4107 Django backend and AES dashboard
 
-TODO sections 23 and 24. This runs on the MacBook, not on an ESP32. For now
-its only job is MQTT ingestion (no frontend or dashboard yet).
+The existing MQTT subscriber now stores validated firmware messages and serves
+the AES multi-stall dashboard. Run it on the MacBook, Linux server or Windows
+host. The ESP32-S3 keeps all local safety logic, relay control and manual reset.
 
 ```text
-Mosquitto ──▶ persistent MQTT subscriber (manage.py mqtt_subscriber) ──▶ ingest.handlers (Django application layer)
+Mosquitto → mqtt_subscriber → schema validation → SQLite → Django GET API → AES dashboard
 ```
 
 ## Setup
@@ -13,10 +14,45 @@ Mosquitto ──▶ persistent MQTT subscriber (manage.py mqtt_subscriber) ─�
 cd backend/django
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.jw.example .env
+python manage.py migrate
 python manage.py check
+python manage.py runserver 127.0.0.1:8000
 ```
 
+Open http://127.0.0.1:8000/ on that computer. Leave this terminal running.
+Start `python manage.py mqtt_subscriber` in a second activated terminal to
+receive hardware data. The dashboard is served by Django itself; no Node
+build, separate frontend port, CORS setup or browser MQTT credentials are needed.
+
+With Fish use `source .venv/bin/activate.fish`. On Windows use
+`.venv\Scripts\Activate.ps1` and `Copy-Item .env.jw.example .env`.
+The old standalone prototype's `manage.jw.py` and `mqtt_worker` commands do
+not apply inside this repository: use `manage.py` and `mqtt_subscriber`.
+
+To view a Linux server from Windows, run this in **Windows PowerShell**, keep
+it open, then browse http://127.0.0.1:8010/:
+
+```powershell
+ssh -o ExitOnForwardFailure=yes -N -L 8010:127.0.0.1:8000 shaohua@servera
+```
+
+For a UI-only demo, stop the MQTT subscriber and run this in the second terminal:
+
+```bash
+python manage.py simulate_fleet --direct
+```
+
+This uses the same schema validation, normalization and storage as MQTT and
+displays **Demo direct · MQTT bypassed**. It creates nine synthetic stations
+across eight stalls. To test the complete MQTT path, keep the subscriber
+running and use `python manage.py simulate_fleet` without `--direct`.
+Do not run the direct demo and subscriber together against the same database.
+
 ## Configuration (environment variables)
+
+`backend/django/.env` is loaded automatically; exported environment variables
+take precedence. Broker addresses/passwords stay out of frontend JavaScript.
 
 | Variable | Default | |
 |---|---|---|
@@ -30,6 +66,18 @@ python manage.py check
 | `RB4107_MQTT_RECONNECT_MIN_S` / `_MAX_S` | `1` / `30` | reconnect back-off |
 | `RB4107_LOG_LEVEL` | `INFO` | `DEBUG` also logs every routine message |
 | `RB4107_SCHEMA_FILE` | `../../docs/schema/rb4107_mqtt.schema.json` | the same schema the firmware is tested against |
+| `RB4107_LOCATION_CATALOG_FILE` | `location_catalog.jw.json` | controller ID → site / stall / station; relative paths use `backend/django` |
+| `RB4107_SQLITE_PATH` | `backend/django/db.sqlite3` | database file; use an absolute path when overriding |
+| `RB4107_DEVICE_STALE_SECONDS` | `15` | display freshness; does not change ESP32 safety timers |
+| `RB4107_WORKER_STALE_SECONDS` | `10` | subscriber heartbeat timeout |
+| `RB4107_DASHBOARD_POLL_MS` | `2000` | frontend polling period |
+
+For multiple real controllers, give each a unique `controller_id` and firmware
+topic prefix, e.g. `rb4107/controller_01` and `rb4107/controller_02`, then set
+`RB4107_MQTT_TOPIC=rb4107/+/#`. Sharing the same retained topic would overwrite
+another controller's broker snapshot. The original single-controller
+`rb4107/#` setup still works unchanged. The simulator publishes non-retained
+packets and replaces `+` in the configured prefix with each demo controller ID.
 
 ## Run the persistent subscriber (TODO section 24)
 
@@ -84,17 +132,36 @@ Anything that fails is logged as `[MQTT][WARNING] rejected message on <topic>: <
 and dropped. A malformed message never stops the subscriber, and neither does
 a bug in a handler.
 
-`ingest/handlers.py` is the application layer. It logs telemetry (INFO),
+`ingest/handlers.py` is the application layer. It stores messages using
+`ingest/storage.py`, then logs telemetry (INFO),
 warnings, shutdowns and entering FAULT (WARNING), fault raise/clear, node
 status, and controller online/offline. Periodic heartbeat, presence and
-thermal messages are counted and logged only at DEBUG. To store or act on
-data, add it here.
+thermal messages are counted and logged only at DEBUG.
+
+`ingest/normalization.py` maps schema v2 to dashboard fields. `ingest/views.py`
+serves read-only `/api/health/`, `/api/devices/`, and per-device `latest/`,
+`history/`, `events/` endpoints. A worker heartbeat distinguishes a disconnected
+broker or stopped subscriber from a silent device. See
+[`docs/dashboard_integration.jw.md`](../../docs/dashboard_integration.jw.md)
+for the exact field contract, retained-message semantics and limitations.
 
 ## Tests
 
 ```bash
 python manage.py test ingest
 ```
+
+Full TCP MQTT → SQLite → HTTP smoke test, using an isolated temporary database
+and local test broker (no hardware or existing broker needed):
+
+```bash
+pip install -r requirements-test.jw.txt
+python ../../tools/dashboard_smoke.jw.py
+```
+
+Optional browser coverage: install Playwright and Chromium for Node, then set
+`RB4107_BROWSER_CHECK=1` when running the smoke test. `RB4107_CHROMIUM_PATH`
+can select an already-installed Chromium executable.
 
 The fixtures in `ingest/tests/firmware_samples.jsonl` are real messages
 published by the controller firmware (run in QEMU against Mosquitto). The

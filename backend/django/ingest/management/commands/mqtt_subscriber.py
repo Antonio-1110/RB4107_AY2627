@@ -10,12 +10,15 @@ Ctrl-C / SIGTERM.
 import logging
 import signal
 import threading
+import time
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import close_old_connections
 
 from ingest import handlers
 from ingest.subscriber import Subscriber
+from ingest.storage import record_rejection, worker_status
 
 log = logging.getLogger("rb4107.mqtt")
 
@@ -36,7 +39,7 @@ class Command(BaseCommand):
             if options[key] is not None:
                 config[key.upper()] = options[key]
 
-        subscriber = Subscriber(config)
+        subscriber = Subscriber(config, on_rejected=record_rejection)
         stop = threading.Event()
 
         def request_stop(signum, frame):
@@ -46,15 +49,33 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, request_stop)
         signal.signal(signal.SIGTERM, request_stop)
 
-        if options["stats_interval"] > 0:
-            threading.Thread(target=self._report, args=(subscriber, stop, options["stats_interval"]),
-                             daemon=True).start()
-        subscriber.run_forever()
+        worker_status(False)
+        reporter = threading.Thread(target=self._report, args=(subscriber, stop, options["stats_interval"]), daemon=True)
+        reporter.start()
+        try:
+            subscriber.run_forever()
+        finally:
+            stop.set()
+            subscriber.stop()
+            reporter.join(timeout=25)
+            worker_status(False, error="Subscriber stopped")
 
     @staticmethod
     def _report(subscriber: Subscriber, stop: threading.Event, interval: int) -> None:
-        while not stop.wait(interval):
-            by_type = ", ".join(f"{k}={v}" for k, v in sorted(handlers.stats.items())) or "none"
-            log.info("status: %s, received %d, rejected %d | %s",
-                     "connected" if subscriber.connected.is_set() else "DISCONNECTED",
-                     subscriber.received, subscriber.rejected, by_type)
+        last_log = time.monotonic()
+        while not stop.wait(2):
+            close_old_connections()
+            try:
+                worker_status(subscriber.subscribed.is_set() and not subscriber.last_error,
+                              error=subscriber.last_error)
+            except Exception:
+                log.exception("could not update dashboard worker heartbeat")
+            finally:
+                close_old_connections()
+            if interval > 0 and time.monotonic() - last_log >= interval:
+                with handlers._stats_lock:
+                    by_type = ", ".join(f"{k}={v}" for k, v in sorted(handlers.stats.items())) or "none"
+                log.info("status: %s, received %d, rejected %d | %s",
+                         "connected" if subscriber.connected.is_set() else "DISCONNECTED",
+                         subscriber.received, subscriber.rejected, by_type)
+                last_log = time.monotonic()

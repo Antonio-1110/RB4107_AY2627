@@ -834,7 +834,8 @@ Do not flood MQTT with unnecessary raw thermal frames.
 
 # 23. Django Project
 
-Scope is currently only MQTT ingestion.
+Initial scope was MQTT ingestion. Extended with the AES monitoring dashboard
+integration on 2026-09-29; local ESP32 safety ownership is unchanged.
 
 - [x] Create Django project.
 - [x] Create appropriate Django app.
@@ -850,7 +851,15 @@ Scope is currently only MQTT ingestion.
 - [x] Log incoming events.
 - [x] Handle malformed messages safely.
 
-No frontend/dashboard is required yet.
+- [x] Persist validated packets, latest fields, temperature history and events.
+- [x] Connect AES multi-stall dashboard to read-only Django APIs.
+- [x] Map schema-v2 controller and sensor data to the frontend.
+- [x] Reserve the top banner for supply isolation awaiting manual reset.
+- [x] Configure controller-to-stall locations and multi-controller topic prefixes.
+- [x] Verify MQTT → database → HTTP → browser using an isolated broker and firmware fixtures.
+- [ ] Confirm the integrated dashboard against the team's physical controller and broker.
+
+Implementation and startup: [`docs/dashboard_integration.jw.md`](docs/dashboard_integration.jw.md).
 
 ---
 

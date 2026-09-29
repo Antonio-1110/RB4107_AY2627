@@ -9,6 +9,7 @@ message can't kill the subscriber.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -58,6 +59,9 @@ class Message:
     kind: str  # topic pattern, e.g. "sensors/*/presence"
     type: str
     data: dict[str, Any]
+    retained: bool = False
+    qos: int = 0
+    duplicate: bool = False
 
 
 @lru_cache(maxsize=1)
@@ -72,9 +76,13 @@ def _validators(schema_file: Path) -> dict[str, jsonschema.Draft202012Validator]
 def topic_kind(topic: str, prefix: str | None = None) -> str:
     """Map a concrete topic onto its pattern: rb4107/sensors/node_01/thermal -> sensors/*/thermal."""
     prefix = prefix or topic_prefix(settings.RB4107_MQTT["TOPIC"])
-    if not topic.startswith(prefix + "/"):
+    prefix_parts, topic_parts = prefix.split("/"), topic.split("/")
+    if len(topic_parts) <= len(prefix_parts) or any(
+        expected != "+" and expected != actual
+        for expected, actual in zip(prefix_parts, topic_parts)
+    ):
         raise InvalidMessage(f"topic outside prefix '{prefix}'")
-    parts = topic[len(prefix) + 1:].split("/")
+    parts = topic_parts[len(prefix_parts):]
     if len(parts) == 3 and parts[0] == "sensors":
         parts[1] = "*"
     kind = "/".join(parts)
@@ -94,19 +102,21 @@ def parse(topic: str, payload: bytes, prefix: str | None = None) -> Message:
     if len(payload) > MAX_PAYLOAD_BYTES:
         raise InvalidMessage(f"payload too large ({len(payload)} bytes)")
     try:
-        data = json.loads(payload.decode("utf-8"))
+        data = json.loads(payload.decode("utf-8"), parse_constant=_reject_constant, parse_float=_finite_float)
     except UnicodeDecodeError:
         raise InvalidMessage("payload is not UTF-8") from None
     except json.JSONDecodeError as exc:
         raise InvalidMessage(f"malformed JSON: {exc.msg} at char {exc.pos}") from None
+    except (ValueError, RecursionError):
+        raise InvalidMessage("invalid or excessively nested JSON") from None
     if not isinstance(data, dict):
         raise InvalidMessage("payload is not a JSON object")
 
     version = data.get("schema_version")
-    if version not in settings.RB4107_SUPPORTED_SCHEMA_VERSIONS:
+    if not isinstance(version, int) or isinstance(version, bool) or version not in settings.RB4107_SUPPORTED_SCHEMA_VERSIONS:
         raise InvalidMessage(f"unsupported schema_version {version!r}")
     msg_type = data.get("type")
-    if msg_type not in TOPIC_TYPES[kind]:
+    if not isinstance(msg_type, str) or msg_type not in TOPIC_TYPES[kind]:
         raise InvalidMessage(f"type {msg_type!r} not allowed on {kind}")
 
     validator = _validators(Path(settings.RB4107_SCHEMA_FILE))[msg_type]
@@ -115,3 +125,14 @@ def parse(topic: str, payload: bytes, prefix: str | None = None) -> Message:
         where = "/".join(str(p) for p in error.absolute_path) or "(root)"
         raise InvalidMessage(f"schema: {error.message} at {where}")
     return Message(topic=topic, kind=kind, type=msg_type, data=data)
+
+
+def _reject_constant(value):
+    raise ValueError(f"Non-finite number: {value}")
+
+
+def _finite_float(value):
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError("Non-finite number")
+    return result
