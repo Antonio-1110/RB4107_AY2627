@@ -12,8 +12,8 @@ second MQTT ingestion service or separate database to synchronize.
 4. `ingest/normalization.py` adapts controller fields to the dashboard contract.
 5. SQLite holds controller snapshots, field timestamps, packet records,
    temperature samples, events and worker heartbeat.
-6. `ingest/views.py` serves JSON; `templates/dashboard.jw.html` and
-   `static/dashboard.jw.js` poll the same Django origin.
+6. `ingest/views.py` serves JSON; `templates/dashboard.html` and
+   `static/dashboard.js` poll the same Django origin.
 
 The frontend is the existing lightweight Django-template/JavaScript dashboard,
 including multi-stall overview, location filters, station selector and canvas
@@ -57,7 +57,7 @@ firmware, so those fields remain unknown rather than assuming 60/90 seconds.
 
 ## Locations and more controllers
 
-Edit `backend/django/location_catalog.jw.json`, keyed by actual `controller_id`.
+Edit `backend/django/location_catalog.json`, keyed by actual `controller_id`.
 The default `controller_01` entry is an undeployed integration bench. Other
 entries are clearly labelled synthetic station assignments using the earlier
 Changi reference catalogue. They appear only when those controllers actually
@@ -106,7 +106,7 @@ cd backend/django
 python3 -m venv .venv
 source .venv/bin/activate.fish
 python -m pip install -r requirements.txt
-cp -n .env.jw.example .env
+cp -n .env.example .env
 python manage.py migrate
 python manage.py runserver 127.0.0.1:8000
 ```

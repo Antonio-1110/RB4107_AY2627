@@ -14,7 +14,7 @@ Mosquitto → mqtt_subscriber → schema validation → SQLite → Django GET AP
 cd backend/django
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.jw.example .env
+cp .env.example .env
 python manage.py migrate
 python manage.py check
 python manage.py runserver 127.0.0.1:8000
@@ -26,7 +26,7 @@ receive hardware data. The dashboard is served by Django itself; no Node
 build, separate frontend port, CORS setup or browser MQTT credentials are needed.
 
 With Fish use `source .venv/bin/activate.fish`. On Windows use
-`.venv\Scripts\Activate.ps1` and `Copy-Item .env.jw.example .env`.
+`.venv\Scripts\Activate.ps1` and `Copy-Item .env.example .env`.
 The old standalone prototype's `manage.jw.py` and `mqtt_worker` commands do
 not apply inside this repository: use `manage.py` and `mqtt_subscriber`.
 
@@ -66,7 +66,7 @@ take precedence. Broker addresses/passwords stay out of frontend JavaScript.
 | `RB4107_MQTT_RECONNECT_MIN_S` / `_MAX_S` | `1` / `30` | reconnect back-off |
 | `RB4107_LOG_LEVEL` | `INFO` | `DEBUG` also logs every routine message |
 | `RB4107_SCHEMA_FILE` | `../../docs/schema/rb4107_mqtt.schema.json` | the same schema the firmware is tested against |
-| `RB4107_LOCATION_CATALOG_FILE` | `location_catalog.jw.json` | controller ID → site / stall / station; relative paths use `backend/django` |
+| `RB4107_LOCATION_CATALOG_FILE` | `location_catalog.json` | controller ID → site / stall / station; relative paths use `backend/django` |
 | `RB4107_SQLITE_PATH` | `backend/django/db.sqlite3` | database file; use an absolute path when overriding |
 | `RB4107_DEVICE_STALE_SECONDS` | `15` | display freshness; does not change ESP32 safety timers |
 | `RB4107_WORKER_STALE_SECONDS` | `10` | subscriber heartbeat timeout |
@@ -142,7 +142,7 @@ thermal messages are counted and logged only at DEBUG.
 serves read-only `/api/health/`, `/api/devices/`, and per-device `latest/`,
 `history/`, `events/` endpoints. A worker heartbeat distinguishes a disconnected
 broker or stopped subscriber from a silent device. See
-[`docs/dashboard_integration.jw.md`](../../docs/dashboard_integration.jw.md)
+[`docs/dashboard_integration.md`](../../docs/dashboard_integration.md)
 for the exact field contract, retained-message semantics and limitations.
 
 ## Tests
@@ -155,8 +155,8 @@ Full TCP MQTT → SQLite → HTTP smoke test, using an isolated temporary databa
 and local test broker (no hardware or existing broker needed):
 
 ```bash
-pip install -r requirements-test.jw.txt
-python ../../tools/dashboard_smoke.jw.py
+pip install -r requirements-test.txt
+python ../../tools/dashboard_smoke.py
 ```
 
 Optional browser coverage: install Playwright and Chromium for Node, then set

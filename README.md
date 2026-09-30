@@ -46,7 +46,7 @@ Django on the MacBook:
 The AES dashboard is integrated in [`backend/django`](backend/django/README.md).
 It shows all-stall status, per-station sensors, temperature history and events.
 Only reported supply isolation awaiting manual reset occupies the top banner.
-Setup and payload mapping: [`docs/dashboard_integration.jw.md`](docs/dashboard_integration.jw.md).
+Setup and payload mapping: [`docs/dashboard_integration.md`](docs/dashboard_integration.md).
 
 Setup steps (broker, MAC address, channel):
 [`firmware/controller/README.md`](firmware/controller/README.md#setup).

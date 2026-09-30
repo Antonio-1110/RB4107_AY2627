@@ -859,7 +859,7 @@ integration on 2026-09-29; local ESP32 safety ownership is unchanged.
 - [x] Verify MQTT → database → HTTP → browser using an isolated broker and firmware fixtures.
 - [ ] Confirm the integrated dashboard against the team's physical controller and broker.
 
-Implementation and startup: [`docs/dashboard_integration.jw.md`](docs/dashboard_integration.jw.md).
+Implementation and startup: [`docs/dashboard_integration.md`](docs/dashboard_integration.md).
 
 ---
 

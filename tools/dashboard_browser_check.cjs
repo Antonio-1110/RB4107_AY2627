@@ -1,4 +1,4 @@
-// Optional browser check used by dashboard_smoke.jw.py. No frontend build step.
+// Optional browser check used by dashboard_smoke.py. No frontend build step.
 const assert = require('node:assert/strict');
 const {chromium} = require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES
   ? process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES + '/playwright' : 'playwright');

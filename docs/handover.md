@@ -6,7 +6,7 @@ and `TODO.md`.
 
 **Dashboard update, 2026-09-29:** The original firmware handover below is
 historical. The existing Django subscriber now persists schema-v2 messages and
-serves the AES dashboard. See [`dashboard_integration.jw.md`](dashboard_integration.jw.md)
+serves the AES dashboard. See [`dashboard_integration.md`](dashboard_integration.md)
 and `backend/django/README.md`; use `manage.py migrate` before starting it.
 The firmware source and physical safety logic are unchanged by this integration.
 

@@ -1,7 +1,7 @@
 """Translate validated firmware schema v2 into the dashboard's stable fields.
 
 This module does not evaluate temperatures, fuse radar readings or run timers.
-The controller publishes those decisions. See docs/dashboard_integration.jw.md.
+The controller publishes those decisions. See docs/dashboard_integration.md.
 """
 import math
 

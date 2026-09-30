@@ -53,7 +53,7 @@ def serialize(device, now, worker, catalog=None):
 @require_GET
 @never_cache
 def dashboard(request):
-    return render(request, "dashboard.jw.html", {"poll_ms": settings.DASHBOARD_POLL_MS})
+    return render(request, "dashboard.html", {"poll_ms": settings.DASHBOARD_POLL_MS})
 
 
 @require_GET
