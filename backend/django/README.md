@@ -28,6 +28,12 @@ receive hardware data. Django serves the dashboard files from `frontend/` at
 Windows, activate with `.venv\Scripts\Activate.ps1` and copy with
 `Copy-Item .env.example .env`.
 
+After this one-time setup, `tools/run_dev.sh` (run from the repository root)
+starts Mosquitto, the MQTT subscriber and `runserver` together, with each
+line of output tagged `[broker]`, `[subscriber]` or `[web]`. Ctrl-C stops all
+three. It uses `backend/django/.venv` if present, so no need to activate it
+first. It is for local development and demos only.
+
 To view the dashboard from another computer, keep `runserver` on 127.0.0.1 and
 use an SSH tunnel (`ssh -N -L 8000:127.0.0.1:8000 <user>@<host>`) rather than
 exposing it on the network: there is no login.
