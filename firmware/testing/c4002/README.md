@@ -6,7 +6,7 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 2. Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **DFRobot C4002 (SEN0691)**.
+Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **DFRobot C4002 (SEN0691)**.
 
 ## Interface
 

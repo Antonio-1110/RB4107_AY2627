@@ -6,18 +6,24 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 14. Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
+Target: **Waveshare ESP32-S3-POE-ETH-8DI-8DO**.
 
 ## Interface
 
-The 8 relays are driven by a **TCA9554** I2C expander (address `0x20` on the
-board I2C bus, SDA 42 / SCL 41). This comes from the legacy controller and is
-UNCONFIRMED.
+This board has **no relays**. Its 8 digital outputs are opto-isolated
+Darlington transistors that switch to GND (up to 500 mA each, flyback diodes
+fitted). Terminal block: COM (to the + of the load supply), GND, outputs 1–8.
+To cut the appliance's power, wire the coil of an external relay or contactor
+(DC coil, under 500 mA) between COM and one output.
+
+The outputs are driven by a **TCA9554** I2C expander at `0x20` on the board
+I2C bus (SDA 42 / SCL 41), confirmed on the bench. The code and menuconfig
+still call it the "shutdown relay": that means the external relay.
 
 ## API (`components/shutdown_output`)
 
 ```c
-shutdown_output_init(&cfg);   // all relays to the safe boot state
+shutdown_output_init(&cfg);   // all outputs to the safe boot state
 shutdown_activate();          // cut power to the appliance
 shutdown_release();           // restore power
 shutdown_verify();            // read the expander back
@@ -32,13 +38,13 @@ its outputs onto this API and the buzzer.
 |---|---|---|
 | `RB_SHUTDOWN_RELAY_CHANNEL` | 1 | |
 | `RB_RELAY_ACTIVE_LEVEL` | 1 | UNCONFIRMED |
-| `RB_SHUTDOWN_POLARITY` | energise to shut down | OPEN QUESTION: depends on NO/NC wiring. *De-energise to shut down* is fail-safe: the appliance loses power if the controller loses power. |
+| `RB_SHUTDOWN_POLARITY` | energise to shut down | OPEN QUESTION: depends on whether the appliance is on the external relay's NO or NC contact. *De-energise to shut down* is fail-safe: the appliance loses power if the controller loses power. |
 | `RB_SHUTDOWN_BOOT_STATE` | released | OPEN QUESTION |
 
 ## Boot glitch protection
 
 After power-on the TCA9554 pins are inputs. The driver writes the **output
-register first** and only then switches the pins to outputs, so a relay can't
-click during boot. (The legacy driver did it in the opposite order.) If a
+register first** and only then switches the pins to outputs, so an output
+can't switch on during boot. (The earlier prototype driver did it in the opposite order.) If a
 read-back doesn't match what was written (e.g. the expander reset after a
 brownout), the registers are restored and a fault is reported.

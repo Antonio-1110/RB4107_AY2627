@@ -5,11 +5,11 @@
 > presence boards and [`controller`](../controller) on the S3, this is
 > the running system.
 
-TODO sections 1, 3.1 and 5. Target: a **DFRobot DFR1117 ESP32-C6 mini** wired to one
+Target: a **DFRobot DFR1117 ESP32-C6 mini** wired to one
 **MLX90640** (32×24) thermal camera looking at the hob.
 
 ```text
-MLX90640 → C6 → feature extraction → ESP-NOW (THERMAL_DATA) → S3 controller (29)
+MLX90640 → C6 → feature extraction → ESP-NOW (THERMAL_DATA) → S3 controller
 ```
 
 ## What it does
@@ -23,7 +23,7 @@ Raw frames never leave the node; only the features are sent. The node does
 not decide anything: the controller runs the safety state machine. Every
 packet carries the node ID and the role "thermal".
 
-Board checks (section 1) are the same as on the presence node: boot report,
+Board checks are the same as on the presence node: boot report,
 periodic uptime/heap/ESP-NOW line, blinking status LED.
 
 Pins (menuconfig → *RB4107 configuration → Sensor node → MLX90640 thermal
@@ -41,4 +41,4 @@ I2C pins, so check your wiring (see [project `testing/mlx90640`](../testing/mlx9
 3. `idf.py -p <PORT> flash monitor`
 
 To test the camera on its own first (I2C pins, frames, readings at different
-distances and heat sources), use project [03](../testing/mlx90640).
+distances and heat sources), use [`testing/mlx90640`](../testing/mlx90640).

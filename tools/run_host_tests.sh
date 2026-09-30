@@ -4,7 +4,7 @@
 #   2. Django backend tests (the broker round trip runs only if Mosquitto is up).
 #
 # Needs: ESP-IDF v6.1 environment (. $IDF_PATH/export.sh), libbsd-dev on Linux,
-#        Python with backend/django/requirements.txt installed.
+#        Python with django/requirements.txt installed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -15,5 +15,5 @@ idf.py -B build_linux -DSDKCONFIG=build_linux/sdkconfig build >/dev/null
 ./build_linux/rb4107_unit_tests.elf | tail -3
 
 echo "== Django backend tests =="
-cd "$ROOT/backend/django"
+cd "$ROOT/django"
 python3 manage.py test ingest

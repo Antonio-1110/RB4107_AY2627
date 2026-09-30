@@ -11,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-REPO_ROOT = BASE_DIR.parent.parent
+REPO_ROOT = BASE_DIR.parent
 load_dotenv(BASE_DIR / ".env", override=False)
 
 

@@ -1,10 +1,28 @@
 # ESP32-S3 controller architecture
 
 How the controller firmware (`firmware/controller`, wired by
-`firmware/components/rb_controller_app`) is put together. This covers TODO
-sections 7, 8, 11, 12, 16, 19 and 22.
+`firmware/components/rb_controller_app`) is put together.
 
-## Tasks and queues (sections 11, 12)
+## Ground rules
+
+1. Safety logic runs locally on the ESP32-S3. The C6 nodes only read and send.
+2. MQTT, Django and the network are never needed for a shutdown.
+3. No blocking waits in the safety path: every timer is `now - start >= timeout`.
+4. Missing sensor data is never a safe reading: it is `UNKNOWN`, which means FAULT.
+5. Drivers are separate from the state machine, which is plain C and unit-tested on a PC.
+6. Every tunable is in one Kconfig; both protocols (ESP-NOW, MQTT) are versioned.
+
+## Where the code lives (`firmware/components`)
+
+| Area | Components |
+|---|---|
+| Safety logic | `safety` (state machine), `rb_safety_config`, `sensor_node` (per-node health, combining radars) |
+| Communication | `rb_protocol`, `rb_espnow`, `rb_net`, `rb_wifi`, `rb_connectivity`, `rb_mqtt`, `rb_topics`, `rb_json`, `rb_telemetry` |
+| Hardware | `rb_board_s3`, `tca9554`, `buzzer`, `shutdown_output`, `rb_outputs`, `pcf85063`, `rb_time`, `rb_wallclock`, `c4002`, `mlx90640`, `thermal_features` |
+| System | `rb_controller` (tasks, queues), `rb_controller_app` (wiring), `fault_manager`, `rb_app`, `rb_config`, `rb_types`, `rb_log`, `rb_diag`, `rb_sim` |
+| Sensor nodes | `rb_node_app`, `rb_node_sensors` |
+
+## Tasks and queues
 
 ```text
 presence node A, presence node B, thermal node (three ESP32-C6)
@@ -35,9 +53,9 @@ ESP-NOW callback (Wi-Fi task)
 The safety task never waits on anything the telemetry side owns. Events are
 posted with a zero timeout, the snapshot lock is only held for a struct copy,
 and only the telemetry task calls the MQTT client. So an MQTT stall can't
-stop safety processing (checked by the critical failure test, section 30).
+stop safety processing (checked by the critical failure test).
 
-## Receiving sensor data (sections 7, 8)
+## Receiving sensor data
 
 There are three sensor nodes, each an ESP32-C6 with one sensor (see
 [protocol.md](protocol.md)):
@@ -83,7 +101,7 @@ going offline or reporting an invalid sensor is its own SAFETY fault, so
 losing any one of the three nodes puts the controller in FAULT (buzzer fault
 pattern, SHUTDOWN after `RB_SAFETY_FAULT_SHUTDOWN_S`).
 
-## Faults (section 16)
+## Faults
 
 `components/fault_manager` is the one list of faults, and
 `components/rb_app` raises and clears them. Every change is logged and
@@ -115,7 +133,7 @@ and clear as each node is heard.
 **Only SAFETY faults feed the state machine.** A telemetry fault such as
 *MQTT disconnected* is logged and reported but never changes the safety state.
 
-## MQTT client (section 19)
+## MQTT client
 
 `components/rb_mqtt` wraps ESP-MQTT (`espressif/mqtt`):
 
@@ -128,7 +146,7 @@ and clear as each node is heard.
 | Connection state | `DISCONNECTED` / `CONNECTING` / `CONNECTED`, logged on change, separate from the safety state |
 | Presence on the broker | retained `controller_status` (`"online": true`) on `controller/status`, with a Last Will saying `"online": false` |
 
-## Publishing strategy (section 22)
+## Publishing strategy
 
 `components/rb_telemetry`:
 

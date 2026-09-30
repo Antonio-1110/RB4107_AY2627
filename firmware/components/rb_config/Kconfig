@@ -311,7 +311,7 @@ menu "RB4107 configuration"
 
     menu "Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)"
 
-        comment "Defaults come from legacy/main_controller/main/system_config.h"
+        comment "Defaults come from the earlier prototype controller"
 
         config RB_S3_I2C_PORT
             int "Board I2C port"
@@ -358,7 +358,7 @@ menu "RB4107 configuration"
                 range -1 48
                 default 46
                 help
-                    From legacy/main_controller. UNCONFIRMED: check the
+                    From the earlier prototype controller. UNCONFIRMED: check the
                     Waveshare schematic.
 
             config RB_BUZZER_ACTIVE_LEVEL
@@ -398,7 +398,7 @@ menu "RB4107 configuration"
                 range 0 1
                 default 1
                 help
-                    From legacy/main_controller (TCA9554_ACTIVE_LEVEL = 1).
+                    From the earlier prototype controller (TCA9554_ACTIVE_LEVEL = 1).
                     UNCONFIRMED.
 
             choice RB_SHUTDOWN_POLARITY
@@ -586,7 +586,7 @@ menu "RB4107 configuration"
         menu "W5500 Ethernet"
             depends on RB_NET_ETHERNET
 
-            comment "Pins from legacy/main_controller/main/system_config.h"
+            comment "Pins from the earlier prototype controller"
 
             config RB_ETH_SPI_HOST
                 int "SPI host (1 = SPI2, 2 = SPI3)"

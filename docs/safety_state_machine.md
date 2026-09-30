@@ -70,15 +70,9 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 - The optional `timing_hook` lets the temperature trend shorten the
   warning/shutdown timeouts later. It can only make them stricter.
 
-## Open questions (TODO section 32) and current defaults
+## Defaults still to confirm
 
-Every one of these is a configuration option, not a hard-coded answer.
-
-| Question | Option | Default |
-|---|---|---|
-| Does "90 s" mean total unattended time or 90 s after the warning? | `shutdown_timing` | total unattended (warning 60 s, shutdown 90 s) |
-| Person returns during WARNING | `warning_exit` | return to MONITORING on presence |
-| Temperature falls while unattended | `cooling_policy` | keep the timers running |
-| Safety-critical sensor fails | `fault_shutdown_timeout_ms` | FAULT with buzzer, SHUTDOWN after 90 s |
-| Presence debounce | `absence_debounce_ms`, `presence_return_debounce_ms` | 2000 ms / 0 ms |
-| Cooking temperature threshold | `heat_on_temp_c`, `heat_off_temp_c` | 50 °C / 40 °C: **UNVERIFIED placeholders** |
+The timings, what happens when a person returns during WARNING or the pan
+cools, and the fault shutdown time are all menuconfig options with a
+provisional default. The team decision is tracked in [issue #24](https://github.com/Antonio-1110/RB4107_AY2627/issues/24), the cooking
+temperature thresholds (placeholder 50 °C on / 40 °C off) in [issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21).
