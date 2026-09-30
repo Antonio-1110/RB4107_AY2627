@@ -511,6 +511,21 @@ menu "RB4107 configuration"
                 range 500 600000
                 default 10000
 
+            config RB_CTRL_NODE_RESTART_LIMIT
+                int "Raise node_restarting after this many node reboots (0 = off)"
+                range 0 8
+                default 3
+                help
+                    A node whose uptime jumps backwards has rebooted. This many
+                    reboots within the window below raises the node_restarting
+                    telemetry fault: unstable power, a crash loop, or someone
+                    replaying the node's packets.
+
+            config RB_CTRL_NODE_RESTART_WINDOW_S
+                int "... within this many seconds"
+                range 10 86400
+                default 600
+
         endmenu
 
         menu "Tasks"

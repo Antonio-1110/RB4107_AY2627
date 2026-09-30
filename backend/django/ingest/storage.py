@@ -37,6 +37,32 @@ def merge(target, patch, stamps, stamp, *, retained=False, prefix=""):
             stamps[path] = stamp
 
 
+def track_boot(device, message, row, now, source):
+    """Order live messages by (boot_id, sequence), which works without a wall clock.
+
+    Returns "live", "duplicate" (sequence already seen in this boot) or
+    "historical" (older than the newest message of this boot). A new boot_id
+    means the controller restarted, which is logged as an event.
+    """
+    data = message.data
+    boot_id, sequence = data.get("boot_id"), data.get("sequence")
+    if message.retained or not boot_id or not isinstance(sequence, int):
+        return "live"
+    if device.boot_id == boot_id:
+        if device.last_sequence is not None and sequence <= device.last_sequence:
+            return "duplicate" if sequence == device.last_sequence else "historical"
+        device.last_sequence = sequence
+        return "live"
+    previous = device.boot_id
+    device.boot_id, device.last_sequence = boot_id, sequence
+    if previous:
+        SafetyEvent.objects.create(device=device, message=row, received_at=now, source_at=source,
+                                   event_type="controller_restarted",
+                                   detail={"previous_boot_id": previous, "boot_id": boot_id,
+                                           "note": f"New boot {boot_id} (was {previous})"})
+    return "live"
+
+
 def persist(message, received_at=None):
     now = received_at or timezone.now()
     data = message.data
@@ -58,6 +84,10 @@ def persist(message, received_at=None):
             outcome="retained" if message.retained else "accepted",
         )
         device.last_received_at = now
+        order = track_boot(device, message, row, now, source)
+        if order != "live":
+            row.outcome = order
+            row.save(update_fields=["outcome"])
         if message.type == "controller_status":
             if not message.retained or data["online"] is False:
                 device.reported_online = data["online"]
@@ -75,8 +105,9 @@ def persist(message, received_at=None):
             # controller's current full telemetry with an old event's state.
         else:
             fields = normalize(message)
-            historical = bool(message.type == "telemetry" and source and
-                              device.last_snapshot_source_at and source < device.last_snapshot_source_at)
+            historical = order != "live" or bool(
+                message.type == "telemetry" and source and
+                device.last_snapshot_source_at and source < device.last_snapshot_source_at)
             stamp = None if message.retained else min(now, source or now).isoformat()
             if not historical:
                 merge(device.latest, fields, device.field_updated_at, stamp, retained=message.retained)
@@ -85,10 +116,10 @@ def persist(message, received_at=None):
                     device.reported_online = True
                 if not message.retained and message.type == "telemetry":
                     device.last_snapshot_source_at = min(now, source) if source else None
-            else:
+            elif order == "live":
                 row.outcome = "historical"
                 row.save(update_fields=["outcome"])
-            if message.type == "telemetry" and not message.retained:
+            if message.type == "telemetry" and not message.retained and order != "duplicate":
                 Reading.objects.create(device=device, message=row, received_at=now, source_at=source,
                                        values=fields, temperature_c=fields.get("temperature_c"))
         device.save()

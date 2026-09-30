@@ -1,8 +1,9 @@
-# AES dashboard integration (v2.2)
+# Monitoring dashboard
 
-The AES frontend now runs inside the repository's existing Django project.
-It uses the existing `mqtt_subscriber` and JSON-schema validator; there is no
-second MQTT ingestion service or separate database to synchronize.
+The dashboard in [`frontend/`](../frontend) shows every controller's reported
+state. It reads a read-only JSON API from the Django backend, which is fed by
+the existing `mqtt_subscriber` and JSON-schema validator. It can not operate,
+silence or reset anything: local protection stays on the ESP32-S3.
 
 ## Data path and files
 
@@ -12,16 +13,22 @@ second MQTT ingestion service or separate database to synchronize.
 4. `ingest/normalization.py` adapts controller fields to the dashboard contract.
 5. SQLite holds controller snapshots, field timestamps, packet records,
    temperature samples, events and worker heartbeat.
-6. `ingest/views.py` serves JSON; `templates/dashboard.html` and
-   `static/dashboard.js` poll the same Django origin.
+6. `ingest/views.py` serves JSON under `/api/`.
+7. `frontend/` (plain HTML, CSS and JavaScript modules, no build step) polls
+   that API every two seconds. Django serves it at `/`, so both share one origin.
 
-The frontend is the existing lightweight Django-template/JavaScript dashboard,
-including multi-stall overview, location filters, station selector and canvas
-temperature graph. No frontend build process is required.
-
-New frontend/config/docs/test-runner files use the `.jw` marker. Importable
-Python modules, Django migration names and management commands use normal
-Python/Django filenames so discovery and imports work.
+```text
+frontend/
+├── index.html        page layout: overview and stall detail views
+├── css/dashboard.css
+└── js/
+    ├── config.js     API base URL, poll interval, request timeout
+    ├── api.js        the three GET calls the page makes
+    ├── dashboard.js  state, polling and rendering of both views
+    ├── chart.js      temperature history canvas
+    ├── dom.js        small DOM helpers
+    └── format.js     value formatting
+```
 
 ## Firmware → frontend contract
 
@@ -35,39 +42,44 @@ Python/Django filenames so discovery and imports work.
 | `safety.state` | `safety_state` | Firmware enum in lower case |
 | `safety.buzzer` | `alarm_state` | OFF → clear; other enum values in lower case |
 | `safety.shutdown` | `relay_state` | true → isolated, false → enabled; **firmware output report, not independent valve feedback** |
-| `safety.state == SHUTDOWN` AND `safety.shutdown == true` | `manual_reset_required` | Documented firmware latch semantics; see below |
+| `safety.reset_required` | `manual_reset_required` | Sent by the firmware. For older firmware without it: `safety.state == SHUTDOWN` AND `safety.shutdown` |
+| `safety.warning_after_ms` / `shutdown_after_ms` / `shutdown_counts_from` | `warning_after_seconds` / `shutdown_after_seconds` / same | The controller's timer settings |
+| `boot_id` + `sequence` | stored on the device | Orders messages and detects restarts (see below) |
 | `safety.unattended_ms` | `unattended_seconds` | Unit conversion only; browser/server never advances this safety timer |
 | `uptime_ms` | `uptime_seconds` | Unit conversion |
 | `nodes[]` and sensor topics | `sensors[node_id]` | Distinct C4002/MLX90640 diagnostics for each controller |
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
 
-Schema v2 has no separate manual-reset boolean. The adapter derives it from
-the published SHUTDOWN state and shutdown output because
-[`docs/safety_state_machine.md`](safety_state_machine.md) and
-`firmware/components/safety/src/safety.c` define SHUTDOWN as latched until
-operator reset. It does not infer shutdown from temperature, absence duration
-or network loss. If future firmware changes this contract, update this adapter
-or consume a new explicit reset field.
+The firmware publishes `safety.reset_required` (`safety_reset_required()` in
+`firmware/components/safety`). For messages from older firmware without it,
+the adapter falls back to SHUTDOWN state plus shutdown output, which
+[`docs/safety_state_machine.md`](safety_state_machine.md) defines as latched
+until operator reset; `reset_status_source` says which was used. It never
+infers a shutdown from temperature, absence duration or network loss.
 
 The top sticky banner requires isolated supply AND manual reset required.
 WARNING and UNATTENDED remain in summary, tiles, table and stall detail without
-a sticky warning banner. Missing or invalid thermal values stay null. Cooking
-active flags and warning/shutdown threshold settings are not sent by current
-firmware, so those fields remain unknown rather than assuming 60/90 seconds.
+a sticky warning banner. Missing or invalid thermal values stay null. The
+warning and shutdown times shown are the ones the controller reports.
+
+Display severity (`ingest/locations.py`, `classify_display_state`) uses only
+the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
+UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
+BOOT/SELF_TEST show as "controller starting".
 
 ## Locations and more controllers
 
-Edit `backend/django/location_catalog.json`, keyed by actual `controller_id`.
-The default `controller_01` entry is an undeployed integration bench. Other
-entries are clearly labelled synthetic station assignments using the earlier
-Changi reference catalogue. They appear only when those controllers actually
-report. They are not a verified current airport floor plan or a claim of deployment.
+Edit `backend/django/locations.json`, keyed by the firmware's `controller_id`
+(`RB_MQTT_CONTROLLER_ID`). The `controller_01` entry is the lab bench.
+`backend/django/locations.demo.json` holds made-up stalls for `simulate_fleet`;
+select it with `RB4107_LOCATION_CATALOG_FILE=locations.demo.json`. Its terminal
+layout is illustrative and its stall names are fictional.
 Unknown IDs are accepted and displayed as unassigned locations.
 
 Multiple controllers can share a `stall_id` while having different
 `station_name` values. Their worst displayed severity is used in the overview;
 each station remains selectable. Physical multi-controller deployments need
-unique firmware prefixes (e.g. rb4107/controller_01) and unique controller IDs.
+unique firmware topic prefixes (`RB_MQTT_TOPIC_PREFIX`, e.g. `rb4107/controller_01`) and unique controller IDs.
 Use `RB4107_MQTT_TOPIC=rb4107/+/#` to subscribe to all controller namespaces.
 The original rb4107/controller/state single-controller tree remains supported.
 
@@ -87,48 +99,17 @@ The original rb4107/controller/state single-controller tree remains supported.
 - Valid source timestamps participate in field freshness. Older dated full
   snapshots are stored as historical and cannot clear newer shutdown state.
   Graph x-values are server receipt times; `source_at` is also available.
-- MQTT DUP retransmissions with identical payloads are deduplicated. Identical
-  normal messages are not globally deduplicated: firmware currently has no
-  unique boot ID. With `timestamp=null`, definitive cross-reboot/out-of-order
-  comparison is unavailable; non-retained snapshots use receipt time. A future
-  boot_id + monotonic sequence contract should address that before deployment.
+- MQTT DUP retransmissions with identical payloads are deduplicated.
+- Within one `boot_id`, a message whose `sequence` is not higher than the
+  newest one seen is stored as `historical` (or `duplicate` for the same
+  number) and does not change the current state, even when `timestamp` is
+  null. A new `boot_id` is a controller restart: it is accepted whatever its
+  sequence and logged as a `controller_restarted` event.
 - No login, retention job, broker TLS setup or production HTTP service is added
   by this prototype integration. Keep runserver bound to localhost and use an
   SSH tunnel for remote development. Existing .env/database files are ignored
   by Git. No actuator/reset HTTP endpoint or MQTT command publisher is present.
 
-## Running on servera with Fish
+## Running it
 
-From the repository checkout:
-
-```fish
-cd backend/django
-python3 -m venv .venv
-source .venv/bin/activate.fish
-python -m pip install -r requirements.txt
-cp -n .env.example .env
-python manage.py migrate
-python manage.py runserver 127.0.0.1:8000
-```
-
-Second server terminal, after editing RB4107_MQTT_HOST in `.env` to the broker:
-
-```fish
-cd ~/RB4107_AY2627/backend/django
-source .venv/bin/activate.fish
-python manage.py mqtt_subscriber
-```
-
-For a UI demo instead of real MQTT ingestion, use `python manage.py simulate_fleet --direct`.
-Change the checkout path above if you cloned elsewhere. These commands use the
-repository's `manage.py`, not the old standalone `manage.jw.py`.
-
-Windows PowerShell, kept open while browsing:
-
-```powershell
-ssh -o ExitOnForwardFailure=yes -N -L 8010:127.0.0.1:8000 shaohua@servera
-```
-
-Open http://127.0.0.1:8010/ on Windows. If 8000 is already occupied, identify the
-old development server before restarting; running a second instance on the same
-port fails. Header v2.2 identifies this integrated build.
+See [`backend/django/README.md`](../backend/django/README.md#setup).

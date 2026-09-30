@@ -39,6 +39,9 @@ typedef enum {
     NODE_SEQ_WRONG_ROLE,      /* expected node ID, but the wrong kind of node: dropped */
 } node_seq_result_t;
 
+/* Restart times kept per node, for spotting a node that keeps rebooting. */
+#define NODE_RESTART_HISTORY 8
+
 typedef enum {
     NODE_LINK_NEVER_SEEN = 0,
     NODE_LINK_ONLINE,
@@ -72,10 +75,12 @@ typedef struct {
     uint32_t out_of_order;
     uint32_t restarts;
     uint32_t wrong_role;
+    uint32_t restart_ms[NODE_RESTART_HISTORY]; /* ring buffer, indexed by restarts */
 
     /* Health tracking (section 8). */
     node_link_state_t link;
     bool sensor_ok;           /* last evaluated: fresh, valid reading from an ONLINE node */
+    bool restarting;          /* last evaluated: restarted too often recently */
 } sensor_node_state_t;
 
 void sensor_node_init(sensor_node_state_t *node, uint32_t node_id, rb_node_role_t role);
@@ -88,6 +93,13 @@ node_seq_result_t sensor_node_on_packet(sensor_node_state_t *node, const rb_pack
 typedef struct {
     uint32_t stale_timeout_ms;    /* no packet for this long: ONLINE -> STALE */
     uint32_t offline_timeout_ms;  /* no packet for this long: -> OFFLINE */
+    /*
+     * A node that restarts restart_limit times within restart_window_ms is
+     * flagged as restarting (unstable power, a crash loop, or someone
+     * replaying its packets). 0 = off; at most NODE_RESTART_HISTORY.
+     */
+    uint32_t restart_limit;
+    uint32_t restart_window_ms;
 } sensor_node_health_config_t;
 
 /* Events returned by sensor_node_evaluate(), as a bitmask. */
@@ -97,6 +109,8 @@ typedef enum {
     NODE_EVT_OFFLINE = 1u << 2,
     NODE_EVT_SENSOR_VALID = 1u << 3,      /* the node's reading became usable (recovery) */
     NODE_EVT_SENSOR_INVALID = 1u << 4,    /* the node's reading became unusable (fault) */
+    NODE_EVT_RESTARTING = 1u << 5,        /* restart_limit restarts within restart_window_ms */
+    NODE_EVT_RESTARTS_SETTLED = 1u << 6,  /* no longer restarting too often */
 } node_event_t;
 
 /*

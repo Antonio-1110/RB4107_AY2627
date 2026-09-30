@@ -14,6 +14,7 @@
 #include "rb_outputs.h"
 #include "rb_sim.h"
 #include "rb_telemetry.h"
+#include "rb_time.h"
 #include "rb_wallclock.h"
 
 static const char *TAG = "CONTROLLER";
@@ -26,7 +27,7 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 esp_err_t rb_controller_app_start(void)
 {
     rb_log_init();
-    ESP_LOGI(TAG, "RB4107 controller %s starting", CONFIG_RB_MQTT_CONTROLLER_ID);
+    ESP_LOGI(TAG, "RB4107 controller %s starting, boot %s", CONFIG_RB_MQTT_CONTROLLER_ID, rb_time_boot_id());
 
     const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
     ESP_RETURN_ON_ERROR(rb_controller_init(&cfg), TAG, "controller queues");

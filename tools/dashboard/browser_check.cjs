@@ -1,7 +1,6 @@
-// Optional browser check used by dashboard_smoke.py. No frontend build step.
+// Optional browser check run by smoke_test.py (RB4107_BROWSER_CHECK=1).
 const assert = require('node:assert/strict');
-const {chromium} = require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES
-  ? process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES + '/playwright' : 'playwright');
+const {chromium} = require('playwright');
 const base = process.argv[2];
 (async () => {
   const browser = await chromium.launch({headless:true,
@@ -15,7 +14,6 @@ const base = process.argv[2];
     assert.equal(await page.locator('.global-alert').count(), 1);
     assert.equal(await page.locator('.global-alert-warning').count(), 0);
     assert.match(await page.locator('.alert-title').innerText(), /MANUAL RESET REQUIRED/);
-    assert.match(await page.locator('.prototype').innerText(), /v2.2/);
     await page.locator('.global-alert .alert-button').click();
     await page.waitForFunction(() => document.getElementById('chart-caption').textContent.includes('samples'));
     assert.equal(await page.locator('#sensor-rows tr').count(), 3);
@@ -23,7 +21,7 @@ const base = process.argv[2];
     assert.match(await page.locator('#reset-required').innerText(), /Yes/);
     assert.match(await page.locator('#thermal-extra').innerText(), /°C\/min/);
     await page.locator('#overview-tab').click();
-    await page.locator('button.stall-link', {hasText:'Demo Stall S01'}).click();
+    await page.locator('button.stall-link', {hasText:'Demo food court stall'}).click();
     assert.equal(await page.locator('#device-select option').count(), 2);
     await page.locator('#overview-tab').click();
     await page.locator('button.stall-link', {hasText:'Controller 01 — test bench'}).click();

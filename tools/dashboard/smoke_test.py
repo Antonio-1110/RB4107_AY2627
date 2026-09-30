@@ -14,7 +14,7 @@ import tempfile
 import time
 from urllib.request import urlopen
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend/django"
 
 
@@ -48,7 +48,7 @@ def main():
                "RB4107_MQTT_TOPIC": "rb4107/+/#", "RB4107_MQTT_USERNAME": "", "RB4107_MQTT_PASSWORD": "",
                "RB4107_MQTT_CLIENT_ID": "rb4107-isolated-smoke", "RB4107_LOG_LEVEL": "WARNING",
                "DJANGO_ALLOWED_HOSTS": "127.0.0.1,localhost", "DJANGO_DEBUG": "1",
-               "RB4107_LOCATION_CATALOG_FILE": str(BACKEND / "location_catalog.json")}
+               "RB4107_LOCATION_CATALOG_FILE": str(BACKEND / "locations.demo.json")}
         with open(Path(tmp) / "process.log", "w+") as logs:
             def start(args):
                 proc = subprocess.Popen([sys.executable, *args], cwd=BACKEND, env=env, stdout=logs, stderr=logs)
@@ -128,7 +128,7 @@ def main():
                 eventually(lambda: len(get("/api/devices/")["devices"]) == 10)
                 assert get("/api/devices/")["summary"]["total"] == 9
                 if os.environ.get("RB4107_BROWSER_CHECK") == "1":
-                    subprocess.run(["node", str(ROOT / "tools/dashboard_browser_check.cjs"),
+                    subprocess.run(["node", str(ROOT / "tools/dashboard/browser_check.cjs"),
                                     f"http://127.0.0.1:{http_port}"], env=env, check=True)
                 print("PASS: schema-v2 MQTT fleet, separate controllers and shared-stall aggregation", flush=True)
             except Exception:

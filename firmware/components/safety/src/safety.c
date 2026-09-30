@@ -139,6 +139,11 @@ bool safety_set_config(safety_sm_t *sm, const safety_config_t *cfg)
     return true;
 }
 
+bool safety_reset_required(const safety_sm_t *sm)
+{
+    return sm->state == SAFETY_SHUTDOWN;
+}
+
 uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms)
 {
     return sm->unattended_active ? (uint32_t)(now_ms - sm->unattended_start_ms) : 0;

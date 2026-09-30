@@ -58,6 +58,7 @@ node_seq_result_t sensor_node_on_packet(sensor_node_state_t *node, const rb_pack
         node->missed += pkt->sequence - node->last_sequence - 1u;
         break;
     case NODE_SEQ_NODE_RESTART:
+        node->restart_ms[node->restarts % NODE_RESTART_HISTORY] = now_ms;
         node->restarts++;
         break;
     default:
@@ -106,6 +107,19 @@ static node_link_state_t link_state(const sensor_node_state_t *node, const senso
     return NODE_LINK_ONLINE;
 }
 
+/* Restarts recorded within the last window_ms. */
+static uint32_t recent_restarts(const sensor_node_state_t *node, uint32_t now_ms, uint32_t window_ms)
+{
+    const uint32_t kept = node->restarts < NODE_RESTART_HISTORY ? node->restarts : NODE_RESTART_HISTORY;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < kept; i++) {
+        if ((uint32_t)(now_ms - node->restart_ms[i]) < window_ms) {
+            count++;
+        }
+    }
+    return count;
+}
+
 uint32_t sensor_node_evaluate(sensor_node_state_t *node, const sensor_node_health_config_t *cfg, uint32_t now_ms)
 {
     uint32_t events = 0;
@@ -124,6 +138,13 @@ uint32_t sensor_node_evaluate(sensor_node_state_t *node, const sensor_node_healt
     if (sensor_ok != node->sensor_ok) {
         events |= sensor_ok ? NODE_EVT_SENSOR_VALID : NODE_EVT_SENSOR_INVALID;
         node->sensor_ok = sensor_ok;
+    }
+
+    const uint32_t limit = cfg->restart_limit < NODE_RESTART_HISTORY ? cfg->restart_limit : NODE_RESTART_HISTORY;
+    const bool restarting = limit > 0 && recent_restarts(node, now_ms, cfg->restart_window_ms) >= limit;
+    if (restarting != node->restarting) {
+        events |= restarting ? NODE_EVT_RESTARTING : NODE_EVT_RESTARTS_SETTLED;
+        node->restarting = restarting;
     }
     return events;
 }

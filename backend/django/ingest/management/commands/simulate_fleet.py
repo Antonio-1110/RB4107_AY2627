@@ -1,5 +1,6 @@
 """Publish synthetic firmware-shaped reports, or feed the same handlers directly."""
 import json
+import secrets
 import time
 
 import paho.mqtt.client as mqtt
@@ -26,7 +27,8 @@ class Command(BaseCommand):
             raise CommandError("--interval must be positive")
         ids = [key for key, value in load_location_catalog()["devices"].items() if value.get("demo_only")]
         if not ids:
-            raise CommandError("Catalogue has no demo_only controllers; configure a demo catalogue first")
+            raise CommandError("The location catalogue has no demo_only controllers. "
+                               "Set RB4107_LOCATION_CATALOG_FILE=locations.demo.json first.")
         prefix = topic_prefix(settings.RB4107_MQTT["TOPIC"])
         client = None
         try:
@@ -41,13 +43,14 @@ class Command(BaseCommand):
                 client.loop_start()
             self.stdout.write(f"Simulating {len(ids)} stations; {'direct database path' if options['direct'] else 'MQTT'}")
             tick = 0
+            boot_id = secrets.token_hex(4)  # one "boot" per simulator run
             while True:
                 if options["direct"]:
                     worker_status(True, mode="demo-direct")
                 for index, controller_id in enumerate(ids):
                     concrete = "/".join(controller_id if part == "+" else part for part in prefix.split("/"))
                     topic = f"{concrete}/controller/state"
-                    data = demo_telemetry(controller_id, index, tick)
+                    data = demo_telemetry(controller_id, index, tick, boot_id)
                     payload = json.dumps(data).encode()
                     msg = parse(topic, payload, prefix)
                     if options["direct"]:

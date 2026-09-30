@@ -18,7 +18,8 @@ static rb_telemetry_t sample(void)
 {
     static const rb_json_fault_t faults[] = {{"mqtt_disconnected", "TELEMETRY"}};
     return (rb_telemetry_t){
-        .hdr = {"controller_01", NULL, 1000, 1},
+        .hdr = {.controller_id = "controller_01", .boot_id = "3f9a01c2", .timestamp = NULL, .uptime_ms = 1000,
+                .sequence = 1},
         .presence_state = "PRESENT",
         .nodes = NODES,
         .node_count = 3,
@@ -26,7 +27,16 @@ static rb_telemetry_t sample(void)
         .node = {"presence", "OFFLINE", false, 0, 0, 0},
         .presence = {.valid = false, .detected = false, .distance_m = NAN},
         .thermal = {.valid = true, .max_c = 84.2f, .rate_c_per_min = NAN},
-        .safety = {"UNATTENDED", 1, 2, "OFF", false, false, 3},
+        .safety = {.state = "SHUTDOWN",
+                   .state_ms = 1,
+                   .unattended_ms = 2,
+                   .buzzer = "SHUTDOWN",
+                   .shutdown = true,
+                   .reset_required = true,
+                   .warning_after_ms = 60000,
+                   .shutdown_after_ms = 90000,
+                   .shutdown_counts_from = "UNATTENDED",
+                   .loop_count = 3},
         .faults = faults,
         .fault_count = 1,
     };
@@ -46,12 +56,23 @@ static void test_unknown_values_are_null(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"rate_c_per_min\":null"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"faults\":[\"mqtt_disconnected\"]"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"schema_version\":2"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"controller_id\":\"controller_01\",\"boot_id\":\"3f9a01c2\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"shutdown\":true,\"reset_required\":true,\"warning_after_ms\":60000,"
+                                     "\"shutdown_after_ms\":90000,\"shutdown_counts_from\":\"UNATTENDED\""));
 
     TEST_ASSERT_NOT_EQUAL(0, rb_json_presence(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"detected\":null")); /* invalid presence is not "false" */
     TEST_ASSERT_NOT_EQUAL(0, rb_json_node_status(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"sensor_node\":\"node_02\",\"role\":\"presence\",\"link\":\"OFFLINE\","
                                      "\"valid\":false"));
+}
+
+static void test_controller_status_carries_boot_id(void)
+{
+    TEST_ASSERT_NOT_EQUAL(0, rb_json_controller_status("controller_01", "3f9a01c2", false, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("{\"schema_version\":2,\"type\":\"controller_status\",\"controller_id\":\"controller_01\","
+                             "\"boot_id\":\"3f9a01c2\",\"online\":false}",
+                             buf);
 }
 
 static void test_overflow_returns_zero(void)
@@ -97,6 +118,7 @@ static void test_topics(void)
 void run_json_tests(void)
 {
     RUN_TEST(test_unknown_values_are_null);
+    RUN_TEST(test_controller_status_carries_boot_id);
     RUN_TEST(test_overflow_returns_zero);
     RUN_TEST(test_string_escaping);
     RUN_TEST(test_unbalanced_is_rejected);

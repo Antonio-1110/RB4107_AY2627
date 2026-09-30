@@ -5,9 +5,9 @@
  * docs/mqtt_schema.md, and the machine-readable JSON Schema is in docs/schema/
  * (the Django subscriber validates against those same files).
  *
- * Every message has: schema_version, type, controller_id, timestamp (ISO 8601
- * or null while the wall clock is unset), uptime_ms and sequence. Missing
- * values are null, never a made-up number.
+ * Every message has: schema_version, type, controller_id, boot_id, timestamp
+ * (ISO 8601 or null while the wall clock is unset), uptime_ms and sequence.
+ * Missing values are null, never a made-up number.
  */
 #include <stdbool.h>
 #include <stddef.h>
@@ -21,6 +21,7 @@ extern "C" {
 
 typedef struct {
     const char *controller_id;
+    const char *boot_id;          /* random per boot; with sequence it orders messages across reboots */
     const char *timestamp;        /* NULL -> null */
     uint32_t uptime_ms;
     uint32_t sequence;            /* per-controller message counter */
@@ -84,6 +85,10 @@ typedef struct {
         uint32_t unattended_ms;
         const char *buzzer;
         bool shutdown;
+        bool reset_required;          /* latched: only an operator reset restores the supply */
+        uint32_t warning_after_ms;    /* configured timers (a timing hook may shorten them) */
+        uint32_t shutdown_after_ms;
+        const char *shutdown_counts_from; /* "UNATTENDED" / "WARNING" */
         bool test_timers;
         uint32_t loop_count;
     } safety;
@@ -113,7 +118,8 @@ size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len); /* s
 size_t rb_json_event(const rb_event_msg_t *e, char *buf, size_t len);       /* events/... */
 
 /* controller/status (retained) and the MQTT Last Will. */
-size_t rb_json_controller_status(const char *controller_id, bool online, char *buf, size_t len);
+size_t rb_json_controller_status(const char *controller_id, const char *boot_id, bool online, char *buf,
+                                 size_t len);
 
 #ifdef __cplusplus
 }

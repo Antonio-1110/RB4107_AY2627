@@ -59,6 +59,55 @@ static void test_sequence_tracking(void)
     TEST_ASSERT_EQUAL(NODE_SEQ_WRONG_NODE, sensor_node_on_packet(&n, &p, 800));
 }
 
+static void test_repeated_restarts_are_flagged(void)
+{
+    const sensor_node_health_config_t cfg = {
+        .stale_timeout_ms = 2000, .offline_timeout_ms = 10000, .restart_limit = 3, .restart_window_ms = 60000};
+    sensor_node_state_t n;
+    sensor_node_init(&n, NODE_A, RB_NODE_ROLE_PRESENCE);
+    uint32_t now = 0, seq = 1;
+    rb_packet_t p = presence_packet(NODE_A, seq++, 5000, true);
+    sensor_node_on_packet(&n, &p, now);
+    sensor_node_evaluate(&n, &cfg, now);
+
+    /* Two reboots in a minute: still below the limit. */
+    for (int i = 0; i < 2; i++) {
+        now += 10000;
+        p = presence_packet(NODE_A, 1, 100, true);
+        TEST_ASSERT_EQUAL(NODE_SEQ_NODE_RESTART, sensor_node_on_packet(&n, &p, now));
+        p = presence_packet(NODE_A, 2, 5000, true);
+        sensor_node_on_packet(&n, &p, now);
+        TEST_ASSERT_FALSE(sensor_node_evaluate(&n, &cfg, now) & NODE_EVT_RESTARTING);
+    }
+    /* The third one within the window raises it. */
+    now += 10000;
+    p = presence_packet(NODE_A, 1, 100, true);
+    sensor_node_on_packet(&n, &p, now);
+    TEST_ASSERT_TRUE(sensor_node_evaluate(&n, &cfg, now) & NODE_EVT_RESTARTING);
+    TEST_ASSERT_TRUE(n.restarting);
+    TEST_ASSERT_EQUAL_UINT32(0, sensor_node_evaluate(&n, &cfg, now) & (NODE_EVT_RESTARTING | NODE_EVT_RESTARTS_SETTLED));
+
+    /* Once the window has passed without reboots it settles (packets keep the link up). */
+    for (int i = 0; i < 60; i++) {
+        now += 1000;
+        p = presence_packet(NODE_A, 2 + (uint32_t)i, 200 + 1000 * (uint32_t)i, true);
+        sensor_node_on_packet(&n, &p, now);
+        if (sensor_node_evaluate(&n, &cfg, now) & NODE_EVT_RESTARTS_SETTLED) {
+            break;
+        }
+    }
+    TEST_ASSERT_FALSE(n.restarting);
+
+    /* restart_limit 0 turns the check off. */
+    const sensor_node_health_config_t off = {.stale_timeout_ms = 2000, .offline_timeout_ms = 10000};
+    sensor_node_init(&n, NODE_A, RB_NODE_ROLE_PRESENCE);
+    for (int i = 0; i < 10; i++) {
+        p = presence_packet(NODE_A, 1, i % 2 ? 100 : 5000, true);
+        sensor_node_on_packet(&n, &p, (uint32_t)i * 100);
+    }
+    TEST_ASSERT_EQUAL_UINT32(0, sensor_node_evaluate(&n, &off, 1000) & NODE_EVT_RESTARTING);
+}
+
 static void test_sequence_wraparound(void)
 {
     sensor_node_state_t n;
@@ -342,6 +391,7 @@ static void test_either_radar_keeps_attended(void)
 void run_sensor_node_tests(void)
 {
     RUN_TEST(test_sequence_tracking);
+    RUN_TEST(test_repeated_restarts_are_flagged);
     RUN_TEST(test_sequence_wraparound);
     RUN_TEST(test_wrong_role_is_dropped);
     RUN_TEST(test_health_online_stale_offline_and_recovery);

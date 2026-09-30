@@ -48,29 +48,34 @@ def location_for(device_id, catalog=None):
 
 
 def classify_display_state(device):
-    """Classify reported states for the UI; never performs cooking safety logic."""
+    """Classify reported states for the UI; never performs cooking safety logic.
+
+    The values come from normalization.py, i.e. the firmware's schema-v2 enums
+    in lower case: safety_state is boot, self_test, idle, monitoring,
+    unattended, warning, shutdown or fault; alarm_state is clear, warning,
+    shutdown or fault; relay_state is enabled or isolated.
+    """
     values = device["values"]
-    safety = str(values.get("safety_state") or "").strip().lower()
-    alarm = str(values.get("alarm_state") or "").strip().lower()
-    relay = str(values.get("relay_state") or "").strip().lower()
-    critical_states = {"shutdown", "shutoff", "shutoff_latched", "isolated", "emergency", "fire"}
-    warning_states = {"warning", "unattended_warning", "alarm", "active"}
-    fault_states = {"fault", "error", "sensor_fault", "relay_fault"}
-    if safety in critical_states or relay in {"isolated", "shutoff", "off_latched"}:
+    safety = values.get("safety_state")
+    alarm = values.get("alarm_state")
+    relay = values.get("relay_state")
+    if relay == "isolated" or safety == "shutdown":
         level, title = "critical", "SUPPLY ISOLATED"
-        source = "relay_state" if relay in {"isolated", "shutoff", "off_latched"} else "safety_state"
-    elif safety in warning_states or alarm in warning_states:
+        source = "relay_state" if relay == "isolated" else "safety_state"
+    elif safety == "warning" or alarm == "warning":
         level, title = "warning", "UNATTENDED COOKING WARNING"
-        source = "alarm_state" if alarm in warning_states else "safety_state"
-    elif safety in fault_states or alarm in fault_states or relay in fault_states:
+        source = "safety_state" if safety == "warning" else "alarm_state"
+    elif safety == "fault" or alarm == "fault":
         level, title = "fault", "SAFETY SYSTEM FAULT"
-        source = "safety_state" if safety in fault_states else "alarm_state" if alarm in fault_states else "relay_state"
-    elif safety == "unattended" and alarm in {"", "clear", "inactive", "normal"}:
+        source = "safety_state" if safety == "fault" else "alarm_state"
+    elif safety == "unattended":
         level, title, source = "warning", "UNATTENDED — TIMER RUNNING", "safety_state"
-    elif safety in {"monitoring", "normal", "idle", "attended", "safe"} and alarm in {"", "clear", "inactive", "normal"}:
+    elif safety in {"idle", "monitoring"} and alarm in {None, "clear"}:
         level, title, source = "normal", "NORMAL", "safety_state"
+    elif safety in {"boot", "self_test"}:
+        level, title, source = "unknown", "CONTROLLER STARTING", "safety_state"
     else:
-        level, title, source = "unknown", "UNMAPPED / UNKNOWN STATE", "safety_state"
+        level, title, source = "unknown", "UNKNOWN STATE", "safety_state"
     source_age = device["field_age_seconds"].get(source)
     last_known = device["connection"] != "online" or source_age is None or source_age > device["stale_after_seconds"]
     if level == "normal" and last_known:

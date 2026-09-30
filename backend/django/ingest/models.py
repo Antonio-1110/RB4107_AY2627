@@ -10,6 +10,10 @@ class Device(models.Model):
     last_received_at = models.DateTimeField(null=True, blank=True)
     last_snapshot_source_at = models.DateTimeField(null=True, blank=True)
     reported_online = models.BooleanField(null=True)
+    # Firmware boot_id and the highest sequence seen in that boot: orders
+    # messages even while the controller's clock is unset.
+    boot_id = models.CharField(max_length=32, blank=True)
+    last_sequence = models.PositiveBigIntegerField(null=True)
 
 
 class InboundMessage(models.Model):
@@ -39,7 +43,9 @@ class Reading(models.Model):
 
 class SafetyEvent(models.Model):
     device = models.ForeignKey(Device, on_delete=models.CASCADE)
-    message = models.OneToOneField(InboundMessage, on_delete=models.CASCADE)
+    # Usually one event per message; a message that reveals a controller
+    # restart can also carry a "controller_restarted" event.
+    message = models.ForeignKey(InboundMessage, on_delete=models.CASCADE)
     received_at = models.DateTimeField()
     source_at = models.DateTimeField(null=True)
     event_type = models.CharField(max_length=80)

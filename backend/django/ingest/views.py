@@ -2,7 +2,7 @@ import math
 from datetime import timedelta
 from django.conf import settings
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.cache import never_cache
@@ -48,12 +48,6 @@ def serialize(device, now, worker, catalog=None):
             "location": location_for(device.device_id, catalog)}
     result["display_state"] = classify_display_state(result)
     return result
-
-
-@require_GET
-@never_cache
-def dashboard(request):
-    return render(request, "dashboard.html", {"poll_ms": settings.DASHBOARD_POLL_MS})
 
 
 @require_GET

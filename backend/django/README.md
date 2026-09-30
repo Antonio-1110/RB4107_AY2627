@@ -1,11 +1,12 @@
-# RB4107 Django backend and AES dashboard
+# RB4107 Django backend
 
-The existing MQTT subscriber now stores validated firmware messages and serves
-the AES multi-stall dashboard. Run it on the MacBook, Linux server or Windows
-host. The ESP32-S3 keeps all local safety logic, relay control and manual reset.
+The MQTT subscriber stores validated firmware messages in SQLite, and a small
+read-only JSON API serves them to the dashboard in [`frontend/`](../../frontend).
+Run it on the MacBook (or any computer that can reach the broker). The ESP32-S3
+keeps all local safety logic, relay control and manual reset.
 
 ```text
-Mosquitto → mqtt_subscriber → schema validation → SQLite → Django GET API → AES dashboard
+Mosquitto → mqtt_subscriber → schema validation → SQLite → Django GET API → frontend/
 ```
 
 ## Setup
@@ -20,24 +21,19 @@ python manage.py check
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Open http://127.0.0.1:8000/ on that computer. Leave this terminal running.
+Open http://127.0.0.1:8000/ on that computer and leave this terminal running.
 Start `python manage.py mqtt_subscriber` in a second activated terminal to
-receive hardware data. The dashboard is served by Django itself; no Node
-build, separate frontend port, CORS setup or browser MQTT credentials are needed.
+receive hardware data. Django serves the dashboard files from `frontend/` at
+`/`, so there is no Node build, separate frontend port or CORS setup. On
+Windows, activate with `.venv\Scripts\Activate.ps1` and copy with
+`Copy-Item .env.example .env`.
 
-With Fish use `source .venv/bin/activate.fish`. On Windows use
-`.venv\Scripts\Activate.ps1` and `Copy-Item .env.example .env`.
-The old standalone prototype's `manage.jw.py` and `mqtt_worker` commands do
-not apply inside this repository: use `manage.py` and `mqtt_subscriber`.
+To view the dashboard from another computer, keep `runserver` on 127.0.0.1 and
+use an SSH tunnel (`ssh -N -L 8000:127.0.0.1:8000 <user>@<host>`) rather than
+exposing it on the network: there is no login.
 
-To view a Linux server from Windows, run this in **Windows PowerShell**, keep
-it open, then browse http://127.0.0.1:8010/:
-
-```powershell
-ssh -o ExitOnForwardFailure=yes -N -L 8010:127.0.0.1:8000 shaohua@servera
-```
-
-For a UI-only demo, stop the MQTT subscriber and run this in the second terminal:
+For a UI-only demo, set `RB4107_LOCATION_CATALOG_FILE=locations.demo.json` in
+`.env`, stop the MQTT subscriber and run this in the second terminal:
 
 ```bash
 python manage.py simulate_fleet --direct
@@ -66,11 +62,11 @@ take precedence. Broker addresses/passwords stay out of frontend JavaScript.
 | `RB4107_MQTT_RECONNECT_MIN_S` / `_MAX_S` | `1` / `30` | reconnect back-off |
 | `RB4107_LOG_LEVEL` | `INFO` | `DEBUG` also logs every routine message |
 | `RB4107_SCHEMA_FILE` | `../../docs/schema/rb4107_mqtt.schema.json` | the same schema the firmware is tested against |
-| `RB4107_LOCATION_CATALOG_FILE` | `location_catalog.json` | controller ID → site / stall / station; relative paths use `backend/django` |
+| `RB4107_LOCATION_CATALOG_FILE` | `locations.json` | controller ID → site / stall / station; relative paths use `backend/django`. `locations.demo.json` holds the made-up stalls for `simulate_fleet` |
 | `RB4107_SQLITE_PATH` | `backend/django/db.sqlite3` | database file; use an absolute path when overriding |
 | `RB4107_DEVICE_STALE_SECONDS` | `15` | display freshness; does not change ESP32 safety timers |
 | `RB4107_WORKER_STALE_SECONDS` | `10` | subscriber heartbeat timeout |
-| `RB4107_DASHBOARD_POLL_MS` | `2000` | frontend polling period |
+| `RB4107_FRONTEND_DIR` | `../../frontend` | folder served at `/` |
 
 For multiple real controllers, give each a unique `controller_id` and firmware
 topic prefix, e.g. `rb4107/controller_01` and `rb4107/controller_02`, then set
@@ -142,7 +138,7 @@ thermal messages are counted and logged only at DEBUG.
 serves read-only `/api/health/`, `/api/devices/`, and per-device `latest/`,
 `history/`, `events/` endpoints. A worker heartbeat distinguishes a disconnected
 broker or stopped subscriber from a silent device. See
-[`docs/dashboard_integration.md`](../../docs/dashboard_integration.md)
+[`docs/dashboard.md`](../../docs/dashboard.md)
 for the exact field contract, retained-message semantics and limitations.
 
 ## Tests
@@ -156,11 +152,11 @@ and local test broker (no hardware or existing broker needed):
 
 ```bash
 pip install -r requirements-test.txt
-python ../../tools/dashboard_smoke.py
+python ../../tools/dashboard/smoke_test.py
 ```
 
-Optional browser coverage: install Playwright and Chromium for Node, then set
-`RB4107_BROWSER_CHECK=1` when running the smoke test. `RB4107_CHROMIUM_PATH`
+Optional browser coverage: install Playwright for Node (`npm install playwright`),
+then set `RB4107_BROWSER_CHECK=1` when running the smoke test. `RB4107_CHROMIUM_PATH`
 can select an already-installed Chromium executable.
 
 The fixtures in `ingest/tests/firmware_samples.jsonl` are real messages

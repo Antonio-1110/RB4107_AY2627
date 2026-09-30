@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RB4107 · Cooking safety dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css" />
+    <script type="module" src="js/dashboard.js"></script>
+  </head>
+  <body>
+    <header>
+      <a id="brand-home" class="brand" href="#overview" aria-label="Safety overview"
+        ><span class="brand-icon">R</span><span>RB4107 <small>COOKING SAFETY</small></span></a
+      >
+      <span class="prototype">MULTI-SITE PROTOTYPE</span>
+    </header>
+    <div id="global-alerts" class="global-alerts" aria-live="off" hidden></div>
+    <main>
+      <div class="heading">
+        <div>
+          <p class="eyebrow">OPERATIONS MONITORING</p>
+          <h1 id="page-title">All-stall safety overview</h1>
+          <p id="page-subtitle" class="muted">
+            Airport terminals, zones and external sites in one view.
+          </p>
+        </div>
+        <nav class="view-tabs" aria-label="Dashboard views">
+          <button id="overview-tab" class="tab active" type="button">All stalls</button
+          ><button id="detail-tab" class="tab" type="button" disabled>Stall detail</button>
+        </nav>
+      </div>
+      <div class="statusbar" aria-live="polite">
+        <span id="server-status" class="pill neutral">Connecting to server</span
+        ><span id="worker-status" class="pill neutral">MQTT unknown</span
+        ><span id="catalog-status" class="pill neutral">Location catalogue loading</span
+        ><span id="last-update" class="last-update">No live reports yet</span>
+      </div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <div class="safety-note">
+        <span class="note-icon">i</span>
+        <p>
+          <strong>Local protection runs on each ESP32-S3.</strong> This dashboard monitors and logs
+          reports. A dashboard alert does not operate, silence or reset the local alarm, relay or
+          gas isolation.
+        </p>
+      </div>
+
+      <section id="overview-view">
+        <section class="summary-grid" aria-label="Fleet summary">
+          <article class="summary-card">
+            <p>Total stalls</p>
+            <strong id="summary-total">0</strong>
+          </article>
+          <article class="summary-card critical">
+            <p>Critical</p>
+            <strong id="summary-critical">0</strong>
+          </article>
+          <article class="summary-card warning">
+            <p>Warning</p>
+            <strong id="summary-warning">0</strong>
+          </article>
+          <article class="summary-card fault">
+            <p>Fault</p>
+            <strong id="summary-fault">0</strong>
+          </article>
+          <article class="summary-card unknown">
+            <p>Unknown / stale</p>
+            <strong id="summary-unknown">0</strong>
+          </article>
+          <article class="summary-card offline">
+            <p>Connectivity issue</p>
+            <strong id="summary-connectivity">0</strong>
+          </article>
+          <article class="summary-card normal">
+            <p>Normal</p>
+            <strong id="summary-normal">0</strong>
+          </article>
+        </section>
+        <section class="card filter-card" aria-label="Overview filters">
+          <label
+            >Search<input
+              id="stall-search"
+              type="search"
+              placeholder="Stall, terminal, area or device"
+          /></label>
+          <label
+            >Site<select id="site-filter">
+              <option value="">All sites</option>
+            </select></label
+          >
+          <label
+            >Terminal / building<select id="building-filter">
+              <option value="">All buildings</option>
+            </select></label
+          >
+          <label
+            >Access zone<select id="zone-filter">
+              <option value="">All zones</option>
+            </select></label
+          >
+          <label
+            >Status<select id="severity-filter">
+              <option value="">All statuses</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="fault">Fault</option>
+              <option value="connectivity">Connectivity issue</option>
+              <option value="normal">Normal</option>
+              <option value="unknown">Unknown</option>
+            </select></label
+          >
+          <button id="clear-filters" class="secondary-button" type="button">Clear filters</button>
+        </section>
+        <section class="card topology-card">
+          <div class="section-heading">
+            <div>
+              <h2>Operational location view</h2>
+              <p class="muted">
+                Grouped by site, terminal/building, zone and level — schematic, not a floor plan.
+              </p>
+            </div>
+            <span id="visible-count" class="count">0 stalls</span>
+          </div>
+          <div id="location-groups" class="location-groups">
+            <p class="empty-cell">Waiting for stall data…</p>
+          </div>
+        </section>
+        <section class="card roster-card">
+          <div class="section-heading">
+            <div>
+              <h2>All-stall status</h2>
+              <p class="muted">Safety severity and connectivity are shown independently.</p>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="roster-table">
+              <thead>
+                <tr>
+                  <th>Stall / location</th>
+                  <th>Safety</th>
+                  <th>Presence</th>
+                  <th>Max temp.</th>
+                  <th>Unattended</th>
+                  <th>Relay</th>
+                  <th>Connectivity</th>
+                  <th>Last report</th>
+                </tr>
+              </thead>
+              <tbody id="stall-rows">
+                <tr>
+                  <td colspan="8" class="empty-cell">No stalls reported</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <p id="catalog-notice" class="catalog-note"></p>
+      </section>
+
+      <section id="detail-view" hidden>
+        <button id="back-overview" class="back-button" type="button">← All stalls</button>
+        <article id="detail-alert" class="detail-alert" role="alert" hidden></article>
+        <section class="card location-card">
+          <div>
+            <p class="label">INCIDENT / RESPONSE LOCATION</p>
+            <h2 id="detail-stall-name">Unassigned stall</h2>
+            <p id="detail-location-line" class="location-line">Location incomplete</p>
+            <p id="detail-response-route" class="route-line">No response route configured</p>
+          </div>
+          <div class="location-actions">
+            <span id="detail-demo" class="pill demo" hidden>DEMO REFERENCE</span
+            ><a
+              id="official-map"
+              class="secondary-button"
+              href="#"
+              target="_blank"
+              rel="noopener"
+              hidden
+              >Open official map ↗</a
+            >
+          </div>
+        </section>
+        <div class="detail-controls">
+          <label class="station-label"
+            >Cooking station<select id="device-select">
+              <option value="">Waiting for a device…</option>
+            </select></label
+          >
+          <div class="detail-badges">
+            <span id="device-status" class="pill neutral">Device unknown</span
+            ><span id="demo-badge" class="pill demo" hidden>SIMULATED DATA</span
+            ><span id="test-timers-badge" class="pill warn" hidden>FIRMWARE TEST TIMERS</span>
+          </div>
+        </div>
+        <section class="metrics" aria-label="Latest device-reported readings">
+          <article class="card metric" id="card-presence">
+            <p class="label">HUMAN PRESENCE</p>
+            <h2 id="presence">—</h2>
+            <p class="metric-detail">Firmware occupancy report · C4002</p>
+            <p class="freshness" id="age-presence">Awaiting report</p>
+          </article>
+          <article class="card metric" id="card-temperature">
+            <p class="label">SURFACE TEMPERATURE</p>
+            <h2 id="temperature">—</h2>
+            <p class="metric-detail">MLX90640 · reported maximum</p>
+            <p class="metric-detail" id="thermal-extra">Hot region / rate not reported</p>
+            <p class="freshness" id="age-temperature">Awaiting report</p>
+          </article>
+          <article class="card metric" id="card-safety">
+            <p class="label">SAFETY STATE</p>
+            <h2 id="safety">Unknown</h2>
+            <p class="metric-detail">Controller state machine</p>
+            <p class="freshness" id="age-safety">Awaiting report</p>
+          </article>
+          <article class="card metric" id="card-alarm">
+            <p class="label">ALARM</p>
+            <h2 id="alarm">Unknown</h2>
+            <p class="metric-detail">Device-reported warning / alarm</p>
+            <p class="freshness" id="age-alarm">Awaiting report</p>
+          </article>
+        </section>
+        <section class="middle">
+          <article class="card chart-card">
+            <div class="section-heading">
+              <div>
+                <h2>Temperature history</h2>
+                <p class="muted">Maximum surface temperature · °C</p>
+              </div>
+              <label class="range-label"
+                >Window<select id="history-hours">
+                  <option value="1">Last hour</option>
+                  <option value="6">Last 6 hours</option>
+                  <option value="24">Last 24 hours</option>
+                </select></label
+              >
+            </div>
+            <div class="chart-wrap">
+              <canvas
+                id="temperature-chart"
+                role="img"
+                aria-label="Temperature history, waiting for readings"
+              ></canvas>
+              <p id="chart-empty">No temperature readings yet</p>
+            </div>
+            <p id="chart-caption" class="muted chart-caption">
+              Server receipt time · waiting for data
+            </p>
+          </article>
+          <article class="card system-card">
+            <h2>System status</h2>
+            <dl>
+              <div>
+                <dt>Relay / supply</dt>
+                <dd id="relay">Unknown</dd>
+              </div>
+              <div>
+                <dt>Manual reset required</dt>
+                <dd id="reset-required">Unknown</dd>
+              </div>
+              <div>
+                <dt>Unattended timer</dt>
+                <dd id="timer">—</dd>
+              </div>
+              <div>
+                <dt>Warning after</dt>
+                <dd id="warning-setting">—</dd>
+              </div>
+              <div>
+                <dt>Shutdown after</dt>
+                <dd id="shutdown-setting">—</dd>
+              </div>
+              <div>
+                <dt>Device uptime</dt>
+                <dd id="uptime">—</dd>
+              </div>
+            </dl>
+            <p class="muted small">
+              Firmware-reported values only. The server does not advance the safety timer or restore
+              an isolated supply.
+            </p>
+          </article>
+        </section>
+        <section class="bottom">
+          <article class="card">
+            <div class="section-heading">
+              <div>
+                <h2>Sensor reports</h2>
+                <p class="muted">Individual C4002 / MLX90640 diagnostics</p>
+              </div>
+              <span id="sensor-count" class="count">0 sensors</span>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sensor ID</th>
+                    <th>Type</th>
+                    <th>Latest values</th>
+                    <th>Freshness</th>
+                  </tr>
+                </thead>
+                <tbody id="sensor-rows">
+                  <tr>
+                    <td colspan="4" class="empty-cell">No sensors reported</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article class="card">
+            <div class="section-heading">
+              <div>
+                <h2>Event log</h2>
+                <p class="muted">Firmware events · last 24 hours</p>
+              </div>
+              <span id="event-count" class="count">0</span>
+            </div>
+            <ul id="events" class="event-list">
+              <li class="empty-cell">No events reported</li>
+            </ul>
+          </article>
+        </section>
+        <details class="raw-panel">
+          <summary>Latest normalized telemetry / integration details</summary>
+          <pre id="raw-data">{}</pre>
+        </details>
+      </section>
+      <footer>
+        <span>ESP32-S3 → MQTT → Django → Multi-site dashboard</span
+        ><span>Monitoring only · no remote actuation</span>
+      </footer>
+    </main>
+  </body>
+</html>

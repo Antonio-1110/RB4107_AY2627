@@ -14,6 +14,8 @@ static void header(rb_json_writer_t *w, const rb_json_header_t *h, const char *t
     rb_json_str(w, type);
     rb_json_key(w, "controller_id");
     rb_json_str(w, h->controller_id);
+    rb_json_key(w, "boot_id");
+    rb_json_str(w, h->boot_id);
     rb_json_key(w, "timestamp");
     rb_json_str(w, h->timestamp);
     rb_json_key(w, "uptime_ms");
@@ -76,6 +78,14 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_str(w, t->safety.buzzer);
     rb_json_key(w, "shutdown");
     rb_json_bool(w, t->safety.shutdown);
+    rb_json_key(w, "reset_required");
+    rb_json_bool(w, t->safety.reset_required);
+    rb_json_key(w, "warning_after_ms");
+    rb_json_int(w, t->safety.warning_after_ms);
+    rb_json_key(w, "shutdown_after_ms");
+    rb_json_int(w, t->safety.shutdown_after_ms);
+    rb_json_key(w, "shutdown_counts_from");
+    rb_json_str(w, t->safety.shutdown_counts_from);
     rb_json_key(w, "test_timers");
     rb_json_bool(w, t->safety.test_timers);
     rb_json_obj_end(w);
@@ -247,7 +257,8 @@ size_t rb_json_event(const rb_event_msg_t *e, char *buf, size_t len)
     return rb_json_finish(&w);
 }
 
-size_t rb_json_controller_status(const char *controller_id, bool online, char *buf, size_t len)
+size_t rb_json_controller_status(const char *controller_id, const char *boot_id, bool online, char *buf,
+                                 size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
@@ -258,6 +269,8 @@ size_t rb_json_controller_status(const char *controller_id, bool online, char *b
     rb_json_str(&w, "controller_status");
     rb_json_key(&w, "controller_id");
     rb_json_str(&w, controller_id);
+    rb_json_key(&w, "boot_id");
+    rb_json_str(&w, boot_id);
     rb_json_key(&w, "online");
     rb_json_bool(&w, online);
     rb_json_obj_end(&w);
