@@ -1,16 +1,18 @@
 """
 Django settings for the RB4107 backend.
 
-Scope (TODO sections 23-24): MQTT ingestion only. There is no frontend or
-dashboard yet. Every deployment-specific value comes from an environment
+MQTT ingestion, persistence and a read-only monitoring dashboard.
+Every deployment-specific value comes from an environment
 variable, so nothing about the MacBook or broker is hard-coded.
 """
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BASE_DIR.parent.parent
+load_dotenv(BASE_DIR / ".env", override=False)
 
 
 def env(name: str, default: str) -> str:
@@ -26,6 +28,7 @@ ALLOWED_HOSTS = [h for h in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").s
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "django.contrib.staticfiles",
     "ingest",
 ]
 
@@ -38,10 +41,21 @@ ROOT_URLCONF = "rb4107_backend.urls"
 WSGI_APPLICATION = "rb4107_backend.wsgi.application"
 ASGI_APPLICATION = "rb4107_backend.asgi.application"
 
+TEMPLATES = [{
+    "BACKEND": "django.template.backends.django.DjangoTemplates",
+    "DIRS": [BASE_DIR / "templates"],
+    "APP_DIRS": True,
+    "OPTIONS": {"context_processors": []},
+}]
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": env("RB4107_SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
+        "OPTIONS": {"timeout": 20},
     }
 }
 
@@ -75,6 +89,14 @@ RB4107_MQTT = {
 # The same JSON Schema the firmware is tested against (docs/schema).
 RB4107_SCHEMA_FILE = Path(env("RB4107_SCHEMA_FILE", str(REPO_ROOT / "docs" / "schema" / "rb4107_mqtt.schema.json")))
 RB4107_SUPPORTED_SCHEMA_VERSIONS = {2}
+
+# Display freshness only: these never control firmware safety timers.
+DEVICE_STALE_SECONDS = int(env("RB4107_DEVICE_STALE_SECONDS", "15"))
+WORKER_STALE_SECONDS = int(env("RB4107_WORKER_STALE_SECONDS", "10"))
+DASHBOARD_POLL_MS = max(500, int(env("RB4107_DASHBOARD_POLL_MS", "2000")))
+LOCATION_CATALOG_FILE = Path(env("RB4107_LOCATION_CATALOG_FILE", "location_catalog.json"))
+if not LOCATION_CATALOG_FILE.is_absolute():
+    LOCATION_CATALOG_FILE = BASE_DIR / LOCATION_CATALOG_FILE
 
 # --- Logging ---------------------------------------------------------------
 # Log lines look like the firmware's: [MQTT][INFO] broker connected

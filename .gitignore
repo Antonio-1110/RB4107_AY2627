@@ -22,6 +22,8 @@ __pycache__/
 .venv/
 venv/
 *.sqlite3
+*.sqlite3-*
+staticfiles/
 .env
 
 # Logs

@@ -33,6 +33,25 @@ def fake_message(topic: str, payload: bytes):
 
 
 class SubscriberCallbackTest(SimpleTestCase):
+    def test_transport_metadata_reaches_storage_handler(self):
+        handled = []
+        sub = Subscriber(config(), handle=handled.append)
+        sample = SAMPLES[0]
+        msg = fake_message(sample["topic"], json.dumps(sample["payload"]).encode())
+        msg.retain, msg.qos, msg.dup = True, 1, True
+        sub._on_message(None, None, msg)
+        self.assertTrue(handled[0].retained)
+        self.assertEqual(handled[0].qos, 1)
+        self.assertTrue(handled[0].duplicate)
+
+    def test_failed_subscription_is_not_ready_for_dashboard(self):
+        sub = Subscriber(config(), handle=lambda msg: None)
+        sub._on_subscribe(None, None, 1, [SimpleNamespace(is_failure=False)], None)
+        self.assertTrue(sub.subscribed.is_set())
+        sub._on_subscribe(None, None, 2, [SimpleNamespace(is_failure=True)], None)
+        self.assertFalse(sub.subscribed.is_set())
+        self.assertIn("rejected", sub.last_error)
+
     def test_valid_message_is_dispatched(self):
         handled = []
         sub = Subscriber(config(), handle=handled.append)

@@ -6,7 +6,7 @@ Software for the RB4107 cooking-safety prototype. The work plan is [`TODO.md`](T
 C4002 #1 → ESP32-C6 presence node A ─┐
 C4002 #2 → ESP32-C6 presence node B ─┼─ ESP-NOW → ESP32-S3 controller
 MLX90640 → ESP32-C6 thermal node    ─┘            ├── local safety state machine → buzzer, shutdown relay
-                                                  └── Ethernet / Wi-Fi → Mosquitto (MacBook) → Django subscriber
+                                                  └── Ethernet / Wi-Fi → Mosquitto → Django subscriber → SQLite → dashboard
 ```
 
 The local safety path on the ESP32-S3 must keep working when MQTT, Django, the
@@ -22,7 +22,7 @@ RB4107_AY2627/
 │   ├── controller/           SYSTEM FIRMWARE for the ESP32-S3
 │   ├── components/           shared code (drivers, protocol, safety logic, ...)
 │   └── testing/              test-only projects: one per hardware part, plus unit tests
-├── backend/django/           Django MQTT ingestion (TODO sections 23–24)
+├── backend/django/           MQTT ingestion, SQLite history, GET API and AES multi-stall dashboard
 ├── tools/
 │   ├── mqtt/                 Mosquitto config and scripts (TODO section 18)
 │   └── diagnostics/          host-side helper scripts
@@ -42,6 +42,11 @@ Django on the MacBook:
 | ESP32-C6 + MLX90640 | [`firmware/thermal_node`](firmware/thermal_node) | **Thermal node firmware**: reads the thermal camera, extracts features and sends them over ESP-NOW. Node ID 3 |
 | ESP32-S3 (Waveshare ETH-8DI-8RO) | [`firmware/controller`](firmware/controller) | **Controller firmware**: combines the two radars, runs the safety state machine, buzzer, shutdown relay, RTC, Ethernet, MQTT, diagnostic console |
 | MacBook | [`tools/mqtt`](tools/mqtt) + [`backend/django`](backend/django) | Mosquitto broker and Django subscriber (not ESP32 projects) |
+
+The AES dashboard is integrated in [`backend/django`](backend/django/README.md).
+It shows all-stall status, per-station sensors, temperature history and events.
+Only reported supply isolation awaiting manual reset occupies the top banner.
+Setup and payload mapping: [`docs/dashboard_integration.md`](docs/dashboard_integration.md).
 
 Setup steps (broker, MAC address, channel):
 [`firmware/controller/README.md`](firmware/controller/README.md#setup).
@@ -145,7 +150,7 @@ What has been checked without hardware, and how:
 | Real-time behaviour, MQTT client, publishing, diagnostic console, continuity monitor | controller firmware run in QEMU with emulated Ethernet against Mosquitto, fed by three simulated nodes |
 | Losing one radar or the thermal node | QEMU: the node's SAFETY fault is raised and the controller goes to FAULT, and recovers when the node returns |
 | JSON payloads | every captured message validated against `docs/schema/rb4107_mqtt.schema.json` |
-| Django ingestion | 23 tests (fixtures are real firmware output), plus manual runs through broker outages and `SIGTERM` |
+| Django ingestion + dashboard | 41 tests (40 passed; external-broker test skipped without Mosquitto), plus isolated TCP MQTT/SQLite/HTTP smoke and browser checks; broker restart and subscriber shutdown verified |
 | Critical failure path | QEMU rehearsal: WARNING and SHUTDOWN with the broker down, continuity monitor verdict PASS |
 
 Still to be done on the bench (the unchecked boxes in `TODO.md`): anything
