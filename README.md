@@ -4,7 +4,7 @@ A prototype that cuts the power to a cooking appliance when it is left
 unattended. Two mmWave radars watch for a person at the stove and a thermal
 camera watches the pan. If cooking is going on and nobody is there, the
 controller sounds a buzzer, and if nobody comes back it switches off the
-appliance with a relay. A dashboard shows every station's state.
+appliance through an external relay. A dashboard shows every station's state.
 
 Built for NUS RB4107 (AY2026/27).
 
@@ -34,7 +34,8 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 |---|---|
 | 2 × presence node | DFRobot DFR1117 (ESP32-C6) + DFRobot C4002 mmWave radar |
 | Thermal node | DFRobot DFR1117 (ESP32-C6) + MLX90640 32×24 thermal camera |
-| Controller | Waveshare ESP32-S3-ETH-8DI-8RO (relays, buzzer, RTC, Ethernet) |
+| Controller | Waveshare ESP32-S3-POE-ETH-8DI-8DO (8 transistor outputs, buzzer, RTC, Ethernet) |
+| Shutdown relay | external relay or contactor with a DC coil, switched by one of the controller's outputs (the board has no relays of its own) |
 | Broker, backend, dashboard | a laptop running Mosquitto and Django |
 
 ## Repository

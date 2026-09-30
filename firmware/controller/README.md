@@ -5,7 +5,7 @@
 > boards and [`thermal_node`](../thermal_node) on the thermal C6
 > board, this is the running system.
 
-The production controller firmware for the **Waveshare ESP32-S3-ETH-8DI-8RO**,
+The production controller firmware for the **Waveshare ESP32-S3-POE-ETH-8DI-8DO**,
 with the diagnostic console and the critical-failure monitor built in. Every component is wired in
 `components/rb_controller_app`; the architecture is described in
 [`docs/architecture.md`](../../docs/architecture.md).
@@ -87,7 +87,7 @@ on the MacBook. For a quicker run, type `timers test` in the console.
 | Losing one radar is caught | unplug presence node B; `presence_b_node_offline` fault, state FAULT | by hand |
 | Safety state responds correctly | hot pan → MONITORING; walk away → UNATTENDED → WARNING → SHUTDOWN; return + `reset` | `e2e_check` (states) |
 | Buzzer activates correctly | listen: warning pattern at WARNING, fast pattern at SHUTDOWN, double chirp in FAULT | by hand |
-| Relay activates correctly | listen for the click; measure the contacts at SHUTDOWN | by hand |
+| Relay activates correctly | output LED lights and the external relay clicks at SHUTDOWN; measure its contacts | by hand |
 | S3 connects to MacBook broker | `controller/status` `online: true`; console `mqtt` | `e2e_check` |
 | Telemetry appears in Mosquitto | `tools/mqtt/watch.sh` | `e2e_check` |
 | Django receives telemetry | `[TELEMETRY][INFO] controller_01 seq=...` lines | by hand |

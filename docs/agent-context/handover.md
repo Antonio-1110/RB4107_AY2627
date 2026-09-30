@@ -23,8 +23,13 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
                                                               └── Ethernet → Mosquitto (laptop) → django/ → frontend/
 ```
 
-- C6 boards: DFRobot DFR1117. S3 board: Waveshare ESP32-S3-ETH-8DI-8RO
-  (TCA9554 relays, PCF85063 RTC at 0x51, W5500 Ethernet, buzzer on GPIO46).
+- C6 boards: DFRobot DFR1117. S3 board: **Waveshare ESP32-S3-POE-ETH-8DI-8DO**
+  (not the 8DI-8RO: no onboard relays). Its 8 outputs are opto-isolated
+  Darlington sinks to GND (≤ 500 mA each) driven by a TCA9554 at 0x20, so the
+  shutdown switches an external relay/contactor coil. Also PCF85063 RTC at
+  0x51 (no battery; time comes from SNTP), W5500 Ethernet, buzzer on GPIO46.
+  Code, Kconfig menus and issues #6–#9 still say "relay"; that is the
+  external relay driven by an output.
 - The S3 must keep protecting the kitchen when MQTT, Django, the laptop or
   the network is down. Never add a dependency from the safety path on the
   telemetry path.

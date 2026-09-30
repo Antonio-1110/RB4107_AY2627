@@ -38,7 +38,7 @@ hand.
 ## Test-only projects (`testing/`)
 
 These exist to check one part at a time, on the bench, before the full
-firmware runs: is the radar wired correctly, does the relay click, does the
+firmware runs: is the radar wired correctly, does the shutdown output switch, does the
 RTC keep time, and so on. When something misbehaves in the full system, they
 also let you isolate the part. Each one is a complete, separate firmware, so
 flashing one **replaces** the system firmware on that board; flash
@@ -50,7 +50,7 @@ flashing one **replaces** the system firmware on that board; flash
 | [`testing/mlx90640`](testing/mlx90640) | C6 | MLX90640 I2C wiring, frames, temperatures |
 | [`testing/s3_board`](testing/s3_board) | S3 | board boots, prints the MAC the C6 nodes need |
 | [`testing/buzzer`](testing/buzzer) | S3 | buzzer pin and patterns |
-| [`testing/relay`](testing/relay) | S3 | relay polarity, boot state, shutdown |
+| [`testing/relay`](testing/relay) | S3 | shutdown output: level, boot state, shutdown |
 | [`testing/rtc`](testing/rtc) | S3 | RTC keeps time across power cycles |
 | [`testing/network`](testing/network) | S3 | Ethernet/Wi-Fi, IP address, reaching the MacBook |
 | [`testing/unit_tests`](testing/unit_tests) | PC or S3 | safety logic, protocol, JSON (no hardware needed) |

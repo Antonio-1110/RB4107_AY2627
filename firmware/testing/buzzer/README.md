@@ -6,7 +6,7 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
+Target: **Waveshare ESP32-S3-POE-ETH-8DI-8DO**.
 
 ## Interface (UNCONFIRMED)
 
