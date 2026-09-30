@@ -42,25 +42,25 @@ frontend/
 | `safety.state` | `safety_state` | Firmware enum in lower case |
 | `safety.buzzer` | `alarm_state` | OFF → clear; other enum values in lower case |
 | `safety.shutdown` | `relay_state` | true → isolated, false → enabled; **firmware output report, not independent valve feedback** |
-| `safety.state == SHUTDOWN` AND `safety.shutdown == true` | `manual_reset_required` | Documented firmware latch semantics; see below |
+| `safety.reset_required` | `manual_reset_required` | Sent by the firmware. For older firmware without it: `safety.state == SHUTDOWN` AND `safety.shutdown` |
+| `safety.warning_after_ms` / `shutdown_after_ms` / `shutdown_counts_from` | `warning_after_seconds` / `shutdown_after_seconds` / same | The controller's timer settings |
+| `boot_id` + `sequence` | stored on the device | Orders messages and detects restarts (see below) |
 | `safety.unattended_ms` | `unattended_seconds` | Unit conversion only; browser/server never advances this safety timer |
 | `uptime_ms` | `uptime_seconds` | Unit conversion |
 | `nodes[]` and sensor topics | `sensors[node_id]` | Distinct C4002/MLX90640 diagnostics for each controller |
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
 
-Schema v2 has no separate manual-reset boolean. The adapter derives it from
-the published SHUTDOWN state and shutdown output because
-[`docs/safety_state_machine.md`](safety_state_machine.md) and
-`firmware/components/safety/src/safety.c` define SHUTDOWN as latched until
-operator reset. It does not infer shutdown from temperature, absence duration
-or network loss. If future firmware changes this contract, update this adapter
-or consume a new explicit reset field.
+The firmware publishes `safety.reset_required` (`safety_reset_required()` in
+`firmware/components/safety`). For messages from older firmware without it,
+the adapter falls back to SHUTDOWN state plus shutdown output, which
+[`docs/safety_state_machine.md`](safety_state_machine.md) defines as latched
+until operator reset; `reset_status_source` says which was used. It never
+infers a shutdown from temperature, absence duration or network loss.
 
 The top sticky banner requires isolated supply AND manual reset required.
 WARNING and UNATTENDED remain in summary, tiles, table and stall detail without
 a sticky warning banner. Missing or invalid thermal values stay null. The
-firmware does not publish its warning/shutdown timer settings, so the dashboard
-does not show them.
+warning and shutdown times shown are the ones the controller reports.
 
 Display severity (`ingest/locations.py`, `classify_display_state`) uses only
 the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
@@ -99,11 +99,12 @@ The original rb4107/controller/state single-controller tree remains supported.
 - Valid source timestamps participate in field freshness. Older dated full
   snapshots are stored as historical and cannot clear newer shutdown state.
   Graph x-values are server receipt times; `source_at` is also available.
-- MQTT DUP retransmissions with identical payloads are deduplicated. Identical
-  normal messages are not globally deduplicated: firmware currently has no
-  unique boot ID. With `timestamp=null`, definitive cross-reboot/out-of-order
-  comparison is unavailable; non-retained snapshots use receipt time. A future
-  boot_id + monotonic sequence contract should address that before deployment.
+- MQTT DUP retransmissions with identical payloads are deduplicated.
+- Within one `boot_id`, a message whose `sequence` is not higher than the
+  newest one seen is stored as `historical` (or `duplicate` for the same
+  number) and does not change the current state, even when `timestamp` is
+  null. A new `boot_id` is a controller restart: it is accepted whatever its
+  sequence and logged as a `controller_restarted` event.
 - No login, retention job, broker TLS setup or production HTTP service is added
   by this prototype integration. Keep runserver bound to localhost and use an
   SSH tunnel for remote development. Existing .env/database files are ignored

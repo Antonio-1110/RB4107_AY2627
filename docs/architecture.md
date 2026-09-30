@@ -98,6 +98,7 @@ published on `events/fault`.
 | `self_test_failed` | **SAFETY** | outputs not usable at boot |
 | `espnow_invalid_packet` | telemetry | bad length/magic/version/type/CRC counters rising |
 | `espnow_link_degraded` | telemetry | any node STALE (detail: bit per slot) |
+| `node_restarting` | telemetry | a node rebooted `RB_CTRL_NODE_RESTART_LIMIT` times within `RB_CTRL_NODE_RESTART_WINDOW_S` (detail: bit per slot) |
 | `espnow_unknown_node` | telemetry | packets from an unconfigured node ID, or from a node with the wrong role |
 | `rtc_failure` | telemetry | PCF85063 not responding |
 | `network_disconnected` | telemetry | Ethernet/Wi-Fi down |

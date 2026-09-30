@@ -22,6 +22,14 @@ uint32_t rb_time_mono_ms(void);
 /* Microseconds since boot (64-bit, does not wrap in practice). */
 int64_t rb_time_mono_us(void);
 
+/*
+ * Random ID for this boot, 8 lowercase hex characters (e.g. "3f9a01c2"). It
+ * goes into every MQTT message so the backend can tell a reboot apart from
+ * lost or reordered messages, since sequence and uptime restart from zero.
+ * The controller app calls it once at startup, before any other task can.
+ */
+const char *rb_time_boot_id(void);
+
 /* True once timeout_ms has passed since since_ms (wrap-safe). */
 static inline int rb_time_elapsed(uint32_t now_ms, uint32_t since_ms, uint32_t timeout_ms)
 {

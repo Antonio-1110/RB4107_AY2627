@@ -35,6 +35,7 @@ typedef enum {
     FAULT_MQTT_DOWN,
     FAULT_RX_QUEUE_OVERFLOW,       /* ESP-NOW packets dropped before the safety task saw them */
     FAULT_EVENT_QUEUE_OVERFLOW,    /* telemetry events dropped */
+    FAULT_NODE_RESTARTING,         /* a sensor node keeps rebooting (detail: bit per slot) */
     FAULT_COUNT,
 } fault_id_t;
 

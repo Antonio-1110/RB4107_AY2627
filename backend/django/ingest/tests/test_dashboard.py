@@ -146,6 +146,39 @@ class DashboardIntegrationTest(TestCase):
         self.assertTrue(self.latest()["display_state"]["last_known"])
         self.assertGreater(self.latest()["field_age_seconds"]["temperature_c"], 59)
 
+    def send_boot(self, boot_id, sequence, state="MONITORING"):
+        data = demo_telemetry("controller_01", boot_id=boot_id)
+        data["sequence"] = sequence
+        data["safety"].update(state=state, shutdown=state == "SHUTDOWN", reset_required=state == "SHUTDOWN")
+        handle(parse("rb4107/controller/state", json.dumps(data).encode()))
+
+    def test_firmware_reset_flag_and_timer_settings_are_used(self):
+        self.send_boot("aaaa0001", 1, "SHUTDOWN")
+        values = self.latest()["values"]
+        self.assertTrue(values["manual_reset_required"])
+        self.assertEqual(values["reset_status_source"], "firmware")
+        self.assertEqual(values["warning_after_seconds"], 60)
+        self.assertEqual(values["shutdown_after_seconds"], 90)
+        self.assertEqual(values["shutdown_counts_from"], "UNATTENDED")
+        self.assertEqual(values["boot_id"], "aaaa0001")
+
+    def test_older_message_in_same_boot_does_not_overwrite_state(self):
+        self.send_boot("aaaa0001", 10, "SHUTDOWN")
+        self.send_boot("aaaa0001", 5, "MONITORING")   # late, no timestamps needed to spot it
+        self.send_boot("aaaa0001", 10, "MONITORING")  # same sequence again
+        self.assertEqual(self.latest()["values"]["safety_state"], "shutdown")
+        outcomes = list(InboundMessage.objects.order_by("id").values_list("outcome", flat=True))
+        self.assertEqual(outcomes, ["accepted", "historical", "duplicate"])
+        self.assertEqual(Reading.objects.count(), 2)  # the duplicate is not plotted twice
+
+    def test_new_boot_id_is_a_restart_even_with_lower_sequence(self):
+        self.send_boot("aaaa0001", 500, "SHUTDOWN")
+        self.send_boot("bbbb0002", 3, "IDLE")
+        self.assertEqual(self.latest()["values"]["safety_state"], "idle")
+        events = self.client.get("/api/devices/controller_01/events/").json()["events"]
+        self.assertEqual([event["event_type"] for event in events], ["controller_restarted"])
+        self.assertEqual(events[0]["detail"]["previous_boot_id"], "aaaa0001")
+
     @override_settings(LOCATION_CATALOG_FILE=settings.BASE_DIR / "locations.demo.json")
     def test_namespaced_controllers_and_same_stall_aggregate(self):
         for ident in ["demo-t3-foodcourt-a", "demo-t3-foodcourt-b"]:

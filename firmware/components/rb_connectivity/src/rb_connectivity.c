@@ -6,6 +6,7 @@
 #include "rb_json.h"
 #include "rb_mqtt.h"
 #include "rb_net.h"
+#include "rb_time.h"
 #include "rb_topics.h"
 #include "rb_wallclock.h"
 
@@ -42,8 +43,8 @@ static void on_net_state(rb_net_state_t state, void *ctx)
 esp_err_t rb_connectivity_start(void)
 {
     rb_topic_build(RB_TOPIC_CONTROLLER_STATUS, CONFIG_RB_MQTT_TOPIC_PREFIX, 0, s_status_topic, sizeof(s_status_topic));
-    rb_json_controller_status(CONFIG_RB_MQTT_CONTROLLER_ID, true, s_online, sizeof(s_online));
-    rb_json_controller_status(CONFIG_RB_MQTT_CONTROLLER_ID, false, s_offline, sizeof(s_offline));
+    rb_json_controller_status(CONFIG_RB_MQTT_CONTROLLER_ID, rb_time_boot_id(), true, s_online, sizeof(s_online));
+    rb_json_controller_status(CONFIG_RB_MQTT_CONTROLLER_ID, rb_time_boot_id(), false, s_offline, sizeof(s_offline));
 
 #if CONFIG_RB_NET_NONE
     return ESP_OK;

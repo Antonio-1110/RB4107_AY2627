@@ -22,6 +22,7 @@ static const fault_info_t FAULTS[FAULT_COUNT] = {
     [FAULT_MQTT_DOWN] = {"mqtt_disconnected", FAULT_CLASS_TELEMETRY},
     [FAULT_RX_QUEUE_OVERFLOW] = {"rx_queue_overflow", FAULT_CLASS_TELEMETRY},
     [FAULT_EVENT_QUEUE_OVERFLOW] = {"event_queue_overflow", FAULT_CLASS_TELEMETRY},
+    [FAULT_NODE_RESTARTING] = {"node_restarting", FAULT_CLASS_TELEMETRY},
 };
 
 static SemaphoreHandle_t s_lock;

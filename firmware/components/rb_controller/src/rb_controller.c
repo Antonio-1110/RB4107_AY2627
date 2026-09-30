@@ -38,6 +38,8 @@ rb_controller_config_t rb_controller_config_from_kconfig(void)
         .health = {
             .stale_timeout_ms = CONFIG_RB_CTRL_NODE_STALE_MS,
             .offline_timeout_ms = CONFIG_RB_CTRL_NODE_OFFLINE_MS,
+            .restart_limit = CONFIG_RB_CTRL_NODE_RESTART_LIMIT,
+            .restart_window_ms = CONFIG_RB_CTRL_NODE_RESTART_WINDOW_S * 1000u,
         },
         .nodes = {
             .presence_node_ids = {CONFIG_RB_CTRL_PRESENCE_A_NODE_ID, CONFIG_RB_CTRL_PRESENCE_B_NODE_ID},
@@ -194,6 +196,10 @@ static void safety_task(void *arg)
             s_snapshot.state_duration_ms = now - sm.state_entered_ms;
             s_snapshot.unattended_ms = safety_unattended_ms(&sm, now);
             s_snapshot.outputs = *out;
+            s_snapshot.reset_required = safety_reset_required(&sm);
+            s_snapshot.warning_timeout_ms = sm.cfg.warning_timeout_ms;
+            s_snapshot.shutdown_timeout_ms = sm.cfg.shutdown_timeout_ms;
+            s_snapshot.shutdown_timing = sm.cfg.shutdown_timing;
             s_snapshot.last_reason = sm.last_reason;
             s_snapshot.transitions = sm.transitions;
             s_snapshot.nodes = nodes;

@@ -163,6 +163,12 @@ bool safety_set_config(safety_sm_t *sm, const safety_config_t *cfg);
 /* Advance the machine. Call it periodically and on every new input. */
 const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms);
 
+/*
+ * True while the supply is cut and only an operator reset restores it
+ * (SHUTDOWN is latched). Published so the backend never has to infer it.
+ */
+bool safety_reset_required(const safety_sm_t *sm);
+
 /* Time spent unattended so far (0 if not on the unattended timeline). */
 uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms);
 

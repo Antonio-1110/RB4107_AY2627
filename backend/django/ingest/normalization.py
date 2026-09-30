@@ -10,6 +10,10 @@ def finite(value):
     return value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
 
 
+def _seconds(ms):
+    return ms / 1000 if isinstance(ms, int) and not isinstance(ms, bool) else None
+
+
 def thermal_fields(thermal):
     valid = thermal.get("valid") is True
     mapping = {"temperature_c": "max_c", "temperature_avg_c": "mean_c",
@@ -23,17 +27,27 @@ def normalize(message):
     fields = {}
     if "uptime_ms" in data:
         fields["uptime_seconds"] = data["uptime_ms"] / 1000
+    if "boot_id" in data:
+        fields["boot_id"] = data["boot_id"]
     if kind == "telemetry":
         safety = data["safety"]
         shutdown = safety["shutdown"]
-        # In this repository SHUTDOWN is explicitly latched until operator reset.
-        # No explicit reset flag is sent in v2, so expose that documented meaning.
+        # Firmware since 2026-09-30 publishes reset_required. Older firmware
+        # does not, so fall back to its documented meaning: SHUTDOWN is latched
+        # until an operator reset.
+        if "reset_required" in safety:
+            reset_required, reset_source = safety["reset_required"], "firmware"
+        else:
+            reset_required, reset_source = shutdown and safety["state"] == "SHUTDOWN", "derived_from_shutdown_state"
         fields.update(
             occupied={"PRESENT": True, "ABSENT": False, "UNKNOWN": None}[data["presence_state"]],
             safety_state=safety["state"].lower(),
             relay_state="isolated" if shutdown else "enabled",
-            manual_reset_required=shutdown and safety["state"] == "SHUTDOWN",
-            reset_status_source="schema_v2_latched_shutdown",
+            manual_reset_required=reset_required,
+            reset_status_source=reset_source,
+            warning_after_seconds=_seconds(safety.get("warning_after_ms")),
+            shutdown_after_seconds=_seconds(safety.get("shutdown_after_ms")),
+            shutdown_counts_from=safety.get("shutdown_counts_from"),
             alarm_state={"OFF": "clear", "WARNING": "warning", "SHUTDOWN": "shutdown", "FAULT": "fault"}[safety["buzzer"]],
             unattended_seconds=safety["unattended_ms"] / 1000,
             test_timers=safety["test_timers"],

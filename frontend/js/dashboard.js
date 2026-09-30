@@ -412,6 +412,14 @@ function renderDevice(device) {
         : "Unknown",
   );
   statusValue("timer", "unattended_seconds", seconds(value.unattended_seconds));
+  statusValue("warning-setting", "warning_after_seconds", seconds(value.warning_after_seconds));
+  statusValue(
+    "shutdown-setting",
+    "shutdown_after_seconds",
+    number(value.shutdown_after_seconds)
+      ? `${seconds(value.shutdown_after_seconds)} from ${human(value.shutdown_counts_from).toLowerCase()}`
+      : "—",
+  );
   statusValue("uptime", "uptime_seconds", seconds(value.uptime_seconds));
   set(
     "raw-data",

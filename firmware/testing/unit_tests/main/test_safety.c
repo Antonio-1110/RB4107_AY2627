@@ -172,9 +172,11 @@ static void test_warning_to_shutdown_total_time(void)
     h.in.presence = RB_FALSE;
     th_run(&h, cfg.shutdown_timeout_ms - TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_FALSE(safety_reset_required(&h.sm));
     th_run(&h, 2 * TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_SHUTDOWN);
     TEST_ASSERT_TRUE(h.out.shutdown);
+    TEST_ASSERT_TRUE(safety_reset_required(&h.sm));
     TEST_ASSERT_EQUAL(SAFETY_BUZZER_SHUTDOWN, h.out.buzzer);
 
     /* Latched: the person coming back doesn't release it; only a reset does. */
@@ -186,6 +188,7 @@ static void test_warning_to_shutdown_total_time(void)
     h.in.reset_request = false;
     TH_EXPECT(&h, SAFETY_MONITORING); /* IDLE, then straight back to MONITORING: the hob is still hot */
     TEST_ASSERT_FALSE(h.out.shutdown);
+    TEST_ASSERT_FALSE(safety_reset_required(&h.sm));
 }
 
 static void test_shutdown_timing_after_warning_mode(void)

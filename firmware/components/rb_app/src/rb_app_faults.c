@@ -24,7 +24,8 @@ static const fault_id_t UNAVAILABLE[NODE_SLOT_COUNT] = {FAULT_PRESENCE_A_UNAVAIL
                                                         FAULT_THERMAL_UNAVAILABLE};
 static const fault_id_t OFFLINE[NODE_SLOT_COUNT] = {FAULT_PRESENCE_A_NODE_OFFLINE, FAULT_PRESENCE_B_NODE_OFFLINE,
                                                     FAULT_THERMAL_NODE_OFFLINE};
-static uint32_t s_stale_slots;   /* bit per slot: node currently STALE */
+static uint32_t s_stale_slots;       /* bit per slot: node currently STALE */
+static uint32_t s_restarting_slots;  /* bit per slot: node restarting too often */
 
 static void on_fault_change(fault_id_t id, bool active, int32_t detail, void *ctx)
 {
@@ -73,6 +74,18 @@ void rb_app_faults_node_events(const sensor_node_state_t *node, node_slot_t slot
     }
     /* One shared telemetry fault while any node is STALE (detail: the slot bits). */
     fault_set(FAULT_ESPNOW_LINK_DEGRADED, s_stale_slots != 0, (int32_t)s_stale_slots);
+
+    /*
+     * Telemetry only: the node's data is still checked packet by packet, and
+     * a node that stops delivering valid data already raises a SAFETY fault.
+     */
+    if (events & NODE_EVT_RESTARTING) {
+        s_restarting_slots |= 1u << slot;
+    }
+    if (events & NODE_EVT_RESTARTS_SETTLED) {
+        s_restarting_slots &= ~(1u << slot);
+    }
+    fault_set(FAULT_NODE_RESTARTING, s_restarting_slots != 0, (int32_t)s_restarting_slots);
 
     if (events & NODE_EVT_SENSOR_INVALID) {
         fault_raise(UNAVAILABLE[slot], node->node_fault_flags);

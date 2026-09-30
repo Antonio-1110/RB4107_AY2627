@@ -59,6 +59,10 @@ typedef struct {
     uint32_t state_duration_ms;
     uint32_t unattended_ms;
     safety_outputs_t outputs;
+    bool reset_required;          /* latched SHUTDOWN: waiting for an operator reset */
+    uint32_t warning_timeout_ms;  /* the safety config in use (normal or test timers) */
+    uint32_t shutdown_timeout_ms;
+    safety_shutdown_timing_t shutdown_timing;
     const char *last_reason;
     uint32_t transitions;
     node_set_t nodes;             /* every sensor node's state */

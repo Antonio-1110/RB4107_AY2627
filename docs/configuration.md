@@ -128,6 +128,8 @@ Items flagged ⚠ have not been confirmed on hardware or are open questions (TOD
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |
+| `CONFIG_RB_CTRL_NODE_RESTART_LIMIT` | Raise node_restarting after this many node reboots (0 = off) | `3` | 0 – 8 |  |
+| `CONFIG_RB_CTRL_NODE_RESTART_WINDOW_S` | ... within this many seconds | `600` | 10 – 86400 |  |
 
 ## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Tasks
 

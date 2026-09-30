@@ -6,14 +6,19 @@ Check any capture with `tools/diagnostics/validate_json.py`.
 
 ## Rules
 
-- Every message has `schema_version`, `type`, `controller_id`, `timestamp`,
-  `uptime_ms` and `sequence`, except `controller_status`, which has only
-  `schema_version`, `type`, `controller_id` and `online`.
+- Every message has `schema_version`, `type`, `controller_id`, `boot_id`,
+  `timestamp`, `uptime_ms` and `sequence`, except `controller_status`, which
+  has only `schema_version`, `type`, `controller_id`, `boot_id` and `online`.
+- `boot_id` is 8 random hex characters chosen at every controller boot. With
+  `sequence` it orders messages without a wall clock: same `boot_id` and a
+  lower `sequence` means an older message; a new `boot_id` means a reboot.
+  It is optional in the JSON Schema only so captures from earlier firmware
+  still validate.
 - `timestamp` is ISO 8601 with offset (`2026-09-26T00:00:00+08:00`). It is
   `null` while the controller's wall clock is unset (no RTC time and no SNTP
   yet). `uptime_ms` is always there.
-- `sequence` counts every message a controller publishes. A gap means lost
-  QoS 0 messages; a drop back to a small number means a reboot.
+- `sequence` counts every message a controller publishes, starting again at
+  each boot. A gap means lost QoS 0 messages.
 - **Unknown is `null`.** An invalid or missing presence reading has
   `"valid": false` and `"detected": null`, never `false`. Missing sensor data
   is not "nobody there". The combined `presence_state` is `UNKNOWN` in that
@@ -35,6 +40,7 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "schema_version": 2,
   "type": "telemetry",
   "controller_id": "controller_01",
+  "boot_id": "3f9a01c2",
   "timestamp": "2026-09-26T00:00:00+08:00",
   "uptime_ms": 18400,
   "sequence": 4127,
@@ -48,7 +54,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "thermal": {"valid": true, "max_c": 84.2, "min_c": 21.0, "mean_c": 42.8, "hot_region_c": 80.1,
               "rate_c_per_min": 1.7, "pixels_above_threshold": 37},
   "safety": {"state": "UNATTENDED", "state_ms": 16400, "unattended_ms": 18400,
-             "buzzer": "OFF", "shutdown": false, "test_timers": false},
+             "buzzer": "OFF", "shutdown": false, "reset_required": false,
+             "warning_after_ms": 60000, "shutdown_after_ms": 90000, "shutdown_counts_from": "UNATTENDED",
+             "test_timers": false},
   "faults": ["mqtt_disconnected"]
 }
 ```
@@ -60,6 +68,11 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   presence node with a valid reading; it is `null` for the thermal node and
   for any node that is invalid, STALE or OFFLINE.
 - `thermal` is the thermal node's reading.
+- `safety.reset_required` is true while the supply is cut and latched: only an
+  operator reset restores it. `warning_after_ms` and `shutdown_after_ms` are the
+  timers in use (the test timers when `test_timers` is true);
+  `shutdown_counts_from` says whether the shutdown time counts from the start
+  of UNATTENDED or from entering WARNING.
 
 ## `event` (topics `events/warning`, `events/shutdown`, `events/fault`)
 
@@ -100,4 +113,4 @@ For fault events, `fault` is `{"name": "mqtt_disconnected", "class": "TELEMETRY"
 | `presence` | `sensors/<node>/presence` (each presence node) | `sensor_node`, `presence{valid, detected, moving, stationary, distance_m}` |
 | `thermal` | `sensors/<node>/thermal` (the thermal node) | `sensor_node`, `thermal{...}` |
 | `node_status` | `sensors/<node>/status` | `sensor_node`, `role` (`presence` / `thermal`), `link`, `valid`, `node_fault_flags`, `missed_packets`, `restarts` |
-| `controller_status` | `controller/status` | `online` (retained; the Last Will publishes `false`) |
+| `controller_status` | `controller/status` | `boot_id`, `online` (retained; the Last Will publishes `false`) |

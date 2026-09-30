@@ -46,6 +46,7 @@ static rb_json_header_t header(uint32_t mono_ms)
     rb_wallclock_iso8601(mono_ms, s_timestamp, sizeof(s_timestamp));
     return (rb_json_header_t){
         .controller_id = CONFIG_RB_MQTT_CONTROLLER_ID,
+        .boot_id = rb_time_boot_id(),
         .timestamp = s_timestamp[0] != '\0' ? s_timestamp : NULL,
         .uptime_ms = mono_ms,
         .sequence = ++s_sequence,
@@ -125,6 +126,11 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.unattended_ms = snap->unattended_ms;
     t->safety.buzzer = safety_buzzer_name(snap->outputs.buzzer);
     t->safety.shutdown = snap->outputs.shutdown;
+    t->safety.reset_required = snap->reset_required;
+    t->safety.warning_after_ms = snap->warning_timeout_ms;
+    t->safety.shutdown_after_ms = snap->shutdown_timeout_ms;
+    t->safety.shutdown_counts_from =
+        snap->shutdown_timing == SAFETY_SHUTDOWN_AFTER_WARNING_START ? "WARNING" : "UNATTENDED";
     t->safety.test_timers = snap->test_timers;
     t->safety.loop_count = snap->loop_count;
 

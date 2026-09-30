@@ -26,6 +26,7 @@
         "schema_version": {"const": 2},
         "type": {"type": "string"},
         "controller_id": {"type": "string", "minLength": 1},
+        "boot_id": {"type": "string", "minLength": 1, "description": "random per controller boot; with sequence it orders messages across reboots (optional: firmware before 2026-09-30 does not send it)"},
         "timestamp": {"type": ["string", "null"], "description": "ISO 8601 with offset; null while the controller's wall clock is not set"},
         "uptime_ms": {"type": "integer", "minimum": 0},
         "sequence": {"type": "integer", "minimum": 0}
@@ -94,6 +95,10 @@
             "unattended_ms": {"type": "integer", "minimum": 0},
             "buzzer": {"enum": ["OFF", "WARNING", "SHUTDOWN", "FAULT"]},
             "shutdown": {"type": "boolean"},
+            "reset_required": {"type": "boolean", "description": "supply cut and latched until an operator reset"},
+            "warning_after_ms": {"type": "integer", "minimum": 0, "description": "configured unattended time before WARNING"},
+            "shutdown_after_ms": {"type": "integer", "minimum": 0, "description": "configured time before SHUTDOWN, counted from shutdown_counts_from"},
+            "shutdown_counts_from": {"enum": ["UNATTENDED", "WARNING"]},
             "test_timers": {"type": "boolean"}
           }
         },
@@ -179,6 +184,7 @@
       "properties": {
         "type": {"const": "controller_status"},
         "controller_id": {"type": "string"},
+        "boot_id": {"type": "string", "minLength": 1},
         "online": {"type": "boolean"}
       }
     }
