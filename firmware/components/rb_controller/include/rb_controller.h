@@ -87,6 +87,8 @@ typedef struct {
     void (*node_events)(const sensor_node_state_t *node, node_slot_t slot, uint32_t events, void *ctx);
     /* Last chance to change the inputs (diagnostic simulation, section 27). */
     void (*override_inputs)(safety_inputs_t *inputs, void *ctx);
+    /* A packet from a valve node (wireless gas valve). Return false if it isn't one we expect. */
+    bool (*valve_packet)(const rb_packet_t *packet, uint32_t rx_ms, void *ctx);
     void *ctx;
 } rb_controller_hooks_t;
 

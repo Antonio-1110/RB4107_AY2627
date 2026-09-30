@@ -309,6 +309,123 @@ menu "RB4107 configuration"
 
     endmenu
 
+    menu "Valve node (servo gas valve)"
+
+        comment "firmware/valve_node. Wireless mode also uses RB_ESPNOW_CHANNEL, RB_NODE_ID and RB_NODE_CONTROLLER_MAC."
+
+        choice RB_VALVE_MODE
+            prompt "How the valve node gets the shut-off signal"
+            default RB_VALVE_MODE_WIRED
+            help
+                Both modes fail closed: the valve opens only on a positive
+                "safe" signal from the controller.
+            config RB_VALVE_MODE_WIRED
+                bool "wired: a controller output pulls an input GPIO low while safe"
+            config RB_VALVE_MODE_WIRELESS
+                bool "wireless: ESP-NOW keep-open heartbeat from the controller"
+        endchoice
+
+        config RB_VALVE_SERVO_GPIO
+            int "Servo signal GPIO"
+            range 0 48
+            default 18 if IDF_TARGET_ESP32
+            default 6 if IDF_TARGET_ESP32C6
+            default 4
+            help
+                Orange/yellow wire of the servo. Defaults avoid strapping,
+                flash and USB pins: ESP32 18, ESP32-C6 6, ESP32-S3/C3 4.
+
+        config RB_VALVE_WIRED_INPUT_GPIO
+            int "Wired mode: input GPIO (to the controller output terminal)"
+            depends on RB_VALVE_MODE_WIRED
+            range 0 48
+            default 19 if IDF_TARGET_ESP32
+            default 7 if IDF_TARGET_ESP32C6
+            default 5
+            help
+                The internal pull-up is enabled. Low (controller output ON)
+                keeps the valve open; high (output OFF, wire cut, controller
+                unpowered) closes it. Defaults: ESP32 19, ESP32-C6 7,
+                ESP32-S3/C3 5.
+
+        config RB_VALVE_WIRED_OPEN_DELAY_MS
+            int "Wired mode: input low this long before opening (ms)"
+            depends on RB_VALVE_MODE_WIRED
+            range 0 10000
+            default 500
+
+        config RB_VALVE_WIRED_CLOSE_DEBOUNCE_MS
+            int "Wired mode: input high this long before closing (ms)"
+            depends on RB_VALVE_MODE_WIRED
+            range 0 1000
+            default 50
+
+        config RB_VALVE_LINK_TIMEOUT_MS
+            int "Wireless mode: close after this long without a keep-open (ms)"
+            depends on RB_VALVE_MODE_WIRELESS
+            range 500 30000
+            default 3000
+            help
+                The controller sends a keep-open every
+                RB_CTRL_VALVE_KEEPALIVE_MS (1 s), so the default tolerates
+                two lost packets.
+
+        config RB_VALVE_STATUS_PERIOD_MS
+            int "Wireless mode: VALVE_STATUS period (ms)"
+            depends on RB_VALVE_MODE_WIRELESS
+            range 200 10000
+            default 1000
+            help
+                A status is also sent right away whenever the valve moves.
+
+        config RB_VALVE_OPEN_ANGLE_DEG
+            int "Servo angle for OPEN (degrees)"
+            range 0 360
+            default 90
+
+        config RB_VALVE_CLOSED_ANGLE_DEG
+            int "Servo angle for CLOSED (degrees)"
+            range 0 360
+            default 0
+
+        config RB_VALVE_SERVO_RANGE_DEG
+            int "Servo travel (degrees)"
+            range 90 360
+            default 180
+
+        config RB_VALVE_SERVO_MIN_PULSE_US
+            int "Pulse width at 0 degrees (us)"
+            range 300 1500
+            default 500
+            help
+                500-2500 us fits most SG90/MG90S/MG996R servos over 180
+                degrees. If the servo buzzes or strains at an end stop,
+                narrow the range (e.g. 1000-2000).
+
+        config RB_VALVE_SERVO_MAX_PULSE_US
+            int "Pulse width at full travel (us)"
+            range 1500 3000
+            default 2500
+
+        config RB_VALVE_TRAVEL_MS
+            int "Time the servo needs to move between positions (ms)"
+            range 100 10000
+            default 1000
+            help
+                A hobby servo reports no position, so the node reports the
+                commanded position and flags it as moving for this long.
+
+        config RB_VALVE_LATCH_CLOSED
+            bool "Stay closed after a shutdown until the valve node is reset"
+            default n
+            help
+                Off: the valve reopens when the controller says it is safe
+                again (after an operator reset on the controller). On: once
+                it has closed, only a reset or power cycle of the valve node
+                reopens it, like a real gas safety valve.
+
+    endmenu
+
     menu "Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)"
 
         comment "Defaults come from legacy/main_controller/main/system_config.h"
@@ -428,6 +545,63 @@ menu "RB4107 configuration"
                 int "Read back and verify the relay output every (ms)"
                 range 100 60000
                 default 1000
+
+        endmenu
+
+        menu "Gas valve node"
+
+            config RB_SHUTDOWN_VALVE_CHANNEL
+                int "Wired valve line: output channel (0 = not used)"
+                range 0 8
+                default 0
+                help
+                    Wired valve node. This output is ON (terminal pulled to
+                    GND) only while it is safe to keep the gas valve open. It
+                    is OFF on shutdown, at boot until the controller runs, and
+                    whenever the controller has no power, so the valve node
+                    closes the valve. Wire the terminal to the valve node's
+                    input GPIO and join the grounds. It follows the shutdown
+                    output and ignores the relay polarity setting. Must differ
+                    from the shutdown relay channel. 2 for the demo.
+
+            config RB_CTRL_VALVE_WIRELESS
+                bool "Wireless valve node (ESP-NOW keep-open heartbeat)"
+                default n
+                help
+                    Sends VALVE_COMMAND to the valve node: KEEP_OPEN every
+                    RB_CTRL_VALVE_KEEPALIVE_MS while safe, CLOSE on shutdown.
+                    If the safety task stops running, the keep-opens stop and
+                    the valve node closes on its own timeout.
+
+            comment "Wireless valve node settings (used only when the option above is on)"
+
+            config RB_CTRL_VALVE_NODE_MAC
+                string "Valve node Wi-Fi STA MAC address"
+                default "FF:FF:FF:FF:FF:FF"
+                help
+                    Copy the MAC the valve node prints at boot. Broadcast
+                    works on the bench, but gets no delivery acknowledgement.
+
+            config RB_CTRL_VALVE_NODE_ID
+                int "Valve node ID"
+                range 1 65535
+                default 4
+                help
+                    RB_NODE_ID of the valve node. Commands carry it, and the
+                    valve node ignores commands for another ID.
+
+            config RB_CTRL_VALVE_KEEPALIVE_MS
+                int "Keep-open / command period (ms)"
+                range 100 5000
+                default 1000
+                help
+                    Keep it well under the valve node's
+                    RB_VALVE_LINK_TIMEOUT_MS (3 s).
+
+            config RB_CTRL_VALVE_STATUS_TIMEOUT_MS
+                int "Warn when no VALVE_STATUS arrives for (ms)"
+                range 500 60000
+                default 3000
 
         endmenu
 

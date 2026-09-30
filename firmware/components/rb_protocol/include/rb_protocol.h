@@ -1,7 +1,8 @@
 #pragma once
 
 /*
- * RB4107 sensor-node -> controller protocol over ESP-NOW (TODO section 4).
+ * RB4107 sensor-node -> controller protocol over ESP-NOW (TODO section 4),
+ * plus the controller <-> valve node messages.
  *
  * The C6 sender and the S3 receiver both compile this one file, so they can't
  * drift apart. Packets are serialised field by field in little-endian order;
@@ -33,6 +34,8 @@ extern "C" {
 typedef enum {
     RB_NODE_ROLE_PRESENCE = 1,   /* one C4002 radar (firmware/presence_node) */
     RB_NODE_ROLE_THERMAL = 2,    /* one MLX90640 (firmware/thermal_node) */
+    RB_NODE_ROLE_VALVE = 3,      /* servo gas valve (firmware/valve_node, wireless mode) */
+    RB_NODE_ROLE_CONTROLLER = 4, /* the S3, when it commands the valve node */
 } rb_node_role_t;
 
 typedef enum {
@@ -40,7 +43,36 @@ typedef enum {
     RB_MSG_THERMAL_DATA = 2,     /* thermal nodes only */
     RB_MSG_HEARTBEAT = 3,
     RB_MSG_SENSOR_FAULT = 4,
+    RB_MSG_VALVE_COMMAND = 5,    /* controller -> valve node */
+    RB_MSG_VALVE_STATUS = 6,     /* valve node -> controller */
 } rb_msg_type_t;
+
+/* VALVE_COMMAND. Any value other than KEEP_OPEN is treated as CLOSE. */
+typedef enum {
+    RB_VALVE_CMD_KEEP_OPEN = 1,
+    RB_VALVE_CMD_CLOSE = 2,
+} rb_valve_cmd_t;
+
+/* Commanded valve position (a hobby servo has no position feedback). */
+typedef enum {
+    RB_VALVE_POS_OPEN = 1,
+    RB_VALVE_POS_CLOSED = 2,
+} rb_valve_pos_t;
+
+/* Why the valve is closed. */
+typedef enum {
+    RB_VALVE_REASON_NONE = 0,          /* open */
+    RB_VALVE_REASON_BOOT = 1,          /* closed since power-up, no keep-open yet */
+    RB_VALVE_REASON_COMMAND = 2,       /* the controller sent CLOSE */
+    RB_VALVE_REASON_LINK_TIMEOUT = 3,  /* no keep-open within the timeout */
+    RB_VALVE_REASON_WIRED_LINE = 4,    /* wired mode: the input went high */
+} rb_valve_reason_t;
+
+/* VALVE_STATUS flags. */
+enum {
+    RB_VALVE_FLAG_MOVING = 1u << 0,    /* the servo may still be travelling */
+    RB_VALVE_FLAG_LATCHED = 1u << 1,   /* stays closed until the valve node is reset */
+};
 
 /* Sensor fault / validity flags, used by heartbeat and fault messages. */
 typedef enum {
@@ -57,15 +89,20 @@ typedef enum {
 #define RB_BODY_THERMAL_DATA_LEN 17u
 #define RB_BODY_HEARTBEAT_LEN 10u
 #define RB_BODY_SENSOR_FAULT_LEN 8u
+#define RB_BODY_VALVE_COMMAND_LEN 5u
+#define RB_BODY_VALVE_STATUS_LEN 7u
 #define RB_PKT_PRESENCE_DATA_LEN (RB_HEADER_LEN + RB_BODY_PRESENCE_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_THERMAL_DATA_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_HEARTBEAT_LEN (RB_HEADER_LEN + RB_BODY_HEARTBEAT_LEN + RB_CRC_LEN)
 #define RB_PKT_SENSOR_FAULT_LEN (RB_HEADER_LEN + RB_BODY_SENSOR_FAULT_LEN + RB_CRC_LEN)
+#define RB_PKT_VALVE_COMMAND_LEN (RB_HEADER_LEN + RB_BODY_VALVE_COMMAND_LEN + RB_CRC_LEN)
+#define RB_PKT_VALVE_STATUS_LEN (RB_HEADER_LEN + RB_BODY_VALVE_STATUS_LEN + RB_CRC_LEN)
 #define RB_PKT_MAX_LEN RB_PKT_THERMAL_DATA_LEN
 
 _Static_assert(RB_PKT_MAX_LEN <= RB_ESPNOW_MAX_PAYLOAD, "packet exceeds ESP-NOW payload");
 _Static_assert(RB_PKT_MAX_LEN >= RB_PKT_PRESENCE_DATA_LEN && RB_PKT_MAX_LEN >= RB_PKT_HEARTBEAT_LEN &&
-                   RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN,
+                   RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN && RB_PKT_MAX_LEN >= RB_PKT_VALVE_COMMAND_LEN &&
+                   RB_PKT_MAX_LEN >= RB_PKT_VALVE_STATUS_LEN,
                "RB_PKT_MAX_LEN must cover every message");
 
 typedef struct {
@@ -81,6 +118,18 @@ typedef struct {
 } rb_sensor_fault_msg_t;
 
 typedef struct {
+    rb_valve_cmd_t command;
+    uint32_t valve_node_id;    /* RB_NODE_ID of the valve node this is meant for */
+} rb_valve_command_t;
+
+typedef struct {
+    rb_valve_pos_t position;
+    uint8_t flags;             /* RB_VALVE_FLAG_* */
+    rb_valve_reason_t reason;
+    uint32_t last_command_seq; /* sequence of the last VALVE_COMMAND accepted, 0 if none */
+} rb_valve_status_t;
+
+typedef struct {
     uint8_t protocol_version;
     rb_msg_type_t type;
     rb_node_role_t role;
@@ -92,6 +141,8 @@ typedef struct {
         thermal_reading_t thermal;     /* RB_MSG_THERMAL_DATA */
         rb_heartbeat_t heartbeat;
         rb_sensor_fault_msg_t fault;
+        rb_valve_command_t valve_command;
+        rb_valve_status_t valve_status;
     } body;
 } rb_packet_t;
 
@@ -113,7 +164,7 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
 
 const char *rb_decode_result_name(rb_decode_result_t result);
 const char *rb_msg_type_name(rb_msg_type_t type);
-const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" */
+const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" / "valve" / "controller" */
 
 /* CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF). */
 uint16_t rb_crc16(const uint8_t *data, size_t len);
