@@ -6,7 +6,7 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 15. Target: **Waveshare ESP32-S3-ETH-8DI-8RO** (PCF85063 RTC at `0x51`).
+Target: **Waveshare ESP32-S3-ETH-8DI-8RO** (PCF85063 RTC at `0x51`).
 
 There are two separate notions of time:
 

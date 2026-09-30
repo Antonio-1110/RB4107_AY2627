@@ -6,12 +6,12 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 14. Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
+Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
 
 ## Interface
 
 The 8 relays are driven by a **TCA9554** I2C expander (address `0x20` on the
-board I2C bus, SDA 42 / SCL 41). This comes from the legacy controller and is
+board I2C bus, SDA 42 / SCL 41). This comes from the earlier prototype controller and is
 UNCONFIRMED.
 
 ## API (`components/shutdown_output`)
@@ -39,6 +39,6 @@ its outputs onto this API and the buzzer.
 
 After power-on the TCA9554 pins are inputs. The driver writes the **output
 register first** and only then switches the pins to outputs, so a relay can't
-click during boot. (The legacy driver did it in the opposite order.) If a
+click during boot. (The earlier prototype driver did it in the opposite order.) If a
 read-back doesn't match what was written (e.g. the expander reset after a
 brownout), the registers are restored and a fault is reported.

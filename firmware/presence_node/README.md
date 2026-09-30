@@ -5,13 +5,13 @@
 > and [`controller`](../controller) on the S3, this is the running
 > system.
 
-TODO sections 1, 2 and 5. Target: a **DFRobot DFR1117 ESP32-C6 mini** wired to one
+Target: a **DFRobot DFR1117 ESP32-C6 mini** wired to one
 **DFRobot C4002** radar. The system has two of these boards; they run the same
 firmware and differ only in their node ID.
 
 ```text
 C4002 #1 → C6 (node 1) ─┐
-C4002 #2 → C6 (node 2) ─┼─ ESP-NOW → S3 controller (29)
+C4002 #2 → C6 (node 2) ─┼─ ESP-NOW → S3 controller
 MLX90640 → C6 (node 3) ─┘   (thermal node: project `thermal_node`)
 ```
 
@@ -28,7 +28,7 @@ present) and runs the safety state machine. Every packet carries the node ID
 and the role "presence", so the controller rejects a board flashed with the
 wrong firmware or ID.
 
-Board checks (section 1): at boot the node prints its node ID, chip revision,
+Board checks: at boot the node prints its node ID, chip revision,
 Wi-Fi MAC (the ESP-NOW source address) and reset reason. A `brownout` or
 `watchdog` reset points to wiring or power problems. Every
 `RB_NODE_HEALTH_LOG_PERIOD_MS` it logs uptime, free heap, ESP-NOW delivery
@@ -66,4 +66,4 @@ channel is wrong, or the S3 isn't running. If the controller logs
 (menuconfig → *Sensor node link* in project `controller`).
 
 To test the radar on its own first (UART pins, readings, false detections),
-use project [02](../testing/c4002).
+use [`testing/c4002`](../testing/c4002).

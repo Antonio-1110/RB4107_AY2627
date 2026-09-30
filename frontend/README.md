@@ -1,7 +1,7 @@
 # Monitoring dashboard
 
 Plain HTML, CSS and JavaScript modules, with no build step and no dependencies.
-It only reads data: it polls the Django API in [`backend/django`](../backend/django)
+It only reads data: it polls the Django API in [`django/`](../django)
 and can not operate, silence or reset anything on the controller.
 
 ```text
@@ -17,7 +17,7 @@ js/format.js      value formatting
 
 ## Running it
 
-Start the backend (`python manage.py runserver` in `backend/django`, see its
+Start the backend (`python manage.py runserver` in `django/`, see its
 README) and open http://127.0.0.1:8000/. Django serves this folder at `/`, so
 the page and the API share one origin. Opening `index.html` straight from disk
 does not work, because browsers block JavaScript modules and API calls from

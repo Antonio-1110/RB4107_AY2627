@@ -5,11 +5,7 @@
 > boards, [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 28. Targets: **ESP32-S3** and the **host PC** (ESP-IDF `linux` target).
-
-This project also covers the logic-only sections, which no longer have
-projects of their own: 4 (protocol), 9 (state machine), 10 (behaviour with
-the menuconfig timings), 11 (timers on a simulated clock) and 21 (JSON).
+Targets: **ESP32-S3** and the **host PC** (ESP-IDF `linux` target).
 
 Unity tests for the logic that decides safety. It is all plain C with
 timestamps passed in, so the tests run a simulated clock and need no
@@ -30,7 +26,7 @@ idf.py build flash monitor                              # prints "ALL TESTS PASS
 
 ## Required scenarios
 
-| TODO scenario | Test |
+| Scenario | Test |
 |---|---|
 | IDLE → MONITORING | `test_idle_to_monitoring` (plus hysteresis) |
 | MONITORING → UNATTENDED | `test_monitoring_to_unattended_after_debounce` |
@@ -55,8 +51,7 @@ wrap-around, config validation, the sequence tracking edge cases, protocol
 presence/thermal packet round trips and corruption on every byte, C4002 frame resync and errors, thermal features,
 JSON null/escaping/overflow, and the topic table.
 
-**Result:** 57 tests, 0 failures, both on the host (linux target) and on
-the ESP32-S3 (QEMU).
+All tests pass on the host (linux target) and on the ESP32-S3 (QEMU).
 
 These tests found two real bugs, both fixed in `safety.c`. After a self-test
 failure or timeout, FAULT recovered to IDLE straight away because its exit

@@ -1,4 +1,4 @@
-// Read-only calls to the Django API (see backend/django/ingest/views.py).
+// Read-only calls to the Django API (see django/ingest/views.py).
 // The dashboard never sends commands to the controller.
 
 import { API_BASE, REQUEST_TIMEOUT_MS } from "./config.js";

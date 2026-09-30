@@ -69,9 +69,9 @@ BOOT/SELF_TEST show as "controller starting".
 
 ## Locations and more controllers
 
-Edit `backend/django/locations.json`, keyed by the firmware's `controller_id`
+Edit `django/locations.json`, keyed by the firmware's `controller_id`
 (`RB_MQTT_CONTROLLER_ID`). The `controller_01` entry is the lab bench.
-`backend/django/locations.demo.json` holds made-up stalls for `simulate_fleet`;
+`django/locations.demo.json` holds made-up stalls for `simulate_fleet`;
 select it with `RB4107_LOCATION_CATALOG_FILE=locations.demo.json`. Its terminal
 layout is illustrative and its stall names are fictional.
 Unknown IDs are accepted and displayed as unassigned locations.
@@ -112,4 +112,4 @@ The original rb4107/controller/state single-controller tree remains supported.
 
 ## Running it
 
-See [`backend/django/README.md`](../backend/django/README.md#setup).
+See [setup.md](setup.md#backend-and-dashboard).

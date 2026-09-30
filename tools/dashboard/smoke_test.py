@@ -15,7 +15,7 @@ import time
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKEND = ROOT / "backend/django"
+BACKEND = ROOT / "django"
 
 
 def free_port():

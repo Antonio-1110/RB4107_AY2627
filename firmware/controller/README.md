@@ -1,13 +1,12 @@
-# Controller: ESP32-S3 system firmware (end-to-end, diagnostics, critical failure test)
+# Controller: ESP32-S3 system firmware
 
 > **System firmware: flash this on the ESP32-S3.** Together with
 > [`presence_node`](../presence_node) on the two presence C6
 > boards and [`thermal_node`](../thermal_node) on the thermal C6
 > board, this is the running system.
 
-The production controller firmware for the **Waveshare ESP32-S3-ETH-8DI-8RO**.
-It covers TODO sections **29** (end-to-end integration), **27** (diagnostic
-mode) and **30** (critical failure test). Every component is wired in
+The production controller firmware for the **Waveshare ESP32-S3-ETH-8DI-8RO**,
+with the diagnostic console and the critical-failure monitor built in. Every component is wired in
 `components/rb_controller_app`; the architecture is described in
 [`docs/architecture.md`](../../docs/architecture.md).
 
@@ -26,25 +25,14 @@ MLX90640 → C6 thermal node    (thermal_node,  node 3) ─┘    ↓
                                                 ↓ Ethernet
                                  Mosquitto on the MacBook (tools/mqtt)
                                                 ↓
-                                 Django subscriber (backend/django)
+                                 Django subscriber (django/)
 ```
 
 ## Setup
 
-1. **MacBook:** `tools/mqtt/start_broker.sh`, then `tools/mqtt/lan_ip.sh`, and note the IP.
-2. **MacBook:** `cd backend/django && python manage.py mqtt_subscriber`
-3. **S3** (`idf.py menuconfig` here): `RB_BROKER_HOST` = MacBook IP, `RB_ESPNOW_CHANNEL`.
-   The node IDs (*Sensor node link* menu) default to presence A = 1,
-   presence B = 2, thermal = 3; set *Number of presence nodes* to 1 to run
-   with a single radar on the bench. Flash it and note the MAC it prints.
-4. **The three C6 boards:** `RB_NODE_CONTROLLER_MAC` = S3 MAC, same channel.
-   - presence node A and B: [`presence_node`](../presence_node)
-     (its README shows how to build node B with ID 2),
-   - thermal node: [`thermal_node`](../thermal_node).
-5. At boot the S3 logs `sensor nodes: presence node_01 + node_02, thermal
-   node_03`, then `ONLINE` for each node as it is heard.
+Flashing order, MAC address and channel: [docs/setup.md](../../docs/setup.md#firmware).
 
-## Diagnostic console (section 27)
+## Diagnostic console
 
 Type at the `rb4107>` prompt in `idf.py monitor`:
 
@@ -87,7 +75,7 @@ idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
 Start Mosquitto on the host first. Never flash a build made with this
 overlay onto the real controller.
 
-## End-to-end test (section 29)
+## End-to-end test
 
 Run `python3 tools/diagnostics/e2e_check.py --host <MacBook IP> --duration 600`
 on the MacBook. For a quicker run, type `timers test` in the console.
@@ -105,7 +93,7 @@ on the MacBook. For a quicker run, type `timers test` in the console.
 | Django receives telemetry | `[TELEMETRY][INFO] controller_01 seq=...` lines | by hand |
 | Django receives safety events | `[EVENT][WARNING] controller_01 WARNING/SHUTDOWN ...` | by hand |
 
-## Critical failure test (section 30)
+## Critical failure test
 
 The continuity monitor (`RB_DIAG_CONTINUITY_MONITOR`, on by default here,
 priority 1) watches the safety path whenever MQTT is down. It logs a line
@@ -131,7 +119,7 @@ Procedure:
 4. **Repeat with the MacBook disconnected entirely** (unplug its network or
    shut it down). The S3 log is the record for that run.
 
-| TODO item | Evidence |
+| Check | Evidence |
 |---|---|
 | MQTT disconnects, S3 reports telemetry fault | `FAULT: TELEMETRY fault RAISED: mqtt_disconnected`; `fault_cleared` event after reconnect |
 | ESP-NOW continues | console `node`: all three nodes ONLINE throughout; continuity log `presence` follows the radars |
@@ -142,24 +130,8 @@ Procedure:
 
 ## Done without hardware
 
-All of the following were run in QEMU against Mosquitto on the host, with
-the three simulated nodes and simulated outputs, driven from the console:
-
-- **End to end:** `sim temp 120` → MONITORING, `sim absent` → UNATTENDED →
-  WARNING → SHUTDOWN, `sim present` + `reset` → back to MONITORING, with the
-  Django subscriber and `e2e_check.py` running. All 10 MQTT-side checks
-  passed (130 messages, 0 invalid); Django received 322 messages and rejected
-  none.
-- **One radar lost:** `sim node-off b` while cooking. Radar A still saw the
-  cook, but node B going STALE raised `presence_b_unavailable` (SAFETY) and
-  the controller went to FAULT, then SHUTDOWN after the fault timeout.
-  `sim node-on b` cleared both faults.
-- **Thermal node invalid:** `sim invalid thermal` → `thermal_unavailable`,
-  FAULT; `sim valid thermal` → back to MONITORING.
-- **Critical failure:** Mosquitto was stopped while the simulated cook walked
-  away. WARNING and SHUTDOWN happened with the broker down, and the
-  continuity monitor reported PASS after the broker came back.
-- **Payloads:** all 524 captured messages valid against the schema.
-
-What these runs can't cover is exactly what needs the bench: real sensors,
-the radio link, the buzzer and the relay.
+All of the above has been rehearsed in QEMU against Mosquitto, with the three
+simulated nodes and simulated outputs: the full safety sequence, losing a
+radar, an invalid thermal node, and the critical failure test (PASS). What
+QEMU can't cover (real sensors, the radio link, buzzer and relay) is tracked
+in the GitHub issues.

@@ -1,6 +1,6 @@
 # MacBook MQTT broker (Mosquitto)
 
-TODO section 18. This runs on the MacBook, not on an ESP32.
+This runs on the MacBook, not on an ESP32.
 
 ```text
 ESP32-S3 ──Ethernet──▶ <MacBook LAN IP>:1883 ──▶ Mosquitto ──▶ Django subscriber

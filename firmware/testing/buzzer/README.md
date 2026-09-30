@@ -6,11 +6,11 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 13. Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
+Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
 
 ## Interface (UNCONFIRMED)
 
-The legacy controller drove the buzzer on **GPIO46, active high**, and that
+The earlier prototype controller drove the buzzer on **GPIO46, active high**, and that
 is the default. Check the Waveshare schematic to confirm it, and to find out
 whether the buzzer is **active** (DC level) or **passive** (needs a tone).
 Both are supported: menuconfig → *Controller board* → *Buzzer* → *Buzzer type*.
