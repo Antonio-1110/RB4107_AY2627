@@ -11,6 +11,7 @@
 # Options (environment variables):
 #   RB4107_HTTP_ADDR=127.0.0.1:8000   address for runserver
 #   RB4107_SKIP_BROKER=1              don't start Mosquitto (use one already running)
+#   RB4107_NO_BROWSER=1               don't open the dashboard in the browser
 #
 # Uses backend/django/.venv if it exists. Written for the bash 3.2 that
 # ships with macOS.
@@ -124,7 +125,21 @@ fi
 start subscriber "$PYTHON" manage.py mqtt_subscriber
 start web "$PYTHON" manage.py runserver "$HTTP_ADDR"
 
-echo "[dev] dashboard: http://$HTTP_ADDR/   (Ctrl-C stops everything)"
+# The dashboard (frontend/) is served by runserver at /, so there is no
+# separate frontend process. Open it once the web server answers.
+URL="http://127.0.0.1:${HTTP_ADDR##*:}/"
+for _ in $(seq 1 60); do
+    port_open "${HTTP_ADDR##*:}" && break
+    sleep 0.25
+done
+echo "[dev] dashboard: $URL   (Ctrl-C stops everything)"
+if [[ "${RB4107_NO_BROWSER:-0}" != 1 ]]; then
+    if command -v open >/dev/null 2>&1 && [[ "$(uname)" == Darwin ]]; then
+        open "$URL"
+    elif command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$URL" >/dev/null 2>&1 &
+    fi
+fi
 
 # --- Wait until Ctrl-C or until one of them exits ------------------------------
 while :; do

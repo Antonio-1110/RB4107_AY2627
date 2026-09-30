@@ -31,7 +31,8 @@ Windows, activate with `.venv\Scripts\Activate.ps1` and copy with
 After this one-time setup, `tools/run_dev.sh` (run from the repository root)
 starts Mosquitto, the MQTT subscriber and `runserver` together, with each
 line of output tagged `[broker]`, `[subscriber]` or `[web]`. Ctrl-C stops all
-three. It uses `backend/django/.venv` if present, so no need to activate it
+three. Once the server is up it opens the dashboard in your browser (set
+`RB4107_NO_BROWSER=1` to skip that). It uses `backend/django/.venv` if present, so no need to activate it
 first. It is for local development and demos only.
 
 To view the dashboard from another computer, keep `runserver` on 127.0.0.1 and
