@@ -26,7 +26,8 @@ class Command(BaseCommand):
             raise CommandError("--interval must be positive")
         ids = [key for key, value in load_location_catalog()["devices"].items() if value.get("demo_only")]
         if not ids:
-            raise CommandError("Catalogue has no demo_only controllers; configure a demo catalogue first")
+            raise CommandError("The location catalogue has no demo_only controllers. "
+                               "Set RB4107_LOCATION_CATALOG_FILE=locations.demo.json first.")
         prefix = topic_prefix(settings.RB4107_MQTT["TOPIC"])
         client = None
         try:

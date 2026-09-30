@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "catalog_name": "RB4107 location catalogue",
+    "status": "configured",
+    "notice": "Maps each controller_id to where it is installed. Add an entry per controller before deployment."
+  },
+  "devices": {
+    "controller_01": {
+      "stall_id": "BENCH-01",
+      "site_id": "rb4107-bench",
+      "site_name": "RB4107 test bench",
+      "site_type": "Prototype",
+      "building": "Configure actual building",
+      "access_zone": "Test area",
+      "level": "Configure actual level",
+      "area": "Integration bench",
+      "venue": "RB4107 prototype",
+      "stall_name": "Controller 01 — test bench",
+      "unit": "Not deployed",
+      "station_name": "Controller 01",
+      "response_route": "Not a deployed location — configure before field use",
+      "demo_only": false,
+      "location_source": "Prototype controller on the lab bench; not a deployed location"
+    }
+  }
+}

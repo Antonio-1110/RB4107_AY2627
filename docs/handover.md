@@ -4,11 +4,10 @@ Context for picking this project up in a new session, e.g. a local one that
 can build and flash. Read this first, then `README.md`, `firmware/README.md`
 and `TODO.md`.
 
-**Dashboard update, 2026-09-29:** The original firmware handover below is
-historical. The existing Django subscriber now persists schema-v2 messages and
-serves the AES dashboard. See [`dashboard_integration.jw.md`](dashboard_integration.jw.md)
-and `backend/django/README.md`; use `manage.py migrate` before starting it.
-The firmware source and physical safety logic are unchanged by this integration.
+**Dashboard, 2026-09-29:** the Django subscriber now stores schema-v2 messages
+and serves the monitoring dashboard in `frontend/`. See [`dashboard.md`](dashboard.md)
+and `backend/django/README.md` (run `manage.py migrate` before starting it).
+The firmware is unchanged by this.
 
 ## Where things stand
 

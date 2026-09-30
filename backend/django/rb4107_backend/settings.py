@@ -28,7 +28,6 @@ ALLOWED_HOSTS = [h for h in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").s
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
-    "django.contrib.staticfiles",
     "ingest",
 ]
 
@@ -41,15 +40,10 @@ ROOT_URLCONF = "rb4107_backend.urls"
 WSGI_APPLICATION = "rb4107_backend.wsgi.application"
 ASGI_APPLICATION = "rb4107_backend.asgi.application"
 
-TEMPLATES = [{
-    "BACKEND": "django.template.backends.django.DjangoTemplates",
-    "DIRS": [BASE_DIR / "templates"],
-    "APP_DIRS": True,
-    "OPTIONS": {"context_processors": []},
-}]
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+# The dashboard lives in the repository's frontend/ folder (plain HTML, CSS
+# and JavaScript). Django serves it at / so the page and the API share one
+# origin; see rb4107_backend/urls.py.
+FRONTEND_DIR = Path(env("RB4107_FRONTEND_DIR", str(REPO_ROOT / "frontend")))
 
 DATABASES = {
     "default": {
@@ -93,8 +87,7 @@ RB4107_SUPPORTED_SCHEMA_VERSIONS = {2}
 # Display freshness only: these never control firmware safety timers.
 DEVICE_STALE_SECONDS = int(env("RB4107_DEVICE_STALE_SECONDS", "15"))
 WORKER_STALE_SECONDS = int(env("RB4107_WORKER_STALE_SECONDS", "10"))
-DASHBOARD_POLL_MS = max(500, int(env("RB4107_DASHBOARD_POLL_MS", "2000")))
-LOCATION_CATALOG_FILE = Path(env("RB4107_LOCATION_CATALOG_FILE", "location_catalog.jw.json"))
+LOCATION_CATALOG_FILE = Path(env("RB4107_LOCATION_CATALOG_FILE", "locations.json"))
 if not LOCATION_CATALOG_FILE.is_absolute():
     LOCATION_CATALOG_FILE = BASE_DIR / LOCATION_CATALOG_FILE
 

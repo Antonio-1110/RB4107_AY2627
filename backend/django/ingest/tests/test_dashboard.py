@@ -3,7 +3,8 @@ import copy
 import json
 from dataclasses import replace
 from datetime import timedelta
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from ingest.demo import demo_telemetry
@@ -35,10 +36,10 @@ class DashboardIntegrationTest(TestCase):
         self.assertEqual(response["values"]["temperature_c"], msg.data["thermal"]["max_c"])
         self.assertIs(response["values"]["occupied"], True)
         self.assertEqual(response["connection"], "online")
-        self.assertEqual(response["location"]["stall_id"], "AES-BENCH-01")
+        self.assertEqual(response["location"]["stall_id"], "BENCH-01")
         self.assertEqual(len(response["values"]["sensors"]), 3)
         self.assertEqual(len(self.client.get("/api/devices/controller_01/history/").json()["points"]), 1)
-        self.assertContains(self.client.get("/"), "v2.2")
+        self.assertContains(self.client.get("/"), "js/dashboard.js")
 
     def test_shutdown_and_warning_have_distinct_reset_requirements(self):
         self.send("WARNING")
@@ -68,8 +69,6 @@ class DashboardIntegrationTest(TestCase):
         values = self.latest()["values"]
         self.assertIsNone(values["occupied"])
         self.assertIsNone(values["temperature_c"])
-        self.assertIsNone(values["cooking_state"])
-        self.assertIsNone(values["warning_after_seconds"])
 
     def test_retained_shutdown_bootstraps_last_known_without_online_or_graph_point(self):
         data = demo_telemetry("controller_01", index=1)
@@ -147,8 +146,9 @@ class DashboardIntegrationTest(TestCase):
         self.assertTrue(self.latest()["display_state"]["last_known"])
         self.assertGreater(self.latest()["field_age_seconds"]["temperature_c"], 59)
 
+    @override_settings(LOCATION_CATALOG_FILE=settings.BASE_DIR / "locations.demo.json")
     def test_namespaced_controllers_and_same_stall_aggregate(self):
-        for ident in ["t3-kopitiam-s01", "t3-kopitiam-s01-b"]:
+        for ident in ["demo-t3-foodcourt-a", "demo-t3-foodcourt-b"]:
             msg = parse(f"rb4107/{ident}/controller/state", json.dumps(demo_telemetry(ident)).encode(), "rb4107/+")
             handle(msg)
         data = self.client.get("/api/devices/").json()
@@ -169,3 +169,14 @@ class DashboardIntegrationTest(TestCase):
                         b'{"schema_version":2,"type":[]}', b'{"value":NaN}', b'{"value":1e999}']:
             with self.assertRaises(InvalidMessage):
                 parse("rb4107/controller/state", payload)
+
+
+class FrontendServingTests(TestCase):
+    def test_serves_dashboard_page_and_assets(self):
+        self.assertContains(self.client.get("/"), "js/dashboard.js")
+        for asset in ["/css/dashboard.css", "/js/dashboard.js", "/js/api.js"]:
+            self.assertEqual(self.client.get(asset).status_code, 200, asset)
+
+    def test_does_not_serve_files_outside_assets(self):
+        self.assertEqual(self.client.get("/js/../index.html").status_code, 404)
+        self.assertEqual(self.client.get("/README.md").status_code, 404)

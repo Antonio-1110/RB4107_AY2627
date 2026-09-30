@@ -22,9 +22,11 @@ RB4107_AY2627/
 │   ├── controller/           SYSTEM FIRMWARE for the ESP32-S3
 │   ├── components/           shared code (drivers, protocol, safety logic, ...)
 │   └── testing/              test-only projects: one per hardware part, plus unit tests
-├── backend/django/           MQTT ingestion, SQLite history, GET API and AES multi-stall dashboard
+├── backend/django/           MQTT ingestion, SQLite history and the read-only GET API
+├── frontend/                 monitoring dashboard (plain HTML/CSS/JS, served by Django)
 ├── tools/
 │   ├── mqtt/                 Mosquitto config and scripts (TODO section 18)
+│   ├── dashboard/            end-to-end MQTT → API → browser smoke test
 │   └── diagnostics/          host-side helper scripts
 ├── docs/                     protocol, topics, schema, configuration, test procedures
 ├── legacy/                   earlier prototypes, kept for reference only
@@ -43,10 +45,11 @@ Django on the MacBook:
 | ESP32-S3 (Waveshare ETH-8DI-8RO) | [`firmware/controller`](firmware/controller) | **Controller firmware**: combines the two radars, runs the safety state machine, buzzer, shutdown relay, RTC, Ethernet, MQTT, diagnostic console |
 | MacBook | [`tools/mqtt`](tools/mqtt) + [`backend/django`](backend/django) | Mosquitto broker and Django subscriber (not ESP32 projects) |
 
-The AES dashboard is integrated in [`backend/django`](backend/django/README.md).
-It shows all-stall status, per-station sensors, temperature history and events.
-Only reported supply isolation awaiting manual reset occupies the top banner.
-Setup and payload mapping: [`docs/dashboard_integration.jw.md`](docs/dashboard_integration.jw.md).
+The monitoring dashboard is in [`frontend/`](frontend) and reads the Django API
+in [`backend/django`](backend/django/README.md). It shows all-stall status,
+per-station sensors, temperature history and events; only reported supply
+isolation awaiting manual reset occupies the top banner.
+Setup and payload mapping: [`docs/dashboard.md`](docs/dashboard.md).
 
 Setup steps (broker, MAC address, channel):
 [`firmware/controller/README.md`](firmware/controller/README.md#setup).

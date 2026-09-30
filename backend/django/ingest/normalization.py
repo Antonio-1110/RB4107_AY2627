@@ -1,7 +1,7 @@
 """Translate validated firmware schema v2 into the dashboard's stable fields.
 
 This module does not evaluate temperatures, fuse radar readings or run timers.
-The controller publishes those decisions. See docs/dashboard_integration.jw.md.
+The controller publishes those decisions. See docs/dashboard.md.
 """
 import math
 
@@ -39,8 +39,6 @@ def normalize(message):
             test_timers=safety["test_timers"],
             faults=data["faults"],
             simulation=data.get("simulation") is True,
-            # Not present in firmware v2: do not invent cooking flags/settings.
-            cooking_state=None, warning_after_seconds=None, shutoff_after_seconds=None,
             protocol_version=data["protocol_version"],
         )
         fields.update(thermal_fields(data["thermal"]))
