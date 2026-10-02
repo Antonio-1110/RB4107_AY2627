@@ -269,6 +269,8 @@ static void publish_heatmap(void)
         .base_centi = pic.frame.base_centi,
         .step_centi = pic.frame.step_centi,
         .invalid_value = RB_FRAME_PIXEL_INVALID,
+        .hot_threshold_centi = pic.frame.hot_threshold_centi,
+        .hot_region_radius = pic.frame.hot_region_radius,
         .pixels = pic.frame.pixels,
     };
     publish(RB_TOPIC_SENSOR_THERMAL_FRAME, pic.node_id, rb_json_thermal_frame(&f, s_payload, sizeof(s_payload)), -1);

@@ -22,7 +22,7 @@ MLX90640 → C6 → feature extraction → ESP-NOW (THERMAL_DATA) → S3 control
 The safety logic only gets the features. Separately, for the dashboard heat
 map, the link task sends the whole picture at 1 byte per pixel every
 `RB_THERMAL_HEATMAP_PERIOD_MS` (default 3 s) as 4 THERMAL_FRAME pieces, one
-per tick ([protocol.md](../../docs/protocol.md#thermal_frame-type-10-223-bytes-total)).
+per tick ([protocol.md](../../docs/protocol.md#thermal_frame-type-10-224-bytes-total)).
 Turn it off with `RB_THERMAL_HEATMAP`. The node does not decide anything: the
 controller runs the safety state machine. Every packet carries the node ID
 and the role "thermal".

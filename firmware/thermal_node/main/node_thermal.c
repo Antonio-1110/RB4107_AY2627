@@ -42,6 +42,8 @@ static void update_heatmap(const thermal_features_config_t *cfg, uint32_t now)
     }
     s_heatmap_next_ms = now + CONFIG_RB_THERMAL_HEATMAP_PERIOD_MS;
     thermal_frame_encode(s_frame, cfg->valid_min_c, cfg->valid_max_c, now, &s_heatmap_work);
+    s_heatmap_work.hot_threshold_centi = (int16_t)lroundf(cfg->hot_pixel_threshold_c * 100.0f);
+    s_heatmap_work.hot_region_radius = cfg->hot_region_radius;
     portENTER_CRITICAL(&s_lock);
     s_heatmap = s_heatmap_work;
     s_heatmap_number++;

@@ -152,6 +152,8 @@ static void test_thermal_frame_fits_payload_buffer(void)
         .base_centi = -4000,
         .step_centi = 134,
         .invalid_value = 255,
+        .hot_threshold_centi = 5000,
+        .hot_region_radius = 1,
         .pixels = pixels,
     };
     const size_t len = rb_json_thermal_frame(&f, big, sizeof(big));
@@ -160,7 +162,7 @@ static void test_thermal_frame_fits_payload_buffer(void)
     TEST_ASSERT_NOT_NULL(strstr(big, "\"type\":\"thermal_frame\""));
     TEST_ASSERT_NOT_NULL(strstr(big, "\"sensor_node\":\"node_03\",\"frame\":{\"number\":4000000000,"
                                      "\"width\":32,\"height\":24,\"base_c\":-40.00,\"step_c\":1.34,"
-                                     "\"invalid\":255,\"encoding\":\"u8_base64\",\"pixels\":\"AAECAwQF"));
+                                     "\"invalid\":255,\"hot_threshold_c\":50.0,\"hot_region_radius\":1,\"encoding\":\"u8_base64\",\"pixels\":\"AAECAwQF"));
 }
 
 void run_json_tests(void)

@@ -5,7 +5,13 @@
 import { POLL_MS } from "./config.js";
 import { fetchEvents, fetchFleet, fetchHistory, fetchThermalFrame } from "./api.js";
 import { drawTemperatureChart } from "./chart.js";
-import { decodeFrame, drawHeatmap, legendGradient } from "./heatmap.js";
+import {
+  decodeFrame,
+  drawHeatmap,
+  legendGradient,
+  pixelFootprintCm,
+  pixelsAboveThreshold,
+} from "./heatmap.js";
 import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderTuning } from "./tuning.js";
@@ -548,7 +554,11 @@ function drawChart() {
 }
 function renderHeatmap() {
   $("heatmap-empty").hidden = !!heatmap;
-  heatmapGeometry = drawHeatmap($("heatmap"), heatmap);
+  heatmapGeometry = drawHeatmap($("heatmap"), heatmap, {
+    showThreshold: $("heatmap-show-threshold").checked,
+    showRegion: $("heatmap-show-region").checked,
+  });
+  renderHeatmapFacts();
   if (!heatmap) {
     const canvas = $("heatmap");
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
@@ -558,6 +568,47 @@ function renderHeatmap() {
   }
   set("heatmap-min", number(heatmap.min) ? `${heatmap.min.toFixed(1)} °C` : "—");
   set("heatmap-max", number(heatmap.max) ? `${heatmap.max.toFixed(1)} °C` : "—");
+}
+// The node's own results (from the thermal reading, not the picture) next to
+// what the picture shows, so the two can be compared.
+function renderHeatmapFacts() {
+  const value = current?.values || {},
+    size = heatmap?.radius === null || !heatmap ? null : 2 * heatmap.radius + 1;
+  set(
+    "heatmap-region",
+    number(value.hot_region_c)
+      ? `${value.hot_region_c.toFixed(1)} °C${size ? ` (${size} × ${size} pixels)` : ""}`
+      : "—",
+  );
+  set(
+    "heatmap-threshold",
+    heatmap && heatmap.threshold !== null ? `${heatmap.threshold.toFixed(1)} °C` : "—",
+  );
+  const counted = heatmap ? pixelsAboveThreshold(heatmap) : null;
+  set(
+    "heatmap-count",
+    number(value.pixels_above_threshold)
+      ? `${value.pixels_above_threshold}${counted !== null ? ` (picture shows ${counted})` : ""}`
+      : counted !== null
+        ? `${counted} in picture`
+        : "—",
+  );
+}
+function renderFootprint() {
+  const fov = $("heatmap-fov").value.split(",").map(Number),
+    distance = Number($("heatmap-distance").value);
+  if (!(distance > 0)) {
+    set("heatmap-footprint", "Enter a distance in metres.");
+    return;
+  }
+  const { width, height } = pixelFootprintCm(fov, distance),
+    region = heatmap?.radius === null || !heatmap ? 3 : 2 * heatmap.radius + 1;
+  set(
+    "heatmap-footprint",
+    `At ${distance.toFixed(1)} m each centre pixel covers about ${width.toFixed(1)} × ${height.toFixed(1)} cm, ` +
+      `so the ${region} × ${region} hot region is about ${(width * region).toFixed(0)} × ${(height * region).toFixed(0)} cm. ` +
+      "A pan smaller than that region, or a pixel only partly on the pan, reads cooler than the pan.",
+  );
 }
 async function refreshHeatmap() {
   if (activeView !== "detail" || !selectedDevice) return;
@@ -811,6 +862,11 @@ $("heatmap").addEventListener("mousemove", (event) => {
   tip.hidden = false;
 });
 $("heatmap").addEventListener("mouseleave", () => ($("heatmap-tip").hidden = true));
+$("heatmap-show-threshold").addEventListener("change", renderHeatmap);
+$("heatmap-show-region").addEventListener("change", renderHeatmap);
+$("heatmap-fov").addEventListener("change", renderFootprint);
+$("heatmap-distance").addEventListener("input", renderFootprint);
+renderFootprint();
 async function loop() {
   await refresh();
   setTimeout(loop, POLL_MS);

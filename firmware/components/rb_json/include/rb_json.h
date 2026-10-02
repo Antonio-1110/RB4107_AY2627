@@ -118,6 +118,8 @@ typedef struct {
     int16_t base_centi;           /* temperature of pixel value 0, 0.01 degC */
     uint16_t step_centi;          /* temperature per pixel step, 0.01 degC */
     uint8_t invalid_value;        /* pixel value meaning "no reading" */
+    int16_t hot_threshold_centi;  /* the thermal node's hot-pixel threshold, 0.01 degC */
+    uint8_t hot_region_radius;    /* the thermal node's hot-region radius (pixels) */
     const uint8_t *pixels;        /* width * height bytes, row by row */
 } rb_json_thermal_frame_t;
 

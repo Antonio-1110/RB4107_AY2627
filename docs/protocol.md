@@ -37,7 +37,7 @@ packet.
   to `NAN`, never to a plausible number.
 - **Size-checked at compile time.** `_Static_assert`s keep every packet at or
   under the ESP-NOW v1 limit of 250 bytes. The largest packet is
-  THERMAL_FRAME at 223 bytes.
+  THERMAL_FRAME at 224 bytes.
 
 ## Common header (17 bytes)
 
@@ -192,9 +192,9 @@ keeps using PRESENCE_DATA. Uses the node's normal sequence counter.
 | 40 | 4 | results received from the sensor since boot |
 | 44 | 2 | CRC |
 
-Messages 7 to 9 were added without bumping the version: the existing
+Messages 7 to 10 were added without bumping the version: the existing
 layouts didn't change, and older firmware rejects the unknown types.
-## THERMAL_FRAME (type 10, 223 bytes total)
+## THERMAL_FRAME (type 10, 224 bytes total)
 
 The thermal camera's whole 32×24 picture, for the dashboard heat map. It is
 **display only**: the controller handles it outside the safety task (it never
@@ -215,8 +215,13 @@ safety packets".
 | 19 | 2 | base | int16, 0.01 °C: temperature of pixel value 0 |
 | 21 | 2 | step | uint16, 0.01 °C per pixel value (≥ 1) |
 | 23 | 4 | timestamp | node ms of the frame |
-| 27 | 192 | pixels | 1 byte per pixel, row by row, 32 per row |
-| 219 | 2 | CRC | |
+| 27 | 2 | hot threshold | int16, 0.01 °C: the node's `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` |
+| 29 | 1 | hot-region radius | the node's `RB_THERMAL_HOT_REGION_RADIUS` (pixels) |
+| 30 | 192 | pixels | 1 byte per pixel, row by row, 32 per row |
+| 222 | 2 | CRC | |
+
+The threshold and radius let the dashboard draw what the node's own hot-pixel
+count and hot-region temperature are based on.
 
 Pixel value `v` means `base + v × step`; `255` means the pixel had no valid
 reading (non-finite or outside `RB_THERMAL_VALID_MIN/MAX_DC`). The node fits

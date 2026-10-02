@@ -116,7 +116,7 @@ static void test_encode_rejects_bad_input(void)
 static rb_thermal_frame_piece_t sample_piece(uint8_t n)
 {
     rb_thermal_frame_piece_t p = {.piece = n, .pieces = RB_FRAME_PIECES, .base_centi = -1234, .step_centi = 37,
-                                  .timestamp_ms = 123456};
+                                  .timestamp_ms = 123456, .hot_threshold_centi = 5000, .hot_region_radius = 1};
     for (unsigned i = 0; i < RB_FRAME_PIECE_PIXELS; i++) {
         p.pixels[i] = (uint8_t)(i + n);
     }
@@ -146,6 +146,8 @@ static void test_thermal_frame_piece_roundtrip(void)
     TEST_ASSERT_EQUAL_INT16(-1234, rx.base_centi);
     TEST_ASSERT_EQUAL_UINT16(37, rx.step_centi);
     TEST_ASSERT_EQUAL_UINT32(123456, rx.timestamp_ms);
+    TEST_ASSERT_EQUAL_INT16(5000, rx.hot_threshold_centi);
+    TEST_ASSERT_EQUAL_UINT8(1, rx.hot_region_radius);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(tx.pixels, rx.pixels, RB_FRAME_PIECE_PIXELS);
 
     /* The general decoder never takes a frame piece (it would go to the safety queue). */

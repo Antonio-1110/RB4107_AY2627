@@ -748,6 +748,45 @@ td small {
   border-radius: 4px;
   border: 1px solid var(--line);
 }
+.heatmap-side .eyebrow {
+  margin-top: 16px;
+}
+.heatmap-side .eyebrow:first-child {
+  margin-top: 0;
+}
+.heatmap-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-facts dt {
+  color: var(--muted);
+}
+.heatmap-facts dd {
+  margin: 0;
+  font-weight: 650;
+}
+.heatmap-toggles {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.heatmap-footprint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+.heatmap-footprint label {
+  display: grid;
+  gap: 4px;
+}
+.heatmap-footprint input {
+  width: 80px;
+}
 .chart-wrap {
   height: 224px;
   position: relative;

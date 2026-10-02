@@ -28,6 +28,8 @@ typedef struct {
     int16_t base_centi;
     uint16_t step_centi;
     uint32_t timestamp_ms;
+    int16_t hot_threshold_centi;       /* the node's feature settings, for display (set by the caller) */
+    uint8_t hot_region_radius;
     uint8_t pixels[RB_FRAME_PIXELS];   /* row by row, 32 per row */
 } thermal_frame_t;
 
@@ -36,7 +38,8 @@ typedef struct {
  * [valid_min_c, valid_max_c] become RB_FRAME_PIXEL_INVALID. The range is
  * fitted to this frame: base is the coldest valid pixel and the step is the
  * smallest that still reaches the hottest one. Returns the number of valid
- * pixels.
+ * pixels. hot_threshold_centi and hot_region_radius are left at 0 for the
+ * caller to fill in.
  */
 uint16_t thermal_frame_encode(const float temps[RB_FRAME_PIXELS], float valid_min_c, float valid_max_c,
                               uint32_t timestamp_ms, thermal_frame_t *out);

@@ -33,6 +33,8 @@ uint16_t thermal_frame_encode(const float temps[RB_FRAME_PIXELS], float valid_mi
         }
     }
     out->timestamp_ms = timestamp_ms;
+    out->hot_threshold_centi = 0;
+    out->hot_region_radius = 0;
     if (valid == 0) {
         out->base_centi = 0;
         out->step_centi = THERMAL_FRAME_MIN_STEP_CENTI;
@@ -77,6 +79,8 @@ void thermal_frame_piece(const thermal_frame_t *frame, uint8_t n, rb_thermal_fra
     out->base_centi = frame->base_centi;
     out->step_centi = frame->step_centi;
     out->timestamp_ms = frame->timestamp_ms;
+    out->hot_threshold_centi = frame->hot_threshold_centi;
+    out->hot_region_radius = frame->hot_region_radius;
     memcpy(out->pixels, &frame->pixels[(n % RB_FRAME_PIECES) * RB_FRAME_PIECE_PIXELS], RB_FRAME_PIECE_PIXELS);
 }
 
@@ -98,6 +102,8 @@ static void start(thermal_frame_assembler_t *a, uint32_t node_id, uint32_t frame
     a->frame.base_centi = piece->base_centi;
     a->frame.step_centi = piece->step_centi;
     a->frame.timestamp_ms = piece->timestamp_ms;
+    a->frame.hot_threshold_centi = piece->hot_threshold_centi;
+    a->frame.hot_region_radius = piece->hot_region_radius;
 }
 
 thermal_frame_result_t thermal_frame_assemble(thermal_frame_assembler_t *a, uint32_t node_id,

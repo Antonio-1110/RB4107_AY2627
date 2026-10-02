@@ -223,6 +223,10 @@ size_t rb_json_thermal_frame(const rb_json_thermal_frame_t *f, char *buf, size_t
     rb_json_num(&w, (float)f->step_centi / 100.0f, 2);
     rb_json_key(&w, "invalid");
     rb_json_int(&w, f->invalid_value);
+    rb_json_key(&w, "hot_threshold_c");
+    rb_json_num(&w, (float)f->hot_threshold_centi / 100.0f, 1);
+    rb_json_key(&w, "hot_region_radius");
+    rb_json_int(&w, f->hot_region_radius);
     rb_json_key(&w, "encoding");
     rb_json_str(&w, "u8_base64");
     rb_json_key(&w, "pixels");

@@ -435,6 +435,8 @@ size_t rb_protocol_encode_frame_piece(const rb_packet_t *hdr, const rb_thermal_f
     put_u16(&w, (uint16_t)piece->base_centi);
     put_u16(&w, piece->step_centi);
     put_u32(&w, piece->timestamp_ms);
+    put_u16(&w, (uint16_t)piece->hot_threshold_centi);
+    put_u8(&w, piece->hot_region_radius);
     memcpy(&w.p[w.n], piece->pixels, RB_FRAME_PIECE_PIXELS);
     w.n += RB_FRAME_PIECE_PIXELS;
     if (w.n + RB_CRC_LEN != RB_PKT_THERMAL_FRAME_LEN) {
@@ -463,6 +465,8 @@ rb_decode_result_t rb_protocol_decode_frame_piece(const uint8_t *buf, size_t len
     piece->base_centi = (int16_t)get_u16(&r);
     piece->step_centi = get_u16(&r);
     piece->timestamp_ms = get_u32(&r);
+    piece->hot_threshold_centi = (int16_t)get_u16(&r);
+    piece->hot_region_radius = get_u8(&r);
     memcpy(piece->pixels, &r.p[r.n], RB_FRAME_PIECE_PIXELS);
     /* A layout this firmware doesn't know (another piece count) is treated as a bad length. */
     if (piece->pieces != RB_FRAME_PIECES || piece->piece >= RB_FRAME_PIECES || piece->step_centi == 0) {

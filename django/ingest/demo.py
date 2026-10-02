@@ -56,7 +56,8 @@ def demo_thermal_frame(controller_id, index=0, tick=0, boot_id=None):
         "timestamp": timezone.now().isoformat(), "uptime_ms": 120000 + tick * 2000,
         "sequence": tick * 2 + 2, "simulation": True, "sensor_node": "node_03",
         "frame": {"number": tick + 1, "width": width, "height": height, "base_c": base / 100,
-                  "step_c": step / 100, "invalid": 255, "encoding": "u8_base64",
+                  "step_c": step / 100, "invalid": 255, "hot_threshold_c": 50.0,
+                  "hot_region_radius": 1, "encoding": "u8_base64",
                   "pixels": base64.b64encode(pixels).decode()},
     }
     if boot_id:

@@ -133,12 +133,16 @@ only: the safety decision uses the `thermal` values, never this. About 1.3 KB.
   "boot_id": "3f9a01c2", "timestamp": null, "uptime_ms": 51310, "sequence": 312,
   "sensor_node": "node_03",
   "frame": {"number": 17, "width": 32, "height": 24, "base_c": 24.00, "step_c": 0.56,
-            "invalid": 255, "encoding": "u8_base64", "pixels": "/wAAAAAA...(1024 characters)"}
+            "invalid": 255, "hot_threshold_c": 50.0, "hot_region_radius": 1,
+            "encoding": "u8_base64", "pixels": "/wAAAAAA...(1024 characters)"}
 }
 ```
 
 - `pixels` is base64 of `width × height` bytes, row by row. Pixel value `v` is
   `base_c + v × step_c` °C; the value `invalid` (255) means no reading.
+- `hot_threshold_c` and `hot_region_radius` are the node's own settings
+  (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, `RB_THERMAL_HOT_REGION_RADIUS`), so the
+  dashboard can outline the pixels and region its `thermal` values come from.
 - `number` is the thermal node's picture counter; it restarts when the node
   reboots. The header's `uptime_ms` and `timestamp` are when the controller
   received the picture.

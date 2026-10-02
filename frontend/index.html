@@ -298,6 +298,7 @@
               <div id="heatmap-tip" class="heatmap-tip" hidden></div>
             </div>
             <div class="heatmap-side">
+              <p class="eyebrow">PICTURE SCALE</p>
               <div class="heatmap-legend">
                 <span id="heatmap-min">—</span>
                 <span id="heatmap-scale" class="heatmap-scale"></span>
@@ -308,6 +309,40 @@
                 ring marks the hottest pixel; grey pixels had no valid reading. The safety logic
                 uses the reported temperatures above, never this picture.
               </p>
+              <p class="eyebrow">WHAT THE NODE REPORTED</p>
+              <dl class="heatmap-facts">
+                <dt>Hot region</dt>
+                <dd id="heatmap-region">—</dd>
+                <dt>Hot-pixel threshold</dt>
+                <dd id="heatmap-threshold">—</dd>
+                <dt>Pixels above it</dt>
+                <dd id="heatmap-count">—</dd>
+              </dl>
+              <div class="heatmap-toggles">
+                <label
+                  ><input type="checkbox" id="heatmap-show-threshold" checked /> Outline pixels
+                  above threshold</label
+                >
+                <label
+                  ><input type="checkbox" id="heatmap-show-region" checked /> Show hot region
+                  (dashed box)</label
+                >
+              </div>
+              <p class="eyebrow">PIXEL SIZE AT A DISTANCE</p>
+              <div class="heatmap-footprint">
+                <label
+                  >Lens
+                  <select id="heatmap-fov">
+                    <option value="110,75">Wide 110° × 75° (BAA)</option>
+                    <option value="55,35">Narrow 55° × 35° (BAB)</option>
+                  </select></label
+                >
+                <label
+                  >Distance (m)
+                  <input id="heatmap-distance" type="number" min="0.2" max="5" step="0.1" value="1.5"
+                /></label>
+              </div>
+              <p id="heatmap-footprint" class="muted small"></p>
             </div>
           </div>
         </section>

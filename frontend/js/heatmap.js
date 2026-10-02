@@ -35,12 +35,39 @@ export function decodeFrame(frame) {
     min = Math.min(min, t);
     if (t > max) [max, hottest] = [t, i];
   });
-  return { width: frame.width, height: frame.height, temps, min, max, hottest };
+  return {
+    width: frame.width,
+    height: frame.height,
+    temps,
+    min,
+    max,
+    hottest,
+    threshold: typeof frame.hot_threshold_c === "number" ? frame.hot_threshold_c : null,
+    radius: Number.isInteger(frame.hot_region_radius) ? frame.hot_region_radius : null,
+  };
+}
+
+// Pixels at or above the node's hot-pixel threshold, counted from the picture.
+// It can differ by a pixel or two from the node's own count, because the
+// picture's pixels are rounded to the picture's step.
+export const pixelsAboveThreshold = (picture) =>
+  picture.threshold === null
+    ? null
+    : picture.temps.filter((t) => t !== null && t >= picture.threshold).length;
+
+// Size of one pixel (cm) at distance_m for a sensor with the given field of
+// view (degrees, horizontal x vertical). Pixels in the middle of the picture;
+// the wide lens's edge pixels are larger.
+export function pixelFootprintCm(fov, distanceM, cols = 32, rows = 24) {
+  const side = (deg, n) => ((2 * distanceM * Math.tan((deg * Math.PI) / 360)) / n) * 100;
+  return { width: side(fov[0], cols), height: side(fov[1], rows) };
 }
 
 // Draws the picture to fill `canvas`, keeping square pixels. Returns the cell
 // geometry so the caller can map the mouse to a pixel.
-export function drawHeatmap(canvas, picture) {
+// Overlays: `showThreshold` outlines pixels at or above the node's threshold,
+// `showRegion` draws the node's hot region (hottest pixel +/- radius).
+export function drawHeatmap(canvas, picture, { showThreshold = true, showRegion = true } = {}) {
   const rect = canvas.getBoundingClientRect();
   if (rect.width < 50 || !picture) return null;
   const ratio = window.devicePixelRatio || 1;
@@ -59,6 +86,35 @@ export function drawHeatmap(canvas, picture) {
     // 1px overlap avoids hairline seams between cells.
     ctx.fillRect(x, y, cell + 0.5, cell + 0.5);
   });
+  if (showThreshold && picture.threshold !== null) {
+    ctx.strokeStyle = "#0b4f6c";
+    ctx.lineWidth = 1.5;
+    picture.temps.forEach((t, i) => {
+      if (t === null || t < picture.threshold) return;
+      const x = left + (i % picture.width) * cell,
+        y = top + Math.floor(i / picture.width) * cell;
+      ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2);
+    });
+  }
+  if (showRegion && picture.hottest >= 0 && picture.radius !== null) {
+    const col = picture.hottest % picture.width,
+      row = Math.floor(picture.hottest / picture.width),
+      c0 = Math.max(0, col - picture.radius),
+      r0 = Math.max(0, row - picture.radius),
+      c1 = Math.min(picture.width - 1, col + picture.radius),
+      r1 = Math.min(picture.height - 1, row + picture.radius);
+    const box = [left + c0 * cell, top + r0 * cell, (c1 - c0 + 1) * cell, (r1 - r0 + 1) * cell];
+    ctx.save();
+    // White underlay keeps the dashes visible over dark pixels and outlines.
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(...box);
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "#142936";
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(...box);
+    ctx.restore();
+  }
   if (picture.hottest >= 0) {
     const x = left + ((picture.hottest % picture.width) + 0.5) * cell,
       y = top + (Math.floor(picture.hottest / picture.width) + 0.5) * cell;

@@ -52,7 +52,7 @@ frontend/
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
-| `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state |
+| `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state. The card outlines the pixels above the node's hot-pixel threshold, boxes its hot region, and works out the pixel size at a chosen distance for either lens (55° or 110°) |
 
 The firmware publishes `safety.reset_required` (`safety_reset_required()` in
 `firmware/components/safety`). For messages from older firmware without it,

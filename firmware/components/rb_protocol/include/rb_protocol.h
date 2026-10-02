@@ -120,7 +120,7 @@ typedef enum {
 #define RB_FRAME_PIECES 4u
 #define RB_FRAME_PIECE_PIXELS (RB_FRAME_PIXELS / RB_FRAME_PIECES) /* 192 = 6 rows */
 #define RB_FRAME_PIXEL_INVALID 0xFFu                               /* pixel value for "no reading" */
-#define RB_BODY_THERMAL_FRAME_LEN (10u + RB_FRAME_PIECE_PIXELS)
+#define RB_BODY_THERMAL_FRAME_LEN (13u + RB_FRAME_PIECE_PIXELS)
 #define RB_PKT_THERMAL_FRAME_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_FRAME_LEN + RB_CRC_LEN)
 
 #define RB_PKT_MAX_LEN RB_PKT_THERMAL_FRAME_LEN
@@ -157,6 +157,8 @@ typedef struct {
     int16_t base_centi;        /* temperature of pixel value 0, 0.01 °C */
     uint16_t step_centi;       /* temperature per pixel step, 0.01 °C (at least 1) */
     uint32_t timestamp_ms;     /* node ms of the frame */
+    int16_t hot_threshold_centi; /* the node's hot-pixel threshold, 0.01 °C (so the picture can show it) */
+    uint8_t hot_region_radius; /* the node's hot-region radius in pixels (1 = 3x3) */
     uint8_t pixels[RB_FRAME_PIECE_PIXELS]; /* row by row, left to right */
 } rb_thermal_frame_piece_t;
 

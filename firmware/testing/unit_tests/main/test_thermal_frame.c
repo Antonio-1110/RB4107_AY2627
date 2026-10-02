@@ -78,6 +78,8 @@ static thermal_frame_t encoded(void)
     fill_scene();
     thermal_frame_t f;
     thermal_frame_encode(temps, -40.0f, 300.0f, 4242, &f);
+    f.hot_threshold_centi = 5000;
+    f.hot_region_radius = 2;
     return f;
 }
 
@@ -101,6 +103,8 @@ static void test_assemble_in_any_order(void)
     TEST_ASSERT_EQUAL_INT16(f.base_centi, out.base_centi);
     TEST_ASSERT_EQUAL_UINT16(f.step_centi, out.step_centi);
     TEST_ASSERT_EQUAL_UINT32(4242, out.timestamp_ms);
+    TEST_ASSERT_EQUAL_INT16(5000, out.hot_threshold_centi);
+    TEST_ASSERT_EQUAL_UINT8(2, out.hot_region_radius);
     TEST_ASSERT_EQUAL_UINT32(1, a.stats.complete);
 }
 
