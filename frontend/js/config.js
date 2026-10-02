@@ -8,3 +8,6 @@ export const POLL_MS = 2000;
 
 // How long a request may take before it is treated as failed (milliseconds).
 export const REQUEST_TIMEOUT_MS = 8000;
+
+// How often the live radar view asks for new C4002 results (milliseconds).
+export const LIVE_POLL_MS = 500;

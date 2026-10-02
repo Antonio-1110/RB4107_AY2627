@@ -9,6 +9,7 @@ Start with **[setup.md](setup.md)** to build, flash and run the system.
 | [safety_state_machine.md](safety_state_machine.md) | exactly when the controller warns and shuts down |
 | [protocol.md](protocol.md) | the ESP-NOW packets between the nodes and the controller |
 | [mqtt_topics.md](mqtt_topics.md) | which MQTT topics the controller publishes |
+| [c4002_tuning.md](c4002_tuning.md) | tuning and calibrating the radars from the dashboard |
 | [mqtt_schema.md](mqtt_schema.md) | the JSON inside those messages ([machine-readable schema](schema/rb4107_mqtt.schema.json)) |
 | [dashboard.md](dashboard.md) | how firmware fields map to the dashboard, and its limits |
 | [logging.md](logging.md) | log tags, levels and how to change verbosity |

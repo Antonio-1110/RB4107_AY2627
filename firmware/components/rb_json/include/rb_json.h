@@ -117,6 +117,14 @@ size_t rb_json_thermal(const rb_telemetry_t *t, char *buf, size_t len);     /* s
 size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len); /* sensors/<node>/status */
 size_t rb_json_event(const rb_event_msg_t *e, char *buf, size_t len);       /* events/... */
 
+/*
+ * Open a message object and write the common header fields, for messages
+ * built outside this file (sensors/<node>/c4002_config). The caller adds its
+ * fields, closes the object and calls rb_json_finish().
+ */
+struct rb_json_writer;
+void rb_json_begin_message(struct rb_json_writer *w, const rb_json_header_t *h, const char *type);
+
 /* controller/status (retained) and the MQTT Last Will. */
 size_t rb_json_controller_status(const char *controller_id, const char *boot_id, bool online, char *buf,
                                  size_t len);

@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "fault_manager.h"
 #include "rb_app_faults.h"
+#include "rb_c4002_relay.h"
 #include "rb_config.h"
 #include "rb_connectivity.h"
 #include "rb_continuity.h"
@@ -22,6 +23,11 @@ static const char *TAG = "CONTROLLER";
 static void apply_outputs(const safety_outputs_t *out, void *ctx)
 {
     rb_outputs_apply(out);
+}
+
+static void node_packet(const rb_espnow_rx_t *rx, void *ctx)
+{
+    rb_c4002_relay_on_packet(rx);
 }
 
 esp_err_t rb_controller_app_start(void)
@@ -43,6 +49,7 @@ esp_err_t rb_controller_app_start(void)
         .self_test = rb_app_self_test,
         .safety_fault_active = rb_app_faults_safety_active,
         .node_events = rb_app_faults_node_events,
+        .node_packet = node_packet,
     };
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT
@@ -60,6 +67,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 
     /* Telemetry path: best effort, never fatal. */
+    if (rb_c4002_relay_start(cfg.nodes.presence_node_ids, cfg.nodes.presence_node_count) != ESP_OK) {
+        ESP_LOGE(TAG, "remote C4002 tuning not started; safety unaffected");
+    }
     if (rb_telemetry_start() != ESP_OK) {
         ESP_LOGE(TAG, "telemetry task not started; safety unaffected");
     }

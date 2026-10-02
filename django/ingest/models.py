@@ -1,4 +1,5 @@
-"""Monitoring data only; no actuator or reset commands."""
+"""Monitoring data only; no actuator or reset commands. (C4002 tuning commands
+are sent straight to MQTT and their answers stored in Device.latest.)"""
 from django.db import models
 
 

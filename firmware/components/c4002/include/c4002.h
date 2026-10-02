@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "c4002_proto.h"
+#include "rb_c4002_params.h"
 #include "rb_sensor_types.h"
 
 #ifdef __cplusplus
@@ -28,33 +29,15 @@ typedef struct {
 } c4002_config_t;
 
 typedef enum {
-    C4002_RESOLUTION_80CM = 0x00, /* 15 gates, up to ~11 m */
-    C4002_RESOLUTION_20CM = 0x01, /* 25 gates, up to ~4.9 m */
-} c4002_resolution_t;
-
-typedef enum {
-    C4002_SENS_LOW = 0x00,
-    C4002_SENS_MID = 0x01,
-    C4002_SENS_HIGH = 0x02,
-} c4002_sensitivity_t;
-
-typedef enum {
     C4002_GATE_MOTION = 0x00,
     C4002_GATE_PRESENCE = 0x01,
 } c4002_gate_type_t;
 
-/* Sensor-side detection parameters (TODO section 2: expose sensitivity/detection parameters). */
-typedef struct {
-    uint8_t report_period_ds;      /* result report period, 0.1 s units */
-    uint16_t range_min_cm;
-    uint16_t range_max_cm;         /* <= 1100 */
-    c4002_resolution_t resolution;
-    c4002_sensitivity_t motion_sensitivity;
-    c4002_sensitivity_t presence_sensitivity;
-    uint16_t disappear_delay_s;    /* how long a target is held after it disappears */
-    bool run_led;
-    bool out_led;
-} c4002_settings_t;
+/*
+ * Sensor-side detection parameters. The same struct travels over ESP-NOW
+ * when the dashboard tunes the sensor (rb_c4002_params.h).
+ */
+typedef rb_c4002_params_t c4002_settings_t;
 
 typedef struct {
     uint32_t frames_ok;
@@ -72,11 +55,27 @@ esp_err_t c4002_init(const c4002_config_t *config);
 esp_err_t c4002_command(uint8_t frame_type, uint8_t cmd, const uint8_t *data, uint16_t data_len,
                         c4002_frame_t *resp, uint32_t timeout_ms);
 
-/* Push all detection settings to the sensor. Stops at the first failing command. */
+/*
+ * Push all detection settings to the sensor (LEDs on). Stops at the first
+ * failing command. A CUSTOM sensitivity sends the per-gate thresholds instead
+ * of a threshold group. Check them with rb_c4002_params_check() first.
+ */
 esp_err_t c4002_apply_settings(const c4002_settings_t *settings);
 
-/* Ask the sensor to learn its background noise. Keep the area empty. */
+/*
+ * Ask the sensor to learn its background noise and set its gate thresholds
+ * from it. Keep the area empty. Runs inside the sensor; returns at once.
+ */
 esp_err_t c4002_start_env_calibration(uint16_t delay_s, uint16_t duration_s);
+
+/* Seconds left in a running calibration, from the sensor's countdown notifications (0 = none). */
+uint16_t c4002_calibration_remaining_s(void);
+
+/*
+ * Read the thresholds the sensor is using now (after a calibration, these are
+ * the learned ones). gate_count is 15 or 25, matching the current resolution.
+ */
+esp_err_t c4002_read_gate_thresholds(c4002_gate_type_t type, unsigned gate_count, uint8_t *thresholds);
 
 /* Latest reading. Returns out->valid. */
 bool c4002_get_reading(presence_reading_t *out);

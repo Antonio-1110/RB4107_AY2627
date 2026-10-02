@@ -7,6 +7,7 @@ import { fetchEvents, fetchFleet, fetchHistory } from "./api.js";
 import { drawTemperatureChart } from "./chart.js";
 import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
+import { renderTuning } from "./tuning.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
 let selectedStall = "",
@@ -435,6 +436,7 @@ function renderDevice(device) {
     ),
   );
   renderSensors(value.sensors || {});
+  renderTuning(device);
   renderDetailAlert(device);
 }
 function renderDetail() {
@@ -481,7 +483,9 @@ function renderSensors(sensors) {
     const row = rows.insertRow(),
       readings = sensor && typeof sensor === "object" ? sensor : {};
     const summary = Object.entries(readings)
-      .filter(([key]) => !["type", "device_id", "message_id", "timestamp", "frame"].includes(key))
+      .filter(
+        ([key]) => !["type", "device_id", "message_id", "timestamp", "frame", "c4002", "c4002_live"].includes(key),
+      )
       .map(
         ([key, value]) =>
           `${key}: ${typeof value === "object" ? JSON.stringify(value).slice(0, 80) : value}`,

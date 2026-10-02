@@ -1,4 +1,4 @@
-"""Read-only telemetry API, plus the dashboard from the repository's frontend/ folder."""
+"""Telemetry API, C4002 tuning commands, and the dashboard from the repository's frontend/ folder."""
 from django.conf import settings
 from django.urls import path, re_path
 from django.views.static import serve
@@ -11,6 +11,8 @@ urlpatterns = [
     path("api/devices/<str:device_id>/latest/", views.latest),
     path("api/devices/<str:device_id>/history/", views.history),
     path("api/devices/<str:device_id>/events/", views.events),
+    path("api/devices/<str:device_id>/nodes/<str:node>/c4002/", views.c4002_command),
+    path("api/devices/<str:device_id>/nodes/<str:node>/c4002/live/", views.c4002_live),
     # Dashboard files. Fine for the lab prototype; a production server would
     # serve frontend/ directly (e.g. nginx) and proxy /api/ to Django.
     path("", serve, {"path": "index.html", "document_root": settings.FRONTEND_DIR}),

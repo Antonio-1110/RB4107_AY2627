@@ -145,6 +145,7 @@ and clear as each node is heard.
 | Automatic reconnect | every `RB_MQTT_RECONNECT_MS` |
 | Connection state | `DISCONNECTED` / `CONNECTING` / `CONNECTED`, logged on change, separate from the safety state |
 | Presence on the broker | retained `controller_status` (`"online": true`) on `controller/status`, with a Last Will saying `"online": false` |
+| Incoming | only `sensors/+/c4002_set` (radar tuning), handled in the MQTT client's task by `rb_c4002_relay`, which forwards it over ESP-NOW and never touches the safety task ([c4002_tuning.md](c4002_tuning.md)) |
 
 ## Publishing strategy
 
@@ -159,6 +160,8 @@ and clear as each node is heard.
 | FAULT state entered | `events/fault` (`state_change`) | 1 |
 | Fault raised / cleared (incl. sensor node offline / restored) | `events/fault` + retained `controller/faults` | 1 |
 | Node health change | retained `sensors/<node>/status` | 1 |
+| Radar tuning answer | retained `sensors/<node>/c4002_config` | 1 |
+| Raw radar result (live view) | `sensors/<node>/c4002_live` | 0 |
 
 A lost routine sample is replaced one period later, so QoS 0 is enough.
 Events happen once and matter, so they use QoS 1 and are kept in the bounded

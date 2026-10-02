@@ -4,12 +4,14 @@
  *   C4002 → C6 → ESP-NOW (PRESENCE_DATA) → S3
  *
  * The system has two of these, flashed with node IDs 1 and 2 (see README).
- * The node only reads the radar and transmits. The controller (firmware/controller)
- * combines both radars and runs the safety state machine.
+ * The node reads the radar and transmits. The controller (firmware/controller)
+ * combines both radars and runs the safety state machine. The only thing the
+ * node receives is C4002 tuning from the dashboard (rb_c4002_remote).
  */
 #include <stdio.h>
 #include "c4002.h"
 #include "esp_log.h"
+#include "rb_c4002_remote.h"
 #include "rb_config.h"
 #include "rb_log.h"
 #include "rb_node_board.h"
@@ -49,4 +51,7 @@ void app_main(void)
     }
     const rb_node_link_config_t link = {.role = RB_NODE_ROLE_PRESENCE, .sample = sample, .describe = describe};
     ESP_ERROR_CHECK(rb_node_link_start(&link));
+    if (rb_c4002_remote_start() != ESP_OK) {
+        ESP_LOGE(TAG, "remote C4002 tuning not started; the node keeps its current settings");
+    }
 }

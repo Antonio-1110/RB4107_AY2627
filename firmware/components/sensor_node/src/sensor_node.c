@@ -87,6 +87,8 @@ node_seq_result_t sensor_node_on_packet(sensor_node_state_t *node, const rb_pack
     case RB_MSG_SENSOR_FAULT:
         node->node_fault_flags = pkt->body.fault.fault_flags;
         break;
+    default: /* C4002_CONFIG_ACK, C4002_LIVE: only prove the node is alive; the application handles them */
+        break;
     }
     return res;
 }

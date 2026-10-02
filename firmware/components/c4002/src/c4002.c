@@ -25,6 +25,8 @@ static c4002_result_t s_result;
 static bool s_has_result;
 static uint32_t s_result_ms;
 static c4002_stats_t s_stats;
+static uint16_t s_calib_remaining_s;
+static uint32_t s_calib_note_ms;
 
 static uint32_t now_ms(void)
 {
@@ -43,7 +45,12 @@ static void handle_frame(const c4002_frame_t *frame)
             s_stats.results++;
             portEXIT_CRITICAL(&s_lock);
         } else if (frame->cmd == C4002_NOTE_CALIBRATION && frame->data_len >= 2) {
-            ESP_LOGI(TAG, "environment calibration: %u s remaining", frame->data[0] | (frame->data[1] << 8));
+            const uint16_t remaining = frame->data[0] | (frame->data[1] << 8);
+            portENTER_CRITICAL(&s_lock);
+            s_calib_remaining_s = remaining;
+            s_calib_note_ms = now_ms();
+            portEXIT_CRITICAL(&s_lock);
+            ESP_LOGI(TAG, "environment calibration: %u s remaining", remaining);
         }
     } else if (frame->frame_type == C4002_FRAME_WRITE_RESPONSE || frame->frame_type == C4002_FRAME_READ_RESPONSE) {
         xQueueOverwrite(s_resp_queue, frame);
@@ -161,36 +168,97 @@ static esp_err_t write_cmd(uint8_t cmd, const uint8_t *data, uint16_t len)
     return err;
 }
 
+static esp_err_t write_gates(c4002_gate_type_t type, uint32_t mask, unsigned n)
+{
+    uint8_t data[1 + RB_C4002_MAX_GATES] = {(uint8_t)type};
+    for (unsigned i = 0; i < n; i++) {
+        data[1 + i] = (mask >> i) & 1u;
+    }
+    return write_cmd(C4002_CMD_DISTANCE_GATE, data, 1 + n);
+}
+
+/* A group (low/mid/high), or for CUSTOM the per-gate thresholds. */
+static esp_err_t write_sensitivity(c4002_gate_type_t type, uint8_t sens, const uint8_t *thresholds, unsigned n)
+{
+    if (sens != RB_C4002_SENS_CUSTOM) {
+        const uint8_t data[] = {(uint8_t)type, sens};
+        return write_cmd(C4002_CMD_THRESHOLD_GROUP, data, sizeof(data));
+    }
+    /* Layout from DFRobot_C4002::setGateThresh(): type, group 3 (custom), 0x01, one byte per gate. */
+    uint8_t data[3 + RB_C4002_MAX_GATES] = {(uint8_t)type, RB_C4002_SENS_CUSTOM, 0x01};
+    memcpy(&data[3], thresholds, n);
+    return write_cmd(C4002_CMD_DISTANCE_GATE_THRESHOLD, data, 3 + n);
+}
+
 esp_err_t c4002_apply_settings(const c4002_settings_t *s)
 {
     const uint16_t max_cm = s->range_max_cm > 1100 ? 1100 : s->range_max_cm;
     ESP_RETURN_ON_FALSE(s->range_min_cm <= max_cm, ESP_ERR_INVALID_ARG, TAG, "bad range");
+    const unsigned gates = rb_c4002_gate_count(s->resolution);
 
-    const uint8_t leds[] = {s->run_led, s->out_led};
-    const uint8_t resolution[] = {(uint8_t)s->resolution};
+    const uint8_t leds[] = {1, 1};
+    const uint8_t resolution[] = {s->resolution};
     const uint8_t range[] = {s->range_min_cm & 0xFF, s->range_min_cm >> 8, max_cm & 0xFF, max_cm >> 8};
-    const uint8_t motion_sens[] = {C4002_GATE_MOTION, (uint8_t)s->motion_sensitivity};
-    const uint8_t presence_sens[] = {C4002_GATE_PRESENCE, (uint8_t)s->presence_sensitivity};
     const uint8_t delay[] = {s->disappear_delay_s & 0xFF, s->disappear_delay_s >> 8};
+    const uint8_t lock[] = {s->lock_time_ds, 0};
     const uint8_t period[] = {s->report_period_ds};
 
     ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_LED_MODE, leds, sizeof(leds)), TAG, "LEDs");
+    /* Resolution first: the gate count of every later command depends on it. */
     ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_RESOLUTION_MODE, resolution, sizeof(resolution)), TAG, "resolution");
     ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_DETECT_RANGE, range, sizeof(range)), TAG, "range");
-    ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_THRESHOLD_GROUP, motion_sens, sizeof(motion_sens)), TAG, "motion sensitivity");
-    ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_THRESHOLD_GROUP, presence_sens, sizeof(presence_sens)), TAG, "presence sensitivity");
+    ESP_RETURN_ON_ERROR(write_gates(C4002_GATE_MOTION, s->motion_gate_mask, gates), TAG, "motion gates");
+    ESP_RETURN_ON_ERROR(write_gates(C4002_GATE_PRESENCE, s->presence_gate_mask, gates), TAG, "presence gates");
+    ESP_RETURN_ON_ERROR(write_sensitivity(C4002_GATE_MOTION, s->motion_sensitivity, s->motion_thresholds, gates), TAG,
+                        "motion sensitivity");
+    ESP_RETURN_ON_ERROR(write_sensitivity(C4002_GATE_PRESENCE, s->presence_sensitivity, s->presence_thresholds, gates),
+                        TAG, "presence sensitivity");
     ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_TARGET_DISAPPEAR_DELAY, delay, sizeof(delay)), TAG, "disappear delay");
+    ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_LOCK_TIME, lock, sizeof(lock)), TAG, "lock time");
     ESP_RETURN_ON_ERROR(write_cmd(C4002_CMD_REPORT_PERIOD, period, sizeof(period)), TAG, "report period");
-    ESP_LOGI(TAG, "settings applied: range %u-%u cm, sensitivity motion=%d presence=%d, hold %u s, report %u00 ms",
-             s->range_min_cm, max_cm, s->motion_sensitivity, s->presence_sensitivity, s->disappear_delay_s,
-             s->report_period_ds);
+    ESP_LOGI(TAG, "settings applied: range %u-%u cm, %s gates, sensitivity motion=%u presence=%u (3 = custom), "
+                  "gates motion 0x%07lx presence 0x%07lx, hold %u s, lock %u00 ms, report %u00 ms",
+             s->range_min_cm, max_cm, s->resolution == RB_C4002_RES_20CM ? "20 cm" : "80 cm", s->motion_sensitivity,
+             s->presence_sensitivity, (unsigned long)s->motion_gate_mask, (unsigned long)s->presence_gate_mask,
+             s->disappear_delay_s, s->lock_time_ds, s->report_period_ds);
     return ESP_OK;
 }
 
 esp_err_t c4002_start_env_calibration(uint16_t delay_s, uint16_t duration_s)
 {
     const uint8_t data[] = {delay_s & 0xFF, delay_s >> 8, duration_s & 0xFF, duration_s >> 8, 0x01};
-    return write_cmd(C4002_CMD_ENV_CALIBRATION, data, sizeof(data));
+    esp_err_t err = write_cmd(C4002_CMD_ENV_CALIBRATION, data, sizeof(data));
+    if (err == ESP_OK) {
+        portENTER_CRITICAL(&s_lock);
+        s_calib_remaining_s = (uint16_t)(delay_s + duration_s);
+        s_calib_note_ms = now_ms();
+        portEXIT_CRITICAL(&s_lock);
+    }
+    return err;
+}
+
+uint16_t c4002_calibration_remaining_s(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    const uint32_t elapsed_s = (now_ms() - s_calib_note_ms) / 1000;
+    const uint16_t left = elapsed_s >= s_calib_remaining_s ? 0 : (uint16_t)(s_calib_remaining_s - elapsed_s);
+    portEXIT_CRITICAL(&s_lock);
+    return left;
+}
+
+esp_err_t c4002_read_gate_thresholds(c4002_gate_type_t type, unsigned gate_count, uint8_t *thresholds)
+{
+    ESP_RETURN_ON_FALSE(gate_count <= RB_C4002_MAX_GATES && thresholds != NULL, ESP_ERR_INVALID_ARG, TAG, "args");
+    /* DFRobot_C4002::getDistanceGateThresh(): type, group 0xFF (current), 0x00; thresholds start at data[3]. */
+    const uint8_t req[] = {(uint8_t)type, 0xFF, 0x00};
+    c4002_frame_t resp;
+    esp_err_t err = c4002_command(C4002_FRAME_READ_REQUEST, C4002_CMD_DISTANCE_GATE_THRESHOLD, req, sizeof(req),
+                                  &resp, 300);
+    ESP_RETURN_ON_ERROR(err, TAG, "read thresholds");
+    ESP_RETURN_ON_FALSE(resp.data_len >= 3 + gate_count, ESP_ERR_INVALID_RESPONSE, TAG, "short threshold reply (%u)",
+                        resp.data_len);
+    memcpy(thresholds, &resp.data[3], gate_count);
+    return ESP_OK;
 }
 
 bool c4002_get_reading(presence_reading_t *out)

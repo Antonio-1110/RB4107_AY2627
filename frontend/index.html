@@ -320,6 +320,142 @@
             </ul>
           </article>
         </section>
+        <section id="tuning-card" class="card tuning-card" aria-label="Radar tuning">
+          <div class="section-heading">
+            <div>
+              <h2>Radar tuning (C4002)</h2>
+              <p class="muted">
+                Demo tool. Changes go dashboard → MQTT → S3 → ESP-NOW → presence node and are saved
+                on the node. Use it with nobody relying on the system.
+              </p>
+            </div>
+            <label class="station-label"
+              >Presence node<select id="tuning-node"></select
+            ></label>
+          </div>
+          <p id="tuning-status" class="tuning-status muted">No presence node reported yet.</p>
+          <div class="live-radar">
+            <h3>What the radar sees (last minute)</h3>
+            <p id="live-now" class="live-now"></p>
+            <p id="live-error" class="tuning-status bad" hidden></p>
+            <canvas id="live-canvas" class="live-canvas" role="img"></canvas>
+            <p class="muted live-legend">
+              <span class="swatch stationary"></span>gate holding a stationary target
+              <span class="swatch moving"></span>moving target (bigger = more energy)
+              <span class="swatch off"></span>gate turned off
+              <span class="swatch range"></span>range limits
+              <span class="swatch change"></span>settings applied. Right column: share of
+              results in which each gate fired. With nobody in the room, every orange cell is a
+              false positive.
+            </p>
+          </div>
+          <fieldset id="tuning-form" class="tuning-grid" disabled>
+            <label
+              >Range min (cm)<input id="tune-range-min" type="number" min="0" max="1100" step="10"
+            /></label>
+            <label
+              >Range max (cm)<input id="tune-range-max" type="number" min="0" max="1100" step="10"
+            /></label>
+            <label
+              >Gate size<select id="tune-resolution">
+                <option value="80">80 cm (15 gates, ~11 m)</option>
+                <option value="20">20 cm (25 gates, ~4.9 m)</option>
+              </select></label
+            >
+            <label
+              >Motion sensitivity<select id="tune-motion-sens">
+                <option value="low">Low</option>
+                <option value="mid">Mid</option>
+                <option value="high">High</option>
+                <option value="custom">Custom (per gate)</option>
+              </select></label
+            >
+            <label
+              >Still-presence sensitivity<select id="tune-presence-sens">
+                <option value="low">Low</option>
+                <option value="mid">Mid</option>
+                <option value="high">High</option>
+                <option value="custom">Custom (per gate)</option>
+              </select></label
+            >
+            <label
+              >Hold after target leaves (s)<input
+                id="tune-hold"
+                type="number"
+                min="0"
+                max="65535"
+                step="1"
+            /></label>
+            <label
+              >Lock time (s)<input id="tune-lock" type="number" min="0.2" max="10" step="0.1"
+            /></label>
+            <label
+              >Report period (s)<input
+                id="tune-period"
+                type="number"
+                min="0.1"
+                max="25.5"
+                step="0.1"
+            /></label>
+          </fieldset>
+          <div class="tuning-actions">
+            <button id="tune-apply" class="primary-button" type="button" disabled>
+              Apply settings
+            </button>
+            <button id="tune-read" class="secondary-button" type="button" disabled>
+              Read from sensor
+            </button>
+            <button id="tune-reset" class="secondary-button" type="button" disabled>
+              Reset to menuconfig defaults
+            </button>
+            <span class="tuning-spacer"></span>
+            <label class="range-label"
+              >Start after (s)<input id="tune-calib-delay" type="number" min="0" max="600" value="10"
+            /></label>
+            <label class="range-label"
+              >Learn for (s)<input
+                id="tune-calib-duration"
+                type="number"
+                min="1"
+                max="600"
+                value="30"
+            /></label>
+            <button id="tune-calibrate" class="secondary-button" type="button" disabled>
+              Calibrate empty room
+            </button>
+          </div>
+          <details class="tuning-gates">
+            <summary>Per-gate settings (switch bands on or off, custom thresholds)</summary>
+            <p class="muted">
+              Each gate is one distance band. Untick a band to ignore it (for example the band where
+              a fan sits). Thresholds are 0–99, higher means less sensitive; sending them switches
+              that sensitivity to custom. "Read from sensor" fills in the values the sensor uses now.
+            </p>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Gate</th>
+                    <th>Distance</th>
+                    <th>Motion on</th>
+                    <th>Still on</th>
+                    <th>Motion threshold</th>
+                    <th>Still threshold</th>
+                  </tr>
+                </thead>
+                <tbody id="tune-gate-rows"></tbody>
+              </table>
+            </div>
+            <div class="tuning-actions">
+              <button id="tune-apply-gates" class="secondary-button" type="button" disabled>
+                Apply gates on/off
+              </button>
+              <button id="tune-apply-thresholds" class="secondary-button" type="button" disabled>
+                Apply thresholds
+              </button>
+            </div>
+          </details>
+        </section>
         <details class="raw-panel">
           <summary>Latest normalized telemetry / integration details</summary>
           <pre id="raw-data">{}</pre>

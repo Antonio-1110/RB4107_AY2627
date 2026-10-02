@@ -88,6 +88,18 @@ def handle_controller_status(msg: Message) -> None:
         "controller %s is %s", msg.data["controller_id"], "ONLINE" if online else "OFFLINE (last will)")
 
 
+def handle_c4002_config(msg: Message) -> None:
+    d = msg.data
+    level = logging.INFO if d["result"] == "ok" else logging.WARNING
+    settings = d["settings"]
+    summary = (f"range {settings['range_min_cm']}-{settings['range_max_cm']} cm, "
+               f"sensitivity motion={settings['motion_sensitivity']} presence={settings['presence_sensitivity']}"
+               if settings else "no settings")
+    sensor_log.log(level, "%s C4002 %s request %d: %s%s | %s%s", d["sensor_node"], d["action"] or "command",
+                   d["request_id"], d["result"], f" ({d['error']})" if d["error"] else "", summary,
+                   f" | calibrating, {d['calibration_remaining_s']} s left" if d["calibration_remaining_s"] else "")
+
+
 def handle_quiet(msg: Message) -> None:
     """Routine per-period messages: counted, logged only at DEBUG."""
     telemetry_log.debug("%s %s", msg.topic, msg.data)
@@ -102,6 +114,8 @@ HANDLERS: dict[str, Callable[[Message], None]] = {
     "heartbeat": handle_quiet,
     "presence": handle_quiet,
     "thermal": handle_quiet,
+    "c4002_config": handle_c4002_config,
+    "c4002_live": handle_quiet,
 }
 
 

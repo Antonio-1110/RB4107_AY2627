@@ -11,8 +11,11 @@
  * - Its state is completely separate from the safety state. Only the
  *   telemetry task publishes; the safety task never does, so an MQTT stall
  *   can't hold up safety processing.
+ * - Incoming messages (remote C4002 tuning only) go to the callbacks
+ *   registered with rb_mqtt_subscribe(), in the MQTT client's task.
  */
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "esp_err.h"
 
@@ -28,6 +31,9 @@ typedef enum {
 
 typedef void (*rb_mqtt_state_cb_t)(rb_mqtt_state_t state, void *ctx);
 
+/* An incoming message. topic is NUL-terminated; data is not. Runs in the MQTT task: don't block. */
+typedef void (*rb_mqtt_rx_cb_t)(const char *topic, const char *data, size_t len, void *ctx);
+
 typedef struct {
     char uri[96];              /* mqtt://host:port */
     const char *client_id;
@@ -41,6 +47,8 @@ typedef struct {
     uint32_t dropped;          /* QoS 0 while disconnected, or outbox full */
     uint32_t connects;
     uint32_t disconnects;
+    uint32_t received;         /* messages handed to a subscription callback */
+    uint32_t rx_dropped;       /* fragmented or with an over-long topic */
 } rb_mqtt_stats_t;
 
 /* URI and client ID from menuconfig; the caller fills in the topics and payloads. */
@@ -56,6 +64,13 @@ esp_err_t rb_mqtt_start(const rb_mqtt_config_t *config, rb_mqtt_state_cb_t cb, v
  * the telemetry task only, never from the safety task.
  */
 esp_err_t rb_mqtt_publish(const char *topic, const char *payload, int qos, bool retain);
+
+/*
+ * Subscribe to filter (e.g. "rb4107/sensors/+/c4002_set") on every connect.
+ * Call before rb_mqtt_start(). Messages larger than the client's receive
+ * buffer arrive in pieces and are dropped.
+ */
+esp_err_t rb_mqtt_subscribe(const char *filter, int qos, rb_mqtt_rx_cb_t cb, void *ctx);
 
 rb_mqtt_state_t rb_mqtt_state(void);
 const char *rb_mqtt_state_name(rb_mqtt_state_t state);
