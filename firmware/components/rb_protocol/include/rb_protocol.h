@@ -46,6 +46,7 @@ typedef enum {
     /* 5 and 6 are kept for the valve node messages. */
     RB_MSG_C4002_CONFIG = 7,     /* controller -> presence node */
     RB_MSG_C4002_CONFIG_ACK = 8, /* presence node -> controller */
+    RB_MSG_C4002_LIVE = 9,       /* presence node -> controller: raw C4002 result, for the dashboard */
 } rb_msg_type_t;
 
 /* C4002_CONFIG actions. */
@@ -98,18 +99,20 @@ typedef enum {
 #define RB_C4002_PARAMS_LEN (20u + 2u * RB_C4002_MAX_GATES)
 #define RB_BODY_C4002_CONFIG_LEN (13u + RB_C4002_PARAMS_LEN)
 #define RB_BODY_C4002_CONFIG_ACK_LEN (7u + RB_C4002_PARAMS_LEN)
+#define RB_BODY_C4002_LIVE_LEN 27u
 #define RB_PKT_PRESENCE_DATA_LEN (RB_HEADER_LEN + RB_BODY_PRESENCE_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_THERMAL_DATA_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_HEARTBEAT_LEN (RB_HEADER_LEN + RB_BODY_HEARTBEAT_LEN + RB_CRC_LEN)
 #define RB_PKT_SENSOR_FAULT_LEN (RB_HEADER_LEN + RB_BODY_SENSOR_FAULT_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_CONFIG_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_CONFIG_ACK_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_ACK_LEN + RB_CRC_LEN)
+#define RB_PKT_C4002_LIVE_LEN (RB_HEADER_LEN + RB_BODY_C4002_LIVE_LEN + RB_CRC_LEN)
 #define RB_PKT_MAX_LEN RB_PKT_C4002_CONFIG_LEN
 
 _Static_assert(RB_PKT_MAX_LEN <= RB_ESPNOW_MAX_PAYLOAD, "packet exceeds ESP-NOW payload");
 _Static_assert(RB_PKT_MAX_LEN >= RB_PKT_PRESENCE_DATA_LEN && RB_PKT_MAX_LEN >= RB_PKT_HEARTBEAT_LEN &&
                    RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN && RB_PKT_MAX_LEN >= RB_PKT_THERMAL_DATA_LEN &&
-                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN,
+                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN && RB_PKT_MAX_LEN >= RB_PKT_C4002_LIVE_LEN,
                "RB_PKT_MAX_LEN must cover every message");
 
 typedef struct {
@@ -143,6 +146,24 @@ typedef struct {
     rb_c4002_params_t params;  /* the settings now in use */
 } rb_c4002_ack_t;
 
+/* C4002_LIVE: one detection result as the sensor reported it (no filtering). */
+typedef struct {
+    uint8_t target_state;          /* 0 none, 1 stationary, 2 moving (the sensor's own verdict) */
+    uint8_t resolution;            /* rb_c4002_resolution_t in use, gives the gate size */
+    uint32_t presence_gate_mask;   /* bit i: gate i holds a stationary target */
+    uint16_t presence_countdown_s; /* sensor's hold countdown before it reports empty */
+    uint16_t presence_distance_cm;
+    uint8_t presence_energy;       /* 0-99 */
+    uint16_t motion_distance_cm;
+    int16_t motion_speed_cm_s;
+    uint8_t motion_energy;         /* 0-99 */
+    uint8_t motion_direction;      /* 0 away, 1 none, 2 approaching */
+    uint16_t light_dlux;           /* 0.1 lux */
+    uint16_t calib_remaining_s;    /* > 0 while an environment calibration runs */
+    uint16_t age_ms;               /* how old the result was when sent */
+    uint32_t results;              /* results received from the sensor since boot */
+} rb_c4002_live_t;
+
 typedef struct {
     uint8_t protocol_version;
     rb_msg_type_t type;
@@ -157,6 +178,7 @@ typedef struct {
         rb_sensor_fault_msg_t fault;
         rb_c4002_config_msg_t c4002_config;  /* RB_MSG_C4002_CONFIG */
         rb_c4002_ack_t c4002_ack;            /* RB_MSG_C4002_CONFIG_ACK */
+        rb_c4002_live_t c4002_live;          /* RB_MSG_C4002_LIVE */
     } body;
 } rb_packet_t;
 

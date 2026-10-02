@@ -150,3 +150,34 @@ def c4002_command(request, device_id, node):
     except commands.BrokerUnavailable as error:
         return JsonResponse({"error": str(error)}, status=503)
     return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
+
+
+LIVE_WINDOW_SECONDS = 60
+LIVE_MAX_SAMPLES = 400
+
+
+@require_GET
+@never_cache
+def c4002_live(request, device_id, node):
+    """Raw C4002 results of one presence node (sensors/<node>/c4002_live), oldest
+    first: the last minute, or only the ones after ?after=<id> when given."""
+    device = get_object_or_404(Device, device_id=device_id)
+    if not NODE_NAME.match(node):
+        return JsonResponse({"error": "bad node name"}, status=404)
+    try:
+        after = int(request.GET.get("after", "0"))
+    except ValueError:
+        return JsonResponse({"error": "after must be an integer"}, status=400)
+    rows = InboundMessage.objects.filter(
+        device=device, topic__endswith=f"/sensors/{node}/c4002_live", outcome="accepted",
+        received_at__gte=timezone.now() - timedelta(seconds=LIVE_WINDOW_SECONDS), id__gt=after,
+    ).order_by("-id").values("id", "received_at", "raw")[:LIVE_MAX_SAMPLES]
+    samples = []
+    for row in reversed(list(rows)):
+        data = json.loads(row["raw"])
+        samples.append({"id": row["id"], "received_at": row["received_at"],
+                        **{key: data.get(key) for key in ("node_uptime_ms", "results", "target", "gate_size_cm",
+                                                          "presence_gates", "presence", "motion",
+                                                          "calibration_remaining_s")}})
+    return JsonResponse({"node": node, "window_seconds": LIVE_WINDOW_SECONDS,
+                         "last_id": samples[-1]["id"] if samples else after, "samples": samples})

@@ -241,6 +241,11 @@ static void publish_c4002_replies(void)
         reply.hdr = header(rb_time_mono_ms());
         publish(RB_TOPIC_SENSOR_C4002_CONFIG, node_id, rb_c4002_reply_json(&reply, s_payload, sizeof(s_payload)), -1);
     }
+    static rb_c4002_live_msg_t live; /* telemetry task only */
+    while (rb_c4002_relay_poll_live(&live, &node_id)) {
+        live.hdr = header(rb_time_mono_ms());
+        publish(RB_TOPIC_SENSOR_C4002_LIVE, node_id, rb_c4002_live_json(&live, s_payload, sizeof(s_payload)), -1);
+    }
 }
 
 static void telemetry_task(void *arg)

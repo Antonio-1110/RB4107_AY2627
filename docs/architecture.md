@@ -161,6 +161,7 @@ and clear as each node is heard.
 | Fault raised / cleared (incl. sensor node offline / restored) | `events/fault` + retained `controller/faults` | 1 |
 | Node health change | retained `sensors/<node>/status` | 1 |
 | Radar tuning answer | retained `sensors/<node>/c4002_config` | 1 |
+| Raw radar result (live view) | `sensors/<node>/c4002_live` | 0 |
 
 A lost routine sample is replaced one period later, so QoS 0 is enough.
 Events happen once and matter, so they use QoS 1 and are kept in the bounded

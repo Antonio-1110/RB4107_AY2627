@@ -203,13 +203,53 @@ static void finish_calibration(void)
     send_ack(&ack);
 }
 
+#if CONFIG_RB_C4002_LIVE_PERIOD_MS > 0
+#define WAIT_MS CONFIG_RB_C4002_LIVE_PERIOD_MS
+/* Forward the sensor's newest result as it is, so the dashboard shows what the radar sees. */
+static void send_live(void)
+{
+    static uint32_t s_sent_results;
+    c4002_stats_t stats;
+    c4002_get_stats(&stats);
+    c4002_result_t r;
+    uint32_t age_ms;
+    if (stats.results == s_sent_results || !c4002_get_raw(&r, &age_ms)) {
+        return; /* nothing new since the last one */
+    }
+    s_sent_results = stats.results;
+    rb_packet_t pkt = {.type = RB_MSG_C4002_LIVE};
+    pkt.body.c4002_live = (rb_c4002_live_t){
+        .target_state = r.target_state,
+        .resolution = rb_node_c4002_settings().resolution,
+        .presence_gate_mask = r.presence_gate_mask,
+        .presence_countdown_s = r.presence_countdown_s,
+        .presence_distance_cm = r.presence_distance_cm,
+        .presence_energy = r.presence_energy,
+        .motion_distance_cm = r.motion_distance_cm,
+        .motion_speed_cm_s = r.motion_speed_cm_s,
+        .motion_energy = r.motion_energy,
+        .motion_direction = r.motion_direction,
+        .light_dlux = r.light_dlux,
+        .calib_remaining_s = c4002_calibration_remaining_s(),
+        .age_ms = age_ms > UINT16_MAX ? UINT16_MAX : (uint16_t)age_ms,
+        .results = stats.results,
+    };
+    (void)rb_node_link_send(&pkt); /* a lost one is replaced by the next */
+}
+#else
+#define WAIT_MS 500
+#endif
+
 static void remote_task(void *arg)
 {
     for (;;) {
         rb_espnow_rx_t rx;
-        if (xQueueReceive(s_queue, &rx, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (xQueueReceive(s_queue, &rx, pdMS_TO_TICKS(WAIT_MS)) == pdTRUE) {
             handle_command(&rx);
         }
+#if CONFIG_RB_C4002_LIVE_PERIOD_MS > 0
+        send_live();
+#endif
         if (s_calibrating && (int32_t)(now_ms() - s_calib_done_ms) >= 0 && c4002_calibration_remaining_s() == 0) {
             finish_calibration();
         }

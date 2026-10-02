@@ -8,6 +8,9 @@
  * (up to a few seconds). Every command is answered with a C4002_CONFIG_ACK
  * carrying the settings now in use. After a calibration finishes, the node
  * reads the learned gate thresholds back, saves them and sends another ACK.
+ *
+ * The same task forwards each new raw C4002 result as C4002_LIVE (at most
+ * every RB_C4002_LIVE_PERIOD_MS) for the dashboard's live radar view.
  */
 #include "esp_err.h"
 

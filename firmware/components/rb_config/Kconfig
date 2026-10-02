@@ -206,6 +206,18 @@ menu "RB4107 configuration"
                     saved on the node and win over the menuconfig values
                     above until the dashboard sends "reset".
 
+            config RB_C4002_LIVE_PERIOD_MS
+                int "Send raw C4002 results for the dashboard's live view every (ms), 0 = off"
+                range 0 10000
+                default 250
+                depends on RB_C4002_REMOTE_TUNING
+                help
+                    Each new C4002 result (target state, stationary gates,
+                    distances, energies) goes to the controller as a 46-byte
+                    C4002_LIVE packet, at most this often, and the controller
+                    publishes it on MQTT. Results come at the sensor's report
+                    period, so a value below it changes nothing.
+
             config RB_C4002_ENV_CALIBRATION_AT_BOOT
                 bool "Run environment calibration at boot (area must be empty)"
                 default n

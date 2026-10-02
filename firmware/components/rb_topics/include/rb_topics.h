@@ -28,6 +28,7 @@ typedef enum {
     RB_TOPIC_SENSOR_THERMAL,          /* per node */
     RB_TOPIC_SENSOR_STATUS,           /* per node link state (retained, on change) */
     RB_TOPIC_SENSOR_C4002_CONFIG,     /* per presence node: C4002 settings / tuning result (retained) */
+    RB_TOPIC_SENSOR_C4002_LIVE,       /* per presence node: raw C4002 result for the live radar view */
     RB_TOPIC_EVENT_WARNING,
     RB_TOPIC_EVENT_SHUTDOWN,
     RB_TOPIC_EVENT_FAULT,

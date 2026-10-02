@@ -3,7 +3,9 @@
 You can tune each presence node's C4002 radar from the dashboard's **Radar tuning** card:
 range, gate size, sensitivity, hold and lock time, report period, turning
 individual distance gates on or off, per-gate thresholds, and environment
-calibration. It's built for demos and bench tuning (issue #20, false presence),
+calibration. Above the settings, a live view shows what the radar reports,
+result by result, so the effect of a change shows at once. It's built for
+demos and bench tuning (issue #20, false presence),
 not for production: anyone who can reach the API or publish to the broker can
 change a safety sensor.
 
@@ -13,6 +15,9 @@ Django ── MQTT rb4107/sensors/<node>/c4002_set (QoS 1, not retained) ──�
 S3 ── ESP-NOW C4002_CONFIG ──► presence node ── UART ──► C4002
 presence node ── ESP-NOW C4002_CONFIG_ACK ──► S3
 S3 ── MQTT rb4107/sensors/<node>/c4002_config (QoS 1, retained) ──► Django ──► dashboard
+
+presence node ── ESP-NOW C4002_LIVE (each new result, ≤ 4/s) ──► S3
+S3 ── MQTT rb4107/sensors/<node>/c4002_live (QoS 0) ──► Django ──► live view (polls every 0.5 s)
 ```
 
 The safety state machine is never involved. A node keeps sending presence data
@@ -32,6 +37,31 @@ The S3 learns each node's MAC from the packets it sends, so a node can only be
 tuned after the controller has heard from it since it booted. When the
 controller first hears a node, it asks for the node's settings, so the card
 fills in without anyone pressing a button.
+
+## Live view
+
+For each result the C4002 reports its verdict (none, stationary, moving),
+which gates hold a stationary target, the stationary target's distance and
+energy, the moving target's distance, speed, energy and direction, and the
+hold countdown. It does **not** report a per-gate energy, so the view shows
+which gates fired, not how close each one was to its threshold.
+
+The chart covers the last minute. Rows are distance (one per gate), orange
+cells are gates holding a stationary target, and blue dots are the moving
+target (bigger = more energy). Grey rows are gates turned off, dashed lines
+are the range limits, and a purple line marks when new settings were
+applied. The column on the right is the share of results in which each gate
+fired.
+
+To check for false positives, leave the room empty and watch which gates
+fire. Then turn those gates off or raise their thresholds, and watch them go
+quiet. Live results never reach the safety logic, which still uses the
+node's filtered PRESENCE_DATA.
+
+Django stores each result like any other message (about 4 rows a second per
+node). `GET /api/devices/<controller>/nodes/<node>/c4002/live/?after=<id>`
+returns up to the last minute, oldest first. Set `RB_C4002_LIVE_PERIOD_MS`
+to 0 on the node to turn the stream off.
 
 ## Settings
 
@@ -80,14 +110,17 @@ Full schema: `c4002_config` and `c4002_command` in
 | ESP-NOW `C4002_CONFIG_ACK` | 96 B | 250 B |
 | MQTT command (largest, all keys) | ~520 B | S3 MQTT receive buffer, 1024 B by default |
 | MQTT `c4002_config` reply | ~880 B | telemetry payload buffer, 1536 B |
+| ESP-NOW `C4002_LIVE` | 46 B, at most 4 a second | 250 B |
+| MQTT `c4002_live` | ~470 B | telemetry payload buffer, 1536 B |
 | Settings saved in NVS | 76 B | |
-| RAM | node: one 4 KB task + a 4-entry queue (~0.5 KB); S3: ~1 KB of state, no new task | C6 and S3: 512 KB SRAM |
+| RAM | node: one 4 KB task + a 4-entry queue (~0.5 KB); S3: ~1.1 KB of state, no new task | C6 and S3: 512 KB SRAM |
 
 ## Menuconfig
 
 * `RB_C4002_REMOTE_TUNING` (node, default on): accept commands.
 * `RB_CTRL_C4002_REMOTE_TUNING` (controller, default on): subscribe and relay.
 * `RB_C4002_LOCK_TIME_DS`: new menuconfig default for the lock time.
+* `RB_C4002_LIVE_PERIOD_MS` (node, default 250, 0 = off): the live view stream.
 
 ## Not verified yet
 

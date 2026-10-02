@@ -18,6 +18,7 @@ rb4107/
 │       ├── thermal
 │       ├── status        node link state
 │       ├── c4002_config  presence node radar settings / tuning result
+│       ├── c4002_live    raw radar results for the live view
 │       └── c4002_set     dashboard → controller tuning command (subscribed)
 └── events/
     ├── warning
@@ -35,6 +36,7 @@ rb4107/
 | `sensors/<node>/thermal` | 0 | no | every telemetry period, for the thermal node (`node_03`) |
 | `sensors/<node>/status` | 1 | yes | on node ONLINE/STALE/OFFLINE and sensor validity changes |
 | `sensors/<node>/c4002_config` | 1 | yes | when a presence node answers a tuning command, or a command fails ([c4002_tuning.md](c4002_tuning.md)) |
+| `sensors/<node>/c4002_live` | 0 | no | each new raw C4002 result, a few per second, for the dashboard's live radar view |
 | `sensors/<node>/c4002_set` | 1 | no | published by Django; the controller subscribes to `sensors/+/c4002_set` |
 | `events/warning` | 1 | no | entering WARNING |
 | `events/shutdown` | 1 | no | entering SHUTDOWN |

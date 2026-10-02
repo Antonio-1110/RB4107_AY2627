@@ -110,6 +110,7 @@ static size_t packet_len(rb_msg_type_t type)
     case RB_MSG_SENSOR_FAULT: return RB_PKT_SENSOR_FAULT_LEN;
     case RB_MSG_C4002_CONFIG: return RB_PKT_C4002_CONFIG_LEN;
     case RB_MSG_C4002_CONFIG_ACK: return RB_PKT_C4002_CONFIG_ACK_LEN;
+    case RB_MSG_C4002_LIVE: return RB_PKT_C4002_LIVE_LEN;
     default: return 0;
     }
 }
@@ -120,7 +121,7 @@ static bool role_ok(rb_node_role_t role, rb_msg_type_t type)
     switch (role) {
     case RB_NODE_ROLE_PRESENCE:
         return type == RB_MSG_PRESENCE_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT ||
-               type == RB_MSG_C4002_CONFIG_ACK;
+               type == RB_MSG_C4002_CONFIG_ACK || type == RB_MSG_C4002_LIVE;
     case RB_NODE_ROLE_THERMAL:
         return type == RB_MSG_THERMAL_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT;
     case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_C4002_CONFIG;
@@ -254,6 +255,24 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         put_params(&w, &a->params);
         break;
     }
+    case RB_MSG_C4002_LIVE: {
+        const rb_c4002_live_t *l = &pkt->body.c4002_live;
+        put_u8(&w, l->target_state);
+        put_u8(&w, l->resolution);
+        put_u32(&w, l->presence_gate_mask);
+        put_u16(&w, l->presence_countdown_s);
+        put_u16(&w, l->presence_distance_cm);
+        put_u8(&w, l->presence_energy);
+        put_u16(&w, l->motion_distance_cm);
+        put_u16(&w, (uint16_t)l->motion_speed_cm_s);
+        put_u8(&w, l->motion_energy);
+        put_u8(&w, l->motion_direction);
+        put_u16(&w, l->light_dlux);
+        put_u16(&w, l->calib_remaining_s);
+        put_u16(&w, l->age_ms);
+        put_u32(&w, l->results);
+        break;
+    }
     }
     if (w.n + RB_CRC_LEN != total) {
         return 0; /* body layout and the RB_BODY_*_LEN constants disagree */
@@ -353,6 +372,24 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         get_params(&r, &a->params);
         break;
     }
+    case RB_MSG_C4002_LIVE: {
+        rb_c4002_live_t *l = &out->body.c4002_live;
+        l->target_state = get_u8(&r);
+        l->resolution = get_u8(&r);
+        l->presence_gate_mask = get_u32(&r);
+        l->presence_countdown_s = get_u16(&r);
+        l->presence_distance_cm = get_u16(&r);
+        l->presence_energy = get_u8(&r);
+        l->motion_distance_cm = get_u16(&r);
+        l->motion_speed_cm_s = (int16_t)get_u16(&r);
+        l->motion_energy = get_u8(&r);
+        l->motion_direction = get_u8(&r);
+        l->light_dlux = get_u16(&r);
+        l->calib_remaining_s = get_u16(&r);
+        l->age_ms = get_u16(&r);
+        l->results = get_u32(&r);
+        break;
+    }
     }
     return RB_DECODE_OK;
 }
@@ -380,6 +417,7 @@ const char *rb_msg_type_name(rb_msg_type_t type)
     case RB_MSG_SENSOR_FAULT: return "SENSOR_FAULT";
     case RB_MSG_C4002_CONFIG: return "C4002_CONFIG";
     case RB_MSG_C4002_CONFIG_ACK: return "C4002_CONFIG_ACK";
+    case RB_MSG_C4002_LIVE: return "C4002_LIVE";
     default: return "?";
     }
 }

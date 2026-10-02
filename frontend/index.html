@@ -334,6 +334,21 @@
             ></label>
           </div>
           <p id="tuning-status" class="tuning-status muted">No presence node reported yet.</p>
+          <div class="live-radar">
+            <h3>What the radar sees (last minute)</h3>
+            <p id="live-now" class="live-now"></p>
+            <p id="live-error" class="tuning-status bad" hidden></p>
+            <canvas id="live-canvas" class="live-canvas" role="img"></canvas>
+            <p class="muted live-legend">
+              <span class="swatch stationary"></span>gate holding a stationary target
+              <span class="swatch moving"></span>moving target (bigger = more energy)
+              <span class="swatch off"></span>gate turned off
+              <span class="swatch range"></span>range limits
+              <span class="swatch change"></span>settings applied. Right column: share of
+              results in which each gate fired. With nobody in the room, every orange cell is a
+              false positive.
+            </p>
+          </div>
           <fieldset id="tuning-form" class="tuning-grid" disabled>
             <label
               >Range min (cm)<input id="tune-range-min" type="number" min="0" max="1100" step="10"

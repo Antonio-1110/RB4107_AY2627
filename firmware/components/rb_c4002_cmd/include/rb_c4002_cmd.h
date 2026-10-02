@@ -66,6 +66,20 @@ typedef struct {
 /* JSON for sensors/<node>/c4002_config. Returns the length, or 0 if it didn't fit. */
 size_t rb_c4002_reply_json(const rb_c4002_reply_t *reply, char *buf, size_t len);
 
+/*
+ * One raw C4002 result from a node, published on <prefix>/sensors/<node>/c4002_live
+ * ("c4002_live" in the schema) for the dashboard's live radar view.
+ */
+typedef struct {
+    rb_json_header_t hdr;
+    const char *sensor_node;      /* "node_01" */
+    uint32_t node_uptime_ms;      /* node clock when it sent the result */
+    rb_c4002_live_t live;
+} rb_c4002_live_msg_t;
+
+/* JSON for sensors/<node>/c4002_live. Returns the length, or 0 if it didn't fit. */
+size_t rb_c4002_live_json(const rb_c4002_live_msg_t *msg, char *buf, size_t len);
+
 /* Names used in the JSON for sensitivity groups: "low" / "mid" / "high" / "custom". */
 const char *rb_c4002_sensitivity_name(uint8_t sensitivity);
 

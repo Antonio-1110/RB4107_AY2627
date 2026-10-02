@@ -45,7 +45,7 @@ packet.
 |---|---|---|---|
 | 0 | 2 | magic | `0x52 0x42` ("RB") |
 | 2 | 1 | protocol_version | `2` |
-| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK (`5`/`6` are kept for the valve node) |
+| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE (`5`/`6` are kept for the valve node) |
 | 4 | 1 | node_role | `1` presence, `2` thermal, `4` controller (only on C4002_CONFIG) |
 | 5 | 4 | node_id | `CONFIG_RB_NODE_ID` of the sender |
 | 9 | 4 | sequence | +1 for every packet the node sends (all types) |
@@ -166,7 +166,32 @@ calibration finishes. Uses the node's normal sequence counter.
 | 24 | 70 | parameters block: the settings now in use |
 | 94 | 2 | CRC |
 
-Messages 7 and 8 were added without bumping the version: the existing
+## C4002_LIVE (type 9, 46 bytes total)
+
+Presence node → controller: the C4002's newest detection result, unfiltered,
+at most every `RB_C4002_LIVE_PERIOD_MS` (default 250 ms), only when a new one
+came in. For the dashboard's live radar view; the safety logic ignores it and
+keeps using PRESENCE_DATA. Uses the node's normal sequence counter.
+
+| Offset | Size | Field |
+|---|---|---|
+| 17 | 1 | target state: `0` none, `1` stationary, `2` moving |
+| 18 | 1 | resolution in use: `0` 80 cm gates, `1` 20 cm gates |
+| 19 | 4 | stationary gate mask (bit *i* = gate *i*) |
+| 23 | 2 | hold countdown (s) |
+| 25 | 2 | stationary target distance (cm) |
+| 27 | 1 | stationary target energy (0–99) |
+| 28 | 2 | moving target distance (cm) |
+| 30 | 2 | moving target speed (cm/s, signed) |
+| 32 | 1 | moving target energy (0–99) |
+| 33 | 1 | direction: `0` away, `1` none, `2` approaching |
+| 34 | 2 | light (0.1 lux) |
+| 36 | 2 | calibration seconds remaining |
+| 38 | 2 | age of the result when sent (ms) |
+| 40 | 4 | results received from the sensor since boot |
+| 44 | 2 | CRC |
+
+Messages 7 to 9 were added without bumping the version: the existing
 layouts didn't change, and older firmware rejects the unknown types.
 
 ## Edge decisions (not decided yet)

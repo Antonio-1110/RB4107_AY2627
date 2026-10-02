@@ -115,6 +115,7 @@ HANDLERS: dict[str, Callable[[Message], None]] = {
     "presence": handle_quiet,
     "thermal": handle_quiet,
     "c4002_config": handle_c4002_config,
+    "c4002_live": handle_quiet,
 }
 
 

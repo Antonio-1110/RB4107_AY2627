@@ -484,7 +484,7 @@ function renderSensors(sensors) {
       readings = sensor && typeof sensor === "object" ? sensor : {};
     const summary = Object.entries(readings)
       .filter(
-        ([key]) => !["type", "device_id", "message_id", "timestamp", "frame", "c4002"].includes(key),
+        ([key]) => !["type", "device_id", "message_id", "timestamp", "frame", "c4002", "c4002_live"].includes(key),
       )
       .map(
         ([key, value]) =>

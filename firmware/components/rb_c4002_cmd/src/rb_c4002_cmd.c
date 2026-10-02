@@ -511,3 +511,77 @@ size_t rb_c4002_reply_json(const rb_c4002_reply_t *r, char *buf, size_t len)
     rb_json_obj_end(&w);
     return rb_json_finish(&w);
 }
+
+static const char *live_target_name(uint8_t state)
+{
+    switch (state) {
+    case 0: return "none";
+    case 1: return "stationary";
+    case 2: return "moving";
+    default: return NULL;
+    }
+}
+
+static const char *live_direction_name(uint8_t direction)
+{
+    switch (direction) {
+    case 0: return "away";
+    case 1: return "none";
+    case 2: return "approaching";
+    default: return NULL;
+    }
+}
+
+size_t rb_c4002_live_json(const rb_c4002_live_msg_t *m, char *buf, size_t len)
+{
+    const rb_c4002_live_t *l = &m->live;
+    rb_json_writer_t w;
+    rb_json_init(&w, buf, len);
+    rb_json_begin_message(&w, &m->hdr, "c4002_live");
+    rb_json_key(&w, "sensor_node");
+    rb_json_str(&w, m->sensor_node);
+    rb_json_key(&w, "node_uptime_ms");
+    rb_json_int(&w, m->node_uptime_ms);
+    rb_json_key(&w, "results");
+    rb_json_int(&w, l->results);
+    rb_json_key(&w, "age_ms");
+    rb_json_int(&w, l->age_ms);
+    rb_json_key(&w, "target");
+    rb_json_str(&w, live_target_name(l->target_state));
+    rb_json_key(&w, "gate_size_cm");
+    rb_json_int(&w, l->resolution == RB_C4002_RES_20CM ? 20 : 80);
+    rb_json_key(&w, "presence_gates");
+    rb_json_arr_begin(&w);
+    for (unsigned i = 0; i < RB_C4002_MAX_GATES; i++) {
+        if (l->presence_gate_mask & (1u << i)) {
+            rb_json_int(&w, i);
+        }
+    }
+    rb_json_arr_end(&w);
+    rb_json_key(&w, "presence");
+    rb_json_obj_begin(&w);
+    rb_json_key(&w, "distance_cm");
+    rb_json_int(&w, l->presence_distance_cm);
+    rb_json_key(&w, "energy");
+    rb_json_int(&w, l->presence_energy);
+    rb_json_key(&w, "countdown_s");
+    rb_json_int(&w, l->presence_countdown_s);
+    rb_json_obj_end(&w);
+    rb_json_key(&w, "motion");
+    rb_json_obj_begin(&w);
+    rb_json_key(&w, "distance_cm");
+    rb_json_int(&w, l->motion_distance_cm);
+    rb_json_key(&w, "speed_cm_s");
+    rb_json_int(&w, l->motion_speed_cm_s);
+    rb_json_key(&w, "energy");
+    rb_json_int(&w, l->motion_energy);
+    rb_json_key(&w, "direction");
+    rb_json_str(&w, live_direction_name(l->motion_direction));
+    rb_json_obj_end(&w);
+    rb_json_key(&w, "light_lux");
+    rb_json_num(&w, l->light_dlux / 10.0f, 1);
+    rb_json_key(&w, "calibration_remaining_s");
+    rb_json_int(&w, l->calib_remaining_s);
+    rb_json_obj_end(&w);
+    return rb_json_finish(&w);
+}

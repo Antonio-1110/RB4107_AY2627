@@ -79,3 +79,39 @@ class C4002CommandTest(TestCase):
         self.assertFalse(validation.is_command_topic("rb4107/sensors/node_01/c4002_config"))
         with self.assertRaises(validation.InvalidMessage):
             parse("rb4107/sensors/node_01/c4002_set", b'{"schema_version":2,"type":"c4002_command"}')
+
+
+LIVE_SAMPLES = [s for s in SAMPLES if s["payload"]["type"] == "c4002_live"]
+LIVE_URL = "/api/devices/controller_01/nodes/node_01/c4002/live/"
+
+
+class C4002LiveTest(TestCase):
+    def setUp(self):
+        worker_status(True)
+        for sample in LIVE_SAMPLES:
+            handle(parse(sample["topic"], json.dumps(sample["payload"]).encode()))
+
+    def test_latest_result_is_on_the_device(self):
+        response = self.client.get("/api/devices/controller_01/latest/")
+        live = response.json()["values"]["sensors"]["node_01"]["c4002_live"]
+        self.assertEqual(live["target"], "moving")
+        self.assertEqual(live["motion"]["distance_cm"], 210)
+
+    def test_live_history_oldest_first_and_incremental(self):
+        body = self.client.get(LIVE_URL).json()
+        self.assertEqual([s["target"] for s in body["samples"]], ["stationary", "moving"])
+        self.assertEqual(body["samples"][0]["presence_gates"], [6, 7])
+        self.assertEqual(body["last_id"], body["samples"][-1]["id"])
+        newer = self.client.get(LIVE_URL, {"after": body["samples"][0]["id"]}).json()
+        self.assertEqual([s["target"] for s in newer["samples"]], ["moving"])
+        self.assertEqual(self.client.get(LIVE_URL, {"after": body["last_id"]}).json()["samples"], [])
+
+    def test_other_nodes_and_bad_input(self):
+        other = self.client.get("/api/devices/controller_01/nodes/node_02/c4002/live/").json()
+        self.assertEqual(other["samples"], [])
+        self.assertEqual(self.client.get(LIVE_URL, {"after": "x"}).status_code, 400)
+        self.assertEqual(self.client.get("/api/devices/controller_01/nodes/evil/c4002/live/").status_code, 404)
+
+    def test_live_is_refused_on_the_wrong_topic(self):
+        with self.assertRaises(validation.InvalidMessage):
+            parse("rb4107/sensors/node_01/presence", json.dumps(LIVE_SAMPLES[0]["payload"]).encode())

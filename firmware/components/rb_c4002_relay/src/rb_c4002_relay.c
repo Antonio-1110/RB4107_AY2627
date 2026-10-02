@@ -38,6 +38,10 @@ typedef struct {
     char error[ERROR_LEN];
     bool has_ack;
     rb_c4002_ack_t ack;
+
+    bool live_dirty;              /* newest C4002_LIVE, not published yet (older ones are dropped) */
+    uint32_t live_uptime_ms;
+    rb_c4002_live_t live;
 } node_entry_t;
 
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -173,9 +177,34 @@ void rb_c4002_relay_on_packet(const rb_espnow_rx_t *rx)
             n->has_ack = true;
             n->ack = *ack;
             n->want_read = false;
+        } else if (rx->packet.type == RB_MSG_C4002_LIVE) {
+            n->live_dirty = true;
+            n->live_uptime_ms = rx->packet.uptime_ms;
+            n->live = rx->packet.body.c4002_live;
         }
     }
     portEXIT_CRITICAL(&s_lock);
+}
+
+bool rb_c4002_relay_poll_live(rb_c4002_live_msg_t *msg, uint32_t *node_id)
+{
+    for (uint32_t i = 0; i < s_node_count; i++) {
+        node_entry_t *n = &s_nodes[i];
+        portENTER_CRITICAL(&s_lock);
+        const bool out = n->live_dirty;
+        if (out) {
+            n->live_dirty = false;
+            *node_id = n->node_id;
+            msg->sensor_node = n->name;
+            msg->node_uptime_ms = n->live_uptime_ms;
+            msg->live = n->live;
+        }
+        portEXIT_CRITICAL(&s_lock);
+        if (out) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool rb_c4002_relay_poll(uint32_t now_ms, rb_c4002_reply_t *reply, uint32_t *node_id)

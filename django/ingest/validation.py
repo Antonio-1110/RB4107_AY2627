@@ -31,6 +31,7 @@ TYPE_TO_DEF = {
     "event": "event",
     "controller_status": "controller_status",
     "c4002_config": "c4002_config",
+    "c4002_live": "c4002_live",
 }
 
 # Which message types may appear on which topic (the part after the prefix).
@@ -46,6 +47,7 @@ TOPIC_TYPES = {
     "events/shutdown": {"event"},
     "events/fault": {"event"},
     "sensors/*/c4002_config": {"c4002_config"},
+    "sensors/*/c4002_live": {"c4002_live"},
 }
 
 # Topics the dashboard publishes on (commands to the controller). The

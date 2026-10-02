@@ -17,7 +17,8 @@
     {"$ref": "#/$defs/node_status"},
     {"$ref": "#/$defs/event"},
     {"$ref": "#/$defs/controller_status"},
-    {"$ref": "#/$defs/c4002_config"}
+    {"$ref": "#/$defs/c4002_config"},
+    {"$ref": "#/$defs/c4002_live"}
   ],
   "$defs": {
     "header": {
@@ -225,6 +226,40 @@
         "calibration_remaining_s": {"type": "integer", "minimum": 0},
         "saved": {"type": ["boolean", "null"]},
         "settings": {"oneOf": [{"$ref": "#/$defs/c4002_settings"}, {"type": "null"}]}
+      }
+    },
+    "c4002_live": {
+      "description": "rb4107/sensors/<node>/c4002_live (QoS 0, not retained): one raw C4002 result as the sensor reported it, a few per second, for the dashboard's live radar view (docs/c4002_tuning.md). Not used by the safety logic.",
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "node_uptime_ms", "results", "age_ms", "target", "gate_size_cm", "presence_gates", "presence", "motion", "light_lux", "calibration_remaining_s"],
+      "properties": {
+        "type": {"const": "c4002_live"},
+        "sensor_node": {"type": "string"},
+        "node_uptime_ms": {"type": "integer", "minimum": 0},
+        "results": {"type": "integer", "minimum": 0, "description": "results the node received from the sensor since boot; gaps mean skipped results"},
+        "age_ms": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "target": {"oneOf": [{"enum": ["none", "stationary", "moving"]}, {"type": "null"}], "description": "the sensor's own verdict; null = unknown code"},
+        "gate_size_cm": {"enum": [20, 80]},
+        "presence_gates": {"type": "array", "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 24}, "description": "indices of the gates holding a stationary target; gate i covers i*gate_size_cm to (i+1)*gate_size_cm"},
+        "presence": {
+          "type": "object", "additionalProperties": false, "required": ["distance_cm", "energy", "countdown_s"],
+          "properties": {
+            "distance_cm": {"type": "integer", "minimum": 0},
+            "energy": {"type": "integer", "minimum": 0, "maximum": 255},
+            "countdown_s": {"type": "integer", "minimum": 0}
+          }
+        },
+        "motion": {
+          "type": "object", "additionalProperties": false, "required": ["distance_cm", "speed_cm_s", "energy", "direction"],
+          "properties": {
+            "distance_cm": {"type": "integer", "minimum": 0},
+            "speed_cm_s": {"type": "integer"},
+            "energy": {"type": "integer", "minimum": 0, "maximum": 255},
+            "direction": {"oneOf": [{"enum": ["away", "none", "approaching"]}, {"type": "null"}]}
+          }
+        },
+        "light_lux": {"type": ["number", "null"], "minimum": 0},
+        "calibration_remaining_s": {"type": "integer", "minimum": 0}
       }
     },
     "c4002_command": {

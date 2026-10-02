@@ -231,6 +231,76 @@ static void test_reply_json(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"saved\":null"));
 }
 
+static rb_c4002_live_t sample_live(void)
+{
+    return (rb_c4002_live_t){
+        .target_state = 1,
+        .resolution = RB_C4002_RES_20CM,
+        .presence_gate_mask = (1u << 3) | (1u << 4) | (1u << 24),
+        .presence_countdown_s = 5,
+        .presence_distance_cm = 70,
+        .presence_energy = 42,
+        .motion_distance_cm = 180,
+        .motion_speed_cm_s = -35,
+        .motion_energy = 9,
+        .motion_direction = 2,
+        .light_dlux = 123,
+        .calib_remaining_s = 0,
+        .age_ms = 40,
+        .results = 100000,
+    };
+}
+
+static void test_live_roundtrip(void)
+{
+    TEST_ASSERT_EQUAL(46, RB_PKT_C4002_LIVE_LEN);
+    rb_packet_t in = {.type = RB_MSG_C4002_LIVE, .role = RB_NODE_ROLE_PRESENCE, .node_id = 1, .sequence = 9};
+    in.body.c4002_live = sample_live();
+    uint8_t buf[RB_PKT_MAX_LEN];
+    TEST_ASSERT_EQUAL(RB_PKT_C4002_LIVE_LEN, rb_protocol_encode(&in, buf, sizeof(buf)));
+    rb_packet_t out;
+    TEST_ASSERT_EQUAL(RB_DECODE_OK, rb_protocol_decode(buf, RB_PKT_C4002_LIVE_LEN, &out));
+    const rb_c4002_live_t *a = &in.body.c4002_live, *b = &out.body.c4002_live;
+    TEST_ASSERT_EQUAL(a->target_state, b->target_state);
+    TEST_ASSERT_EQUAL(a->resolution, b->resolution);
+    TEST_ASSERT_EQUAL_HEX32(a->presence_gate_mask, b->presence_gate_mask);
+    TEST_ASSERT_EQUAL(a->presence_countdown_s, b->presence_countdown_s);
+    TEST_ASSERT_EQUAL(a->presence_distance_cm, b->presence_distance_cm);
+    TEST_ASSERT_EQUAL(a->presence_energy, b->presence_energy);
+    TEST_ASSERT_EQUAL(a->motion_distance_cm, b->motion_distance_cm);
+    TEST_ASSERT_EQUAL(a->motion_speed_cm_s, b->motion_speed_cm_s);
+    TEST_ASSERT_EQUAL(a->motion_energy, b->motion_energy);
+    TEST_ASSERT_EQUAL(a->motion_direction, b->motion_direction);
+    TEST_ASSERT_EQUAL(a->light_dlux, b->light_dlux);
+    TEST_ASSERT_EQUAL(a->calib_remaining_s, b->calib_remaining_s);
+    TEST_ASSERT_EQUAL(a->age_ms, b->age_ms);
+    TEST_ASSERT_EQUAL(a->results, b->results);
+
+    in.role = RB_NODE_ROLE_THERMAL; /* only presence nodes have a C4002 */
+    TEST_ASSERT_EQUAL(0, rb_protocol_encode(&in, buf, sizeof(buf)));
+}
+
+static void test_live_json(void)
+{
+    char buf[1536];
+    rb_c4002_live_msg_t m = {
+        .hdr = {.controller_id = "controller_01", .boot_id = "b00t", .uptime_ms = 1000, .sequence = 3},
+        .sensor_node = "node_02",
+        .node_uptime_ms = 5000,
+        .live = sample_live(),
+    };
+    const size_t len = rb_c4002_live_json(&m, buf, sizeof(buf));
+    TEST_ASSERT_GREATER_THAN(0, len);
+    TEST_ASSERT_LESS_THAN(512, len);
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"type\":\"c4002_live\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"target\":\"stationary\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"gate_size_cm\":20"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"presence_gates\":[3,4,24]"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"speed_cm_s\":-35"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"direction\":\"approaching\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"light_lux\":12.3"));
+}
+
 void run_c4002_tuning_tests(void)
 {
     RUN_TEST(test_sizes_fit_espnow);
@@ -244,4 +314,6 @@ void run_c4002_tuning_tests(void)
     RUN_TEST(test_cmd_parse_rejects);
     RUN_TEST(test_cmd_topic);
     RUN_TEST(test_reply_json);
+    RUN_TEST(test_live_roundtrip);
+    RUN_TEST(test_live_json);
 }

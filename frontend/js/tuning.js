@@ -5,6 +5,7 @@
 
 import { sendC4002Command } from "./api.js";
 import { $, make } from "./dom.js";
+import { markSettingsChange, selectLiveNode } from "./live_radar.js";
 
 const GATES = 25;
 const ANSWER_WAIT_MS = 12000;
@@ -121,13 +122,15 @@ export function renderTuning(device) {
   }
   $("tuning-form").disabled = !node;
   for (const id of BUTTONS) $(id).disabled = !node;
+  latest = node ? (device.values.sensors[node] || {}).c4002 || null : null;
+  selectLiveNode(deviceId, node, latest && latest.settings);
   if (!node) {
     setStatus("No presence node reported yet.");
     return;
   }
 
-  latest = (device.values.sensors[node] || {}).c4002 || null;
   if (pending && latest && latest.request_id === pending.request_id) {
+    if (latest.result === "ok" && pending.action !== "read") markSettingsChange(pending.action);
     pending = null;
     formDirty = false; // show what the node now uses
     gatesDirty = false;

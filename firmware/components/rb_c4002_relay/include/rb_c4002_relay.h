@@ -7,6 +7,8 @@
  *     -> this relay -> ESP-NOW C4002_CONFIG -> presence node
  *   presence node -> ESP-NOW C4002_CONFIG_ACK -> this relay
  *     -> telemetry task -> MQTT <prefix>/sensors/<node>/c4002_config (retained)
+ *   presence node -> ESP-NOW C4002_LIVE -> this relay
+ *     -> telemetry task -> MQTT <prefix>/sensors/<node>/c4002_live (QoS 0)
  *
  * The relay never touches the safety state machine. It learns each presence
  * node's MAC from the packets the node sends, so it can only reach a node
@@ -36,6 +38,13 @@ void rb_c4002_relay_on_packet(const rb_espnow_rx_t *rx);
  * Call it repeatedly until it returns false. reply->hdr is left for the caller.
  */
 bool rb_c4002_relay_poll(uint32_t now_ms, rb_c4002_reply_t *reply, uint32_t *node_id);
+
+/*
+ * Telemetry task: the newest raw C4002 result of one node, if one came in
+ * since the last call. Call it repeatedly until it returns false. msg->hdr is
+ * left for the caller.
+ */
+bool rb_c4002_relay_poll_live(rb_c4002_live_msg_t *msg, uint32_t *node_id);
 
 #ifdef __cplusplus
 }
