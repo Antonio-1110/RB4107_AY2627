@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from . import commands
-from .models import Device, InboundMessage, Reading, SafetyEvent, WorkerStatus
+from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .locations import (active_alerts, aggregate_stalls, classify_display_state,
                         fleet_summary, load_location_catalog, location_for)
 
@@ -181,3 +181,16 @@ def c4002_live(request, device_id, node):
                                                           "calibration_remaining_s")}})
     return JsonResponse({"node": node, "window_seconds": LIVE_WINDOW_SECONDS,
                          "last_id": samples[-1]["id"] if samples else after, "samples": samples})
+
+
+@require_GET
+@never_cache
+def thermal_frame(request, device_id):
+    """The latest heat-map picture of each thermal node of one controller (display only)."""
+    device = get_object_or_404(Device, device_id=device_id)
+    now = timezone.now()
+    frames = [{"sensor_node": row.sensor_node, "received_at": row.received_at, "source_at": row.source_at,
+               "age_seconds": age(row.received_at, now), **row.frame}
+              for row in ThermalFrame.objects.filter(device=device).order_by("sensor_node")]
+    return JsonResponse({"device_id": device_id, "stale_after_seconds": settings.DEVICE_STALE_SECONDS,
+                         "frames": frames})

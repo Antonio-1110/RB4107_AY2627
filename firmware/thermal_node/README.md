@@ -19,9 +19,13 @@ MLX90640 → C6 → feature extraction → ESP-NOW (THERMAL_DATA) → S3 control
 | `thermal` | 5 | reads MLX90640 frames and extracts features (max/min/mean, hot-region temperature, rate of change, pixels above threshold). If the sensor is missing it keeps retrying without blocking the link |
 | `espnow_link` | 6 | every 50 ms: builds the fault flags, sends SENSOR_FAULT on change, THERMAL_DATA every `RB_NODE_DATA_PERIOD_MS`, HEARTBEAT every `RB_NODE_HEARTBEAT_PERIOD_MS` (component `rb_node_app`) |
 
-Raw frames never leave the node; only the features are sent. The node does
-not decide anything: the controller runs the safety state machine. Every
-packet carries the node ID and the role "thermal".
+The safety logic only gets the features. Separately, for the dashboard heat
+map, the link task sends the whole picture at 1 byte per pixel every
+`RB_THERMAL_HEATMAP_PERIOD_MS` (default 3 s) as 4 THERMAL_FRAME pieces, one
+per tick ([protocol.md](../../docs/protocol.md#thermal_frame-type-10-223-bytes-total)).
+Turn it off with `RB_THERMAL_HEATMAP`. The node does not decide anything: the
+controller runs the safety state machine. Every packet carries the node ID
+and the role "thermal".
 
 Board checks are the same as on the presence node: boot report,
 periodic uptime/heap/ESP-NOW line, blinking status LED.

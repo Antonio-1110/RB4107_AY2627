@@ -42,3 +42,6 @@ export async function sendC4002Command(deviceId, node, body) {
 // Raw C4002 results of one presence node (last minute, or only those after `after`).
 export const fetchC4002Live = (deviceId, node, after = 0) =>
   get(`${device(deviceId)}/nodes/${encodeURIComponent(node)}/c4002/live/?after=${after}`);
+
+// Latest heat-map picture of each thermal node of one controller (display only).
+export const fetchThermalFrame = (deviceId) => get(`${device(deviceId)}/thermal_frame/`);

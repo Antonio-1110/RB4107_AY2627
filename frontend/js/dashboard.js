@@ -3,8 +3,9 @@
 // the overview (all stalls) and detail (one stall) views.
 
 import { POLL_MS } from "./config.js";
-import { fetchEvents, fetchFleet, fetchHistory } from "./api.js";
+import { fetchEvents, fetchFleet, fetchHistory, fetchThermalFrame } from "./api.js";
 import { drawTemperatureChart } from "./chart.js";
+import { decodeFrame, drawHeatmap, legendGradient } from "./heatmap.js";
 import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderTuning } from "./tuning.js";
@@ -17,7 +18,9 @@ let selectedStall = "",
   lastHistoryAt = 0,
   busy = false,
   activeView = "overview",
-  initialRouteApplied = false;
+  initialRouteApplied = false,
+  heatmap = null, // decoded picture of the selected device, or null
+  heatmapGeometry = null;
 function freshness(device, key, explicitAge) {
   const age = explicitAge === undefined ? device.field_age_seconds[key] : explicitAge;
   if (age == null) return "No live timestamp · retained or not reported";
@@ -58,6 +61,7 @@ function showView(view) {
     );
     history.replaceState(null, "", `#stall=${encodeURIComponent(selectedStall)}`);
     setTimeout(drawChart, 0);
+    setTimeout(renderHeatmap, 0);
   }
 }
 function openStall(stallId, deviceId = "") {
@@ -67,12 +71,15 @@ function openStall(stallId, deviceId = "") {
   selectedDevice = stall.device_ids.includes(deviceId) ? deviceId : stall.device_ids[0];
   lastHistoryAt = 0;
   points = [];
+  heatmap = null;
   renderEventsMessage("Loading station history…");
   set("chart-caption", "Loading temperature history…");
+  set("heatmap-age", "Loading picture…");
   $("detail-tab").disabled = false;
   showView("detail");
   renderDetail();
   refreshDetailData(true);
+  refreshHeatmap();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function applyInitialRoute() {
@@ -539,6 +546,41 @@ function drawChart() {
     Math.max(30, current?.stale_after_seconds || 15),
   );
 }
+function renderHeatmap() {
+  $("heatmap-empty").hidden = !!heatmap;
+  heatmapGeometry = drawHeatmap($("heatmap"), heatmap);
+  if (!heatmap) {
+    const canvas = $("heatmap");
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    set("heatmap-min", "—");
+    set("heatmap-max", "—");
+    return;
+  }
+  set("heatmap-min", number(heatmap.min) ? `${heatmap.min.toFixed(1)} °C` : "—");
+  set("heatmap-max", number(heatmap.max) ? `${heatmap.max.toFixed(1)} °C` : "—");
+}
+async function refreshHeatmap() {
+  if (activeView !== "detail" || !selectedDevice) return;
+  const requested = selectedDevice;
+  try {
+    const data = await fetchThermalFrame(requested);
+    if (requested !== selectedDevice) return;
+    const frame = data.frames[0];
+    heatmap = frame ? decodeFrame(frame) : null;
+    const stale = frame && frame.age_seconds > data.stale_after_seconds;
+    set(
+      "heatmap-age",
+      frame
+        ? `${frame.sensor_node} · picture ${frame.number} · ${seconds(frame.age_seconds)} ago${stale ? " (stale)" : ""}`
+        : "No picture yet",
+    );
+    $("heatmap").classList.toggle("stale", !!stale);
+  } catch (error) {
+    if (requested !== selectedDevice) return;
+    set("heatmap-age", "Picture unavailable");
+  }
+  renderHeatmap();
+}
 async function refreshDetailData(force = false) {
   if (activeView !== "detail" || !selectedDevice || (!force && Date.now() - lastHistoryAt <= 5000))
     return;
@@ -676,7 +718,7 @@ async function refresh(forceHistory = false) {
     renderOverview();
     applyInitialRoute();
     if (activeView === "detail") renderDetail();
-    await refreshDetailData(forceHistory);
+    await Promise.all([refreshDetailData(forceHistory), refreshHeatmap()]);
   } catch (error) {
     document.body.classList.add("transport-lost");
     markFleetLastKnown();
@@ -728,6 +770,9 @@ $("brand-home").addEventListener("click", (event) => {
 });
 $("device-select").addEventListener("change", () => {
   selectedDevice = $("device-select").value;
+  heatmap = null;
+  set("heatmap-age", "Loading picture…");
+  renderHeatmap();
   lastHistoryAt = 0;
   points = [];
   renderEventsMessage("Loading station history…");
@@ -744,6 +789,28 @@ $("history-hours").addEventListener("change", () => {
   refreshDetailData(true);
 });
 new ResizeObserver(drawChart).observe($("temperature-chart"));
+new ResizeObserver(renderHeatmap).observe($("heatmap"));
+$("heatmap-scale").style.background = legendGradient();
+$("heatmap").addEventListener("mousemove", (event) => {
+  const tip = $("heatmap-tip"),
+    g = heatmapGeometry;
+  if (!heatmap || !g) return;
+  const rect = $("heatmap").getBoundingClientRect(),
+    x = event.clientX - rect.left,
+    y = event.clientY - rect.top,
+    col = Math.floor((x - g.left) / g.cell),
+    row = Math.floor((y - g.top) / g.cell);
+  if (col < 0 || row < 0 || col >= heatmap.width || row >= heatmap.height) {
+    tip.hidden = true;
+    return;
+  }
+  const t = heatmap.temps[row * heatmap.width + col];
+  tip.textContent = `${t === null ? "no reading" : `${t.toFixed(1)} °C`} · column ${col + 1}, row ${row + 1}`;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+  tip.hidden = false;
+});
+$("heatmap").addEventListener("mouseleave", () => ($("heatmap-tip").hidden = true));
 async function loop() {
   await refresh();
   setTimeout(loop, POLL_MS);

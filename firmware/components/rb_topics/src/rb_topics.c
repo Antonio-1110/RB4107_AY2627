@@ -19,6 +19,7 @@ static const rb_topic_info_t TOPICS[RB_TOPIC_COUNT] = {
     [RB_TOPIC_EVENT_WARNING] = {"events/warning", 1, false, false},
     [RB_TOPIC_EVENT_SHUTDOWN] = {"events/shutdown", 1, false, false},
     [RB_TOPIC_EVENT_FAULT] = {"events/fault", 1, false, false},
+    [RB_TOPIC_SENSOR_THERMAL_FRAME] = {"sensors/%s/thermal_frame", 0, false, true},
 };
 
 const rb_topic_info_t *rb_topic_info(rb_topic_t topic)

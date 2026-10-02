@@ -29,6 +29,7 @@ TYPE_TO_DEF = {
     "faults": "faults",
     "presence": "presence_msg",
     "thermal": "thermal_msg",
+    "thermal_frame": "thermal_frame_msg",
     "node_status": "node_status",
     "event": "event",
     "controller_status": "controller_status",

@@ -47,6 +47,7 @@ typedef enum {
     RB_MSG_C4002_CONFIG = 7,     /* controller -> presence node */
     RB_MSG_C4002_CONFIG_ACK = 8, /* presence node -> controller */
     RB_MSG_C4002_LIVE = 9,       /* presence node -> controller: raw C4002 result, for the dashboard */
+    RB_MSG_THERMAL_FRAME = 10,   /* thermal nodes only: one piece of a heat-map picture (display only) */
 } rb_msg_type_t;
 
 /* C4002_CONFIG actions. */
@@ -107,12 +108,30 @@ typedef enum {
 #define RB_PKT_C4002_CONFIG_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_CONFIG_ACK_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_ACK_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_LIVE_LEN (RB_HEADER_LEN + RB_BODY_C4002_LIVE_LEN + RB_CRC_LEN)
-#define RB_PKT_MAX_LEN RB_PKT_C4002_CONFIG_LEN
 
+/*
+ * THERMAL_FRAME: the whole 32x24 MLX90640 picture at 1 byte per pixel, split
+ * into 4 pieces of 6 rows so each piece fits the 250-byte ESP-NOW v1 limit.
+ * Display only: the safety logic never reads it (it uses THERMAL_DATA).
+ */
+#define RB_FRAME_COLS 32u
+#define RB_FRAME_ROWS 24u
+#define RB_FRAME_PIXELS (RB_FRAME_COLS * RB_FRAME_ROWS)
+#define RB_FRAME_PIECES 4u
+#define RB_FRAME_PIECE_PIXELS (RB_FRAME_PIXELS / RB_FRAME_PIECES) /* 192 = 6 rows */
+#define RB_FRAME_PIXEL_INVALID 0xFFu                               /* pixel value for "no reading" */
+#define RB_BODY_THERMAL_FRAME_LEN (10u + RB_FRAME_PIECE_PIXELS)
+#define RB_PKT_THERMAL_FRAME_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_FRAME_LEN + RB_CRC_LEN)
+
+#define RB_PKT_MAX_LEN RB_PKT_THERMAL_FRAME_LEN
+
+_Static_assert(RB_FRAME_PIXELS % RB_FRAME_PIECES == 0 && RB_FRAME_PIECE_PIXELS % RB_FRAME_COLS == 0,
+               "a piece must hold whole rows");
 _Static_assert(RB_PKT_MAX_LEN <= RB_ESPNOW_MAX_PAYLOAD, "packet exceeds ESP-NOW payload");
 _Static_assert(RB_PKT_MAX_LEN >= RB_PKT_PRESENCE_DATA_LEN && RB_PKT_MAX_LEN >= RB_PKT_HEARTBEAT_LEN &&
                    RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN && RB_PKT_MAX_LEN >= RB_PKT_THERMAL_DATA_LEN &&
-                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN && RB_PKT_MAX_LEN >= RB_PKT_C4002_LIVE_LEN,
+                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_LEN && RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN &&
+                   RB_PKT_MAX_LEN >= RB_PKT_C4002_LIVE_LEN,
                "RB_PKT_MAX_LEN must cover every message");
 
 typedef struct {
@@ -126,6 +145,20 @@ typedef struct {
     uint16_t changed_flags;    /* bits that changed and triggered this message */
     int32_t detail;            /* driver error code, 0 if none */
 } rb_sensor_fault_msg_t;
+
+/*
+ * One THERMAL_FRAME piece. Pixel value v means base + v * step (in 0.01 °C);
+ * RB_FRAME_PIXEL_INVALID means the pixel had no valid reading. Every piece of
+ * one frame carries the same base, step and timestamp.
+ */
+typedef struct {
+    uint8_t piece;             /* 0 .. pieces-1; piece n holds rows 6n .. 6n+5 */
+    uint8_t pieces;            /* RB_FRAME_PIECES */
+    int16_t base_centi;        /* temperature of pixel value 0, 0.01 °C */
+    uint16_t step_centi;       /* temperature per pixel step, 0.01 °C (at least 1) */
+    uint32_t timestamp_ms;     /* node ms of the frame */
+    uint8_t pixels[RB_FRAME_PIECE_PIXELS]; /* row by row, left to right */
+} rb_thermal_frame_piece_t;
 
 typedef struct {
     uint32_t target_node_id;   /* RB_NODE_ID of the presence node this is for */
@@ -192,11 +225,33 @@ typedef enum {
     RB_DECODE_ERR_ROLE,       /* unknown role, or a data message that doesn't match the role */
 } rb_decode_result_t;
 
-/* Serialise pkt into buf. Returns the number of bytes written, 0 on error. */
+/*
+ * Serialise pkt into buf. Returns the number of bytes written, 0 on error
+ * (including RB_MSG_THERMAL_FRAME, which has its own function below).
+ */
 size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len);
 
-/* Validate and parse a received buffer. */
+/*
+ * Validate and parse a received buffer. A THERMAL_FRAME piece is rejected
+ * with RB_DECODE_ERR_TYPE here: check rb_protocol_is_frame_piece() first.
+ */
 rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_t *out);
+
+/*
+ * THERMAL_FRAME pieces are kept out of rb_packet_t so every other packet (and
+ * the controller's receive queue) stays small. hdr supplies the header
+ * fields; hdr->type must be RB_MSG_THERMAL_FRAME and hdr->sequence is the
+ * frame number (see docs/protocol.md). Returns the bytes written, 0 on error.
+ */
+size_t rb_protocol_encode_frame_piece(const rb_packet_t *hdr, const rb_thermal_frame_piece_t *piece, uint8_t *buf,
+                                      size_t buf_len);
+
+/* Cheap check of the type byte only; the decode below does the full validation. */
+bool rb_protocol_is_frame_piece(const uint8_t *buf, size_t len);
+
+/* Validate and parse a THERMAL_FRAME piece. Only the header fields of hdr are set. */
+rb_decode_result_t rb_protocol_decode_frame_piece(const uint8_t *buf, size_t len, rb_packet_t *hdr,
+                                                  rb_thermal_frame_piece_t *piece);
 
 const char *rb_decode_result_name(rb_decode_result_t result);
 const char *rb_msg_type_name(rb_msg_type_t type);

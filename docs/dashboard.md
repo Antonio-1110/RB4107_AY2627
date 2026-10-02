@@ -23,9 +23,10 @@ frontend/
 ├── css/dashboard.css
 └── js/
     ├── config.js     API base URL, poll interval, request timeout
-    ├── api.js        the three GET calls the page makes
+    ├── api.js        the GET calls the page makes
     ├── dashboard.js  state, polling and rendering of both views
     ├── chart.js      temperature history canvas
+    ├── heatmap.js    thermal camera heat map canvas
     ├── dom.js        small DOM helpers
     └── format.js     value formatting
 ```
@@ -51,6 +52,7 @@ frontend/
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
+| `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state |
 
 The firmware publishes `safety.reset_required` (`safety_reset_required()` in
 `firmware/components/safety`). For messages from older firmware without it,
@@ -68,6 +70,17 @@ Display severity (`ingest/locations.py`, `classify_display_state`) uses only
 the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
 UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
 BOOT/SELF_TEST show as "controller starting".
+
+## Heat map
+
+The stall detail view draws the thermal camera's latest picture (32 × 24) with
+a light-to-dark warm colour scale fitted to each picture, marks the hottest
+pixel, shows grey for pixels with no reading, and gives the temperature of the
+pixel under the mouse. A picture older than `RB4107_DEVICE_STALE_SECONDS` is
+dimmed and labelled stale. `simulate_fleet` also sends synthetic pictures.
+
+The picture is as the sensor sees it. If it looks mirrored or upside down
+compared with the kitchen, that comes from how the camera is mounted.
 
 ## Locations and more controllers
 

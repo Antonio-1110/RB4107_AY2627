@@ -36,6 +36,7 @@ void rb_json_int(rb_json_writer_t *w, int64_t value);
 void rb_json_num(rb_json_writer_t *w, float value, int decimals); /* NaN/Inf -> null */
 void rb_json_bool(rb_json_writer_t *w, bool value);
 void rb_json_null(rb_json_writer_t *w);
+void rb_json_base64(rb_json_writer_t *w, const uint8_t *data, size_t len); /* as a string, RFC 4648 with padding */
 
 /* Length of the finished document, or 0 on overflow / unbalanced nesting. */
 size_t rb_json_finish(rb_json_writer_t *w);

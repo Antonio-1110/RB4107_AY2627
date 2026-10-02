@@ -8,6 +8,9 @@
 #include "rb_config.h"
 #include "rb_c4002_relay.h"
 #include "rb_controller.h"
+#if CONFIG_RB_MQTT_PUBLISH_HEATMAP
+#include "rb_heatmap.h"
+#endif
 #include "rb_json.h"
 #include "rb_mqtt.h"
 #include "rb_protocol.h"
@@ -19,7 +22,7 @@ static const char *TAG = "MQTT";
 
 #define TELEMETRY_STACK 6144
 #define TOPIC_LEN 96
-#define PAYLOAD_LEN 1536
+#define PAYLOAD_LEN 1536 /* also fits a heat-map picture: 1024 base64 characters plus ~300 */
 
 static char s_payload[PAYLOAD_LEN];
 static char s_timestamp[32];
@@ -247,6 +250,30 @@ static void publish_c4002_replies(void)
         publish(RB_TOPIC_SENSOR_C4002_LIVE, node_id, rb_c4002_live_json(&live, s_payload, sizeof(s_payload)), -1);
     }
 }
+#if CONFIG_RB_MQTT_PUBLISH_HEATMAP
+/* The newest complete heat-map picture, if any (display only, QoS 0). */
+static void publish_heatmap(void)
+{
+    static rb_heatmap_frame_t pic; /* ~790 bytes: kept off the task stack */
+    if (!rb_heatmap_take(&pic)) {
+        return;
+    }
+    char node[16];
+    rb_topic_node_name(pic.node_id, node, sizeof(node));
+    const rb_json_thermal_frame_t f = {
+        .hdr = header(pic.rx_ms),
+        .sensor_node = node,
+        .frame_number = pic.frame_number,
+        .width = RB_FRAME_COLS,
+        .height = RB_FRAME_ROWS,
+        .base_centi = pic.frame.base_centi,
+        .step_centi = pic.frame.step_centi,
+        .invalid_value = RB_FRAME_PIXEL_INVALID,
+        .pixels = pic.frame.pixels,
+    };
+    publish(RB_TOPIC_SENSOR_THERMAL_FRAME, pic.node_id, rb_json_thermal_frame(&f, s_payload, sizeof(s_payload)), -1);
+}
+#endif
 
 static void telemetry_task(void *arg)
 {
@@ -261,6 +288,9 @@ static void telemetry_task(void *arg)
             publish_event(&evt);
         }
         publish_c4002_replies();
+#if CONFIG_RB_MQTT_PUBLISH_HEATMAP
+        publish_heatmap(); /* checked at least once per telemetry period */
+#endif
         if ((int32_t)(rb_time_mono_ms() - next_periodic) >= 0) {
             next_periodic += CONFIG_RB_MQTT_TELEMETRY_PERIOD_MS;
             /* After a long stall, skip the missed periods instead of bursting to catch up. */

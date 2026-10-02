@@ -11,6 +11,7 @@
 #include "rb_config.h"
 #include "rb_controller.h"
 #include "rb_espnow.h"
+#include "rb_heatmap.h"
 #include "rb_mqtt.h"
 #include "rb_net.h"
 #include "rb_safety_config.h"
@@ -66,6 +67,11 @@ static int cmd_thermal(int argc, char **argv)
     printf("thermal node_%02" PRIu32 ": %s max=%.1f min=%.1f mean=%.1f hot-region=%.1f C rate=%.2f C/min px>thr=%u\n",
            n->node_id, n->sensor_ok ? "valid" : "INVALID", t->max_temp_c, t->min_temp_c, t->mean_temp_c,
            t->hot_region_temp_c, t->temp_rate_c_per_min, t->pixels_above_threshold);
+    rb_heatmap_stats_t h;
+    rb_heatmap_get_stats(&h);
+    printf("heat map: pictures complete=%" PRIu32 " incomplete=%" PRIu32 " mismatched=%" PRIu32
+           " not published in time=%" PRIu32 " | pieces from other nodes=%" PRIu32 "\n",
+           h.frames.complete, h.frames.incomplete, h.frames.mismatched, h.not_taken, h.foreign_pieces);
     return 0;
 }
 
@@ -76,9 +82,10 @@ static int cmd_espnow(int argc, char **argv)
     rb_snapshot_t s;
     rb_controller_get_snapshot(&s);
     printf("espnow rx: ok=%" PRIu32 " bad len=%" PRIu32 " magic=%" PRIu32 " version=%" PRIu32 " type=%" PRIu32
-           " crc=%" PRIu32 " role=%" PRIu32 " queue overflow=%" PRIu32 " | unknown node=%" PRIu32 "\n",
+           " crc=%" PRIu32 " role=%" PRIu32 " queue overflow=%" PRIu32 " | unknown node=%" PRIu32
+           " | heat-map pieces=%" PRIu32 "\n",
            rx.received, rx.bad_length, rx.bad_magic, rx.bad_version, rx.bad_type, rx.bad_crc, rx.bad_role,
-           rx.queue_overflow, s.nodes.unknown_node);
+           rx.queue_overflow, s.nodes.unknown_node, rx.frame_pieces);
     for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
         if (!s.nodes.enabled[slot]) {
             continue;

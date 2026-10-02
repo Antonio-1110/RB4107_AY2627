@@ -4,4 +4,5 @@ idf_component_register(SRCS "src/rb_controller_app.c"
                        INCLUDE_DIRS "include"
                        REQUIRES esp_common
                        PRIV_REQUIRES rb_config rb_log rb_controller rb_app rb_outputs rb_espnow rb_sim rb_telemetry
-                                     rb_connectivity rb_wallclock rb_time fault_manager rb_diag safety rb_c4002_relay)
+                                     rb_connectivity rb_wallclock rb_time fault_manager rb_diag safety rb_c4002_relay
+                                     rb_heatmap)
