@@ -188,6 +188,24 @@ menu "RB4107 configuration"
                     How long the sensor keeps reporting a target after it has
                     gone.
 
+            config RB_C4002_LOCK_TIME_DS
+                int "Lock time after a target leaves (0.1 s units)"
+                range 2 100
+                default 10
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    When the area goes from occupied to empty, the sensor
+                    ignores targets for this long (sensor default 1 s).
+
+            config RB_C4002_REMOTE_TUNING
+                bool "Accept C4002 settings and calibration from the dashboard"
+                default y
+                help
+                    The controller relays dashboard commands over ESP-NOW
+                    (docs/c4002_tuning.md). Settings received this way are
+                    saved on the node and win over the menuconfig values
+                    above until the dashboard sends "reset".
+
             config RB_C4002_ENV_CALIBRATION_AT_BOOT
                 bool "Run environment calibration at boot (area must be empty)"
                 default n
@@ -489,6 +507,15 @@ menu "RB4107 configuration"
                 help
                     RB_NODE_ID of the thermal node (firmware/thermal_node). Packets from
                     any node ID not listed here are counted and dropped.
+
+            config RB_CTRL_C4002_REMOTE_TUNING
+                bool "Relay C4002 tuning commands from the dashboard to the presence nodes"
+                default y
+                help
+                    Subscribes to <prefix>/sensors/+/c4002_set and forwards
+                    each command over ESP-NOW; the node's answer is published
+                    on <prefix>/sensors/<node>/c4002_config. Never touches the
+                    safety state machine (docs/c4002_tuning.md).
 
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"

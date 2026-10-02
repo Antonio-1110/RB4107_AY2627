@@ -49,6 +49,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_C4002_MOTION_SENSITIVITY` | Motion sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
 | `CONFIG_RB_C4002_PRESENCE_SENSITIVITY` | Static presence sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
 | `CONFIG_RB_C4002_DISAPPEAR_DELAY_S` | Target disappear delay (s) | `1` | 0 – 65535 |  |
+| `CONFIG_RB_C4002_LOCK_TIME_DS` | Lock time after a target leaves (0.1 s units) | `10` | 2 – 100 |  |
+| `CONFIG_RB_C4002_REMOTE_TUNING` | Accept C4002 settings and calibration from the dashboard | `y` |  |  |
 | `CONFIG_RB_C4002_ENV_CALIBRATION_AT_BOOT` | Run environment calibration at boot (area must be empty) | `n` |  |  |
 | `CONFIG_RB_C4002_ENV_CALIBRATION_S` | Environment calibration duration (s) | `30` | 1 – 600 |  |
 
@@ -125,6 +127,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_PRESENCE_A_NODE_ID` | Presence node A ID | `1` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_PRESENCE_B_NODE_ID` | Presence node B ID | `2` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_THERMAL_NODE_ID` | Thermal node ID | `3` | 1 – 65535 |  |
+| `CONFIG_RB_CTRL_C4002_REMOTE_TUNING` | Relay C4002 tuning commands from the dashboard to the presence nodes | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |

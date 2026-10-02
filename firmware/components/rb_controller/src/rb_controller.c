@@ -107,6 +107,12 @@ static void on_packet(node_set_t *nodes, const rb_espnow_rx_t *rx)
                         (unsigned long)rx->packet.node_id, rb_node_role_name(rx->packet.role),
                         res == NODE_SEQ_WRONG_NODE ? "node ID not configured on the controller"
                                                    : "configured for the other role (check RB_NODE_ID)");
+        return;
+    }
+    const bool accepted = res == NODE_SEQ_FIRST || res == NODE_SEQ_OK || res == NODE_SEQ_GAP ||
+                          res == NODE_SEQ_NODE_RESTART;
+    if (accepted && s_hooks.node_packet != NULL) {
+        s_hooks.node_packet(rx, s_hooks.ctx);
     }
 }
 

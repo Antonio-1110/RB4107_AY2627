@@ -18,6 +18,7 @@
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "rb_espnow.h"
 #include "rb_protocol.h"
 #include "safety.h"
 #include "sensor_node.h"
@@ -87,6 +88,8 @@ typedef struct {
     void (*node_events)(const sensor_node_state_t *node, node_slot_t slot, uint32_t events, void *ctx);
     /* Last chance to change the inputs (diagnostic simulation, section 27). */
     void (*override_inputs)(safety_inputs_t *inputs, void *ctx);
+    /* Every packet accepted from a configured node (remote C4002 tuning learns MACs and ACKs here). */
+    void (*node_packet)(const rb_espnow_rx_t *rx, void *ctx);
     void *ctx;
 } rb_controller_hooks_t;
 

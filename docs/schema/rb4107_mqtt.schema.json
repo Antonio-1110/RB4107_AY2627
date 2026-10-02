@@ -16,7 +16,8 @@
     {"$ref": "#/$defs/thermal_msg"},
     {"$ref": "#/$defs/node_status"},
     {"$ref": "#/$defs/event"},
-    {"$ref": "#/$defs/controller_status"}
+    {"$ref": "#/$defs/controller_status"},
+    {"$ref": "#/$defs/c4002_config"}
   ],
   "$defs": {
     "header": {
@@ -186,6 +187,71 @@
         "controller_id": {"type": "string"},
         "boot_id": {"type": "string", "minLength": 1},
         "online": {"type": "boolean"}
+      }
+    },
+    "c4002_sensitivity": {"enum": ["low", "mid", "high", "custom"]},
+    "c4002_gates": {"type": "array", "minItems": 25, "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 1}, "description": "one entry per distance gate, 1 = enabled; 80 cm resolution only uses the first 15"},
+    "c4002_thresholds": {"type": "array", "minItems": 25, "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 99}, "description": "one threshold per distance gate, used with sensitivity custom; 80 cm resolution only uses the first 15"},
+    "c4002_settings": {
+      "type": "object",
+      "required": ["report_period_ds", "range_min_cm", "range_max_cm", "resolution_cm", "gate_count", "motion_sensitivity", "presence_sensitivity", "disappear_delay_s", "lock_time_ds", "motion_gates", "presence_gates", "motion_thresholds", "presence_thresholds"],
+      "properties": {
+        "report_period_ds": {"type": "integer", "minimum": 1, "maximum": 255},
+        "range_min_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "range_max_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "resolution_cm": {"enum": [20, 80]},
+        "gate_count": {"enum": [15, 25]},
+        "motion_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "presence_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "disappear_delay_s": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "lock_time_ds": {"type": "integer", "minimum": 2, "maximum": 100},
+        "motion_gates": {"$ref": "#/$defs/c4002_gates"},
+        "presence_gates": {"$ref": "#/$defs/c4002_gates"},
+        "motion_thresholds": {"oneOf": [{"$ref": "#/$defs/c4002_thresholds"}, {"type": "null"}]},
+        "presence_thresholds": {"oneOf": [{"$ref": "#/$defs/c4002_thresholds"}, {"type": "null"}]}
+      }
+    },
+    "c4002_config": {
+      "description": "Retained rb4107/sensors/<node>/c4002_config: the presence node's C4002 settings, or what happened to the last tuning command (docs/c4002_tuning.md).",
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "request_id", "action", "result", "error", "calibration_remaining_s", "saved", "settings"],
+      "properties": {
+        "type": {"const": "c4002_config"},
+        "sensor_node": {"type": "string"},
+        "request_id": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "of the command answered; 0 = the controller asked on its own"},
+        "action": {"oneOf": [{"enum": ["apply", "calibrate", "read", "reset"]}, {"type": "null"}]},
+        "result": {"enum": ["ok", "invalid", "sensor_error", "rejected", "unknown_node", "send_failed", "no_reply"]},
+        "error": {"type": ["string", "null"]},
+        "calibration_remaining_s": {"type": "integer", "minimum": 0},
+        "saved": {"type": ["boolean", "null"]},
+        "settings": {"oneOf": [{"$ref": "#/$defs/c4002_settings"}, {"type": "null"}]}
+      }
+    },
+    "c4002_command": {
+      "description": "Dashboard -> controller on rb4107/sensors/<node>/c4002_set (published by Django, not retained). Settings keys are only allowed with action apply; any subset may be sent.",
+      "type": "object",
+      "required": ["schema_version", "type", "request_id", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": 2},
+        "type": {"const": "c4002_command"},
+        "controller_id": {"type": "string", "minLength": 1},
+        "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "action": {"enum": ["apply", "calibrate", "read", "reset"]},
+        "calibration_delay_s": {"type": "integer", "minimum": 0, "maximum": 600},
+        "calibration_duration_s": {"type": "integer", "minimum": 1, "maximum": 600},
+        "report_period_ds": {"type": "integer", "minimum": 1, "maximum": 255},
+        "range_min_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "range_max_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "resolution_cm": {"enum": [20, 80]},
+        "motion_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "presence_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "disappear_delay_s": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "lock_time_ds": {"type": "integer", "minimum": 2, "maximum": 100},
+        "motion_gates": {"$ref": "#/$defs/c4002_gates"},
+        "presence_gates": {"$ref": "#/$defs/c4002_gates"},
+        "motion_thresholds": {"$ref": "#/$defs/c4002_thresholds"},
+        "presence_thresholds": {"$ref": "#/$defs/c4002_thresholds"}
       }
     }
   }

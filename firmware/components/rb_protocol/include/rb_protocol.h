@@ -1,7 +1,8 @@
 #pragma once
 
 /*
- * RB4107 sensor-node -> controller protocol over ESP-NOW (TODO section 4).
+ * RB4107 sensor-node -> controller protocol over ESP-NOW (TODO section 4),
+ * plus the controller -> presence node C4002 tuning messages.
  *
  * The C6 sender and the S3 receiver both compile this one file, so they can't
  * drift apart. Packets are serialised field by field in little-endian order;
@@ -14,6 +15,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "rb_c4002_params.h"
 #include "rb_sensor_types.h"
 
 #ifdef __cplusplus
@@ -33,6 +35,7 @@ extern "C" {
 typedef enum {
     RB_NODE_ROLE_PRESENCE = 1,   /* one C4002 radar (firmware/presence_node) */
     RB_NODE_ROLE_THERMAL = 2,    /* one MLX90640 (firmware/thermal_node) */
+    RB_NODE_ROLE_CONTROLLER = 4, /* the S3, when it sends a command to a node (3 is the valve node) */
 } rb_node_role_t;
 
 typedef enum {
@@ -40,7 +43,42 @@ typedef enum {
     RB_MSG_THERMAL_DATA = 2,     /* thermal nodes only */
     RB_MSG_HEARTBEAT = 3,
     RB_MSG_SENSOR_FAULT = 4,
+    /* 5 and 6 are kept for the valve node messages. */
+    RB_MSG_C4002_CONFIG = 7,     /* controller -> presence node */
+    RB_MSG_C4002_CONFIG_ACK = 8, /* presence node -> controller */
 } rb_msg_type_t;
+
+/* C4002_CONFIG actions. */
+typedef enum {
+    RB_C4002_ACTION_APPLY = 1,      /* change the fields in field_mask, save them */
+    RB_C4002_ACTION_CALIBRATE = 2,  /* environment calibration, then keep the learned thresholds */
+    RB_C4002_ACTION_READ = 3,       /* only report the current settings */
+    RB_C4002_ACTION_RESET = 4,      /* forget saved settings, back to the menuconfig values */
+} rb_c4002_action_t;
+
+/* C4002_CONFIG field_mask bits (APPLY): which fields of params to change. */
+enum {
+    RB_C4002_F_REPORT_PERIOD = 1u << 0,
+    RB_C4002_F_RANGE_MIN = 1u << 1,
+    RB_C4002_F_RANGE_MAX = 1u << 2,
+    RB_C4002_F_RESOLUTION = 1u << 3,
+    RB_C4002_F_MOTION_SENS = 1u << 4,
+    RB_C4002_F_PRESENCE_SENS = 1u << 5,
+    RB_C4002_F_DISAPPEAR_DELAY = 1u << 6,
+    RB_C4002_F_LOCK_TIME = 1u << 7,
+    RB_C4002_F_MOTION_GATES = 1u << 8,
+    RB_C4002_F_PRESENCE_GATES = 1u << 9,
+    RB_C4002_F_MOTION_THRESH = 1u << 10,    /* also switches motion sensitivity to CUSTOM */
+    RB_C4002_F_PRESENCE_THRESH = 1u << 11,  /* also switches presence sensitivity to CUSTOM */
+    RB_C4002_F_ALL = (1u << 12) - 1,
+};
+
+/* C4002_CONFIG_ACK result codes. */
+typedef enum {
+    RB_C4002_RESULT_OK = 0,
+    RB_C4002_RESULT_INVALID = 1,       /* rejected: a value is out of range; nothing changed */
+    RB_C4002_RESULT_SENSOR_ERROR = 2,  /* the C4002 did not accept a command */
+} rb_c4002_result_t;
 
 /* Sensor fault / validity flags, used by heartbeat and fault messages. */
 typedef enum {
@@ -57,15 +95,21 @@ typedef enum {
 #define RB_BODY_THERMAL_DATA_LEN 17u
 #define RB_BODY_HEARTBEAT_LEN 10u
 #define RB_BODY_SENSOR_FAULT_LEN 8u
+#define RB_C4002_PARAMS_LEN (20u + 2u * RB_C4002_MAX_GATES)
+#define RB_BODY_C4002_CONFIG_LEN (13u + RB_C4002_PARAMS_LEN)
+#define RB_BODY_C4002_CONFIG_ACK_LEN (7u + RB_C4002_PARAMS_LEN)
 #define RB_PKT_PRESENCE_DATA_LEN (RB_HEADER_LEN + RB_BODY_PRESENCE_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_THERMAL_DATA_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_HEARTBEAT_LEN (RB_HEADER_LEN + RB_BODY_HEARTBEAT_LEN + RB_CRC_LEN)
 #define RB_PKT_SENSOR_FAULT_LEN (RB_HEADER_LEN + RB_BODY_SENSOR_FAULT_LEN + RB_CRC_LEN)
-#define RB_PKT_MAX_LEN RB_PKT_THERMAL_DATA_LEN
+#define RB_PKT_C4002_CONFIG_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_LEN + RB_CRC_LEN)
+#define RB_PKT_C4002_CONFIG_ACK_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_ACK_LEN + RB_CRC_LEN)
+#define RB_PKT_MAX_LEN RB_PKT_C4002_CONFIG_LEN
 
 _Static_assert(RB_PKT_MAX_LEN <= RB_ESPNOW_MAX_PAYLOAD, "packet exceeds ESP-NOW payload");
 _Static_assert(RB_PKT_MAX_LEN >= RB_PKT_PRESENCE_DATA_LEN && RB_PKT_MAX_LEN >= RB_PKT_HEARTBEAT_LEN &&
-                   RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN,
+                   RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN && RB_PKT_MAX_LEN >= RB_PKT_THERMAL_DATA_LEN &&
+                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN,
                "RB_PKT_MAX_LEN must cover every message");
 
 typedef struct {
@@ -81,6 +125,25 @@ typedef struct {
 } rb_sensor_fault_msg_t;
 
 typedef struct {
+    uint32_t target_node_id;   /* RB_NODE_ID of the presence node this is for */
+    uint16_t request_id;       /* chosen by the sender, echoed in the ACK */
+    uint8_t action;            /* rb_c4002_action_t */
+    uint16_t field_mask;       /* APPLY: RB_C4002_F_* bits of params to change */
+    uint16_t calib_delay_s;    /* CALIBRATE: wait before starting (time to leave the area) */
+    uint16_t calib_duration_s; /* CALIBRATE: how long the sensor learns the empty room */
+    rb_c4002_params_t params;  /* APPLY: new values (only the masked fields are used) */
+} rb_c4002_config_msg_t;
+
+typedef struct {
+    uint16_t request_id;       /* of the command this answers; 0 = the node reported on its own */
+    uint8_t action;            /* rb_c4002_action_t it answers */
+    uint8_t result;            /* rb_c4002_result_t */
+    uint16_t calib_remaining_s;/* > 0 while an environment calibration is running */
+    uint8_t saved;             /* 1 if the settings are saved on the node (survive a reboot) */
+    rb_c4002_params_t params;  /* the settings now in use */
+} rb_c4002_ack_t;
+
+typedef struct {
     uint8_t protocol_version;
     rb_msg_type_t type;
     rb_node_role_t role;
@@ -92,6 +155,8 @@ typedef struct {
         thermal_reading_t thermal;     /* RB_MSG_THERMAL_DATA */
         rb_heartbeat_t heartbeat;
         rb_sensor_fault_msg_t fault;
+        rb_c4002_config_msg_t c4002_config;  /* RB_MSG_C4002_CONFIG */
+        rb_c4002_ack_t c4002_ack;            /* RB_MSG_C4002_CONFIG_ACK */
     } body;
 } rb_packet_t;
 
@@ -113,7 +178,19 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
 
 const char *rb_decode_result_name(rb_decode_result_t result);
 const char *rb_msg_type_name(rb_msg_type_t type);
-const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" */
+const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" / "controller" */
+
+/*
+ * Check every C4002 parameter against the sensor's limits. Returns NULL if
+ * all are valid, otherwise a short reason ("range_max_cm > 1100").
+ */
+const char *rb_c4002_params_check(const rb_c4002_params_t *params);
+
+/* Copy the fields selected by field_mask from src into dst (thresholds switch to CUSTOM). */
+void rb_c4002_params_merge(rb_c4002_params_t *dst, const rb_c4002_params_t *src, uint16_t field_mask);
+
+const char *rb_c4002_action_name(uint8_t action);   /* "apply" / "calibrate" / "read" / "reset" */
+const char *rb_c4002_result_name(uint8_t result);   /* "ok" / "invalid" / "sensor_error" */
 
 /* CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF). */
 uint16_t rb_crc16(const uint8_t *data, size_t len);

@@ -4,7 +4,8 @@
  * RB4107 MQTT topic tree (TODO section 20). Documented in docs/mqtt_topics.md.
  *
  *   <prefix>/controller/{status,heartbeat,state,faults}
- *   <prefix>/sensors/<node>/{presence,thermal,status}
+ *   <prefix>/sensors/<node>/{presence,thermal,status,c4002_config}
+ *   <prefix>/sensors/<node>/c4002_set    (dashboard -> controller, subscribed)
  *   <prefix>/events/{warning,shutdown,fault}
  *
  * The prefix is configurable (RB_MQTT_TOPIC_PREFIX, default "rb4107").
@@ -26,6 +27,7 @@ typedef enum {
     RB_TOPIC_SENSOR_PRESENCE,         /* per node */
     RB_TOPIC_SENSOR_THERMAL,          /* per node */
     RB_TOPIC_SENSOR_STATUS,           /* per node link state (retained, on change) */
+    RB_TOPIC_SENSOR_C4002_CONFIG,     /* per presence node: C4002 settings / tuning result (retained) */
     RB_TOPIC_EVENT_WARNING,
     RB_TOPIC_EVENT_SHUTDOWN,
     RB_TOPIC_EVENT_FAULT,
@@ -38,6 +40,9 @@ typedef struct {
     bool retain;
     bool per_node;
 } rb_topic_info_t;
+
+/* Last level of the command topic the controller subscribes to (remote C4002 tuning). */
+#define RB_TOPIC_C4002_SET "c4002_set"
 
 const rb_topic_info_t *rb_topic_info(rb_topic_t topic);
 

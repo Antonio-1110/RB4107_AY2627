@@ -30,6 +30,7 @@ TYPE_TO_DEF = {
     "node_status": "node_status",
     "event": "event",
     "controller_status": "controller_status",
+    "c4002_config": "c4002_config",
 }
 
 # Which message types may appear on which topic (the part after the prefix).
@@ -44,7 +45,12 @@ TOPIC_TYPES = {
     "events/warning": {"event"},
     "events/shutdown": {"event"},
     "events/fault": {"event"},
+    "sensors/*/c4002_config": {"c4002_config"},
 }
+
+# Topics the dashboard publishes on (commands to the controller). The
+# subscriber sees them under rb4107/# too, and ignores them.
+COMMAND_TOPICS = {"sensors/*/c4002_set"}
 
 MAX_PAYLOAD_BYTES = 8192
 
@@ -86,7 +92,7 @@ def topic_kind(topic: str, prefix: str | None = None) -> str:
     if len(parts) == 3 and parts[0] == "sensors":
         parts[1] = "*"
     kind = "/".join(parts)
-    if kind not in TOPIC_TYPES:
+    if kind not in TOPIC_TYPES and kind not in COMMAND_TOPICS:
         raise InvalidMessage(f"unknown topic '{topic}'")
     return kind
 
@@ -96,9 +102,34 @@ def topic_prefix(subscription: str) -> str:
     return subscription.split("/#")[0].rstrip("/")
 
 
+def is_command_topic(topic: str, prefix: str | None = None) -> bool:
+    """True for rb4107/sensors/<node>/c4002_set and other dashboard -> controller topics."""
+    try:
+        return topic_kind(topic, prefix) in COMMAND_TOPICS
+    except InvalidMessage:
+        return False
+
+
+@lru_cache(maxsize=1)
+def _command_validator(schema_file: Path) -> jsonschema.Draft202012Validator:
+    schema = json.loads(schema_file.read_text())
+    return jsonschema.Draft202012Validator({"$defs": schema["$defs"], "$ref": "#/$defs/c4002_command"})
+
+
+def check_command(command: dict) -> None:
+    """Validate an outgoing c4002_command against the shared schema. Raises InvalidMessage."""
+    validator = _command_validator(Path(settings.RB4107_SCHEMA_FILE))
+    error = jsonschema.exceptions.best_match(validator.iter_errors(command))
+    if error is not None:
+        where = "/".join(str(p) for p in error.absolute_path) or "(root)"
+        raise InvalidMessage(f"{error.message} at {where}")
+
+
 def parse(topic: str, payload: bytes, prefix: str | None = None) -> Message:
     """Decode and validate one MQTT message. prefix defaults to the configured subscription's."""
     kind = topic_kind(topic, prefix)
+    if kind in COMMAND_TOPICS:
+        raise InvalidMessage(f"'{topic}' is a command topic, not telemetry")
     if len(payload) > MAX_PAYLOAD_BYTES:
         raise InvalidMessage(f"payload too large ({len(payload)} bytes)")
     try:

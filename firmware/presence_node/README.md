@@ -21,8 +21,11 @@ MLX90640 → C6 (node 3) ─┘   (thermal node: project `thermal_node`)
 |---|---|---|
 | `c4002_rx` | 6 | parses C4002 UART reports (component `c4002`) |
 | `espnow_link` | 6 | every 50 ms: builds the fault flags, sends SENSOR_FAULT on change, PRESENCE_DATA every `RB_NODE_DATA_PERIOD_MS`, HEARTBEAT every `RB_NODE_HEARTBEAT_PERIOD_MS` (component `rb_node_app`) |
+| `c4002_tuning` | 4 | radar settings and calibration sent from the dashboard; saves them in NVS (component `rb_c4002_remote`, [docs/c4002_tuning.md](../../docs/c4002_tuning.md)) |
 
-The node only reads the radar and transmits. It does not decide anything: the
+At boot the radar gets the settings saved from the dashboard if there are
+any, otherwise the menuconfig ones. The node only reads the radar and
+transmits. It does not decide anything: the
 controller combines both radars (a person seen by either one counts as
 present) and runs the safety state machine. Every packet carries the node ID
 and the role "presence", so the controller rejects a board flashed with the

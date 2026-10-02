@@ -49,6 +49,7 @@ frontend/
 | `uptime_ms` | `uptime_seconds` | Unit conversion |
 | `nodes[]` and sensor topics | `sensors[node_id]` | Distinct C4002/MLX90640 diagnostics for each controller |
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
+| `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
 
 The firmware publishes `safety.reset_required` (`safety_reset_required()` in
 `firmware/components/safety`). For messages from older firmware without it,

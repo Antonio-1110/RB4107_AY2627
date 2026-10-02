@@ -1,4 +1,6 @@
+import json
 import math
+import re
 from datetime import timedelta
 from django.conf import settings
 from django.http import JsonResponse
@@ -6,7 +8,10 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
+
+from . import commands
 from .models import Device, InboundMessage, Reading, SafetyEvent, WorkerStatus
 from .locations import (active_alerts, aggregate_stalls, classify_display_state,
                         fleet_summary, load_location_catalog, location_for)
@@ -120,3 +125,28 @@ def events(request, device_id):
     ).order_by("-received_at", "-id").values(
         "received_at", "source_at", "event_type", "detail")[:limit+1])
     return JsonResponse({"truncated": len(rows) > limit, "events": rows[:limit]})
+
+
+NODE_NAME = re.compile(r"^node_\d{2,3}$")
+
+
+@csrf_exempt  # lab prototype: the API has no login (docs/c4002_tuning.md)
+@require_POST
+def c4002_command(request, device_id, node):
+    """Send one C4002 tuning command to a presence node. The answer arrives
+    later as sensors/<node>/c4002_config and shows up in /latest/."""
+    device = get_object_or_404(Device, device_id=device_id)
+    sensor = device.latest.get("sensors", {}).get(node)
+    if not NODE_NAME.match(node) or not sensor or sensor.get("role") != "presence":
+        return JsonResponse({"error": f"{node} is not a presence node of {device_id}"}, status=404)
+    try:
+        body = json.loads(request.body or b"{}")
+        command = commands.build_c4002_command(device_id, body)
+    except (ValueError, commands.CommandError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    topic = commands.command_topic(node)
+    try:
+        commands.publish(topic, command)
+    except commands.BrokerUnavailable as error:
+        return JsonResponse({"error": str(error)}, status=503)
+    return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)

@@ -33,6 +33,15 @@ typedef struct {
 
 esp_err_t rb_node_link_start(const rb_node_link_config_t *config);
 
+/*
+ * Send one extra packet to the controller (e.g. a C4002_CONFIG_ACK), stamped
+ * with this node's role and ID. Safe from any task once the link is started.
+ */
+esp_err_t rb_node_link_send(rb_packet_t *pkt);
+
+/* The controller's MAC (RB_NODE_CONTROLLER_MAC): commands from anyone else are ignored. */
+void rb_node_link_controller_mac(uint8_t mac[6]);
+
 #ifdef __cplusplus
 }
 #endif

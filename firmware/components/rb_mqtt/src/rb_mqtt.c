@@ -1,6 +1,7 @@
 #include "rb_mqtt.h"
 
 #include <stdio.h>
+#include <string.h>
 #include "esp_check.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -16,6 +17,19 @@ static rb_mqtt_state_cb_t s_cb;
 static void *s_cb_ctx;
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static rb_mqtt_stats_t s_stats;
+
+#define MAX_SUBSCRIPTIONS 2
+#define TOPIC_MAX 128
+
+typedef struct {
+    char filter[TOPIC_MAX];
+    int qos;
+    rb_mqtt_rx_cb_t cb;
+    void *ctx;
+} subscription_t;
+
+static subscription_t s_subs[MAX_SUBSCRIPTIONS];
+static int s_sub_count;
 
 rb_mqtt_config_t rb_mqtt_config_from_kconfig(void)
 {
@@ -44,6 +58,50 @@ static void count(uint32_t *counter)
     portEXIT_CRITICAL(&s_lock);
 }
 
+/* Does an MQTT filter with '+' and a trailing '#' match topic? */
+static bool topic_matches(const char *filter, const char *topic)
+{
+    while (*filter != '\0') {
+        if (*filter == '#') {
+            return true;
+        }
+        if (*filter == '+') {
+            while (*topic != '\0' && *topic != '/') {
+                topic++;
+            }
+            filter++;
+            continue;
+        }
+        if (*filter != *topic) {
+            return false;
+        }
+        filter++;
+        topic++;
+    }
+    return *topic == '\0';
+}
+
+static void on_data(const esp_mqtt_event_handle_t event)
+{
+    /* Commands are small: anything split over several events is not one of ours. */
+    if (event->current_data_offset != 0 || event->data_len != event->total_data_len || event->topic_len <= 0 ||
+        event->topic_len >= TOPIC_MAX) {
+        count(&s_stats.rx_dropped);
+        ESP_LOGW(TAG, "dropped incoming message (%d bytes, topic %d chars)", event->total_data_len, event->topic_len);
+        return;
+    }
+    char topic[TOPIC_MAX];
+    memcpy(topic, event->topic, event->topic_len);
+    topic[event->topic_len] = '\0';
+    for (int i = 0; i < s_sub_count; i++) {
+        if (topic_matches(s_subs[i].filter, topic)) {
+            count(&s_stats.received);
+            s_subs[i].cb(topic, event->data, (size_t)event->data_len, s_subs[i].ctx);
+            return;
+        }
+    }
+}
+
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     switch ((esp_mqtt_event_id_t)id) {
@@ -57,6 +115,16 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (s_cfg.status_topic != NULL && s_cfg.online_payload != NULL) {
             esp_mqtt_client_enqueue(s_client, s_cfg.status_topic, s_cfg.online_payload, 0, 1, 1, true);
         }
+        for (int i = 0; i < s_sub_count; i++) {
+            if (esp_mqtt_client_subscribe(s_client, s_subs[i].filter, s_subs[i].qos) < 0) {
+                ESP_LOGW(TAG, "subscribe to %s failed", s_subs[i].filter);
+            } else {
+                ESP_LOGI(TAG, "subscribed to %s", s_subs[i].filter);
+            }
+        }
+        break;
+    case MQTT_EVENT_DATA:
+        on_data(data);
         break;
     case MQTT_EVENT_DISCONNECTED:
         count(&s_stats.disconnects);
@@ -126,6 +194,20 @@ esp_err_t rb_mqtt_publish(const char *topic, const char *payload, int qos, bool 
         return id == -2 ? ESP_ERR_NO_MEM : ESP_FAIL;
     }
     count(&s_stats.published);
+    return ESP_OK;
+}
+
+esp_err_t rb_mqtt_subscribe(const char *filter, int qos, rb_mqtt_rx_cb_t cb, void *ctx)
+{
+    ESP_RETURN_ON_FALSE(s_client == NULL, ESP_ERR_INVALID_STATE, TAG, "subscribe before rb_mqtt_start()");
+    ESP_RETURN_ON_FALSE(filter != NULL && cb != NULL && strlen(filter) < TOPIC_MAX, ESP_ERR_INVALID_ARG, TAG,
+                        "bad subscription");
+    ESP_RETURN_ON_FALSE(s_sub_count < MAX_SUBSCRIPTIONS, ESP_ERR_NO_MEM, TAG, "too many subscriptions");
+    subscription_t *sub = &s_subs[s_sub_count++];
+    snprintf(sub->filter, sizeof(sub->filter), "%s", filter);
+    sub->qos = qos;
+    sub->cb = cb;
+    sub->ctx = ctx;
     return ESP_OK;
 }
 

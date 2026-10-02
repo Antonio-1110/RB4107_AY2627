@@ -114,3 +114,8 @@ For fault events, `fault` is `{"name": "mqtt_disconnected", "class": "TELEMETRY"
 | `thermal` | `sensors/<node>/thermal` (the thermal node) | `sensor_node`, `thermal{...}` |
 | `node_status` | `sensors/<node>/status` | `sensor_node`, `role` (`presence` / `thermal`), `link`, `valid`, `node_fault_flags`, `missed_packets`, `restarts` |
 | `controller_status` | `controller/status` | `boot_id`, `online` (retained; the Last Will publishes `false`) |
+| `c4002_config` | `sensors/<node>/c4002_config` (presence nodes) | `sensor_node`, `request_id`, `action`, `result`, `error`, `calibration_remaining_s`, `saved`, `settings{...}` or null ([c4002_tuning.md](c4002_tuning.md)) |
+
+The one message the controller receives, `c4002_command` on
+`sensors/<node>/c4002_set`, is also in the schema file; see
+[c4002_tuning.md](c4002_tuning.md).
