@@ -123,7 +123,8 @@ static bool role_ok(rb_node_role_t role, rb_msg_type_t type)
         return type == RB_MSG_PRESENCE_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT ||
                type == RB_MSG_C4002_CONFIG_ACK || type == RB_MSG_C4002_LIVE;
     case RB_NODE_ROLE_THERMAL:
-        return type == RB_MSG_THERMAL_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT;
+        return type == RB_MSG_THERMAL_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT ||
+               type == RB_MSG_THERMAL_FRAME;
     case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_C4002_CONFIG;
     default: return false;
     }
@@ -183,6 +184,18 @@ uint16_t rb_crc16(const uint8_t *data, size_t len)
     return crc;
 }
 
+static void put_header(writer_t *w, const rb_packet_t *pkt)
+{
+    put_u8(w, RB_PROTOCOL_MAGIC & 0xFF);
+    put_u8(w, RB_PROTOCOL_MAGIC >> 8);
+    put_u8(w, RB_PROTOCOL_VERSION);
+    put_u8(w, (uint8_t)pkt->type);
+    put_u8(w, (uint8_t)pkt->role);
+    put_u32(w, pkt->node_id);
+    put_u32(w, pkt->sequence);
+    put_u32(w, pkt->uptime_ms);
+}
+
 size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
 {
     const size_t total = packet_len(pkt->type);
@@ -190,14 +203,7 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         return 0;
     }
     writer_t w = {.p = buf, .n = 0};
-    put_u8(&w, RB_PROTOCOL_MAGIC & 0xFF);
-    put_u8(&w, RB_PROTOCOL_MAGIC >> 8);
-    put_u8(&w, RB_PROTOCOL_VERSION);
-    put_u8(&w, (uint8_t)pkt->type);
-    put_u8(&w, (uint8_t)pkt->role);
-    put_u32(&w, pkt->node_id);
-    put_u32(&w, pkt->sequence);
-    put_u32(&w, pkt->uptime_ms);
+    put_header(&w, pkt);
 
     switch (pkt->type) {
     case RB_MSG_PRESENCE_DATA: {
@@ -273,6 +279,8 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         put_u32(&w, l->results);
         break;
     }
+    default:
+        break;
     }
     if (w.n + RB_CRC_LEN != total) {
         return 0; /* body layout and the RB_BODY_*_LEN constants disagree */
@@ -281,7 +289,12 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
     return w.n;
 }
 
-rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_t *out)
+/*
+ * Check everything but the body and read the header into out. expected_len
+ * is the packet length for the type byte (0 = not a type this caller handles).
+ */
+static rb_decode_result_t decode_header(const uint8_t *buf, size_t len, size_t expected_len, rb_packet_t *out,
+                                        reader_t *r)
 {
     if (buf == NULL || len < RB_HEADER_LEN + RB_CRC_LEN) {
         return RB_DECODE_ERR_LENGTH;
@@ -293,11 +306,10 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         return RB_DECODE_ERR_VERSION;
     }
     const rb_msg_type_t type = (rb_msg_type_t)buf[3];
-    const size_t expected = packet_len(type);
-    if (expected == 0) {
+    if (expected_len == 0) {
         return RB_DECODE_ERR_TYPE;
     }
-    if (len != expected) {
+    if (len != expected_len) {
         return RB_DECODE_ERR_LENGTH;
     }
     if (rb_crc16(buf, len - RB_CRC_LEN) != (uint16_t)(buf[len - 2] | (buf[len - 1] << 8))) {
@@ -309,15 +321,27 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
     }
 
     memset(out, 0, sizeof(*out));
-    reader_t r = {.p = buf, .n = 5};
+    *r = (reader_t){.p = buf, .n = 5};
     out->protocol_version = buf[2];
     out->type = type;
     out->role = role;
-    out->node_id = get_u32(&r);
-    out->sequence = get_u32(&r);
-    out->uptime_ms = get_u32(&r);
+    out->node_id = get_u32(r);
+    out->sequence = get_u32(r);
+    out->uptime_ms = get_u32(r);
+    return RB_DECODE_OK;
+}
 
-    switch (type) {
+rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_t *out)
+{
+    reader_t r;
+    /* Too short to have a type byte: decode_header reports the length. */
+    const size_t expected = buf != NULL && len > 3 ? packet_len((rb_msg_type_t)buf[3]) : 1;
+    const rb_decode_result_t res = decode_header(buf, len, expected, out, &r);
+    if (res != RB_DECODE_OK) {
+        return res;
+    }
+
+    switch (out->type) {
     case RB_MSG_PRESENCE_DATA: {
         presence_reading_t *p = &out->body.presence;
         const uint8_t flags = get_u8(&r);
@@ -390,6 +414,63 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         l->results = get_u32(&r);
         break;
     }
+    default:
+        break;
+    }
+    return RB_DECODE_OK;
+}
+
+size_t rb_protocol_encode_frame_piece(const rb_packet_t *hdr, const rb_thermal_frame_piece_t *piece, uint8_t *buf,
+                                      size_t buf_len)
+{
+    if (hdr == NULL || piece == NULL || buf == NULL || buf_len < RB_PKT_THERMAL_FRAME_LEN ||
+        hdr->type != RB_MSG_THERMAL_FRAME || !role_ok(hdr->role, hdr->type) || piece->pieces != RB_FRAME_PIECES ||
+        piece->piece >= RB_FRAME_PIECES || piece->step_centi == 0) {
+        return 0;
+    }
+    writer_t w = {.p = buf, .n = 0};
+    put_header(&w, hdr);
+    put_u8(&w, piece->piece);
+    put_u8(&w, piece->pieces);
+    put_u16(&w, (uint16_t)piece->base_centi);
+    put_u16(&w, piece->step_centi);
+    put_u32(&w, piece->timestamp_ms);
+    put_u16(&w, (uint16_t)piece->hot_threshold_centi);
+    put_u8(&w, piece->hot_region_radius);
+    memcpy(&w.p[w.n], piece->pixels, RB_FRAME_PIECE_PIXELS);
+    w.n += RB_FRAME_PIECE_PIXELS;
+    if (w.n + RB_CRC_LEN != RB_PKT_THERMAL_FRAME_LEN) {
+        return 0;
+    }
+    put_u16(&w, rb_crc16(buf, w.n));
+    return w.n;
+}
+
+bool rb_protocol_is_frame_piece(const uint8_t *buf, size_t len)
+{
+    return buf != NULL && len > 3 && buf[3] == RB_MSG_THERMAL_FRAME;
+}
+
+rb_decode_result_t rb_protocol_decode_frame_piece(const uint8_t *buf, size_t len, rb_packet_t *hdr,
+                                                  rb_thermal_frame_piece_t *piece)
+{
+    reader_t r;
+    const size_t expected = rb_protocol_is_frame_piece(buf, len) ? RB_PKT_THERMAL_FRAME_LEN : 0;
+    const rb_decode_result_t res = decode_header(buf, len, expected, hdr, &r);
+    if (res != RB_DECODE_OK) {
+        return res;
+    }
+    piece->piece = get_u8(&r);
+    piece->pieces = get_u8(&r);
+    piece->base_centi = (int16_t)get_u16(&r);
+    piece->step_centi = get_u16(&r);
+    piece->timestamp_ms = get_u32(&r);
+    piece->hot_threshold_centi = (int16_t)get_u16(&r);
+    piece->hot_region_radius = get_u8(&r);
+    memcpy(piece->pixels, &r.p[r.n], RB_FRAME_PIECE_PIXELS);
+    /* A layout this firmware doesn't know (another piece count) is treated as a bad length. */
+    if (piece->pieces != RB_FRAME_PIECES || piece->piece >= RB_FRAME_PIECES || piece->step_centi == 0) {
+        return RB_DECODE_ERR_LENGTH;
     }
     return RB_DECODE_OK;
 }
@@ -418,6 +499,7 @@ const char *rb_msg_type_name(rb_msg_type_t type)
     case RB_MSG_C4002_CONFIG: return "C4002_CONFIG";
     case RB_MSG_C4002_CONFIG_ACK: return "C4002_CONFIG_ACK";
     case RB_MSG_C4002_LIVE: return "C4002_LIVE";
+    case RB_MSG_THERMAL_FRAME: return "THERMAL_FRAME";
     default: return "?";
     }
 }

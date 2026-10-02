@@ -93,3 +93,19 @@ class MalformedMessageTest(SimpleTestCase):
     def test_extra_fields_are_allowed(self):
         data = dict(self.sample("controller/state")["payload"], future_sensor={"co_ppm": 3})
         validation.parse("rb4107/controller/state", payload(data))
+
+    def test_heat_map_pixels_must_be_one_byte_per_pixel(self):
+        sample = self.sample("thermal_frame")
+        data = json.loads(json.dumps(sample["payload"]))
+        data["frame"]["pixels"] = "A" * 1024  # 768 zero bytes
+        validation.parse(sample["topic"], payload(data))
+        data["frame"]["pixels"] = "A" * 1023 + "="  # right length of text, but 767 bytes
+        with self.assertRaisesMessage(InvalidMessage, "frame.pixels has 767 bytes"):
+            validation.parse(sample["topic"], payload(data))
+        data["frame"]["pixels"] = "A" * 1000
+        with self.assertRaisesMessage(InvalidMessage, "frame/pixels"):
+            validation.parse(sample["topic"], payload(data))
+        data["frame"]["pixels"] = sample["payload"]["frame"]["pixels"]
+        data["frame"]["width"] = 16
+        with self.assertRaisesMessage(InvalidMessage, "frame/width"):
+            validation.parse(sample["topic"], payload(data))

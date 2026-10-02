@@ -11,6 +11,7 @@
 #include "rb_log.h"
 #include "rb_node_sensors.h"
 #include "thermal_features.h"
+#include "thermal_frame.h"
 
 static const char *TAG = "THERMAL";
 
@@ -23,6 +24,32 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static thermal_reading_t s_latest;
 static bool s_have_frame;
 static uint32_t s_frame_ms;
+
+#if CONFIG_RB_THERMAL_HEATMAP
+/*
+ * Heat-map picture: the thermal task encodes into s_heatmap_work, then copies
+ * it to s_heatmap (under s_lock) for the ESP-NOW link task. 2 x ~780 bytes.
+ */
+static thermal_frame_t s_heatmap_work;
+static thermal_frame_t s_heatmap;
+static uint32_t s_heatmap_number; /* 0 = no picture yet */
+static uint32_t s_heatmap_next_ms;
+
+static void update_heatmap(const thermal_features_config_t *cfg, uint32_t now)
+{
+    if ((int32_t)(now - s_heatmap_next_ms) < 0) {
+        return;
+    }
+    s_heatmap_next_ms = now + CONFIG_RB_THERMAL_HEATMAP_PERIOD_MS;
+    thermal_frame_encode(s_frame, cfg->valid_min_c, cfg->valid_max_c, now, &s_heatmap_work);
+    s_heatmap_work.hot_threshold_centi = (int16_t)lroundf(cfg->hot_pixel_threshold_c * 100.0f);
+    s_heatmap_work.hot_region_radius = cfg->hot_region_radius;
+    portENTER_CRITICAL(&s_lock);
+    s_heatmap = s_heatmap_work;
+    s_heatmap_number++;
+    portEXIT_CRITICAL(&s_lock);
+}
+#endif
 
 static uint32_t now_ms(void)
 {
@@ -49,7 +76,11 @@ static void thermal_task(void *arg)
             continue;
         }
         thermal_reading_t r;
-        thermal_features_compute(s_frame, now_ms(), &cfg, &tracker, &r, NULL);
+        const uint32_t now = now_ms();
+        thermal_features_compute(s_frame, now, &cfg, &tracker, &r, NULL);
+#if CONFIG_RB_THERMAL_HEATMAP
+        update_heatmap(&cfg, now);
+#endif
         portENTER_CRITICAL(&s_lock);
         s_latest = r;
         s_have_frame = true;
@@ -80,4 +111,20 @@ void node_thermal_get(thermal_reading_t *out, bool *no_data)
         out->timestamp_ms = now_ms();
     }
     *no_data = stale;
+}
+
+bool node_thermal_get_heatmap(thermal_frame_t *out, uint32_t *number)
+{
+#if CONFIG_RB_THERMAL_HEATMAP
+    portENTER_CRITICAL(&s_lock);
+    const bool fresh = s_heatmap_number != *number && s_heatmap_number != 0;
+    if (fresh) {
+        *out = s_heatmap;
+        *number = s_heatmap_number;
+    }
+    portEXIT_CRITICAL(&s_lock);
+    return fresh;
+#else
+    return false;
+#endif
 }

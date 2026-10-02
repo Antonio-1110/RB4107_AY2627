@@ -165,8 +165,9 @@ and clear as each node is heard.
 
 A lost routine sample is replaced one period later, so QoS 0 is enough.
 Events happen once and matter, so they use QoS 1 and are kept in the bounded
-outbox while the broker is unreachable. Raw thermal frames are never
-published. Topics: [mqtt_topics.md](mqtt_topics.md); payloads:
+outbox while the broker is unreachable. The thermal camera's picture is
+published separately, for the dashboard only, on `sensors/<node>/thermal_frame`
+(QoS 0, about every 3 s); the safety logic never uses it. Topics: [mqtt_topics.md](mqtt_topics.md); payloads:
 [mqtt_schema.md](mqtt_schema.md).
 
 Publishing everything through `esp_mqtt_client_enqueue()` was tried and

@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import Device, InboundMessage, Reading, SafetyEvent, WorkerStatus
+from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .normalization import normalize
 
 
@@ -125,6 +125,18 @@ def persist(message, received_at=None):
         device.save()
         WorkerStatus.objects.filter(name="mqtt").update(last_message_at=now)
         return row
+
+
+def store_thermal_frame(message, received_at=None):
+    """Keep only the newest heat-map picture per node. Pictures arrive every few
+    seconds and are display only, so they are not logged as InboundMessage rows."""
+    now = received_at or timezone.now()
+    data = message.data
+    device, _ = Device.objects.get_or_create(device_id=data["controller_id"])
+    ThermalFrame.objects.update_or_create(
+        device=device, sensor_node=data["sensor_node"],
+        defaults={"received_at": now, "source_at": source_time(data), "frame": data["frame"]})
+    WorkerStatus.objects.filter(name="mqtt").update(last_message_at=now)
 
 
 def record_rejection(topic, payload, reason, retained=False, qos=0):

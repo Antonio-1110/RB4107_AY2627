@@ -14,7 +14,8 @@
  *   fault raised/cleared (incl. node offline/restored) -> events/fault + controller/faults
  *   node health change -> sensors/<node>/status
  *
- * Raw thermal frames are never published.
+ * Heat map (RB_MQTT_PUBLISH_HEATMAP, QoS 0, display only):
+ *   each complete picture from the thermal node -> sensors/<node>/thermal_frame
  */
 #include <stdint.h>
 #include "esp_err.h"

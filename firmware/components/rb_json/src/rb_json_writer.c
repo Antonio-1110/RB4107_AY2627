@@ -147,6 +147,27 @@ void rb_json_null(rb_json_writer_t *w)
     put(w, "null");
 }
 
+void rb_json_base64(rb_json_writer_t *w, const uint8_t *data, size_t len)
+{
+    static const char ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    separator(w);
+    put(w, "\"");
+    for (size_t i = 0; i < len; i += 3) {
+        const uint32_t b0 = data[i];
+        const uint32_t b1 = i + 1 < len ? data[i + 1] : 0;
+        const uint32_t b2 = i + 2 < len ? data[i + 2] : 0;
+        const uint32_t triple = (b0 << 16) | (b1 << 8) | b2;
+        const char quad[4] = {
+            ALPHABET[(triple >> 18) & 0x3F],
+            ALPHABET[(triple >> 12) & 0x3F],
+            i + 1 < len ? ALPHABET[(triple >> 6) & 0x3F] : '=',
+            i + 2 < len ? ALPHABET[triple & 0x3F] : '=',
+        };
+        put_raw(w, quad, sizeof(quad));
+    }
+    put(w, "\"");
+}
+
 size_t rb_json_finish(rb_json_writer_t *w)
 {
     return (w->overflow || w->depth != 0 || w->after_key) ? 0 : w->len;

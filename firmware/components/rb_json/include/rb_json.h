@@ -108,6 +108,21 @@ typedef struct {
     const char *fault_class;
 } rb_event_msg_t;
 
+/* sensors/<node>/thermal_frame: one heat-map picture (display only). */
+typedef struct {
+    rb_json_header_t hdr;
+    const char *sensor_node;      /* "node_03" */
+    uint32_t frame_number;        /* the node's picture counter */
+    uint8_t width;
+    uint8_t height;
+    int16_t base_centi;           /* temperature of pixel value 0, 0.01 degC */
+    uint16_t step_centi;          /* temperature per pixel step, 0.01 degC */
+    uint8_t invalid_value;        /* pixel value meaning "no reading" */
+    int16_t hot_threshold_centi;  /* the thermal node's hot-pixel threshold, 0.01 degC */
+    uint8_t hot_region_radius;    /* the thermal node's hot-region radius (pixels) */
+    const uint8_t *pixels;        /* width * height bytes, row by row */
+} rb_json_thermal_frame_t;
+
 /* Each returns the JSON length, or 0 if it did not fit into buf. */
 size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len);   /* controller/state */
 size_t rb_json_heartbeat(const rb_telemetry_t *t, char *buf, size_t len);   /* controller/heartbeat */
@@ -116,6 +131,7 @@ size_t rb_json_presence(const rb_telemetry_t *t, char *buf, size_t len);    /* s
 size_t rb_json_thermal(const rb_telemetry_t *t, char *buf, size_t len);     /* sensors/<node>/thermal */
 size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len); /* sensors/<node>/status */
 size_t rb_json_event(const rb_event_msg_t *e, char *buf, size_t len);       /* events/... */
+size_t rb_json_thermal_frame(const rb_json_thermal_frame_t *f, char *buf, size_t len); /* sensors/<node>/thermal_frame */
 
 /*
  * Open a message object and write the common header fields, for messages
