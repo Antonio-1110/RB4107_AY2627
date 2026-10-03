@@ -288,6 +288,19 @@
         "motion_thresholds": {"$ref": "#/$defs/c4002_thresholds"},
         "presence_thresholds": {"$ref": "#/$defs/c4002_thresholds"}
       }
+    },
+    "controller_command": {
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command (docs/remote_reset.md).",
+      "type": "object",
+      "required": ["schema_version", "type", "controller_id", "request_id", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": 2},
+        "type": {"const": "controller_command"},
+        "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
+        "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "action": {"enum": ["reset"]}
+      }
     }
   }
 }

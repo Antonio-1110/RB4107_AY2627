@@ -2,8 +2,9 @@
 
 The dashboard in [`frontend/`](../frontend) shows every controller's reported
 state. It reads a read-only JSON API from the Django backend, which is fed by
-the existing `mqtt_subscriber` and JSON-schema validator. It can not operate,
-silence or reset anything: local protection stays on the ESP32-S3.
+the existing `mqtt_subscriber` and JSON-schema validator. It can not operate or
+silence anything: local protection stays on the ESP32-S3. Its only safety
+command is the reset of a latched shutdown ([remote_reset.md](remote_reset.md)).
 
 ## Data path and files
 
@@ -110,7 +111,7 @@ The original rb4107/controller/state single-controller tree remains supported.
 - No login, retention job, broker TLS setup or production HTTP service is added
   by this prototype integration. Keep runserver bound to localhost and use an
   SSH tunnel for remote development. Existing .env/database files are ignored
-  by Git. No actuator/reset HTTP endpoint or MQTT command publisher is present.
+  by Git. The only command endpoints are C4002 tuning and the shutdown reset ([remote_reset.md](remote_reset.md)); neither has a login.
 
 ## Running it
 

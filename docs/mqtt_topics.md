@@ -11,7 +11,8 @@ rb4107/
 │   ├── status      retained online/offline (Last Will)
 │   ├── heartbeat   liveness
 │   ├── state       full telemetry snapshot (schema in mqtt_schema.md)
-│   └── faults      active fault list
+│   ├── faults      active fault list
+│   └── command     dashboard → controller operator reset (subscribed)
 ├── sensors/
 │   └── <node>/
 │       ├── presence
@@ -32,6 +33,7 @@ rb4107/
 | `controller/heartbeat` | 0 | no | every telemetry period |
 | `controller/state` | 0 | yes | every telemetry period, and right away on every state transition |
 | `controller/faults` | 1 | yes | on every fault raised/cleared |
+| `controller/command` | 1 | no | published by Django when the dashboard's reset button is pressed; the controller subscribes ([remote_reset.md](remote_reset.md)) |
 | `sensors/<node>/presence` | 0 | no | every telemetry period, for each presence node (`node_01`, `node_02`) |
 | `sensors/<node>/thermal` | 0 | no | every telemetry period, for the thermal node (`node_03`) |
 | `sensors/<node>/status` | 1 | yes | on node ONLINE/STALE/OFFLINE and sensor validity changes |

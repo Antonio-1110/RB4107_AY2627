@@ -52,7 +52,7 @@ TOPIC_TYPES = {
 
 # Topics the dashboard publishes on (commands to the controller). The
 # subscriber sees them under rb4107/# too, and ignores them.
-COMMAND_TOPICS = {"sensors/*/c4002_set"}
+COMMAND_TOPICS = {"sensors/*/c4002_set", "controller/command"}
 
 MAX_PAYLOAD_BYTES = 8192
 
@@ -113,14 +113,20 @@ def is_command_topic(topic: str, prefix: str | None = None) -> bool:
 
 
 @lru_cache(maxsize=1)
-def _command_validator(schema_file: Path) -> jsonschema.Draft202012Validator:
+def _command_validators(schema_file: Path) -> dict[str, jsonschema.Draft202012Validator]:
     schema = json.loads(schema_file.read_text())
-    return jsonschema.Draft202012Validator({"$defs": schema["$defs"], "$ref": "#/$defs/c4002_command"})
+    return {
+        name: jsonschema.Draft202012Validator({"$defs": schema["$defs"], "$ref": f"#/$defs/{name}"})
+        for name in ("c4002_command", "controller_command")
+    }
 
 
 def check_command(command: dict) -> None:
-    """Validate an outgoing c4002_command against the shared schema. Raises InvalidMessage."""
-    validator = _command_validator(Path(settings.RB4107_SCHEMA_FILE))
+    """Validate an outgoing c4002_command or controller_command against the shared schema. Raises InvalidMessage."""
+    validators = _command_validators(Path(settings.RB4107_SCHEMA_FILE))
+    validator = validators.get(command.get("type"))
+    if validator is None:
+        raise InvalidMessage(f"unknown command type {command.get('type')!r}")
     error = jsonschema.exceptions.best_match(validator.iter_errors(command))
     if error is not None:
         where = "/".join(str(p) for p in error.absolute_path) or "(root)"

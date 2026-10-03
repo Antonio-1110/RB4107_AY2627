@@ -40,8 +40,8 @@
         <span class="note-icon">i</span>
         <p>
           <strong>Local protection runs on each ESP32-S3.</strong> This dashboard monitors and logs
-          reports. A dashboard alert does not operate, silence or reset the local alarm, relay or
-          gas isolation.
+          reports. A dashboard alert does not operate or silence the local alarm, relay or gas
+          isolation; the only safety command it sends is the reset of a latched shutdown.
         </p>
       </div>
 
@@ -274,9 +274,17 @@
                 <dd id="uptime">—</dd>
               </div>
             </dl>
+            <div class="reset-actions">
+              <button id="reset-button" class="primary-button" type="button" disabled>
+                Reset shutdown
+              </button>
+              <p id="reset-status" class="tuning-status muted">
+                Available only while a shutdown is latched.
+              </p>
+            </div>
             <p class="muted small">
-              Firmware-reported values only. The server does not advance the safety timer or restore
-              an isolated supply.
+              Firmware-reported values only. The server does not advance the safety timer; the reset
+              button asks the controller to release a latched shutdown.
             </p>
           </article>
         </section>
