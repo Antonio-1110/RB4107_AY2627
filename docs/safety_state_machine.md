@@ -18,7 +18,7 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 | `presence` (tri-state) | the two C4002 presence nodes via ESP-NOW, combined strictly (`node_set_inputs`, `presence_fuse`): PRESENT if either radar sees a person, ABSENT only if both validly say absent | `RB_UNKNOWN` → FAULT. It is never read as "absent" or "present". |
 | `thermal_valid`, `hot_region_temp_c` | MLX90640 features from the thermal node via ESP-NOW | invalid → FAULT |
 | `self_test` | controller self-test (outputs working) | must read PASS after SELF_TEST; FAIL, timeout or not-yet-passed → FAULT, latched until it passes |
-| `reset_request` | operator button | leaves SHUTDOWN; acknowledges WARNING in *exit-on-ack* mode |
+| `reset_request` | operator reset: dashboard button, console `reset` ([remote_reset.md](remote_reset.md)) | leaves SHUTDOWN; acknowledges WARNING in *exit-on-ack* mode |
 | `safety_fault` | fault manager (safety-relevant faults) | → FAULT |
 
 ## Transitions

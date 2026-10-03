@@ -1,6 +1,6 @@
-"""Dashboard -> controller commands. Only remote C4002 tuning exists
-(docs/c4002_tuning.md); nothing here can touch the safety state machine,
-outputs or reset.
+"""Dashboard -> controller commands: remote C4002 tuning (docs/c4002_tuning.md)
+and the operator reset of a latched shutdown (docs/remote_reset.md). Nothing
+here can trigger a shutdown or drive an output directly.
 """
 
 from __future__ import annotations
@@ -50,6 +50,21 @@ def build_c4002_command(controller_id: str, body: dict) -> dict:
     except validation.InvalidMessage as exc:
         raise CommandError(str(exc)) from None
     return command
+
+
+def build_reset_command(controller_id: str) -> dict:
+    """The operator reset: the same as the controller console's `reset` command."""
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": "reset"}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
+def controller_command_topic() -> str:
+    return f"{validation.topic_prefix(settings.RB4107_MQTT['TOPIC'])}/controller/command"
 
 
 def command_topic(node: str) -> str:
