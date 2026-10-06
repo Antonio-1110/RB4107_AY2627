@@ -5,13 +5,16 @@ firmware/
 ├── presence_node/    SYSTEM FIRMWARE  ESP32-C6 + C4002 radar (flash on both radar boards)
 ├── thermal_node/     SYSTEM FIRMWARE  ESP32-C6 + MLX90640
 ├── controller/       SYSTEM FIRMWARE  ESP32-S3 controller
+├── valve_node/       SYSTEM FIRMWARE  any ESP32 + servo gas valve (optional, wired or wireless)
 ├── components/       shared code used by all of the above (drivers, protocol, safety logic, ...)
 └── testing/          test-only projects, never part of the running system
     ├── c4002/        C6: radar on its own
     ├── mlx90640/     C6: thermal camera on its own
     ├── s3_board/     S3: board bring-up, prints its MAC
     ├── buzzer/       S3: buzzer on its own
-    ├── relay/        S3: shutdown relay on its own
+    ├── relay/        S3: shutdown relay on its own (and the wired valve line)
+    ├── servo/        valve node: servo on its own
+    ├── valve_link/   S3: wireless valve commands, without the safety system
     ├── rtc/          S3: real-time clock on its own
     ├── network/      S3: Ethernet / Wi-Fi on its own
     └── unit_tests/   safety logic tests, on the PC or the S3
@@ -28,6 +31,7 @@ three system firmwares:
 | ESP32-C6 + C4002, presence node B | **[`presence_node`](presence_node)**, built with `sdkconfig.node_b` | 2 |
 | ESP32-C6 + MLX90640, thermal node | **[`thermal_node`](thermal_node)** | 3 |
 | ESP32-S3 controller | **[`controller`](controller)** (includes the diagnostic console and critical-failure monitor) | – |
+| Any ESP32 + servo, gas valve node (optional) | **[`valve_node`](valve_node)**, wired, or wireless with `sdkconfig.wireless` | 4 |
 
 Build, flash and setup order: [docs/setup.md](../docs/setup.md#firmware).
 
@@ -50,7 +54,9 @@ flashing one **replaces** the system firmware on that board; flash
 | [`testing/mlx90640`](testing/mlx90640) | C6 | MLX90640 I2C wiring, frames, temperatures |
 | [`testing/s3_board`](testing/s3_board) | S3 | board boots, prints the MAC the C6 nodes need |
 | [`testing/buzzer`](testing/buzzer) | S3 | buzzer pin and patterns |
-| [`testing/relay`](testing/relay) | S3 | shutdown output: level, boot state, shutdown |
+| [`testing/relay`](testing/relay) | S3 | relay polarity, boot state, shutdown |
+| [`testing/servo`](testing/servo) | valve node | servo pin, open/closed angles |
+| [`testing/valve_link`](testing/valve_link) | S3 | wireless valve node: keep-open, CLOSE, lost link |
 | [`testing/rtc`](testing/rtc) | S3 | RTC keeps time across power cycles |
 | [`testing/network`](testing/network) | S3 | Ethernet/Wi-Fi, IP address, reaching the MacBook |
 | [`testing/unit_tests`](testing/unit_tests) | PC or S3 | safety logic, protocol, JSON (no hardware needed) |

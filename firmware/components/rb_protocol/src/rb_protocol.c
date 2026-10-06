@@ -108,6 +108,8 @@ static size_t packet_len(rb_msg_type_t type)
     case RB_MSG_THERMAL_DATA: return RB_PKT_THERMAL_DATA_LEN;
     case RB_MSG_HEARTBEAT: return RB_PKT_HEARTBEAT_LEN;
     case RB_MSG_SENSOR_FAULT: return RB_PKT_SENSOR_FAULT_LEN;
+    case RB_MSG_VALVE_COMMAND: return RB_PKT_VALVE_COMMAND_LEN;
+    case RB_MSG_VALVE_STATUS: return RB_PKT_VALVE_STATUS_LEN;
     case RB_MSG_C4002_CONFIG: return RB_PKT_C4002_CONFIG_LEN;
     case RB_MSG_C4002_CONFIG_ACK: return RB_PKT_C4002_CONFIG_ACK_LEN;
     case RB_MSG_C4002_LIVE: return RB_PKT_C4002_LIVE_LEN;
@@ -124,7 +126,8 @@ static bool role_ok(rb_node_role_t role, rb_msg_type_t type)
                type == RB_MSG_C4002_CONFIG_ACK || type == RB_MSG_C4002_LIVE;
     case RB_NODE_ROLE_THERMAL:
         return type == RB_MSG_THERMAL_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT;
-    case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_C4002_CONFIG;
+    case RB_NODE_ROLE_VALVE: return type == RB_MSG_VALVE_STATUS;
+    case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_VALVE_COMMAND || type == RB_MSG_C4002_CONFIG;
     default: return false;
     }
 }
@@ -233,6 +236,16 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         put_u16(&w, pkt->body.fault.fault_flags);
         put_u16(&w, pkt->body.fault.changed_flags);
         put_u32(&w, (uint32_t)pkt->body.fault.detail);
+        break;
+    case RB_MSG_VALVE_COMMAND:
+        put_u8(&w, (uint8_t)pkt->body.valve_command.command);
+        put_u32(&w, pkt->body.valve_command.valve_node_id);
+        break;
+    case RB_MSG_VALVE_STATUS:
+        put_u8(&w, (uint8_t)pkt->body.valve_status.position);
+        put_u8(&w, pkt->body.valve_status.flags);
+        put_u8(&w, (uint8_t)pkt->body.valve_status.reason);
+        put_u32(&w, pkt->body.valve_status.last_command_seq);
         break;
     case RB_MSG_C4002_CONFIG: {
         const rb_c4002_config_msg_t *c = &pkt->body.c4002_config;
@@ -351,6 +364,16 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         out->body.fault.changed_flags = get_u16(&r);
         out->body.fault.detail = (int32_t)get_u32(&r);
         break;
+    case RB_MSG_VALVE_COMMAND:
+        out->body.valve_command.command = (rb_valve_cmd_t)get_u8(&r);
+        out->body.valve_command.valve_node_id = get_u32(&r);
+        break;
+    case RB_MSG_VALVE_STATUS:
+        out->body.valve_status.position = (rb_valve_pos_t)get_u8(&r);
+        out->body.valve_status.flags = get_u8(&r);
+        out->body.valve_status.reason = (rb_valve_reason_t)get_u8(&r);
+        out->body.valve_status.last_command_seq = get_u32(&r);
+        break;
     case RB_MSG_C4002_CONFIG: {
         rb_c4002_config_msg_t *c = &out->body.c4002_config;
         c->target_node_id = get_u32(&r);
@@ -415,6 +438,8 @@ const char *rb_msg_type_name(rb_msg_type_t type)
     case RB_MSG_THERMAL_DATA: return "THERMAL_DATA";
     case RB_MSG_HEARTBEAT: return "HEARTBEAT";
     case RB_MSG_SENSOR_FAULT: return "SENSOR_FAULT";
+    case RB_MSG_VALVE_COMMAND: return "VALVE_COMMAND";
+    case RB_MSG_VALVE_STATUS: return "VALVE_STATUS";
     case RB_MSG_C4002_CONFIG: return "C4002_CONFIG";
     case RB_MSG_C4002_CONFIG_ACK: return "C4002_CONFIG_ACK";
     case RB_MSG_C4002_LIVE: return "C4002_LIVE";
@@ -427,6 +452,7 @@ const char *rb_node_role_name(rb_node_role_t role)
     switch (role) {
     case RB_NODE_ROLE_PRESENCE: return "presence";
     case RB_NODE_ROLE_THERMAL: return "thermal";
+    case RB_NODE_ROLE_VALVE: return "valve";
     case RB_NODE_ROLE_CONTROLLER: return "controller";
     default: return "?";
     }

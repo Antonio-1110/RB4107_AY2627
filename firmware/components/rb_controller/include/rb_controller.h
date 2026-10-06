@@ -90,6 +90,8 @@ typedef struct {
     void (*override_inputs)(safety_inputs_t *inputs, void *ctx);
     /* Every packet accepted from a configured node (remote C4002 tuning learns MACs and ACKs here). */
     void (*node_packet)(const rb_espnow_rx_t *rx, void *ctx);
+    /* A packet from a valve node (wireless gas valve). Return false if it isn't one we expect. */
+    bool (*valve_packet)(const rb_packet_t *packet, uint32_t rx_ms, void *ctx);
     void *ctx;
 } rb_controller_hooks_t;
 
