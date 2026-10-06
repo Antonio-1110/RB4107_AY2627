@@ -128,8 +128,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_SHUTDOWN_RELAY_CHANNEL` | Relay channel used for shutdown (1-8) | `1` | 1 – 8 |  |
-| `CONFIG_RB_RELAY_ACTIVE_LEVEL` | TCA9554 output level that energises a relay | `1` | 0 – 1 | ⚠ |
-| `RB_SHUTDOWN_POLARITY` (choice) | Relay polarity: `CONFIG_RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN` = energise relay to shut down (appliance on NC contact); `CONFIG_RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN` = de-energise relay to shut down (appliance on NO contact, fail-safe) | `CONFIG_RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN` |  | ⚠ |
+| `CONFIG_RB_RELAY_ACTIVE_LEVEL` | TCA9554 output level that energises a relay | `0` | 0 – 1 |  |
+| `RB_SHUTDOWN_POLARITY` (choice) | Relay polarity: `CONFIG_RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN` = energise relay to shut down (appliance on NC contact); `CONFIG_RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN` = de-energise relay to shut down (appliance on NO contact, fail-safe) | `CONFIG_RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN` |  |  |
 | `RB_SHUTDOWN_BOOT_STATE` (choice) | Shutdown output at boot: `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` = released (appliance powered); `CONFIG_RB_SHUTDOWN_BOOT_ACTIVE` = active (appliance off until the controller is running) | `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` |  | ⚠ |
 | `CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS` | Read back and verify the relay output every (ms) | `1000` | 100 – 60000 |  |
 
