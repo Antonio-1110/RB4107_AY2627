@@ -6,6 +6,7 @@
 *.swp
 .vscode/
 .idea/
+.clangd
 
 # ESP-IDF build outputs (every project under firmware/)
 build/
