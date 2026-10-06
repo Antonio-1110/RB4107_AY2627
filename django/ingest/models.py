@@ -63,3 +63,15 @@ class WorkerStatus(models.Model):
     last_message_at = models.DateTimeField(null=True)
     error = models.TextField(blank=True)
     mode = models.CharField(max_length=24, default="mqtt")
+
+
+class ThermalFrame(models.Model):
+    """The latest heat-map picture per thermal node (display only, no history kept)."""
+    device = models.ForeignKey(Device, on_delete=models.CASCADE)
+    sensor_node = models.CharField(max_length=32)
+    received_at = models.DateTimeField()
+    source_at = models.DateTimeField(null=True)
+    frame = models.JSONField(default=dict)  # the message's "frame" object, as sent
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["device", "sensor_node"], name="one_frame_per_node")]

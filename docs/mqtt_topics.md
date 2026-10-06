@@ -20,7 +20,8 @@ rb4107/
 │       ├── status        node link state
 │       ├── c4002_config  presence node radar settings / tuning result
 │       ├── c4002_live    raw radar results for the live view
-│       └── c4002_set     dashboard → controller tuning command (subscribed)
+│       ├── c4002_set     dashboard → controller tuning command (subscribed)
+│       └── thermal_frame heat-map picture (thermal node, display only)
 └── events/
     ├── warning
     ├── shutdown
@@ -36,6 +37,7 @@ rb4107/
 | `controller/command` | 1 | no | published by Django when the dashboard's reset button is pressed; the controller subscribes ([remote_reset.md](remote_reset.md)) |
 | `sensors/<node>/presence` | 0 | no | every telemetry period, for each presence node (`node_01`, `node_02`) |
 | `sensors/<node>/thermal` | 0 | no | every telemetry period, for the thermal node (`node_03`) |
+| `sensors/<node>/thermal_frame` | 0 | no | each complete heat-map picture from the thermal node, about every 3 s (`RB_THERMAL_HEATMAP_PERIOD_MS`); off with `RB_MQTT_PUBLISH_HEATMAP` |
 | `sensors/<node>/status` | 1 | yes | on node ONLINE/STALE/OFFLINE and sensor validity changes |
 | `sensors/<node>/c4002_config` | 1 | yes | when a presence node answers a tuning command, or a command fails ([c4002_tuning.md](c4002_tuning.md)) |
 | `sensors/<node>/c4002_live` | 0 | no | each new raw C4002 result, a few per second, for the dashboard's live radar view |

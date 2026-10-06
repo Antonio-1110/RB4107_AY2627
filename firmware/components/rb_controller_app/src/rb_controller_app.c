@@ -15,6 +15,7 @@
 #include "rb_ctrl_cmd.h"
 #include "rb_diag.h"
 #include "rb_espnow.h"
+#include "rb_heatmap.h"
 #include "rb_log.h"
 #include "rb_mqtt.h"
 #include "rb_outputs.h"
@@ -112,6 +113,9 @@ esp_err_t rb_controller_app_start(void)
                         TAG, "simulated nodes");
 #else
     ESP_RETURN_ON_ERROR(rb_espnow_start(CONFIG_RB_ESPNOW_CHANNEL), TAG, "ESP-NOW");
+#if CONFIG_RB_MQTT_PUBLISH_HEATMAP
+    rb_heatmap_start(cfg.nodes.thermal_node_id); /* display only: pieces never reach the safety task */
+#endif
     ESP_RETURN_ON_ERROR(rb_espnow_start_receiver(rb_controller_rx_queue()), TAG, "ESP-NOW receiver");
 #if CONFIG_RB_CTRL_VALVE_WIRELESS
     if (rb_valve_link_start() != ESP_OK) {

@@ -1,4 +1,5 @@
 """Synthetic schema-v2 messages for exercising the real validation/storage path."""
+import base64
 import math
 
 from django.utils import timezone
@@ -36,4 +37,29 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None):
         data["boot_id"] = boot_id
         data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=60000,
                               shutdown_after_ms=90000, shutdown_counts_from="UNATTENDED")
+    return data
+
+
+def demo_thermal_frame(controller_id, index=0, tick=0, boot_id=None):
+    """One heat-map picture: a warm kitchen with a hot pan, encoded the way the
+    firmware does it (thermal_frame_encode: 1 byte per pixel, range fitted to the frame)."""
+    width, height = 32, 24
+    pan = (32 if index % 9 == 5 else 105 + index * 2) + math.sin(tick / 5 + index) * 3
+    cx, cy = 12 + 3 * math.sin(tick / 7 + index), 13 + 2 * math.cos(tick / 9 + index)
+    temps = [24 + 0.08 * y + (pan - 24) * math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / 10)
+             for y in range(height) for x in range(width)]
+    base = math.floor(min(temps) * 100)
+    step = max(10, math.ceil((math.ceil(max(temps) * 100) - base) / 254))
+    pixels = bytes(min(254, max(0, round((t * 100 - base) / step))) for t in temps)
+    data = {
+        "schema_version": 2, "type": "thermal_frame", "controller_id": controller_id,
+        "timestamp": timezone.now().isoformat(), "uptime_ms": 120000 + tick * 2000,
+        "sequence": tick * 2 + 2, "simulation": True, "sensor_node": "node_03",
+        "frame": {"number": tick + 1, "width": width, "height": height, "base_c": base / 100,
+                  "step_c": step / 100, "invalid": 255, "hot_threshold_c": 50.0,
+                  "hot_region_radius": 1, "encoding": "u8_base64",
+                  "pixels": base64.b64encode(pixels).decode()},
+    }
+    if boot_id:
+        data["boot_id"] = boot_id
     return data

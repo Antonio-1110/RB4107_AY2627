@@ -335,6 +335,24 @@ menu "RB4107 configuration"
                     line prefixed with FRAME, which
                     tools/diagnostics/thermal_frame_view.py can render.
 
+            config RB_THERMAL_HEATMAP
+                bool "Send the heat-map picture to the controller (dashboard)"
+                default y
+                help
+                    Sends the whole 32x24 picture at 1 byte per pixel as four
+                    THERMAL_FRAME packets, which the controller forwards to
+                    the dashboard. Display only: the safety logic never uses
+                    it, and turning it off changes nothing else.
+
+            config RB_THERMAL_HEATMAP_PERIOD_MS
+                int "Heat-map picture period (ms)"
+                depends on RB_THERMAL_HEATMAP
+                range 1000 10000
+                default 3000
+                help
+                    One picture every this many ms. The four pieces of a
+                    picture go out 50 ms apart, between the regular packets.
+
         endmenu
 
     endmenu
@@ -934,6 +952,14 @@ menu "RB4107 configuration"
         config RB_MQTT_PUBLISH_SENSOR_TOPICS
             bool "Also publish per-node presence/thermal topics every period"
             default y
+
+        config RB_MQTT_PUBLISH_HEATMAP
+            bool "Publish the thermal node's heat-map pictures"
+            default y
+            help
+                Forwards each complete THERMAL_FRAME picture from the thermal
+                node on sensors/<node>/thermal_frame (QoS 0, not retained),
+                about 1.4 KB per picture. Display only.
 
     endmenu
 

@@ -202,6 +202,40 @@ size_t rb_json_thermal(const rb_telemetry_t *t, char *buf, size_t len)
     return rb_json_finish(&w);
 }
 
+size_t rb_json_thermal_frame(const rb_json_thermal_frame_t *f, char *buf, size_t len)
+{
+    rb_json_writer_t w;
+    rb_json_init(&w, buf, len);
+    rb_json_begin_message(&w, &f->hdr, "thermal_frame");
+    rb_json_key(&w, "sensor_node");
+    rb_json_str(&w, f->sensor_node);
+    rb_json_key(&w, "frame");
+    rb_json_obj_begin(&w);
+    rb_json_key(&w, "number");
+    rb_json_int(&w, f->frame_number);
+    rb_json_key(&w, "width");
+    rb_json_int(&w, f->width);
+    rb_json_key(&w, "height");
+    rb_json_int(&w, f->height);
+    rb_json_key(&w, "base_c");
+    rb_json_num(&w, (float)f->base_centi / 100.0f, 2);
+    rb_json_key(&w, "step_c");
+    rb_json_num(&w, (float)f->step_centi / 100.0f, 2);
+    rb_json_key(&w, "invalid");
+    rb_json_int(&w, f->invalid_value);
+    rb_json_key(&w, "hot_threshold_c");
+    rb_json_num(&w, (float)f->hot_threshold_centi / 100.0f, 1);
+    rb_json_key(&w, "hot_region_radius");
+    rb_json_int(&w, f->hot_region_radius);
+    rb_json_key(&w, "encoding");
+    rb_json_str(&w, "u8_base64");
+    rb_json_key(&w, "pixels");
+    rb_json_base64(&w, f->pixels, (size_t)f->width * f->height);
+    rb_json_obj_end(&w);
+    rb_json_obj_end(&w);
+    return rb_json_finish(&w);
+}
+
 size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;

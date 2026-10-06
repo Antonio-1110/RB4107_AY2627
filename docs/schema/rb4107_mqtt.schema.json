@@ -14,6 +14,7 @@
     {"$ref": "#/$defs/faults"},
     {"$ref": "#/$defs/presence_msg"},
     {"$ref": "#/$defs/thermal_msg"},
+    {"$ref": "#/$defs/thermal_frame_msg"},
     {"$ref": "#/$defs/node_status"},
     {"$ref": "#/$defs/event"},
     {"$ref": "#/$defs/controller_status"},
@@ -140,6 +141,31 @@
       "allOf": [{"$ref": "#/$defs/header"}],
       "required": ["sensor_node", "thermal"],
       "properties": {"type": {"const": "thermal"}, "sensor_node": {"type": "string"}, "thermal": {"$ref": "#/$defs/thermal"}}
+    },
+    "thermal_frame_msg": {
+      "description": "One MLX90640 heat-map picture (display only; the safety logic never uses it). Pixel value v is base_c + v * step_c degC; the value 'invalid' means no reading. Pixels are row by row, 'width' per row.",
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "frame"],
+      "properties": {
+        "type": {"const": "thermal_frame"},
+        "sensor_node": {"type": "string"},
+        "frame": {
+          "type": "object",
+          "required": ["number", "width", "height", "base_c", "step_c", "invalid", "hot_threshold_c", "hot_region_radius", "encoding", "pixels"],
+          "properties": {
+            "number": {"type": "integer", "minimum": 0, "description": "the thermal node's picture counter; restarts when the node reboots"},
+            "width": {"const": 32},
+            "height": {"const": 24},
+            "base_c": {"type": "number"},
+            "step_c": {"type": "number", "exclusiveMinimum": 0},
+            "invalid": {"type": "integer", "minimum": 0, "maximum": 255},
+            "hot_threshold_c": {"type": "number", "description": "the thermal node's hot-pixel threshold (RB_THERMAL_HOT_PIXEL_THRESHOLD_DC), for display"},
+            "hot_region_radius": {"type": "integer", "minimum": 0, "maximum": 4, "description": "the thermal node's hot-region radius in pixels (1 = 3x3), for display"},
+            "encoding": {"const": "u8_base64"},
+            "pixels": {"type": "string", "minLength": 1024, "maxLength": 1024, "pattern": "^[A-Za-z0-9+/]*={0,2}$", "description": "width*height bytes, base64"}
+          }
+        }
+      }
     },
     "node_status": {
       "allOf": [{"$ref": "#/$defs/header"}],

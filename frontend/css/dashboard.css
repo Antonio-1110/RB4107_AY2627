@@ -693,6 +693,100 @@ td small {
 .range-label select {
   padding: 6px 8px;
 }
+.heatmap-card {
+  margin-bottom: 16px;
+}
+.heatmap-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.heatmap-wrap {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  max-height: 420px;
+}
+.heatmap-wrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.heatmap-wrap canvas.stale {
+  opacity: 0.45;
+}
+#heatmap-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+}
+.heatmap-tip {
+  position: absolute;
+  pointer-events: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 10px));
+}
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-scale {
+  flex: 1;
+  height: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+.heatmap-side .eyebrow {
+  margin-top: 16px;
+}
+.heatmap-side .eyebrow:first-child {
+  margin-top: 0;
+}
+.heatmap-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-facts dt {
+  color: var(--muted);
+}
+.heatmap-facts dd {
+  margin: 0;
+  font-weight: 650;
+}
+.heatmap-toggles {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.heatmap-footprint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+.heatmap-footprint label {
+  display: grid;
+  gap: 4px;
+}
+.heatmap-footprint input {
+  width: 80px;
+}
 .chart-wrap {
   height: 224px;
   position: relative;
@@ -898,6 +992,9 @@ footer {
     font-size: 20px;
   }
   .middle {
+    grid-template-columns: 1fr;
+  }
+  .heatmap-body {
     grid-template-columns: 1fr;
   }
   .roster-table {

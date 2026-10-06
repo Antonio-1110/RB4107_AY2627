@@ -7,9 +7,9 @@ from django.conf import settings
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from ingest.demo import demo_telemetry
+from ingest.demo import demo_telemetry, demo_thermal_frame
 from ingest.handlers import handle
-from ingest.models import Device, InboundMessage, Reading, WorkerStatus
+from ingest.models import Device, InboundMessage, Reading, ThermalFrame, WorkerStatus
 from ingest.storage import worker_status
 from ingest.validation import InvalidMessage, parse
 
@@ -202,6 +202,45 @@ class DashboardIntegrationTest(TestCase):
                         b'{"schema_version":2,"type":[]}', b'{"value":NaN}', b'{"value":1e999}']:
             with self.assertRaises(InvalidMessage):
                 parse("rb4107/controller/state", payload)
+
+
+class HeatMapTests(TestCase):
+    TOPIC = "rb4107/sensors/node_03/thermal_frame"
+
+    def send_frame(self, tick=0):
+        msg = parse(self.TOPIC, json.dumps(demo_thermal_frame("controller_01", 0, tick)).encode())
+        handle(msg)
+        return msg
+
+    def test_latest_picture_reaches_the_api(self):
+        handle(parse("rb4107/controller/state", json.dumps(demo_telemetry("controller_01")).encode()))
+        self.send_frame(tick=1)
+        msg = self.send_frame(tick=2)
+        response = self.client.get("/api/devices/controller_01/thermal_frame/").json()
+        self.assertEqual(len(response["frames"]), 1)  # only the newest picture is kept
+        frame = response["frames"][0]
+        self.assertEqual(frame["sensor_node"], "node_03")
+        self.assertEqual(frame["number"], msg.data["frame"]["number"])
+        self.assertEqual(frame["pixels"], msg.data["frame"]["pixels"])
+        self.assertEqual((frame["width"], frame["height"]), (32, 24))
+        self.assertLess(frame["age_seconds"], 5)
+
+    def test_pictures_are_not_logged_or_mixed_into_telemetry(self):
+        handle(parse("rb4107/controller/state", json.dumps(demo_telemetry("controller_01")).encode()))
+        before = (InboundMessage.objects.count(), Reading.objects.count())
+        latest = self.client.get("/api/devices/controller_01/latest/").json()["values"]
+        for tick in range(5):
+            self.send_frame(tick)
+        self.assertEqual((InboundMessage.objects.count(), Reading.objects.count()), before)
+        self.assertEqual(ThermalFrame.objects.count(), 1)
+        self.assertEqual(self.client.get("/api/devices/controller_01/latest/").json()["values"], latest)
+
+    def test_endpoint_is_read_only_and_404s_for_unknown_devices(self):
+        self.send_frame()
+        self.assertEqual(self.client.post("/api/devices/controller_01/thermal_frame/", {}).status_code, 405)
+        self.assertEqual(self.client.get("/api/devices/missing/thermal_frame/").status_code, 404)
+        handle(parse("rb4107/controller/state", json.dumps(demo_telemetry("controller_02")).encode()))
+        self.assertEqual(self.client.get("/api/devices/controller_02/thermal_frame/").json()["frames"], [])
 
 
 class FrontendServingTests(TestCase):

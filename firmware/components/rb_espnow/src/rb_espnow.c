@@ -19,6 +19,8 @@ static uint32_t s_sequence;
 static bool s_started;
 static QueueHandle_t s_rx_queue;
 static rb_espnow_rx_stats_t s_rx;
+static rb_espnow_frame_handler_t s_frame_handler;
+static void *s_frame_ctx;
 
 static void on_sent(const esp_now_send_info_t *info, esp_now_send_status_t status)
 {
@@ -82,15 +84,8 @@ esp_err_t rb_espnow_add_peer(const uint8_t mac[6])
     return esp_now_add_peer(&peer);
 }
 
-esp_err_t rb_espnow_send(const uint8_t mac[6], rb_packet_t *pkt)
+static esp_err_t send_encoded(const uint8_t mac[6], const uint8_t *buf, size_t len)
 {
-    uint8_t buf[RB_PKT_MAX_LEN];
-    pkt->protocol_version = RB_PROTOCOL_VERSION;
-    portENTER_CRITICAL(&s_lock);
-    pkt->sequence = ++s_sequence;
-    portEXIT_CRITICAL(&s_lock);
-
-    const size_t len = rb_protocol_encode(pkt, buf, sizeof(buf));
     ESP_RETURN_ON_FALSE(len > 0, ESP_ERR_INVALID_ARG, TAG, "encode failed");
     esp_err_t err = esp_now_send(mac, buf, len);
     portENTER_CRITICAL(&s_lock);
@@ -104,6 +99,23 @@ esp_err_t rb_espnow_send(const uint8_t mac[6], rb_packet_t *pkt)
     return err;
 }
 
+esp_err_t rb_espnow_send(const uint8_t mac[6], rb_packet_t *pkt)
+{
+    uint8_t buf[RB_PKT_MAX_LEN];
+    pkt->protocol_version = RB_PROTOCOL_VERSION;
+    portENTER_CRITICAL(&s_lock);
+    pkt->sequence = ++s_sequence;
+    portEXIT_CRITICAL(&s_lock);
+    return send_encoded(mac, buf, rb_protocol_encode(pkt, buf, sizeof(buf)));
+}
+
+esp_err_t rb_espnow_send_frame_piece(const uint8_t mac[6], const rb_packet_t *hdr,
+                                     const rb_thermal_frame_piece_t *piece)
+{
+    uint8_t buf[RB_PKT_THERMAL_FRAME_LEN];
+    return send_encoded(mac, buf, rb_protocol_encode_frame_piece(hdr, piece, buf, sizeof(buf)));
+}
+
 void rb_espnow_get_tx_stats(rb_espnow_tx_stats_t *out)
 {
     portENTER_CRITICAL(&s_lock);
@@ -111,11 +123,8 @@ void rb_espnow_get_tx_stats(rb_espnow_tx_stats_t *out)
     portEXIT_CRITICAL(&s_lock);
 }
 
-static void on_received(const esp_now_recv_info_t *info, const uint8_t *data, int len)
+static void count_decode_error(rb_decode_result_t res)
 {
-    rb_espnow_rx_t item;
-    const rb_decode_result_t res = rb_protocol_decode(data, len > 0 ? (size_t)len : 0, &item.packet);
-
     portENTER_CRITICAL(&s_lock);
     switch (res) {
     case RB_DECODE_OK: break;
@@ -127,7 +136,36 @@ static void on_received(const esp_now_recv_info_t *info, const uint8_t *data, in
     case RB_DECODE_ERR_ROLE: s_rx.bad_role++; break;
     }
     portEXIT_CRITICAL(&s_lock);
+}
+
+/* Heat-map pieces bypass the safety task's queue: they go straight to the frame handler. */
+static void on_frame_piece(const uint8_t *data, size_t len)
+{
+    rb_packet_t hdr;
+    rb_thermal_frame_piece_t piece;
+    const rb_decode_result_t res = rb_protocol_decode_frame_piece(data, len, &hdr, &piece);
     if (res != RB_DECODE_OK) {
+        count_decode_error(res);
+        return;
+    }
+    if (s_frame_handler != NULL) {
+        s_frame_handler(&hdr, &piece, s_frame_ctx);
+        portENTER_CRITICAL(&s_lock);
+        s_rx.frame_pieces++;
+        portEXIT_CRITICAL(&s_lock);
+    }
+}
+
+static void on_received(const esp_now_recv_info_t *info, const uint8_t *data, int len)
+{
+    if (rb_protocol_is_frame_piece(data, len > 0 ? (size_t)len : 0)) {
+        on_frame_piece(data, (size_t)len);
+        return;
+    }
+    rb_espnow_rx_t item;
+    const rb_decode_result_t res = rb_protocol_decode(data, len > 0 ? (size_t)len : 0, &item.packet);
+    if (res != RB_DECODE_OK) {
+        count_decode_error(res);
         return;
     }
 
@@ -150,6 +188,12 @@ esp_err_t rb_espnow_start_receiver(QueueHandle_t queue)
     ESP_RETURN_ON_FALSE(s_started && queue != NULL, ESP_ERR_INVALID_STATE, TAG, "start ESP-NOW first");
     s_rx_queue = queue;
     return esp_now_register_recv_cb(on_received);
+}
+
+void rb_espnow_set_frame_handler(rb_espnow_frame_handler_t handler, void *ctx)
+{
+    s_frame_ctx = ctx;
+    s_frame_handler = handler;
 }
 
 void rb_espnow_get_rx_stats(rb_espnow_rx_stats_t *out)

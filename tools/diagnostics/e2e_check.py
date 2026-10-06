@@ -22,8 +22,8 @@ import paho.mqtt.client as mqtt
 
 SCHEMA = pathlib.Path(__file__).resolve().parents[2] / "docs" / "schema" / "rb4107_mqtt.schema.json"
 TYPE_TO_DEF = {"telemetry": "telemetry", "heartbeat": "heartbeat", "faults": "faults", "presence": "presence_msg",
-               "thermal": "thermal_msg", "node_status": "node_status", "event": "event",
-               "controller_status": "controller_status"}
+               "thermal": "thermal_msg", "thermal_frame": "thermal_frame_msg", "node_status": "node_status",
+               "event": "event", "controller_status": "controller_status"}
 
 CHECKS = [
     ("controller_online", "S3 connected to the broker (controller/status online)"),

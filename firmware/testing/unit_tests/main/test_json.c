@@ -113,6 +113,56 @@ static void test_topics(void)
     TEST_ASSERT_EQUAL(0, rb_topic_info(RB_TOPIC_CONTROLLER_HEARTBEAT)->qos);
     TEST_ASSERT_TRUE(rb_topic_info(RB_TOPIC_CONTROLLER_STATUS)->retain);
     TEST_ASSERT_EQUAL(0, rb_topic_build(RB_TOPIC_CONTROLLER_STATE, "rb4107", 0, topic, 8));
+    rb_topic_build(RB_TOPIC_SENSOR_THERMAL_FRAME, "rb4107", 3, topic, sizeof(topic));
+    TEST_ASSERT_EQUAL_STRING("rb4107/sensors/node_03/thermal_frame", topic);
+    TEST_ASSERT_EQUAL(0, rb_topic_info(RB_TOPIC_SENSOR_THERMAL_FRAME)->qos);
+    TEST_ASSERT_FALSE(rb_topic_info(RB_TOPIC_SENSOR_THERMAL_FRAME)->retain);
+}
+
+static void test_base64(void)
+{
+    static const struct {
+        const char *in, *out;
+    } CASES[] = {{"", "\"\""}, {"f", "\"Zg==\""}, {"fo", "\"Zm8=\""}, {"foo", "\"Zm9v\""},
+                 {"foobar", "\"Zm9vYmFy\""}};
+    for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+        rb_json_writer_t w;
+        rb_json_init(&w, buf, sizeof(buf));
+        rb_json_base64(&w, (const uint8_t *)CASES[i].in, strlen(CASES[i].in));
+        TEST_ASSERT_NOT_EQUAL(0, rb_json_finish(&w));
+        TEST_ASSERT_EQUAL_STRING(CASES[i].out, buf);
+    }
+}
+
+static void test_thermal_frame_fits_payload_buffer(void)
+{
+    static uint8_t pixels[32 * 24];
+    static char big[1536]; /* PAYLOAD_LEN in rb_telemetry.c */
+    for (size_t i = 0; i < sizeof(pixels); i++) {
+        pixels[i] = (uint8_t)i;
+    }
+    /* Longest realistic header: a long controller ID, full timestamp, large counters. */
+    const rb_json_thermal_frame_t f = {
+        .hdr = {.controller_id = "controller_with_a_long_name_01", .boot_id = "3f9a01c2",
+                .timestamp = "2026-10-02T23:59:59.999+08:00", .uptime_ms = 4000000000u, .sequence = 4000000000u},
+        .sensor_node = "node_03",
+        .frame_number = 4000000000u,
+        .width = 32,
+        .height = 24,
+        .base_centi = -4000,
+        .step_centi = 134,
+        .invalid_value = 255,
+        .hot_threshold_centi = 5000,
+        .hot_region_radius = 1,
+        .pixels = pixels,
+    };
+    const size_t len = rb_json_thermal_frame(&f, big, sizeof(big));
+    TEST_ASSERT_NOT_EQUAL(0, len);
+    TEST_ASSERT_TRUE(len < sizeof(big) - 64); /* some headroom left */
+    TEST_ASSERT_NOT_NULL(strstr(big, "\"type\":\"thermal_frame\""));
+    TEST_ASSERT_NOT_NULL(strstr(big, "\"sensor_node\":\"node_03\",\"frame\":{\"number\":4000000000,"
+                                     "\"width\":32,\"height\":24,\"base_c\":-40.00,\"step_c\":1.34,"
+                                     "\"invalid\":255,\"hot_threshold_c\":50.0,\"hot_region_radius\":1,\"encoding\":\"u8_base64\",\"pixels\":\"AAECAwQF"));
 }
 
 void run_json_tests(void)
@@ -123,4 +173,6 @@ void run_json_tests(void)
     RUN_TEST(test_string_escaping);
     RUN_TEST(test_unbalanced_is_rejected);
     RUN_TEST(test_topics);
+    RUN_TEST(test_base64);
+    RUN_TEST(test_thermal_frame_fits_payload_buffer);
 }

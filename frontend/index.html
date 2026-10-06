@@ -288,6 +288,72 @@
             </p>
           </article>
         </section>
+        <section class="card heatmap-card" aria-label="Thermal camera heat map">
+          <div class="section-heading">
+            <div>
+              <h2>Thermal camera</h2>
+              <p class="muted">MLX90640 picture · 32 × 24 pixels · display only</p>
+            </div>
+            <span id="heatmap-age" class="count">No picture yet</span>
+          </div>
+          <div class="heatmap-body">
+            <div class="heatmap-wrap">
+              <canvas id="heatmap" role="img" aria-label="Heat map, waiting for a picture"></canvas>
+              <p id="heatmap-empty">
+                No heat-map picture received. The thermal node sends one every few seconds when
+                RB_THERMAL_HEATMAP is on.
+              </p>
+              <div id="heatmap-tip" class="heatmap-tip" hidden></div>
+            </div>
+            <div class="heatmap-side">
+              <p class="eyebrow">PICTURE SCALE</p>
+              <div class="heatmap-legend">
+                <span id="heatmap-min">—</span>
+                <span id="heatmap-scale" class="heatmap-scale"></span>
+                <span id="heatmap-max">—</span>
+              </div>
+              <p class="muted small">
+                Colours are scaled to each picture: lightest = coldest pixel, darkest = hottest. The
+                ring marks the hottest pixel; grey pixels had no valid reading. The safety logic
+                uses the reported temperatures above, never this picture.
+              </p>
+              <p class="eyebrow">WHAT THE NODE REPORTED</p>
+              <dl class="heatmap-facts">
+                <dt>Hot region</dt>
+                <dd id="heatmap-region">—</dd>
+                <dt>Hot-pixel threshold</dt>
+                <dd id="heatmap-threshold">—</dd>
+                <dt>Pixels above it</dt>
+                <dd id="heatmap-count">—</dd>
+              </dl>
+              <div class="heatmap-toggles">
+                <label
+                  ><input type="checkbox" id="heatmap-show-threshold" checked /> Outline pixels
+                  above threshold</label
+                >
+                <label
+                  ><input type="checkbox" id="heatmap-show-region" checked /> Show hot region
+                  (dashed box)</label
+                >
+              </div>
+              <p class="eyebrow">PIXEL SIZE AT A DISTANCE</p>
+              <div class="heatmap-footprint">
+                <label
+                  >Lens
+                  <select id="heatmap-fov">
+                    <option value="110,75">Wide 110° × 75° (BAA)</option>
+                    <option value="55,35">Narrow 55° × 35° (BAB)</option>
+                  </select></label
+                >
+                <label
+                  >Distance (m)
+                  <input id="heatmap-distance" type="number" min="0.2" max="5" step="0.1" value="1.5"
+                /></label>
+              </div>
+              <p id="heatmap-footprint" class="muted small"></p>
+            </div>
+          </div>
+        </section>
         <section class="bottom">
           <article class="card">
             <div class="section-heading">
