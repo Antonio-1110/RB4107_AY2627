@@ -145,7 +145,9 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
 static void publish_periodic(void)
 {
     rb_snapshot_t snap;
-    rb_controller_get_snapshot(&snap);
+    if (!rb_controller_get_snapshot(&snap)) {
+        return; /* never publish an all-zero state; the next period tries again */
+    }
     rb_json_node_t nodes[NODE_SLOT_COUNT];
     rb_json_fault_t faults[FAULT_COUNT];
     rb_telemetry_t t;
@@ -177,7 +179,7 @@ static void publish_periodic(void)
 static void publish_event(const rb_event_t *evt)
 {
     rb_snapshot_t snap;
-    rb_controller_get_snapshot(&snap);
+    const bool have_snap = rb_controller_get_snapshot(&snap);
     rb_json_node_t nodes[NODE_SLOT_COUNT];
     rb_json_fault_t faults[FAULT_COUNT];
     rb_telemetry_t t;
@@ -190,8 +192,10 @@ static void publish_event(const rb_event_t *evt)
     switch (evt->type) {
     case RB_EVT_STATE_CHANGE: {
         /* Fresh state straight away (QoS 1: state changes matter). */
-        t.hdr = header(evt->mono_ms);
-        publish(RB_TOPIC_CONTROLLER_STATE, 0, rb_json_telemetry(&t, s_payload, sizeof(s_payload)), 1);
+        if (have_snap) {
+            t.hdr = header(evt->mono_ms);
+            publish(RB_TOPIC_CONTROLLER_STATE, 0, rb_json_telemetry(&t, s_payload, sizeof(s_payload)), 1);
+        }
         e.state = safety_state_name(evt->state.to);
         e.from_state = safety_state_name(evt->state.from);
         e.reason = evt->state.reason;
@@ -224,7 +228,7 @@ static void publish_event(const rb_event_t *evt)
         break;
     }
     case RB_EVT_NODE:
-        if ((unsigned)evt->node.slot >= NODE_SLOT_COUNT) {
+        if ((unsigned)evt->node.slot >= NODE_SLOT_COUNT || !have_snap) {
             break;
         }
         set_node(&t, &snap, evt->node.slot);

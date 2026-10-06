@@ -2,6 +2,8 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs_flash.h"
 #include "rb_config.h"
 #include "rb_protocol.h"
@@ -125,6 +127,9 @@ esp_err_t rb_node_c4002_forget(void)
 
 /* ---- start-up ---- */
 
+#define C4002_APPLY_ATTEMPTS 3
+#define C4002_APPLY_RETRY_MS 1000
+
 static c4002_settings_t s_current;
 static bool s_saved;
 
@@ -154,7 +159,15 @@ esp_err_t rb_node_c4002_start(void)
     /* Settings saved from the dashboard always win; otherwise menuconfig decides. */
     if (s_saved || CONFIG_RB_C4002_APPLY_SETTINGS) {
         ESP_LOGI(TAG, "C4002 settings from %s", s_saved ? "the dashboard (saved on this node)" : "menuconfig");
-        esp_err_t err = c4002_apply_settings(&s_current);
+        /* The radar can miss a command right after power-up: try a few times before giving up. */
+        esp_err_t err = ESP_FAIL;
+        for (int attempt = 1; attempt <= C4002_APPLY_ATTEMPTS && err != ESP_OK; attempt++) {
+            if (attempt > 1) {
+                ESP_LOGW(TAG, "retrying C4002 settings (attempt %d of %d)", attempt, C4002_APPLY_ATTEMPTS);
+                vTaskDelay(pdMS_TO_TICKS(C4002_APPLY_RETRY_MS));
+            }
+            err = c4002_apply_settings(&s_current);
+        }
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "C4002 did not accept settings (%s); check wiring, pins and baud rate", esp_err_to_name(err));
             return err;
@@ -177,8 +190,12 @@ esp_err_t rb_node_thermal_start(void)
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
     };
-    i2c_master_bus_handle_t bus;
-    ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bus_cfg, &bus), TAG, "I2C bus init failed");
+    /* Created once: the thermal task calls this again while the sensor is missing,
+       and a second i2c_new_master_bus() on the same port would fail every time. */
+    static i2c_master_bus_handle_t bus;
+    if (bus == NULL) {
+        ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bus_cfg, &bus), TAG, "I2C bus init failed");
+    }
 
 #if CONFIG_RB_MLX_REFRESH_2HZ
     const mlx90640_refresh_t refresh = MLX90640_REFRESH_2HZ;

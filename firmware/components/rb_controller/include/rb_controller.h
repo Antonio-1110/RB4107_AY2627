@@ -128,7 +128,11 @@ bool rb_controller_post_event(const rb_event_t *event);
 /* Next event for the telemetry side. */
 bool rb_controller_next_event(rb_event_t *out, TickType_t wait);
 
-void rb_controller_get_snapshot(rb_snapshot_t *out);
+/*
+ * Copy of the latest safety-task state. Returns false (and an all-zero *out)
+ * if the snapshot could not be read in time; callers must not publish it then.
+ */
+bool rb_controller_get_snapshot(rb_snapshot_t *out);
 
 /* Number of events dropped because the event queue was full. */
 uint32_t rb_controller_events_dropped(void);
