@@ -1,0 +1,6 @@
+# No CONFIG_IDF_TARGET: the chip isn't chosen yet. Pick it with
+# `idf.py set-target <chip>` (see README).
+#
+# Mode (wired / wireless), pins and servo angles: menuconfig ->
+# RB4107 configuration -> Valve node (servo gas valve).
+CONFIG_RB_NODE_ID=4

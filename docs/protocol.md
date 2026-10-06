@@ -1,6 +1,7 @@
 # RB4107 ESP-NOW protocol (v2)
 
-Sensor nodes (ESP32-C6) → controller (ESP32-S3). The implementation is in
+Sensor nodes (ESP32-C6) → controller (ESP32-S3), plus the optional wireless
+valve node in both directions. The implementation is in
 [`firmware/components/rb_protocol`](../firmware/components/rb_protocol), and
 every firmware builds that same code.
 
@@ -11,6 +12,11 @@ The system has three nodes, each with one sensor:
 | presence node A | `presence_node` | 1 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
 | presence node B | `presence_node` (built with `sdkconfig.node_b`) | 2 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
 | thermal node | `thermal_node` | 3 | thermal | THERMAL_DATA, HEARTBEAT, SENSOR_FAULT |
+| valve node (optional, wireless version) | `valve_node` (built with `sdkconfig.wireless`) | 4 | valve | VALVE_STATUS |
+| controller | `controller` (with `RB_CTRL_VALVE_WIRELESS`) | 0 | controller | VALVE_COMMAND |
+
+The controller only sends when the wireless valve node is turned on. Then it
+is the one sender that isn't a node, so its node ID is 0.
 
 Version 1 carried presence and thermal data in one SENSOR_DATA packet from a
 single node. Version 2 splits them, and adds the sender's role to every
@@ -27,8 +33,9 @@ packet.
   with a CRC-16/CCITT-FALSE (poly `0x1021`, init `0xFFFF`) over every earlier
   byte. The receiver also checks the magic, version, type, role, exact length
   and node ID.
-- **Role-checked.** A data message must match its sender's role (a thermal
-  node can't send PRESENCE_DATA). The controller also checks that the role
+- **Role-checked.** A message must match its sender's role (a thermal
+  node can't send PRESENCE_DATA, and only the controller can command the
+  valve). The controller also checks that the role
   matches what it expects for that node ID, so a board flashed with the wrong
   firmware or ID is dropped and reported (`espnow_unknown_node`), never
   mistaken for another sensor.
@@ -43,8 +50,8 @@ packet.
 |---|---|---|---|
 | 0 | 2 | magic | `0x52 0x42` ("RB") |
 | 2 | 1 | protocol_version | `2` |
-| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT |
-| 4 | 1 | node_role | `1` presence, `2` thermal |
+| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS |
+| 4 | 1 | node_role | `1` presence, `2` thermal, `3` valve, `4` controller |
 | 5 | 4 | node_id | `CONFIG_RB_NODE_ID` of the sender |
 | 9 | 4 | sequence | +1 for every packet the node sends (all types) |
 | 13 | 4 | uptime_ms | node monotonic time; lets the receiver spot a node reboot |
@@ -110,6 +117,39 @@ cleared.
 | 1 | `C4002_INVALID` | reports arrive but fail validation | presence nodes |
 | 2 | `MLX_NO_DATA` | MLX90640 missing or failing to deliver frames | thermal node |
 | 3 | `MLX_INVALID` | frames arrive but fail validation | thermal node |
+
+## VALVE_COMMAND (type 5, 24 bytes total)
+
+Controller → valve node. Sent every `RB_CTRL_VALVE_KEEPALIVE_MS` (1 s), and
+right away when the command changes. Only the controller role may send it.
+
+| Offset | Size | Field | Encoding |
+|---|---|---|---|
+| 17 | 1 | command | `1` KEEP_OPEN, `2` CLOSE. The node treats any other value as CLOSE. |
+| 18 | 4 | valve node ID | the valve node this is for; other nodes ignore it |
+| 22 | 2 | CRC | |
+
+KEEP_OPEN is a dead-man signal: the valve node closes the valve if no
+KEEP_OPEN arrives for `RB_VALVE_LINK_TIMEOUT_MS` (3 s). The controller sends
+CLOSE on shutdown, and also when its safety task stops reporting.
+
+## VALVE_STATUS (type 6, 26 bytes total)
+
+Valve node → controller. Sent every `RB_VALVE_STATUS_PERIOD_MS` (1 s), and
+right away when the valve moves. Only the valve role may send it.
+
+| Offset | Size | Field | Encoding |
+|---|---|---|---|
+| 17 | 1 | position | `1` OPEN, `2` CLOSED (commanded: a hobby servo has no feedback) |
+| 18 | 1 | flags | bit0 moving (within `RB_VALVE_TRAVEL_MS` of a move), bit1 latched closed until reset |
+| 19 | 1 | reason | why it is closed: `0` open, `1` boot, `2` controller sent CLOSE, `3` no keep-open, `4` wired line high |
+| 20 | 4 | last command sequence | `sequence` of the last VALVE_COMMAND accepted, 0 if none |
+| 24 | 2 | CRC | |
+
+The valve messages were added without bumping the version. The existing
+messages are byte-for-byte unchanged, so the sensor nodes don't need
+reflashing. An older controller rejects the new types as an unknown message
+type.
 
 ## Edge decisions (not decided yet)
 

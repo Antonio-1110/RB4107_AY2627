@@ -41,6 +41,13 @@ its outputs onto this API and the buzzer.
 | `RB_SHUTDOWN_POLARITY` | energise to shut down | OPEN QUESTION: depends on whether the appliance is on the external relay's NO or NC contact. *De-energise to shut down* is fail-safe: the appliance loses power if the controller loses power. |
 | `RB_SHUTDOWN_BOOT_STATE` | released | OPEN QUESTION |
 
+## Wired valve line
+
+With **Gas valve node → Wired valve line: output channel** set (2 for the
+demo), that output toggles with the shutdown relay: ON while released, OFF
+while shut down. A wired [`valve_node`](../../valve_node) on it should open
+and close the valve every 5 s.
+
 ## Boot glitch protection
 
 After power-on the TCA9554 pins are inputs. The driver writes the **output

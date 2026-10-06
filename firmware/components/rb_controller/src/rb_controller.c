@@ -99,6 +99,17 @@ static void log_node_events(const sensor_node_state_t *node, node_slot_t slot, u
 
 static void on_packet(node_set_t *nodes, const rb_espnow_rx_t *rx)
 {
+    if (rx->packet.role != RB_NODE_ROLE_PRESENCE && rx->packet.role != RB_NODE_ROLE_THERMAL) {
+        /* Not a sensor node: valve status goes to the application, anything else is foreign. */
+        if (rx->packet.role != RB_NODE_ROLE_VALVE || s_hooks.valve_packet == NULL ||
+            !s_hooks.valve_packet(&rx->packet, rx->rx_ms, s_hooks.ctx)) {
+            s_foreign_packets++;
+            RB_LOG_EVERY_MS(5000, ESP_LOGW, "SENSOR", "dropped %s packet from %s node_%02lu (wireless valve link off?)",
+                            rb_msg_type_name(rx->packet.type), rb_node_role_name(rx->packet.role),
+                            (unsigned long)rx->packet.node_id);
+        }
+        return;
+    }
     node_slot_t slot;
     const node_seq_result_t res = node_set_on_packet(nodes, &rx->packet, rx->rx_ms, &slot);
     if (res == NODE_SEQ_WRONG_NODE || res == NODE_SEQ_WRONG_ROLE) {

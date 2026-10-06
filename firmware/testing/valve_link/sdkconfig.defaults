@@ -1,0 +1,4 @@
+CONFIG_IDF_TARGET="esp32s3"
+# Set the valve node's MAC in menuconfig -> RB4107 configuration ->
+# Controller board -> Gas valve node (broadcast works on the bench).
+CONFIG_RB_CTRL_VALVE_WIRELESS=y

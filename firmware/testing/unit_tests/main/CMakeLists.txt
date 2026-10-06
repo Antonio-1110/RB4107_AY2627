@@ -7,6 +7,7 @@ idf_component_register(SRCS "test_main.c"
                             "test_thermal.c"
                             "test_json.c"
                             "test_kconfig.c"
+                            "test_valve.c"
                        INCLUDE_DIRS "."
                        PRIV_REQUIRES unity safety rb_safety_config sensor_node fault_manager rb_protocol c4002 thermal_features rb_json
-                                     rb_topics rb_types)
+                                     rb_topics rb_types valve_logic)
