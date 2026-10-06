@@ -15,7 +15,8 @@
 
 static const char *TAG = "THERMAL";
 
-#define THERMAL_TASK_STACK 4096
+/* MLX90640_ExtractParameters() (vendor code) keeps a 3 KB table on the stack. */
+#define THERMAL_TASK_STACK 8192
 #define THERMAL_TASK_PRIO 5
 #define INIT_RETRY_MS 5000
 

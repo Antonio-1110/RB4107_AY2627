@@ -39,8 +39,8 @@ counts and the current reading. The status LED (`RB_NODE_STATUS_LED_GPIO`)
 blinks while it runs.
 
 Pins (menuconfig → *RB4107 configuration → Sensor node → C4002 presence
-sensor*) default to the DFR1117 board: C4002 TX → IO5, C4002 RX → IO4 (header
-P3), status LED IO15. The RX/TX direction is not confirmed; see
+sensor*) default to the DFR1117 board: C4002 TX → IO4, C4002 RX → IO5 (header
+P3, confirmed on the bench), status LED IO15. See
 [project `testing/c4002`](../testing/c4002/README.md#interface).
 
 ## Setup

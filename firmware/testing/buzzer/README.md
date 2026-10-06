@@ -8,12 +8,11 @@
 
 Target: **Waveshare ESP32-S3-POE-ETH-8DI-8DO**.
 
-## Interface (UNCONFIRMED)
+## Interface
 
-The earlier prototype controller drove the buzzer on **GPIO46, active high**, and that
-is the default. Check the Waveshare schematic to confirm it, and to find out
-whether the buzzer is **active** (DC level) or **passive** (needs a tone).
-Both are supported: menuconfig → *Controller board* → *Buzzer* → *Buzzer type*.
+The buzzer is on **GPIO46** and is **passive**: it needs a tone (PWM), and a
+plain DC level only makes it click. Confirmed on the bench, and that is the
+default (2.7 kHz tone). Active buzzers are still supported: menuconfig → *Controller board* → *Buzzer* → *Buzzer type*.
 
 ## API (`components/buzzer`)
 

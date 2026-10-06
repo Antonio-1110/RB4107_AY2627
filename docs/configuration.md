@@ -36,8 +36,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_C4002_UART_PORT` | UART port | `1` | 0 – 1 |  |
-| `CONFIG_RB_C4002_RX_GPIO` | ESP32 RX GPIO (wired to C4002 TX) | `5` | 0 – 30 | ⚠ |
-| `CONFIG_RB_C4002_TX_GPIO` | ESP32 TX GPIO (wired to C4002 RX) | `4` | 0 – 30 | ⚠ |
+| `CONFIG_RB_C4002_RX_GPIO` | ESP32 RX GPIO (wired to C4002 TX) | `4` | 0 – 30 |  |
+| `CONFIG_RB_C4002_TX_GPIO` | ESP32 TX GPIO (wired to C4002 RX) | `5` | 0 – 30 |  |
 | `CONFIG_RB_C4002_OUT_GPIO` | C4002 OUT pin GPIO (-1 = not wired) | `-1` | -1 – 30 |  |
 | `CONFIG_RB_C4002_BAUD` | Baud rate | `115200` |  |  |
 | `CONFIG_RB_C4002_STALE_TIMEOUT_MS` | Reading goes invalid after (ms) without a report | `3000` | 200 – 60000 |  |
@@ -51,7 +51,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_C4002_DISAPPEAR_DELAY_S` | Target disappear delay (s) | `1` | 0 – 65535 |  |
 | `CONFIG_RB_C4002_LOCK_TIME_DS` | Lock time after a target leaves (0.1 s units) | `10` | 2 – 100 |  |
 | `CONFIG_RB_C4002_REMOTE_TUNING` | Accept C4002 settings and calibration from the dashboard | `y` |  |  |
-| `CONFIG_RB_C4002_LIVE_PERIOD_MS` | Send raw C4002 results for the dashboard's live view every (ms), 0 = off | `250` | 0 – 10000 | `RB_C4002_REMOTE_TUNING` |
+| `CONFIG_RB_C4002_LIVE_PERIOD_MS` | Send raw C4002 results for the dashboard's live view every (ms), 0 = off | `250` | 0 – 10000 |  |
 | `CONFIG_RB_C4002_ENV_CALIBRATION_AT_BOOT` | Run environment calibration at boot (area must be empty) | `n` |  |  |
 | `CONFIG_RB_C4002_ENV_CALIBRATION_S` | Environment calibration duration (s) | `30` | 1 – 600 |  |
 
@@ -60,8 +60,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_MLX_I2C_PORT` | I2C port | `0` | 0 – 1 |  |
-| `CONFIG_RB_MLX_SDA_GPIO` | SDA GPIO | `19` | 0 – 30 | ⚠ |
-| `CONFIG_RB_MLX_SCL_GPIO` | SCL GPIO | `20` | 0 – 30 | ⚠ |
+| `CONFIG_RB_MLX_SDA_GPIO` | SDA GPIO | `6` | 0 – 30 |  |
+| `CONFIG_RB_MLX_SCL_GPIO` | SCL GPIO | `7` | 0 – 30 |  |
 | `CONFIG_RB_MLX_I2C_HZ` | I2C clock (Hz) | `400000` | 100000 – 1000000 |  |
 | `CONFIG_RB_MLX_ADDRESS` | I2C address | `0x33` |  |  |
 | `RB_MLX_REFRESH` (choice) | Sub-page refresh rate: `CONFIG_RB_MLX_REFRESH_2HZ` = 2 Hz; `CONFIG_RB_MLX_REFRESH_4HZ` = 4 Hz; `CONFIG_RB_MLX_REFRESH_8HZ` = 8 Hz | `CONFIG_RB_MLX_REFRESH_4HZ` |  |  |
@@ -82,6 +82,25 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_THERMAL_HEATMAP` | Send the heat-map picture to the controller (dashboard) | `y` |  |  |
 | `CONFIG_RB_THERMAL_HEATMAP_PERIOD_MS` | Heat-map picture period (ms) | `3000` | 1000 – 10000 |  |
 
+## Valve node (servo gas valve)
+
+| Option | Description | Default | Range | |
+|---|---|---|---|---|
+| `RB_VALVE_MODE` (choice) | How the valve node gets the shut-off signal: `CONFIG_RB_VALVE_MODE_WIRED` = wired: a controller output pulls an input GPIO low while safe; `CONFIG_RB_VALVE_MODE_WIRELESS` = wireless: ESP-NOW keep-open heartbeat from the controller | `CONFIG_RB_VALVE_MODE_WIRED` |  |  |
+| `CONFIG_RB_VALVE_SERVO_GPIO` | Servo signal GPIO | `18 if IDF_TARGET_ESP32` | 0 – 48 |  |
+| `CONFIG_RB_VALVE_WIRED_INPUT_GPIO` | Wired mode: input GPIO (to the controller output terminal) | `19 if IDF_TARGET_ESP32` | 0 – 48 |  |
+| `CONFIG_RB_VALVE_WIRED_OPEN_DELAY_MS` | Wired mode: input low this long before opening (ms) | `500` | 0 – 10000 |  |
+| `CONFIG_RB_VALVE_WIRED_CLOSE_DEBOUNCE_MS` | Wired mode: input high this long before closing (ms) | `50` | 0 – 1000 |  |
+| `CONFIG_RB_VALVE_LINK_TIMEOUT_MS` | Wireless mode: close after this long without a keep-open (ms) | `3000` | 500 – 30000 |  |
+| `CONFIG_RB_VALVE_STATUS_PERIOD_MS` | Wireless mode: VALVE_STATUS period (ms) | `1000` | 200 – 10000 |  |
+| `CONFIG_RB_VALVE_OPEN_ANGLE_DEG` | Servo angle for OPEN (degrees) | `90` | 0 – 360 |  |
+| `CONFIG_RB_VALVE_CLOSED_ANGLE_DEG` | Servo angle for CLOSED (degrees) | `0` | 0 – 360 |  |
+| `CONFIG_RB_VALVE_SERVO_RANGE_DEG` | Servo travel (degrees) | `180` | 90 – 360 |  |
+| `CONFIG_RB_VALVE_SERVO_MIN_PULSE_US` | Pulse width at 0 degrees (us) | `500` | 300 – 1500 |  |
+| `CONFIG_RB_VALVE_SERVO_MAX_PULSE_US` | Pulse width at full travel (us) | `2500` | 1500 – 3000 |  |
+| `CONFIG_RB_VALVE_TRAVEL_MS` | Time the servo needs to move between positions (ms) | `1000` | 100 – 10000 |  |
+| `CONFIG_RB_VALVE_LATCH_CLOSED` | Stay closed after a shutdown until the valve node is reset | `n` |  |  |
+
 ## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)
 
 | Option | Description | Default | Range | |
@@ -99,9 +118,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `CONFIG_RB_BUZZER_GPIO` | Buzzer GPIO (-1 = none) | `46` | -1 – 48 | ⚠ |
+| `CONFIG_RB_BUZZER_GPIO` | Buzzer GPIO (-1 = none) | `46` | -1 – 48 |  |
 | `CONFIG_RB_BUZZER_ACTIVE_LEVEL` | Level that sounds the buzzer | `1` | 0 – 1 |  |
-| `RB_BUZZER_DRIVE` (choice) | Buzzer type: `CONFIG_RB_BUZZER_DRIVE_GPIO` = active buzzer (GPIO level); `CONFIG_RB_BUZZER_DRIVE_PWM` = passive buzzer (LEDC PWM tone) | `CONFIG_RB_BUZZER_DRIVE_GPIO` |  | ⚠ |
+| `RB_BUZZER_DRIVE` (choice) | Buzzer type: `CONFIG_RB_BUZZER_DRIVE_GPIO` = active buzzer (GPIO level); `CONFIG_RB_BUZZER_DRIVE_PWM` = passive buzzer (LEDC PWM tone) | `CONFIG_RB_BUZZER_DRIVE_PWM` |  |  |
 | `CONFIG_RB_BUZZER_TONE_HZ` | Tone frequency (Hz) | `2700` | 200 – 10000 |  |
 
 ## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Shutdown relay
@@ -113,6 +132,17 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_SHUTDOWN_POLARITY` (choice) | Relay polarity: `CONFIG_RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN` = energise relay to shut down (appliance on NC contact); `CONFIG_RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN` = de-energise relay to shut down (appliance on NO contact, fail-safe) | `CONFIG_RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN` |  | ⚠ |
 | `RB_SHUTDOWN_BOOT_STATE` (choice) | Shutdown output at boot: `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` = released (appliance powered); `CONFIG_RB_SHUTDOWN_BOOT_ACTIVE` = active (appliance off until the controller is running) | `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` |  | ⚠ |
 | `CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS` | Read back and verify the relay output every (ms) | `1000` | 100 – 60000 |  |
+
+## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Gas valve node
+
+| Option | Description | Default | Range | |
+|---|---|---|---|---|
+| `CONFIG_RB_SHUTDOWN_VALVE_CHANNEL` | Wired valve line: output channel (0 = not used) | `0` | 0 – 8 |  |
+| `CONFIG_RB_CTRL_VALVE_WIRELESS` | Wireless valve node (ESP-NOW keep-open heartbeat) | `n` |  |  |
+| `CONFIG_RB_CTRL_VALVE_NODE_MAC` | Valve node Wi-Fi STA MAC address | `"FF:FF:FF:FF:FF:FF"` |  |  |
+| `CONFIG_RB_CTRL_VALVE_NODE_ID` | Valve node ID | `4` | 1 – 65535 |  |
+| `CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS` | Keep-open / command period (ms) | `1000` | 100 – 5000 |  |
+| `CONFIG_RB_CTRL_VALVE_STATUS_TIMEOUT_MS` | Warn when no VALVE_STATUS arrives for (ms) | `3000` | 500 – 60000 |  |
 
 ## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Time / RTC
 
