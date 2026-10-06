@@ -97,20 +97,19 @@ menu "RB4107 configuration"
             config RB_C4002_RX_GPIO
                 int "ESP32 RX GPIO (wired to C4002 TX)"
                 range 0 30
-                default 5
+                default 4
                 help
-                    DFR1117 (ESP32-C6 mini) header P3 pin 4 (IO5). Which of
-                    IO4/IO5 is RX is UNCONFIRMED: if no C4002 frames arrive,
-                    swap RX and TX. IO16/IO17 would also work but are UART0,
-                    where the ROM prints at boot.
+                    DFR1117 (ESP32-C6 mini) header P3 pin 3 (IO4). Confirmed
+                    on the bench with testing/c4002. IO16/IO17 would also
+                    work but are UART0, where the ROM prints at boot.
 
             config RB_C4002_TX_GPIO
                 int "ESP32 TX GPIO (wired to C4002 RX)"
                 range 0 30
-                default 4
+                default 5
                 help
-                    DFR1117 (ESP32-C6 mini) header P3 pin 3 (IO4). Direction
-                    UNCONFIRMED: see the RX GPIO help.
+                    DFR1117 (ESP32-C6 mini) header P3 pin 4 (IO5). Confirmed
+                    on the bench with testing/c4002.
 
             config RB_C4002_OUT_GPIO
                 int "C4002 OUT pin GPIO (-1 = not wired)"
@@ -240,18 +239,18 @@ menu "RB4107 configuration"
             config RB_MLX_SDA_GPIO
                 int "SDA GPIO"
                 range 0 30
-                default 19
+                default 6
                 help
-                    UNCONFIRMED: IO19 is on the DFR1117 header P4 pin 6, but
-                    the schematic doesn't label it SDA; check your wiring.
+                    IO6 on the DFR1117. Confirmed on the bench with
+                    testing/mlx90640.
 
             config RB_MLX_SCL_GPIO
                 int "SCL GPIO"
                 range 0 30
-                default 20
+                default 7
                 help
-                    UNCONFIRMED: IO20 is on the DFR1117 header P4 pin 7, but
-                    the schematic doesn't label it SCL; check your wiring.
+                    IO7 on the DFR1117. Confirmed on the bench with
+                    testing/mlx90640.
 
             config RB_MLX_I2C_HZ
                 int "I2C clock (Hz)"

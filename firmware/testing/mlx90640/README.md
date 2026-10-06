@@ -8,19 +8,16 @@
 
 Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **MLX90640 (32×24)**.
 
-## Wiring (menuconfig defaults, UNCONFIRMED)
+## Wiring (menuconfig defaults, confirmed on the bench)
 
 | MLX90640 | ESP32-C6 |
 |---|---|
-| SDA | `RB_MLX_SDA_GPIO` = IO19 (header P4 pin 6) |
-| SCL | `RB_MLX_SCL_GPIO` = IO20 (header P4 pin 7) |
+| SDA | `RB_MLX_SDA_GPIO` = IO6 |
+| SCL | `RB_MLX_SCL_GPIO` = IO7 |
 | VIN / GND | 3.3 V / GND |
 
 Change them in `idf.py menuconfig` → *RB4107 configuration* → *Sensor node* →
-*MLX90640 thermal sensor*. The DFR1117 schematic doesn't label any pin SDA/SCL,
-so check your wiring. The earlier Arduino sketch used SDA 21 / SCL 22; IO21 and
-IO22 are also on the DFR1117 (header P3 pins 7 and 6), so if the camera is
-wired that way, set 21 / 22.
+*MLX90640 thermal sensor*.
 
 ## Software
 

@@ -18,13 +18,13 @@ pin also gives a digital "target present" level.
 
 | C4002 | DFR1117 (menuconfig default) |
 |---|---|
-| TX | `RB_C4002_RX_GPIO` = IO5 (header P3 pin 4) |
-| RX | `RB_C4002_TX_GPIO` = IO4 (header P3 pin 3) |
+| TX | `RB_C4002_RX_GPIO` = IO4 (header P3 pin 3) |
+| RX | `RB_C4002_TX_GPIO` = IO5 (header P3 pin 4) |
 | OUT (optional) | `RB_C4002_OUT_GPIO` = not wired |
 | VCC / GND | 5 V (header P4 pin 3, VUSB: only live on USB power) / GND |
 
-IO4 and IO5 come from the DFR1117 schematic (header P3). Which of the two is
-RX is **not confirmed**: if the log shows `frames=0`, swap the two values.
+IO4 (RX) and IO5 (TX) were confirmed on the bench. If the log shows
+`frames=0`, check the wiring first, then try swapping the two values.
 IO16/IO17 (header P4, labelled TX/RX) would also work, but they are UART0,
 where the ROM prints its boot messages. Set the pins in `idf.py menuconfig` →
 *RB4107 configuration* → *Sensor node* → *C4002 presence sensor*, or in a file

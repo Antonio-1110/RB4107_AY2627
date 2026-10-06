@@ -31,8 +31,8 @@ Board checks are the same as on the presence node: boot report,
 periodic uptime/heap/ESP-NOW line, blinking status LED.
 
 Pins (menuconfig → *RB4107 configuration → Sensor node → MLX90640 thermal
-sensor*) default to SDA IO19 / SCL IO20; the DFR1117 schematic doesn't label
-I2C pins, so check your wiring (see [project `testing/mlx90640`](../testing/mlx90640/README.md)).
+sensor*) default to SDA IO6 / SCL IO7, confirmed on the bench (see
+[project `testing/mlx90640`](../testing/mlx90640/README.md)).
 
 ## Setup
 
