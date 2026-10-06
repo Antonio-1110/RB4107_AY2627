@@ -75,6 +75,8 @@ class Subscriber:
         log.info("subscribed to %s (%s)", self.config["TOPIC"], ", ".join(str(rc) for rc in reason_codes))
 
     def _on_message(self, client, userdata, message):
+        if validation.is_command_topic(message.topic, self.prefix):
+            return  # our own dashboard commands to the controller
         self.received += 1
         try:
             msg = validation.parse(message.topic, message.payload, self.prefix)

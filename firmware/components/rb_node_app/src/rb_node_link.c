@@ -1,6 +1,7 @@
 #include "rb_node_link.h"
 
 #include <inttypes.h>
+#include <string.h>
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -24,7 +25,7 @@ static uint32_t now_ms(void)
     return (uint32_t)(esp_timer_get_time() / 1000);
 }
 
-static void send(rb_packet_t *pkt)
+esp_err_t rb_node_link_send(rb_packet_t *pkt)
 {
     pkt->role = s_cfg.role;
     pkt->node_id = CONFIG_RB_NODE_ID;
@@ -33,6 +34,12 @@ static void send(rb_packet_t *pkt)
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "%s not queued: %s", rb_msg_type_name(pkt->type), esp_err_to_name(err));
     }
+    return err;
+}
+
+void rb_node_link_controller_mac(uint8_t mac[6])
+{
+    memcpy(mac, s_peer, 6);
 }
 
 static void link_task(void *arg)
@@ -52,13 +59,13 @@ static void link_task(void *arg)
             rb_packet_t pkt = {.type = RB_MSG_SENSOR_FAULT};
             pkt.body.fault.fault_flags = faults;
             pkt.body.fault.changed_flags = last_faults == 0xFFFF ? faults : (uint16_t)(faults ^ last_faults);
-            send(&pkt);
+            rb_node_link_send(&pkt);
             ESP_LOGW(TAG, "sensor faults 0x%04x -> 0x%04x", last_faults == 0xFFFF ? 0 : last_faults, faults);
             last_faults = faults;
         }
         if ((int32_t)(now - next_data) >= 0) {
             next_data = now + CONFIG_RB_NODE_DATA_PERIOD_MS;
-            send(&data);
+            rb_node_link_send(&data);
         }
         if ((int32_t)(now - next_heartbeat) >= 0) {
             next_heartbeat = now + CONFIG_RB_NODE_HEARTBEAT_PERIOD_MS;
@@ -66,7 +73,7 @@ static void link_task(void *arg)
             rb_espnow_get_tx_stats(&st);
             rb_packet_t pkt = {.type = RB_MSG_HEARTBEAT};
             pkt.body.heartbeat = (rb_heartbeat_t){.fault_flags = faults, .tx_ok = st.delivered, .tx_fail = st.failed};
-            send(&pkt);
+            rb_node_link_send(&pkt);
         }
         if ((int32_t)(now - next_log) >= 0) {
             next_log = now + CONFIG_RB_NODE_HEALTH_LOG_PERIOD_MS;

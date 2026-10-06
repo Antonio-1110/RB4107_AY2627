@@ -3,4 +3,4 @@
 idf_component_register(SRCS "src/rb_node_sensors.c"
                        INCLUDE_DIRS "include"
                        REQUIRES c4002 mlx90640 thermal_features rb_types
-                       PRIV_REQUIRES rb_config esp_driver_i2c)
+                       PRIV_REQUIRES rb_config rb_protocol esp_driver_i2c nvs_flash)

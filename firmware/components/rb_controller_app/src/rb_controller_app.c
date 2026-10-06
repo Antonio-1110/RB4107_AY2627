@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "fault_manager.h"
 #include "rb_app_faults.h"
+#include "rb_c4002_relay.h"
 #include "rb_config.h"
 #include "rb_connectivity.h"
 #include "rb_continuity.h"
@@ -30,6 +31,10 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #endif
 }
 
+static void node_packet(const rb_espnow_rx_t *rx, void *ctx)
+{
+    rb_c4002_relay_on_packet(rx);
+}
 #if CONFIG_RB_CTRL_VALVE_WIRELESS
 static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 {
@@ -56,6 +61,7 @@ esp_err_t rb_controller_app_start(void)
         .self_test = rb_app_self_test,
         .safety_fault_active = rb_app_faults_safety_active,
         .node_events = rb_app_faults_node_events,
+        .node_packet = node_packet,
 #if CONFIG_RB_CTRL_VALVE_WIRELESS
         .valve_packet = valve_packet,
 #endif
@@ -81,6 +87,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 
     /* Telemetry path: best effort, never fatal. */
+    if (rb_c4002_relay_start(cfg.nodes.presence_node_ids, cfg.nodes.presence_node_count) != ESP_OK) {
+        ESP_LOGE(TAG, "remote C4002 tuning not started; safety unaffected");
+    }
     if (rb_telemetry_start() != ESP_OK) {
         ESP_LOGE(TAG, "telemetry task not started; safety unaffected");
     }

@@ -5,7 +5,7 @@
 
 #include "rb_json_writer.h"
 
-static void header(rb_json_writer_t *w, const rb_json_header_t *h, const char *type)
+void rb_json_begin_message(rb_json_writer_t *w, const rb_json_header_t *h, const char *type)
 {
     rb_json_obj_begin(w);
     rb_json_key(w, "schema_version");
@@ -144,7 +144,7 @@ size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &t->hdr, "telemetry");
+    rb_json_begin_message(&w, &t->hdr, "telemetry");
     rb_json_key(&w, "protocol_version");
     rb_json_int(&w, t->protocol_version);
     rb_json_key(&w, "presence_state");
@@ -161,7 +161,7 @@ size_t rb_json_heartbeat(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &t->hdr, "heartbeat");
+    rb_json_begin_message(&w, &t->hdr, "heartbeat");
     rb_json_key(&w, "safety_state");
     rb_json_str(&w, t->safety.state);
     rb_json_key(&w, "safety_loop_count");
@@ -174,7 +174,7 @@ size_t rb_json_faults(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &t->hdr, "faults");
+    rb_json_begin_message(&w, &t->hdr, "faults");
     faults_arr(&w, t, true);
     rb_json_obj_end(&w);
     return rb_json_finish(&w);
@@ -184,7 +184,7 @@ size_t rb_json_presence(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &t->hdr, "presence");
+    rb_json_begin_message(&w, &t->hdr, "presence");
     node_fields(&w, t);
     presence_obj(&w, t);
     rb_json_obj_end(&w);
@@ -195,7 +195,7 @@ size_t rb_json_thermal(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &t->hdr, "thermal");
+    rb_json_begin_message(&w, &t->hdr, "thermal");
     node_fields(&w, t);
     thermal_obj(&w, t);
     rb_json_obj_end(&w);
@@ -206,7 +206,7 @@ size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &t->hdr, "node_status");
+    rb_json_begin_message(&w, &t->hdr, "node_status");
     node_fields(&w, t);
     rb_json_key(&w, "role");
     rb_json_str(&w, t->node.role);
@@ -228,7 +228,7 @@ size_t rb_json_event(const rb_event_msg_t *e, char *buf, size_t len)
 {
     rb_json_writer_t w;
     rb_json_init(&w, buf, len);
-    header(&w, &e->hdr, "event");
+    rb_json_begin_message(&w, &e->hdr, "event");
     rb_json_key(&w, "event");
     rb_json_str(&w, e->event);
     rb_json_key(&w, "safety");

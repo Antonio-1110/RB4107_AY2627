@@ -110,6 +110,9 @@ static size_t packet_len(rb_msg_type_t type)
     case RB_MSG_SENSOR_FAULT: return RB_PKT_SENSOR_FAULT_LEN;
     case RB_MSG_VALVE_COMMAND: return RB_PKT_VALVE_COMMAND_LEN;
     case RB_MSG_VALVE_STATUS: return RB_PKT_VALVE_STATUS_LEN;
+    case RB_MSG_C4002_CONFIG: return RB_PKT_C4002_CONFIG_LEN;
+    case RB_MSG_C4002_CONFIG_ACK: return RB_PKT_C4002_CONFIG_ACK_LEN;
+    case RB_MSG_C4002_LIVE: return RB_PKT_C4002_LIVE_LEN;
     default: return 0;
     }
 }
@@ -119,12 +122,55 @@ static bool role_ok(rb_node_role_t role, rb_msg_type_t type)
 {
     switch (role) {
     case RB_NODE_ROLE_PRESENCE:
-        return type == RB_MSG_PRESENCE_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT;
+        return type == RB_MSG_PRESENCE_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT ||
+               type == RB_MSG_C4002_CONFIG_ACK || type == RB_MSG_C4002_LIVE;
     case RB_NODE_ROLE_THERMAL:
         return type == RB_MSG_THERMAL_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT;
     case RB_NODE_ROLE_VALVE: return type == RB_MSG_VALVE_STATUS;
-    case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_VALVE_COMMAND;
+    case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_VALVE_COMMAND || type == RB_MSG_C4002_CONFIG;
     default: return false;
+    }
+}
+
+static void put_params(writer_t *w, const rb_c4002_params_t *p)
+{
+    put_u8(w, p->report_period_ds);
+    put_u16(w, p->range_min_cm);
+    put_u16(w, p->range_max_cm);
+    put_u8(w, p->resolution);
+    put_u8(w, p->motion_sensitivity);
+    put_u8(w, p->presence_sensitivity);
+    put_u16(w, p->disappear_delay_s);
+    put_u8(w, p->lock_time_ds);
+    put_u32(w, p->motion_gate_mask);
+    put_u32(w, p->presence_gate_mask);
+    put_u8(w, p->thresholds_known);
+    for (unsigned i = 0; i < RB_C4002_MAX_GATES; i++) {
+        put_u8(w, p->motion_thresholds[i]);
+    }
+    for (unsigned i = 0; i < RB_C4002_MAX_GATES; i++) {
+        put_u8(w, p->presence_thresholds[i]);
+    }
+}
+
+static void get_params(reader_t *r, rb_c4002_params_t *p)
+{
+    p->report_period_ds = get_u8(r);
+    p->range_min_cm = get_u16(r);
+    p->range_max_cm = get_u16(r);
+    p->resolution = get_u8(r);
+    p->motion_sensitivity = get_u8(r);
+    p->presence_sensitivity = get_u8(r);
+    p->disappear_delay_s = get_u16(r);
+    p->lock_time_ds = get_u8(r);
+    p->motion_gate_mask = get_u32(r);
+    p->presence_gate_mask = get_u32(r);
+    p->thresholds_known = get_u8(r);
+    for (unsigned i = 0; i < RB_C4002_MAX_GATES; i++) {
+        p->motion_thresholds[i] = get_u8(r);
+    }
+    for (unsigned i = 0; i < RB_C4002_MAX_GATES; i++) {
+        p->presence_thresholds[i] = get_u8(r);
     }
 }
 
@@ -201,6 +247,45 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         put_u8(&w, (uint8_t)pkt->body.valve_status.reason);
         put_u32(&w, pkt->body.valve_status.last_command_seq);
         break;
+    case RB_MSG_C4002_CONFIG: {
+        const rb_c4002_config_msg_t *c = &pkt->body.c4002_config;
+        put_u32(&w, c->target_node_id);
+        put_u16(&w, c->request_id);
+        put_u8(&w, c->action);
+        put_u16(&w, c->field_mask);
+        put_u16(&w, c->calib_delay_s);
+        put_u16(&w, c->calib_duration_s);
+        put_params(&w, &c->params);
+        break;
+    }
+    case RB_MSG_C4002_CONFIG_ACK: {
+        const rb_c4002_ack_t *a = &pkt->body.c4002_ack;
+        put_u16(&w, a->request_id);
+        put_u8(&w, a->action);
+        put_u8(&w, a->result);
+        put_u16(&w, a->calib_remaining_s);
+        put_u8(&w, a->saved);
+        put_params(&w, &a->params);
+        break;
+    }
+    case RB_MSG_C4002_LIVE: {
+        const rb_c4002_live_t *l = &pkt->body.c4002_live;
+        put_u8(&w, l->target_state);
+        put_u8(&w, l->resolution);
+        put_u32(&w, l->presence_gate_mask);
+        put_u16(&w, l->presence_countdown_s);
+        put_u16(&w, l->presence_distance_cm);
+        put_u8(&w, l->presence_energy);
+        put_u16(&w, l->motion_distance_cm);
+        put_u16(&w, (uint16_t)l->motion_speed_cm_s);
+        put_u8(&w, l->motion_energy);
+        put_u8(&w, l->motion_direction);
+        put_u16(&w, l->light_dlux);
+        put_u16(&w, l->calib_remaining_s);
+        put_u16(&w, l->age_ms);
+        put_u32(&w, l->results);
+        break;
+    }
     }
     if (w.n + RB_CRC_LEN != total) {
         return 0; /* body layout and the RB_BODY_*_LEN constants disagree */
@@ -289,6 +374,45 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         out->body.valve_status.reason = (rb_valve_reason_t)get_u8(&r);
         out->body.valve_status.last_command_seq = get_u32(&r);
         break;
+    case RB_MSG_C4002_CONFIG: {
+        rb_c4002_config_msg_t *c = &out->body.c4002_config;
+        c->target_node_id = get_u32(&r);
+        c->request_id = get_u16(&r);
+        c->action = get_u8(&r);
+        c->field_mask = get_u16(&r);
+        c->calib_delay_s = get_u16(&r);
+        c->calib_duration_s = get_u16(&r);
+        get_params(&r, &c->params);
+        break;
+    }
+    case RB_MSG_C4002_CONFIG_ACK: {
+        rb_c4002_ack_t *a = &out->body.c4002_ack;
+        a->request_id = get_u16(&r);
+        a->action = get_u8(&r);
+        a->result = get_u8(&r);
+        a->calib_remaining_s = get_u16(&r);
+        a->saved = get_u8(&r);
+        get_params(&r, &a->params);
+        break;
+    }
+    case RB_MSG_C4002_LIVE: {
+        rb_c4002_live_t *l = &out->body.c4002_live;
+        l->target_state = get_u8(&r);
+        l->resolution = get_u8(&r);
+        l->presence_gate_mask = get_u32(&r);
+        l->presence_countdown_s = get_u16(&r);
+        l->presence_distance_cm = get_u16(&r);
+        l->presence_energy = get_u8(&r);
+        l->motion_distance_cm = get_u16(&r);
+        l->motion_speed_cm_s = (int16_t)get_u16(&r);
+        l->motion_energy = get_u8(&r);
+        l->motion_direction = get_u8(&r);
+        l->light_dlux = get_u16(&r);
+        l->calib_remaining_s = get_u16(&r);
+        l->age_ms = get_u16(&r);
+        l->results = get_u32(&r);
+        break;
+    }
     }
     return RB_DECODE_OK;
 }
@@ -316,6 +440,9 @@ const char *rb_msg_type_name(rb_msg_type_t type)
     case RB_MSG_SENSOR_FAULT: return "SENSOR_FAULT";
     case RB_MSG_VALVE_COMMAND: return "VALVE_COMMAND";
     case RB_MSG_VALVE_STATUS: return "VALVE_STATUS";
+    case RB_MSG_C4002_CONFIG: return "C4002_CONFIG";
+    case RB_MSG_C4002_CONFIG_ACK: return "C4002_CONFIG_ACK";
+    case RB_MSG_C4002_LIVE: return "C4002_LIVE";
     default: return "?";
     }
 }
@@ -327,6 +454,99 @@ const char *rb_node_role_name(rb_node_role_t role)
     case RB_NODE_ROLE_THERMAL: return "thermal";
     case RB_NODE_ROLE_VALVE: return "valve";
     case RB_NODE_ROLE_CONTROLLER: return "controller";
+    default: return "?";
+    }
+}
+
+/* ---- C4002 parameters ---- */
+
+#define C4002_MAX_RANGE_CM 1100u
+#define C4002_MAX_THRESHOLD 99u
+
+static const char *check_thresholds(const uint8_t *t)
+{
+    for (unsigned i = 0; i < RB_C4002_MAX_GATES; i++) {
+        if (t[i] > C4002_MAX_THRESHOLD) {
+            return "gate threshold > 99";
+        }
+    }
+    return NULL;
+}
+
+const char *rb_c4002_params_check(const rb_c4002_params_t *p)
+{
+    if (p->report_period_ds == 0) {
+        return "report_period_ds must be 1..255";
+    }
+    if (p->range_max_cm > C4002_MAX_RANGE_CM) {
+        return "range_max_cm > 1100";
+    }
+    if (p->range_min_cm > p->range_max_cm) {
+        return "range_min_cm > range_max_cm";
+    }
+    if (p->resolution != RB_C4002_RES_80CM && p->resolution != RB_C4002_RES_20CM) {
+        return "resolution must be 80 or 20 cm";
+    }
+    if (p->motion_sensitivity > RB_C4002_SENS_CUSTOM || p->presence_sensitivity > RB_C4002_SENS_CUSTOM) {
+        return "sensitivity must be low, mid, high or custom";
+    }
+    if (p->motion_sensitivity == RB_C4002_SENS_CUSTOM && !(p->thresholds_known & RB_C4002_THRESH_MOTION)) {
+        return "custom motion sensitivity needs motion thresholds";
+    }
+    if (p->presence_sensitivity == RB_C4002_SENS_CUSTOM && !(p->thresholds_known & RB_C4002_THRESH_PRESENCE)) {
+        return "custom presence sensitivity needs presence thresholds";
+    }
+    if (p->lock_time_ds < 2 || p->lock_time_ds > 100) {
+        return "lock_time_ds must be 2..100";
+    }
+    if ((p->motion_gate_mask | p->presence_gate_mask) & ~RB_C4002_ALL_GATES) {
+        return "gate mask has bits above gate 24";
+    }
+    const char *why = check_thresholds(p->motion_thresholds);
+    return why != NULL ? why : check_thresholds(p->presence_thresholds);
+}
+
+void rb_c4002_params_merge(rb_c4002_params_t *dst, const rb_c4002_params_t *src, uint16_t m)
+{
+    if (m & RB_C4002_F_REPORT_PERIOD) dst->report_period_ds = src->report_period_ds;
+    if (m & RB_C4002_F_RANGE_MIN) dst->range_min_cm = src->range_min_cm;
+    if (m & RB_C4002_F_RANGE_MAX) dst->range_max_cm = src->range_max_cm;
+    if (m & RB_C4002_F_RESOLUTION) dst->resolution = src->resolution;
+    if (m & RB_C4002_F_MOTION_SENS) dst->motion_sensitivity = src->motion_sensitivity;
+    if (m & RB_C4002_F_PRESENCE_SENS) dst->presence_sensitivity = src->presence_sensitivity;
+    if (m & RB_C4002_F_DISAPPEAR_DELAY) dst->disappear_delay_s = src->disappear_delay_s;
+    if (m & RB_C4002_F_LOCK_TIME) dst->lock_time_ds = src->lock_time_ds;
+    if (m & RB_C4002_F_MOTION_GATES) dst->motion_gate_mask = src->motion_gate_mask;
+    if (m & RB_C4002_F_PRESENCE_GATES) dst->presence_gate_mask = src->presence_gate_mask;
+    if (m & RB_C4002_F_MOTION_THRESH) {
+        memcpy(dst->motion_thresholds, src->motion_thresholds, RB_C4002_MAX_GATES);
+        dst->thresholds_known |= RB_C4002_THRESH_MOTION;
+        dst->motion_sensitivity = RB_C4002_SENS_CUSTOM;
+    }
+    if (m & RB_C4002_F_PRESENCE_THRESH) {
+        memcpy(dst->presence_thresholds, src->presence_thresholds, RB_C4002_MAX_GATES);
+        dst->thresholds_known |= RB_C4002_THRESH_PRESENCE;
+        dst->presence_sensitivity = RB_C4002_SENS_CUSTOM;
+    }
+}
+
+const char *rb_c4002_action_name(uint8_t action)
+{
+    switch (action) {
+    case RB_C4002_ACTION_APPLY: return "apply";
+    case RB_C4002_ACTION_CALIBRATE: return "calibrate";
+    case RB_C4002_ACTION_READ: return "read";
+    case RB_C4002_ACTION_RESET: return "reset";
+    default: return "?";
+    }
+}
+
+const char *rb_c4002_result_name(uint8_t result)
+{
+    switch (result) {
+    case RB_C4002_RESULT_OK: return "ok";
+    case RB_C4002_RESULT_INVALID: return "invalid";
+    case RB_C4002_RESULT_SENSOR_ERROR: return "sensor_error";
     default: return "?";
     }
 }

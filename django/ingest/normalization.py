@@ -94,6 +94,19 @@ def normalize(message):
             sensor.update({"occupied": None, "moving": None, "stationary": None, "distance_m": None}
                           if data["role"] == "presence" else thermal_fields({}))
         fields["sensors"] = {data["sensor_node"]: sensor}
+    elif kind == "c4002_config":
+        tuning = {key: data[key] for key in ("request_id", "action", "result", "error",
+                                              "calibration_remaining_s", "saved")}
+        tuning["reported_at"] = data.get("timestamp")
+        # A failed command carries no settings: keep showing the last known ones.
+        if data["settings"] is not None:
+            tuning["settings"] = data["settings"]
+        fields["sensors"] = {data["sensor_node"]: {"c4002": tuning}}
+    elif kind == "c4002_live":
+        # Only the newest result; the live view reads the history from /c4002/live/.
+        fields["sensors"] = {data["sensor_node"]: {"c4002_live": {
+            key: data[key] for key in ("target", "gate_size_cm", "presence_gates", "presence", "motion",
+                                       "calibration_remaining_s", "results")}}}
     elif kind == "faults":
         fields["faults"] = [fault["name"] for fault in data["faults"]]
         fields["fault_details"] = data["faults"]

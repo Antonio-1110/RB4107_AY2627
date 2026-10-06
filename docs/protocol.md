@@ -1,7 +1,8 @@
 # RB4107 ESP-NOW protocol (v2)
 
 Sensor nodes (ESP32-C6) → controller (ESP32-S3), plus the optional wireless
-valve node in both directions. The implementation is in
+valve node in both directions and C4002 tuning messages between the controller
+and the presence nodes ([c4002_tuning.md](c4002_tuning.md)). The implementation is in
 [`firmware/components/rb_protocol`](../firmware/components/rb_protocol), and
 every firmware builds that same code.
 
@@ -42,7 +43,8 @@ packet.
 - **Unknown is not zero.** Missing values have sentinels (below) and decode
   to `NAN`, never to a plausible number.
 - **Size-checked at compile time.** `_Static_assert`s keep every packet at or
-  under the ESP-NOW v1 limit of 250 bytes. The largest packet is 36 bytes.
+  under the ESP-NOW v1 limit of 250 bytes. The largest packet is
+  C4002_CONFIG, 102 bytes.
 
 ## Common header (17 bytes)
 
@@ -50,7 +52,7 @@ packet.
 |---|---|---|---|
 | 0 | 2 | magic | `0x52 0x42` ("RB") |
 | 2 | 1 | protocol_version | `2` |
-| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS |
+| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE |
 | 4 | 1 | node_role | `1` presence, `2` thermal, `3` valve, `4` controller |
 | 5 | 4 | node_id | `CONFIG_RB_NODE_ID` of the sender |
 | 9 | 4 | sequence | +1 for every packet the node sends (all types) |
@@ -150,6 +152,86 @@ The valve messages were added without bumping the version. The existing
 messages are byte-for-byte unchanged, so the sensor nodes don't need
 reflashing. An older controller rejects the new types as an unknown message
 type.
+
+## C4002 parameters block (70 bytes)
+
+Used by both tuning messages. Field meanings and limits:
+[c4002_tuning.md](c4002_tuning.md).
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 1 | report period (0.1 s) |
+| 1 | 2 | range min (cm) |
+| 3 | 2 | range max (cm) |
+| 5 | 1 | resolution: `0` 80 cm, `1` 20 cm |
+| 6 | 1 | motion sensitivity: `0` low, `1` mid, `2` high, `3` custom |
+| 7 | 1 | presence sensitivity (same codes) |
+| 8 | 2 | disappear delay (s) |
+| 10 | 1 | lock time (0.1 s) |
+| 11 | 4 | motion gate mask (bit *i* = gate *i* on) |
+| 15 | 4 | presence gate mask |
+| 19 | 1 | thresholds known: bit0 motion, bit1 presence |
+| 20 | 25 | motion thresholds, one per gate |
+| 45 | 25 | presence thresholds |
+
+## C4002_CONFIG (type 7, 102 bytes total)
+
+Controller → one presence node, sent to the MAC the controller learned from
+that node's packets. Header node_id is 0, role `4` controller. The node only
+accepts it from `RB_NODE_CONTROLLER_MAC`.
+
+| Offset | Size | Field |
+|---|---|---|
+| 17 | 4 | target node ID |
+| 21 | 2 | request ID (echoed in the ACK) |
+| 23 | 1 | action: `1` apply, `2` calibrate, `3` read, `4` reset |
+| 24 | 2 | field mask (apply): which parameters to change, see `RB_C4002_F_*` |
+| 26 | 2 | calibration delay (s) |
+| 28 | 2 | calibration duration (s) |
+| 30 | 70 | parameters block |
+| 100 | 2 | CRC |
+
+## C4002_CONFIG_ACK (type 8, 96 bytes total)
+
+Presence node → controller, after every C4002_CONFIG, and again when a
+calibration finishes. Uses the node's normal sequence counter.
+
+| Offset | Size | Field |
+|---|---|---|
+| 17 | 2 | request ID (0 = the controller's automatic read) |
+| 19 | 1 | action answered |
+| 20 | 1 | result: `0` ok, `1` invalid, `2` sensor error |
+| 21 | 2 | calibration seconds remaining (0 = none running) |
+| 23 | 1 | settings saved in NVS (0/1) |
+| 24 | 70 | parameters block: the settings now in use |
+| 94 | 2 | CRC |
+
+## C4002_LIVE (type 9, 46 bytes total)
+
+Presence node → controller: the C4002's newest detection result, unfiltered,
+at most every `RB_C4002_LIVE_PERIOD_MS` (default 250 ms), only when a new one
+came in. For the dashboard's live radar view; the safety logic ignores it and
+keeps using PRESENCE_DATA. Uses the node's normal sequence counter.
+
+| Offset | Size | Field |
+|---|---|---|
+| 17 | 1 | target state: `0` none, `1` stationary, `2` moving |
+| 18 | 1 | resolution in use: `0` 80 cm gates, `1` 20 cm gates |
+| 19 | 4 | stationary gate mask (bit *i* = gate *i*) |
+| 23 | 2 | hold countdown (s) |
+| 25 | 2 | stationary target distance (cm) |
+| 27 | 1 | stationary target energy (0–99) |
+| 28 | 2 | moving target distance (cm) |
+| 30 | 2 | moving target speed (cm/s, signed) |
+| 32 | 1 | moving target energy (0–99) |
+| 33 | 1 | direction: `0` away, `1` none, `2` approaching |
+| 34 | 2 | light (0.1 lux) |
+| 36 | 2 | calibration seconds remaining |
+| 38 | 2 | age of the result when sent (ms) |
+| 40 | 4 | results received from the sensor since boot |
+| 44 | 2 | CRC |
+
+Messages 7 to 9 were added the same way.
 
 ## Edge decisions (not decided yet)
 

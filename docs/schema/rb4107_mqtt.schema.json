@@ -16,7 +16,9 @@
     {"$ref": "#/$defs/thermal_msg"},
     {"$ref": "#/$defs/node_status"},
     {"$ref": "#/$defs/event"},
-    {"$ref": "#/$defs/controller_status"}
+    {"$ref": "#/$defs/controller_status"},
+    {"$ref": "#/$defs/c4002_config"},
+    {"$ref": "#/$defs/c4002_live"}
   ],
   "$defs": {
     "header": {
@@ -186,6 +188,105 @@
         "controller_id": {"type": "string"},
         "boot_id": {"type": "string", "minLength": 1},
         "online": {"type": "boolean"}
+      }
+    },
+    "c4002_sensitivity": {"enum": ["low", "mid", "high", "custom"]},
+    "c4002_gates": {"type": "array", "minItems": 25, "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 1}, "description": "one entry per distance gate, 1 = enabled; 80 cm resolution only uses the first 15"},
+    "c4002_thresholds": {"type": "array", "minItems": 25, "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 99}, "description": "one threshold per distance gate, used with sensitivity custom; 80 cm resolution only uses the first 15"},
+    "c4002_settings": {
+      "type": "object",
+      "required": ["report_period_ds", "range_min_cm", "range_max_cm", "resolution_cm", "gate_count", "motion_sensitivity", "presence_sensitivity", "disappear_delay_s", "lock_time_ds", "motion_gates", "presence_gates", "motion_thresholds", "presence_thresholds"],
+      "properties": {
+        "report_period_ds": {"type": "integer", "minimum": 1, "maximum": 255},
+        "range_min_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "range_max_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "resolution_cm": {"enum": [20, 80]},
+        "gate_count": {"enum": [15, 25]},
+        "motion_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "presence_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "disappear_delay_s": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "lock_time_ds": {"type": "integer", "minimum": 2, "maximum": 100},
+        "motion_gates": {"$ref": "#/$defs/c4002_gates"},
+        "presence_gates": {"$ref": "#/$defs/c4002_gates"},
+        "motion_thresholds": {"oneOf": [{"$ref": "#/$defs/c4002_thresholds"}, {"type": "null"}]},
+        "presence_thresholds": {"oneOf": [{"$ref": "#/$defs/c4002_thresholds"}, {"type": "null"}]}
+      }
+    },
+    "c4002_config": {
+      "description": "Retained rb4107/sensors/<node>/c4002_config: the presence node's C4002 settings, or what happened to the last tuning command (docs/c4002_tuning.md).",
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "request_id", "action", "result", "error", "calibration_remaining_s", "saved", "settings"],
+      "properties": {
+        "type": {"const": "c4002_config"},
+        "sensor_node": {"type": "string"},
+        "request_id": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "of the command answered; 0 = the controller asked on its own"},
+        "action": {"oneOf": [{"enum": ["apply", "calibrate", "read", "reset"]}, {"type": "null"}]},
+        "result": {"enum": ["ok", "invalid", "sensor_error", "rejected", "unknown_node", "send_failed", "no_reply"]},
+        "error": {"type": ["string", "null"]},
+        "calibration_remaining_s": {"type": "integer", "minimum": 0},
+        "saved": {"type": ["boolean", "null"]},
+        "settings": {"oneOf": [{"$ref": "#/$defs/c4002_settings"}, {"type": "null"}]}
+      }
+    },
+    "c4002_live": {
+      "description": "rb4107/sensors/<node>/c4002_live (QoS 0, not retained): one raw C4002 result as the sensor reported it, a few per second, for the dashboard's live radar view (docs/c4002_tuning.md). Not used by the safety logic.",
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["sensor_node", "node_uptime_ms", "results", "age_ms", "target", "gate_size_cm", "presence_gates", "presence", "motion", "light_lux", "calibration_remaining_s"],
+      "properties": {
+        "type": {"const": "c4002_live"},
+        "sensor_node": {"type": "string"},
+        "node_uptime_ms": {"type": "integer", "minimum": 0},
+        "results": {"type": "integer", "minimum": 0, "description": "results the node received from the sensor since boot; gaps mean skipped results"},
+        "age_ms": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "target": {"oneOf": [{"enum": ["none", "stationary", "moving"]}, {"type": "null"}], "description": "the sensor's own verdict; null = unknown code"},
+        "gate_size_cm": {"enum": [20, 80]},
+        "presence_gates": {"type": "array", "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 24}, "description": "indices of the gates holding a stationary target; gate i covers i*gate_size_cm to (i+1)*gate_size_cm"},
+        "presence": {
+          "type": "object", "additionalProperties": false, "required": ["distance_cm", "energy", "countdown_s"],
+          "properties": {
+            "distance_cm": {"type": "integer", "minimum": 0},
+            "energy": {"type": "integer", "minimum": 0, "maximum": 255},
+            "countdown_s": {"type": "integer", "minimum": 0}
+          }
+        },
+        "motion": {
+          "type": "object", "additionalProperties": false, "required": ["distance_cm", "speed_cm_s", "energy", "direction"],
+          "properties": {
+            "distance_cm": {"type": "integer", "minimum": 0},
+            "speed_cm_s": {"type": "integer"},
+            "energy": {"type": "integer", "minimum": 0, "maximum": 255},
+            "direction": {"oneOf": [{"enum": ["away", "none", "approaching"]}, {"type": "null"}]}
+          }
+        },
+        "light_lux": {"type": ["number", "null"], "minimum": 0},
+        "calibration_remaining_s": {"type": "integer", "minimum": 0}
+      }
+    },
+    "c4002_command": {
+      "description": "Dashboard -> controller on rb4107/sensors/<node>/c4002_set (published by Django, not retained). Settings keys are only allowed with action apply; any subset may be sent.",
+      "type": "object",
+      "required": ["schema_version", "type", "request_id", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": 2},
+        "type": {"const": "c4002_command"},
+        "controller_id": {"type": "string", "minLength": 1},
+        "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "action": {"enum": ["apply", "calibrate", "read", "reset"]},
+        "calibration_delay_s": {"type": "integer", "minimum": 0, "maximum": 600},
+        "calibration_duration_s": {"type": "integer", "minimum": 1, "maximum": 600},
+        "report_period_ds": {"type": "integer", "minimum": 1, "maximum": 255},
+        "range_min_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "range_max_cm": {"type": "integer", "minimum": 0, "maximum": 1100},
+        "resolution_cm": {"enum": [20, 80]},
+        "motion_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "presence_sensitivity": {"$ref": "#/$defs/c4002_sensitivity"},
+        "disappear_delay_s": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "lock_time_ds": {"type": "integer", "minimum": 2, "maximum": 100},
+        "motion_gates": {"$ref": "#/$defs/c4002_gates"},
+        "presence_gates": {"$ref": "#/$defs/c4002_gates"},
+        "motion_thresholds": {"$ref": "#/$defs/c4002_thresholds"},
+        "presence_thresholds": {"$ref": "#/$defs/c4002_thresholds"}
       }
     }
   }

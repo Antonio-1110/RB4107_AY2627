@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "rb_config.h"
+#include "rb_c4002_relay.h"
 #include "rb_controller.h"
 #include "rb_json.h"
 #include "rb_mqtt.h"
@@ -231,6 +232,22 @@ static void publish_event(const rb_event_t *evt)
     s_stats.events++;
 }
 
+/* Remote C4002 tuning results, published as they come in. */
+static void publish_c4002_replies(void)
+{
+    static rb_c4002_reply_t reply; /* ~110 B, telemetry task only */
+    uint32_t node_id;
+    while (rb_c4002_relay_poll(rb_time_mono_ms(), &reply, &node_id)) {
+        reply.hdr = header(rb_time_mono_ms());
+        publish(RB_TOPIC_SENSOR_C4002_CONFIG, node_id, rb_c4002_reply_json(&reply, s_payload, sizeof(s_payload)), -1);
+    }
+    static rb_c4002_live_msg_t live; /* telemetry task only */
+    while (rb_c4002_relay_poll_live(&live, &node_id)) {
+        live.hdr = header(rb_time_mono_ms());
+        publish(RB_TOPIC_SENSOR_C4002_LIVE, node_id, rb_c4002_live_json(&live, s_payload, sizeof(s_payload)), -1);
+    }
+}
+
 static void telemetry_task(void *arg)
 {
     uint32_t next_periodic = rb_time_mono_ms();
@@ -238,9 +255,12 @@ static void telemetry_task(void *arg)
         const uint32_t now = rb_time_mono_ms();
         const int32_t until = (int32_t)(next_periodic - now);
         rb_event_t evt;
-        if (rb_controller_next_event(&evt, until > 0 ? pdMS_TO_TICKS(until) : 0)) {
+        /* Wake at least every 200 ms so tuning replies don't wait for the next period. */
+        const int32_t wait = until > 200 ? 200 : until;
+        if (rb_controller_next_event(&evt, wait > 0 ? pdMS_TO_TICKS(wait) : 0)) {
             publish_event(&evt);
         }
+        publish_c4002_replies();
         if ((int32_t)(rb_time_mono_ms() - next_periodic) >= 0) {
             next_periodic += CONFIG_RB_MQTT_TELEMETRY_PERIOD_MS;
             /* After a long stall, skip the missed periods instead of bursting to catch up. */

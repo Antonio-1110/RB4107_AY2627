@@ -15,7 +15,7 @@ extern "C" {
 
 #define RB_JSON_MAX_DEPTH 8
 
-typedef struct {
+typedef struct rb_json_writer {
     char *buf;
     size_t cap;
     size_t len;
