@@ -1,4 +1,4 @@
-# Logging (TODO section 25)
+# Logging
 
 ## Format
 

@@ -6,7 +6,7 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 3 and 3.1. Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **MLX90640 (32×24)**.
+Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **MLX90640 (32×24)**.
 
 ## Wiring (menuconfig defaults, UNCONFIRMED)
 
@@ -18,7 +18,7 @@ TODO section 3 and 3.1. Target: **DFRobot DFR1117 (ESP32-C6 mini)** + **MLX90640
 
 Change them in `idf.py menuconfig` → *RB4107 configuration* → *Sensor node* →
 *MLX90640 thermal sensor*. The DFR1117 schematic doesn't label any pin SDA/SCL,
-so check your wiring. The legacy Arduino sketch used SDA 21 / SCL 22; IO21 and
+so check your wiring. The earlier Arduino sketch used SDA 21 / SCL 22; IO21 and
 IO22 are also on the DFR1117 (header P3 pins 7 and 6), so if the camera is
 wired that way, set 21 / 22.
 

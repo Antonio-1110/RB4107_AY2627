@@ -13,12 +13,12 @@
 #   RB4107_SKIP_BROKER=1              don't start Mosquitto (use one already running)
 #   RB4107_NO_BROWSER=1               don't open the dashboard in the browser
 #
-# Uses backend/django/.venv if it exists. Written for the bash 3.2 that
+# Uses django/.venv if it exists. Written for the bash 3.2 that
 # ships with macOS.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DJANGO_DIR="$ROOT/backend/django"
+DJANGO_DIR="$ROOT/django"
 HTTP_ADDR="${RB4107_HTTP_ADDR:-127.0.0.1:8000}"
 MQTT_PORT=1883
 export PYTHONUNBUFFERED=1
@@ -28,15 +28,15 @@ if [[ -x "$DJANGO_DIR/.venv/bin/python" ]]; then
     PYTHON="$DJANGO_DIR/.venv/bin/python"
 else
     PYTHON="$(command -v python3 || true)"
-    echo "[dev] no backend/django/.venv found, using ${PYTHON:-nothing}" >&2
+    echo "[dev] no django/.venv found, using ${PYTHON:-nothing}" >&2
 fi
 if [[ -z "$PYTHON" ]] || ! "$PYTHON" -c "import django, paho.mqtt, jsonschema" 2>/dev/null; then
     echo "[dev] Django requirements are missing. Set up the venv first:" >&2
-    echo "      cd backend/django && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt" >&2
+    echo "      cd django && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt" >&2
     exit 1
 fi
 if [[ ! -f "$DJANGO_DIR/.env" ]]; then
-    echo "[dev] note: backend/django/.env not found, using defaults (cp .env.example .env to customise)"
+    echo "[dev] note: django/.env not found, using defaults (cp .env.example .env to customise)"
 fi
 
 port_open() {

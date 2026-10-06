@@ -6,14 +6,14 @@
 > [`thermal_node`](../../thermal_node) on the thermal C6 board and
 > [`controller`](../../controller) on the S3.
 
-TODO section 17. Target: **Waveshare ESP32-S3-ETH-8DI-8RO**.
+Target: **Waveshare ESP32-S3-POE-ETH-8DI-8DO**.
 
 ```text
 ESP32-S3 → W5500 Ethernet → local LAN → MacBook
 ```
 
 `components/rb_net` sets up the on-board **W5500** SPI Ethernet (pins in
-menuconfig → *Network* → *W5500 Ethernet*, taken from the legacy controller),
+menuconfig → *Network* → *W5500 Ethernet*, taken from the earlier prototype controller),
 or a Wi-Fi station as the alternative (`RB_NET_TYPE`).
 
 | Check | How |
