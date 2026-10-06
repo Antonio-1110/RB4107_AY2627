@@ -37,8 +37,8 @@ its outputs onto this API and the buzzer.
 | Option | Default | Note |
 |---|---|---|
 | `RB_SHUTDOWN_RELAY_CHANNEL` | 1 | |
-| `RB_RELAY_ACTIVE_LEVEL` | 1 | UNCONFIRMED |
-| `RB_SHUTDOWN_POLARITY` | energise to shut down | OPEN QUESTION: depends on whether the appliance is on the external relay's NO or NC contact. *De-energise to shut down* is fail-safe: the appliance loses power if the controller loses power. |
+| `RB_RELAY_ACTIVE_LEVEL` | 0 | Waveshare 8DI-8DO: a low TCA9554 pin switches the digital output on (confirmed on the bench) |
+| `RB_SHUTDOWN_POLARITY` | de-energise to shut down | Fail-safe: the output stays on (appliance circuit closed) while safe and turns off on shutdown or when the controller loses power. |
 | `RB_SHUTDOWN_BOOT_STATE` | released | OPEN QUESTION |
 
 ## Wired valve line

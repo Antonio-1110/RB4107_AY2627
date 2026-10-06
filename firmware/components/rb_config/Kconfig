@@ -561,17 +561,20 @@ menu "RB4107 configuration"
             config RB_RELAY_ACTIVE_LEVEL
                 int "TCA9554 output level that energises a relay"
                 range 0 1
-                default 1
+                default 0
                 help
-                    From the earlier prototype controller (TCA9554_ACTIVE_LEVEL = 1).
-                    UNCONFIRMED.
+                    0 on the Waveshare 8DI-8DO: a low TCA9554 pin switches the
+                    digital output on (confirmed on the bench). The earlier
+                    relay prototype used 1.
 
             choice RB_SHUTDOWN_POLARITY
                 prompt "Relay polarity"
-                default RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN
+                default RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN
                 help
-                    OPEN QUESTION: depends on how the appliance is wired to
-                    the relay contacts.
+                    The digital output stays on (relay energised, appliance
+                    circuit closed) while it is safe, and turns off on
+                    shutdown. A controller with no power also breaks the
+                    circuit.
                 config RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN
                     bool "energise relay to shut down (appliance on NC contact)"
                 config RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN
