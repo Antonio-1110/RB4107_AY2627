@@ -131,6 +131,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_PRESENCE_B_NODE_ID` | Presence node B ID | `2` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_THERMAL_NODE_ID` | Thermal node ID | `3` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_C4002_REMOTE_TUNING` | Relay C4002 tuning commands from the dashboard to the presence nodes | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_RESET` | Accept the operator reset from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |

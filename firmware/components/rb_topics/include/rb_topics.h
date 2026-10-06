@@ -6,6 +6,7 @@
  *   <prefix>/controller/{status,heartbeat,state,faults}
  *   <prefix>/sensors/<node>/{presence,thermal,status,c4002_config,thermal_frame}
  *   <prefix>/sensors/<node>/c4002_set    (dashboard -> controller, subscribed)
+ *   <prefix>/controller/command          (dashboard -> controller, subscribed)
  *   <prefix>/events/{warning,shutdown,fault}
  *
  * The prefix is configurable (RB_MQTT_TOPIC_PREFIX, default "rb4107").
@@ -45,6 +46,9 @@ typedef struct {
 
 /* Last level of the command topic the controller subscribes to (remote C4002 tuning). */
 #define RB_TOPIC_C4002_SET "c4002_set"
+
+/* Dashboard -> controller command topic under the prefix (operator reset). */
+#define RB_TOPIC_CONTROLLER_COMMAND "controller/command"
 
 const rb_topic_info_t *rb_topic_info(rb_topic_t topic);
 

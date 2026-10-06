@@ -721,6 +721,18 @@ menu "RB4107 configuration"
                     on <prefix>/sensors/<node>/c4002_config. Never touches the
                     safety state machine (docs/c4002_tuning.md).
 
+            config RB_CTRL_REMOTE_RESET
+                bool "Accept the operator reset from the dashboard"
+                default y
+                help
+                    Subscribes to <prefix>/controller/command. A "reset"
+                    command does the same as the diagnostic console's `reset`:
+                    it releases a latched SHUTDOWN (back to IDLE) and
+                    acknowledges a WARNING when that needs an acknowledgement.
+                    The broker has no login in the lab setup, so anyone on the
+                    network can send it: turn this off outside the demo
+                    (docs/remote_reset.md).
+
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
                 range 4 64

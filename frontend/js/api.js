@@ -1,5 +1,6 @@
 // Calls to the Django API (see django/ingest/views.py). Everything is read-only
-// except C4002 radar tuning; the dashboard never operates the alarm, relay or reset.
+// except C4002 radar tuning and the shutdown reset; the dashboard never trips a
+// shutdown or drives the alarm or relay directly.
 
 import { API_BASE, REQUEST_TIMEOUT_MS } from "./config.js";
 
@@ -25,10 +26,8 @@ export const fetchHistory = (deviceId, hours, limit = 360) =>
 export const fetchEvents = (deviceId, hours = 24, limit = 30) =>
   get(`${device(deviceId)}/events/?hours=${hours}&limit=${limit}`);
 
-// Remote C4002 tuning (the only command the dashboard sends). The node's answer
-// arrives later in the device's values (sensors.<node>.c4002).
-export async function sendC4002Command(deviceId, node, body) {
-  const response = await fetch(`${device(deviceId)}/nodes/${encodeURIComponent(node)}/c4002/`, {
+async function post(path, body) {
+  const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -38,6 +37,15 @@ export async function sendC4002Command(deviceId, node, body) {
   if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
   return result;
 }
+
+// Operator reset of a latched shutdown (docs/remote_reset.md). The controller's
+// answer is reset_required going false in the next telemetry.
+export const sendReset = (deviceId) => post(`${device(deviceId)}/reset/`, {});
+
+// Remote C4002 tuning. The node's answer
+// arrives later in the device's values (sensors.<node>.c4002).
+export const sendC4002Command = (deviceId, node, body) =>
+  post(`${device(deviceId)}/nodes/${encodeURIComponent(node)}/c4002/`, body);
 
 // Raw C4002 results of one presence node (last minute, or only those after `after`).
 export const fetchC4002Live = (deviceId, node, after = 0) =>

@@ -14,6 +14,7 @@ import {
 } from "./heatmap.js";
 import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
+import { renderReset } from "./reset.js";
 import { renderTuning } from "./tuning.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
@@ -377,7 +378,7 @@ function renderDetailAlert(device) {
     "p",
     state.last_known
       ? "This is a last-known active state. Current safety cannot be confirmed because telemetry is not fresh."
-      : "Local ESP32 safety action is active. Respond at the physical location; this page cannot silence or reset it.",
+      : "Local ESP32 safety action is active. Respond at the physical location; once the stove is checked, a latched shutdown can be reset from System status.",
   );
   host.append(title, text);
 }
@@ -420,7 +421,7 @@ function renderDevice(device) {
     "reset-required",
     "manual_reset_required",
     value.manual_reset_required === true
-      ? "Yes · at device"
+      ? "Yes"
       : value.manual_reset_required === false
         ? "No"
         : "Unknown",
@@ -449,6 +450,7 @@ function renderDevice(device) {
     ),
   );
   renderSensors(value.sensors || {});
+  renderReset(device);
   renderTuning(device);
   renderDetailAlert(device);
 }

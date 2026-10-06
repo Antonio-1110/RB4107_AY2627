@@ -1012,6 +1012,16 @@ footer {
 .tuning-card {
   margin-top: 16px;
 }
+.reset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 10px;
+}
+.reset-actions .tuning-status {
+  margin: 0;
+}
 .tuning-status {
   margin: 0 0 14px;
   font-size: 12px;

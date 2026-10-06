@@ -1,5 +1,8 @@
 #include "rb_controller_app.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #include "esp_check.h"
 #include "esp_log.h"
 #include "fault_manager.h"
@@ -9,14 +12,17 @@
 #include "rb_connectivity.h"
 #include "rb_continuity.h"
 #include "rb_controller.h"
+#include "rb_ctrl_cmd.h"
 #include "rb_diag.h"
 #include "rb_espnow.h"
 #include "rb_heatmap.h"
 #include "rb_log.h"
+#include "rb_mqtt.h"
 #include "rb_outputs.h"
 #include "rb_sim.h"
 #include "rb_telemetry.h"
 #include "rb_time.h"
+#include "rb_topics.h"
 #include "rb_wallclock.h"
 #if CONFIG_RB_CTRL_VALVE_WIRELESS
 #include "rb_valve_link.h"
@@ -40,6 +46,34 @@ static void node_packet(const rb_espnow_rx_t *rx, void *ctx)
 static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 {
     return rb_valve_link_on_packet(packet, rx_ms);
+}
+#endif
+
+#if CONFIG_RB_CTRL_REMOTE_RESET
+/* MQTT task: operator reset sent from the dashboard (docs/remote_reset.md). */
+static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    if (!rb_ctrl_cmd_parse(data, len, &cmd, err, sizeof(err))) {
+        ESP_LOGW(TAG, "controller command rejected: %s", err);
+        return;
+    }
+    if (strcmp(cmd.controller_id, CONFIG_RB_MQTT_CONTROLLER_ID) != 0) {
+        ESP_LOGI(TAG, "command for controller %s ignored", cmd.controller_id);
+        return;
+    }
+    ESP_LOGW(TAG, "operator reset from the dashboard (request %u)", (unsigned)cmd.request_id);
+    rb_controller_request_reset();
+}
+
+static esp_err_t remote_reset_start(void)
+{
+    char filter[96];
+    snprintf(filter, sizeof(filter), "%s/%s", CONFIG_RB_MQTT_TOPIC_PREFIX, RB_TOPIC_CONTROLLER_COMMAND);
+    ESP_RETURN_ON_ERROR(rb_mqtt_subscribe(filter, 1, on_controller_command, NULL), TAG, "subscribe");
+    ESP_LOGI(TAG, "dashboard reset: listening on %s", filter);
+    return ESP_OK;
 }
 #endif
 
@@ -94,6 +128,11 @@ esp_err_t rb_controller_app_start(void)
     if (rb_c4002_relay_start(cfg.nodes.presence_node_ids, cfg.nodes.presence_node_count) != ESP_OK) {
         ESP_LOGE(TAG, "remote C4002 tuning not started; safety unaffected");
     }
+#if CONFIG_RB_CTRL_REMOTE_RESET
+    if (remote_reset_start() != ESP_OK) {
+        ESP_LOGE(TAG, "dashboard reset not started; reset from the console or by power cycle");
+    }
+#endif
     if (rb_telemetry_start() != ESP_OK) {
         ESP_LOGE(TAG, "telemetry task not started; safety unaffected");
     }
