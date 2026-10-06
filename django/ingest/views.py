@@ -11,7 +11,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import commands
+from . import commands, validation
 from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .locations import (active_alerts, aggregate_stalls, classify_display_state,
                         fleet_summary, load_location_catalog, location_for)
@@ -186,10 +186,13 @@ def c4002_live(request, device_id, node):
         after = int(request.GET.get("after", "0"))
     except ValueError:
         return JsonResponse({"error": "after must be an integer"}, status=400)
+    # Exact topic and received_at ordering let SQLite use inbound_device_topic_received
+    # instead of walking every row of the device.
+    topic = f"{validation.topic_prefix(settings.RB4107_MQTT['TOPIC'])}/sensors/{node}/c4002_live"
     rows = InboundMessage.objects.filter(
-        device=device, topic__endswith=f"/sensors/{node}/c4002_live", outcome="accepted",
+        device=device, topic=topic, outcome="accepted",
         received_at__gte=timezone.now() - timedelta(seconds=LIVE_WINDOW_SECONDS), id__gt=after,
-    ).order_by("-id").values("id", "received_at", "raw")[:LIVE_MAX_SAMPLES]
+    ).order_by("-received_at", "-id").values("id", "received_at", "raw")[:LIVE_MAX_SAMPLES]
     samples = []
     for row in reversed(list(rows)):
         data = json.loads(row["raw"])

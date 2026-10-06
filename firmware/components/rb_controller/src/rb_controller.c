@@ -286,13 +286,15 @@ bool rb_controller_next_event(rb_event_t *out, TickType_t wait)
     return s_event_queue != NULL && xQueueReceive(s_event_queue, out, wait) == pdTRUE;
 }
 
-void rb_controller_get_snapshot(rb_snapshot_t *out)
+bool rb_controller_get_snapshot(rb_snapshot_t *out)
 {
     memset(out, 0, sizeof(*out));
-    if (s_snapshot_lock != NULL && xSemaphoreTake(s_snapshot_lock, pdMS_TO_TICKS(20)) == pdTRUE) {
+    if (s_snapshot_lock != NULL && xSemaphoreTake(s_snapshot_lock, pdMS_TO_TICKS(100)) == pdTRUE) {
         *out = s_snapshot;
         xSemaphoreGive(s_snapshot_lock);
+        return true;
     }
+    return false;
 }
 
 uint32_t rb_controller_events_dropped(void)

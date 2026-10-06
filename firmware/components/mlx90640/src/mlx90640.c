@@ -23,21 +23,9 @@ static uint8_t s_addr;
 static float s_emissivity;
 static int s_last_error;
 
-esp_err_t mlx90640_init(const mlx90640_config_t *config)
+/* Talk to the sensor once the device is registered: EEPROM, calibration, refresh rate, chess mode. */
+static esp_err_t configure(const mlx90640_config_t *config)
 {
-    ESP_RETURN_ON_FALSE(config != NULL && config->bus != NULL, ESP_ERR_INVALID_ARG, TAG, "no I2C bus");
-    s_addr = config->address;
-    s_emissivity = config->emissivity;
-
-    const i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = config->address,
-        .scl_speed_hz = config->scl_hz,
-    };
-    i2c_master_dev_handle_t dev;
-    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(config->bus, &dev_cfg, &dev), TAG, "add device");
-    mlx90640_i2c_set_device(dev);
-
     s_last_error = MLX90640_DumpEE(s_addr, s_eeprom);
     ESP_RETURN_ON_FALSE(s_last_error == 0, ESP_ERR_NOT_FOUND, TAG, "no MLX90640 at 0x%02x (err %d)", s_addr, s_last_error);
     s_last_error = MLX90640_ExtractParameters(s_eeprom, &s_params);
@@ -56,6 +44,30 @@ esp_err_t mlx90640_init(const mlx90640_config_t *config)
              (unsigned long)config->scl_hz);
     s_last_error = 0;
     return ESP_OK;
+}
+
+esp_err_t mlx90640_init(const mlx90640_config_t *config)
+{
+    ESP_RETURN_ON_FALSE(config != NULL && config->bus != NULL, ESP_ERR_INVALID_ARG, TAG, "no I2C bus");
+    s_addr = config->address;
+    s_emissivity = config->emissivity;
+
+    const i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = config->address,
+        .scl_speed_hz = config->scl_hz,
+    };
+    i2c_master_dev_handle_t dev;
+    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(config->bus, &dev_cfg, &dev), TAG, "add device");
+    mlx90640_i2c_set_device(dev);
+
+    const esp_err_t err = configure(config);
+    if (err != ESP_OK) {
+        /* Unregister again so a retry doesn't add one more device every attempt. */
+        mlx90640_i2c_set_device(NULL);
+        i2c_master_bus_rm_device(dev);
+    }
+    return err;
 }
 
 static esp_err_t wait_data_ready(int64_t deadline_us)

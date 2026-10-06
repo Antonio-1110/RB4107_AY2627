@@ -29,6 +29,11 @@ class InboundMessage(models.Model):
     outcome = models.CharField(max_length=24, default="accepted", db_index=True)
     error = models.TextField(blank=True)
 
+    class Meta:
+        # The live radar view reads one topic's last minute; without this index
+        # SQLite walks every row of the device (slower as the database grows).
+        indexes = [models.Index(fields=["device", "topic", "received_at"], name="inbound_device_topic_received")]
+
 
 class Reading(models.Model):
     device = models.ForeignKey(Device, on_delete=models.CASCADE)

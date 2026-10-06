@@ -49,7 +49,8 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": env("RB4107_SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
-        "OPTIONS": {"timeout": 20},
+        # WAL: the dashboard's reads no longer block the MQTT subscriber's writes.
+        "OPTIONS": {"timeout": 20, "init_command": "PRAGMA journal_mode=WAL;"},
     }
 }
 
