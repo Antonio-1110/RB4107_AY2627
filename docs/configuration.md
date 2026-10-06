@@ -118,9 +118,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `CONFIG_RB_BUZZER_GPIO` | Buzzer GPIO (-1 = none) | `46` | -1 – 48 | ⚠ |
+| `CONFIG_RB_BUZZER_GPIO` | Buzzer GPIO (-1 = none) | `46` | -1 – 48 |  |
 | `CONFIG_RB_BUZZER_ACTIVE_LEVEL` | Level that sounds the buzzer | `1` | 0 – 1 |  |
-| `RB_BUZZER_DRIVE` (choice) | Buzzer type: `CONFIG_RB_BUZZER_DRIVE_GPIO` = active buzzer (GPIO level); `CONFIG_RB_BUZZER_DRIVE_PWM` = passive buzzer (LEDC PWM tone) | `CONFIG_RB_BUZZER_DRIVE_GPIO` |  | ⚠ |
+| `RB_BUZZER_DRIVE` (choice) | Buzzer type: `CONFIG_RB_BUZZER_DRIVE_GPIO` = active buzzer (GPIO level); `CONFIG_RB_BUZZER_DRIVE_PWM` = passive buzzer (LEDC PWM tone) | `CONFIG_RB_BUZZER_DRIVE_PWM` |  |  |
 | `CONFIG_RB_BUZZER_TONE_HZ` | Tone frequency (Hz) | `2700` | 200 – 10000 |  |
 
 ## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Shutdown relay

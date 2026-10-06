@@ -522,8 +522,8 @@ menu "RB4107 configuration"
                 range -1 48
                 default 46
                 help
-                    From the earlier prototype controller. UNCONFIRMED: check the
-                    Waveshare schematic.
+                    From the earlier prototype controller. Confirmed on the
+                    bench with testing/buzzer.
 
             config RB_BUZZER_ACTIVE_LEVEL
                 int "Level that sounds the buzzer"
@@ -532,10 +532,11 @@ menu "RB4107 configuration"
 
             choice RB_BUZZER_DRIVE
                 prompt "Buzzer type"
-                default RB_BUZZER_DRIVE_GPIO
+                default RB_BUZZER_DRIVE_PWM
                 help
-                    UNCONFIRMED: an active buzzer only needs a DC level, a
-                    passive one needs a tone (PWM).
+                    An active buzzer only needs a DC level, a passive one
+                    needs a tone (PWM). The Waveshare board's buzzer is
+                    passive (bench test: a DC level only clicks).
                 config RB_BUZZER_DRIVE_GPIO
                     bool "active buzzer (GPIO level)"
                 config RB_BUZZER_DRIVE_PWM
