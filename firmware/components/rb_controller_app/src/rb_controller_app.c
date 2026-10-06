@@ -23,18 +23,30 @@
 #include "rb_time.h"
 #include "rb_topics.h"
 #include "rb_wallclock.h"
+#if CONFIG_RB_CTRL_VALVE_WIRELESS
+#include "rb_valve_link.h"
+#endif
 
 static const char *TAG = "CONTROLLER";
 
 static void apply_outputs(const safety_outputs_t *out, void *ctx)
 {
     rb_outputs_apply(out);
+#if CONFIG_RB_CTRL_VALVE_WIRELESS
+    rb_valve_link_set_shutdown(out->shutdown);
+#endif
 }
 
 static void node_packet(const rb_espnow_rx_t *rx, void *ctx)
 {
     rb_c4002_relay_on_packet(rx);
 }
+#if CONFIG_RB_CTRL_VALVE_WIRELESS
+static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
+{
+    return rb_valve_link_on_packet(packet, rx_ms);
+}
+#endif
 
 #if CONFIG_RB_CTRL_REMOTE_RESET
 /* MQTT task: operator reset sent from the dashboard (docs/remote_reset.md). */
@@ -84,6 +96,9 @@ esp_err_t rb_controller_app_start(void)
         .safety_fault_active = rb_app_faults_safety_active,
         .node_events = rb_app_faults_node_events,
         .node_packet = node_packet,
+#if CONFIG_RB_CTRL_VALVE_WIRELESS
+        .valve_packet = valve_packet,
+#endif
     };
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT
@@ -98,6 +113,11 @@ esp_err_t rb_controller_app_start(void)
 #else
     ESP_RETURN_ON_ERROR(rb_espnow_start(CONFIG_RB_ESPNOW_CHANNEL), TAG, "ESP-NOW");
     ESP_RETURN_ON_ERROR(rb_espnow_start_receiver(rb_controller_rx_queue()), TAG, "ESP-NOW receiver");
+#if CONFIG_RB_CTRL_VALVE_WIRELESS
+    if (rb_valve_link_start() != ESP_OK) {
+        ESP_LOGE(TAG, "wireless valve link not started: the valve node will stay closed");
+    }
+#endif
 #endif
 
     /* Telemetry path: best effort, never fatal. */

@@ -1,0 +1,2 @@
+# Wireless version: build with this file on top of sdkconfig.defaults (see README).
+CONFIG_RB_VALVE_MODE_WIRELESS=y

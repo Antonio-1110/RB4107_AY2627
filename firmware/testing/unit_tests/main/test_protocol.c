@@ -104,6 +104,38 @@ static void test_rejects_corruption(void)
     TEST_ASSERT_EQUAL(RB_DECODE_ERR_LENGTH, rb_protocol_decode(NULL, 0, &rx));
 }
 
+static void test_valve_messages_roundtrip(void)
+{
+    uint8_t buf[RB_PKT_MAX_LEN];
+    rb_packet_t rx;
+    rb_packet_t tx = {.type = RB_MSG_VALVE_COMMAND, .role = RB_NODE_ROLE_CONTROLLER, .sequence = 11};
+    tx.body.valve_command = (rb_valve_command_t){.command = RB_VALVE_CMD_KEEP_OPEN, .valve_node_id = 4};
+    size_t len = rb_protocol_encode(&tx, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL(RB_PKT_VALVE_COMMAND_LEN, len);
+    TEST_ASSERT_EQUAL(RB_DECODE_OK, rb_protocol_decode(buf, len, &rx));
+    TEST_ASSERT_EQUAL(RB_VALVE_CMD_KEEP_OPEN, rx.body.valve_command.command);
+    TEST_ASSERT_EQUAL_UINT32(4, rx.body.valve_command.valve_node_id);
+
+    tx = (rb_packet_t){.type = RB_MSG_VALVE_STATUS, .role = RB_NODE_ROLE_VALVE, .node_id = 4};
+    tx.body.valve_status = (rb_valve_status_t){.position = RB_VALVE_POS_CLOSED, .flags = RB_VALVE_FLAG_MOVING,
+                                               .reason = RB_VALVE_REASON_LINK_TIMEOUT, .last_command_seq = 11};
+    len = rb_protocol_encode(&tx, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL(RB_PKT_VALVE_STATUS_LEN, len);
+    TEST_ASSERT_EQUAL(RB_DECODE_OK, rb_protocol_decode(buf, len, &rx));
+    TEST_ASSERT_EQUAL(RB_VALVE_POS_CLOSED, rx.body.valve_status.position);
+    TEST_ASSERT_EQUAL_UINT8(RB_VALVE_FLAG_MOVING, rx.body.valve_status.flags);
+    TEST_ASSERT_EQUAL(RB_VALVE_REASON_LINK_TIMEOUT, rx.body.valve_status.reason);
+    TEST_ASSERT_EQUAL_UINT32(11, rx.body.valve_status.last_command_seq);
+
+    /* Only the controller commands the valve, and only the valve node reports it. */
+    tx = (rb_packet_t){.type = RB_MSG_VALVE_COMMAND, .role = RB_NODE_ROLE_PRESENCE};
+    TEST_ASSERT_EQUAL(0, rb_protocol_encode(&tx, buf, sizeof(buf)));
+    tx = (rb_packet_t){.type = RB_MSG_VALVE_STATUS, .role = RB_NODE_ROLE_CONTROLLER};
+    TEST_ASSERT_EQUAL(0, rb_protocol_encode(&tx, buf, sizeof(buf)));
+    tx = (rb_packet_t){.type = RB_MSG_HEARTBEAT, .role = RB_NODE_ROLE_VALVE};
+    TEST_ASSERT_EQUAL(0, rb_protocol_encode(&tx, buf, sizeof(buf)));
+}
+
 static void test_encode_rejects_bad_input(void)
 {
     rb_packet_t tx = {.type = (rb_msg_type_t)99, .role = RB_NODE_ROLE_PRESENCE};
@@ -120,5 +152,6 @@ void run_protocol_tests(void)
     RUN_TEST(test_unknown_and_saturated_values);
     RUN_TEST(test_role_must_match_data);
     RUN_TEST(test_rejects_corruption);
+    RUN_TEST(test_valve_messages_roundtrip);
     RUN_TEST(test_encode_rejects_bad_input);
 }

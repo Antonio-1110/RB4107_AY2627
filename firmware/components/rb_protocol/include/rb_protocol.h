@@ -2,7 +2,8 @@
 
 /*
  * RB4107 sensor-node -> controller protocol over ESP-NOW (TODO section 4),
- * plus the controller -> presence node C4002 tuning messages.
+ * plus the controller <-> valve node messages and the C4002 tuning messages
+ * between the controller and the presence nodes.
  *
  * The C6 sender and the S3 receiver both compile this one file, so they can't
  * drift apart. Packets are serialised field by field in little-endian order;
@@ -35,7 +36,8 @@ extern "C" {
 typedef enum {
     RB_NODE_ROLE_PRESENCE = 1,   /* one C4002 radar (firmware/presence_node) */
     RB_NODE_ROLE_THERMAL = 2,    /* one MLX90640 (firmware/thermal_node) */
-    RB_NODE_ROLE_CONTROLLER = 4, /* the S3, when it sends a command to a node (3 is the valve node) */
+    RB_NODE_ROLE_VALVE = 3,      /* servo gas valve (firmware/valve_node, wireless mode) */
+    RB_NODE_ROLE_CONTROLLER = 4, /* the S3, when it commands the valve node or a presence node */
 } rb_node_role_t;
 
 typedef enum {
@@ -43,11 +45,40 @@ typedef enum {
     RB_MSG_THERMAL_DATA = 2,     /* thermal nodes only */
     RB_MSG_HEARTBEAT = 3,
     RB_MSG_SENSOR_FAULT = 4,
-    /* 5 and 6 are kept for the valve node messages. */
+    RB_MSG_VALVE_COMMAND = 5,    /* controller -> valve node */
+    RB_MSG_VALVE_STATUS = 6,     /* valve node -> controller */
     RB_MSG_C4002_CONFIG = 7,     /* controller -> presence node */
     RB_MSG_C4002_CONFIG_ACK = 8, /* presence node -> controller */
     RB_MSG_C4002_LIVE = 9,       /* presence node -> controller: raw C4002 result, for the dashboard */
 } rb_msg_type_t;
+
+/* VALVE_COMMAND. Any value other than KEEP_OPEN is treated as CLOSE. */
+typedef enum {
+    RB_VALVE_CMD_KEEP_OPEN = 1,
+    RB_VALVE_CMD_CLOSE = 2,
+} rb_valve_cmd_t;
+
+/* Commanded valve position (a hobby servo has no position feedback). */
+typedef enum {
+    RB_VALVE_POS_OPEN = 1,
+    RB_VALVE_POS_CLOSED = 2,
+} rb_valve_pos_t;
+
+/* Why the valve is closed. */
+typedef enum {
+    RB_VALVE_REASON_NONE = 0,          /* open */
+    RB_VALVE_REASON_BOOT = 1,          /* closed since power-up, no keep-open yet */
+    RB_VALVE_REASON_COMMAND = 2,       /* the controller sent CLOSE */
+    RB_VALVE_REASON_LINK_TIMEOUT = 3,  /* no keep-open within the timeout */
+    RB_VALVE_REASON_WIRED_LINE = 4,    /* wired mode: the input went high */
+} rb_valve_reason_t;
+
+/* VALVE_STATUS flags. */
+enum {
+    RB_VALVE_FLAG_MOVING = 1u << 0,    /* the servo may still be travelling */
+    RB_VALVE_FLAG_LATCHED = 1u << 1,   /* stays closed until the valve node is reset */
+};
+
 
 /* C4002_CONFIG actions. */
 typedef enum {
@@ -96,6 +127,8 @@ typedef enum {
 #define RB_BODY_THERMAL_DATA_LEN 17u
 #define RB_BODY_HEARTBEAT_LEN 10u
 #define RB_BODY_SENSOR_FAULT_LEN 8u
+#define RB_BODY_VALVE_COMMAND_LEN 5u
+#define RB_BODY_VALVE_STATUS_LEN 7u
 #define RB_C4002_PARAMS_LEN (20u + 2u * RB_C4002_MAX_GATES)
 #define RB_BODY_C4002_CONFIG_LEN (13u + RB_C4002_PARAMS_LEN)
 #define RB_BODY_C4002_CONFIG_ACK_LEN (7u + RB_C4002_PARAMS_LEN)
@@ -104,6 +137,8 @@ typedef enum {
 #define RB_PKT_THERMAL_DATA_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_HEARTBEAT_LEN (RB_HEADER_LEN + RB_BODY_HEARTBEAT_LEN + RB_CRC_LEN)
 #define RB_PKT_SENSOR_FAULT_LEN (RB_HEADER_LEN + RB_BODY_SENSOR_FAULT_LEN + RB_CRC_LEN)
+#define RB_PKT_VALVE_COMMAND_LEN (RB_HEADER_LEN + RB_BODY_VALVE_COMMAND_LEN + RB_CRC_LEN)
+#define RB_PKT_VALVE_STATUS_LEN (RB_HEADER_LEN + RB_BODY_VALVE_STATUS_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_CONFIG_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_CONFIG_ACK_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_ACK_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_LIVE_LEN (RB_HEADER_LEN + RB_BODY_C4002_LIVE_LEN + RB_CRC_LEN)
@@ -112,7 +147,8 @@ typedef enum {
 _Static_assert(RB_PKT_MAX_LEN <= RB_ESPNOW_MAX_PAYLOAD, "packet exceeds ESP-NOW payload");
 _Static_assert(RB_PKT_MAX_LEN >= RB_PKT_PRESENCE_DATA_LEN && RB_PKT_MAX_LEN >= RB_PKT_HEARTBEAT_LEN &&
                    RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN && RB_PKT_MAX_LEN >= RB_PKT_THERMAL_DATA_LEN &&
-                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN && RB_PKT_MAX_LEN >= RB_PKT_C4002_LIVE_LEN,
+                   RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN && RB_PKT_MAX_LEN >= RB_PKT_C4002_LIVE_LEN &&
+                   RB_PKT_MAX_LEN >= RB_PKT_VALVE_COMMAND_LEN && RB_PKT_MAX_LEN >= RB_PKT_VALVE_STATUS_LEN,
                "RB_PKT_MAX_LEN must cover every message");
 
 typedef struct {
@@ -126,6 +162,18 @@ typedef struct {
     uint16_t changed_flags;    /* bits that changed and triggered this message */
     int32_t detail;            /* driver error code, 0 if none */
 } rb_sensor_fault_msg_t;
+
+typedef struct {
+    rb_valve_cmd_t command;
+    uint32_t valve_node_id;    /* RB_NODE_ID of the valve node this is meant for */
+} rb_valve_command_t;
+
+typedef struct {
+    rb_valve_pos_t position;
+    uint8_t flags;             /* RB_VALVE_FLAG_* */
+    rb_valve_reason_t reason;
+    uint32_t last_command_seq; /* sequence of the last VALVE_COMMAND accepted, 0 if none */
+} rb_valve_status_t;
 
 typedef struct {
     uint32_t target_node_id;   /* RB_NODE_ID of the presence node this is for */
@@ -176,6 +224,8 @@ typedef struct {
         thermal_reading_t thermal;     /* RB_MSG_THERMAL_DATA */
         rb_heartbeat_t heartbeat;
         rb_sensor_fault_msg_t fault;
+        rb_valve_command_t valve_command;
+        rb_valve_status_t valve_status;
         rb_c4002_config_msg_t c4002_config;  /* RB_MSG_C4002_CONFIG */
         rb_c4002_ack_t c4002_ack;            /* RB_MSG_C4002_CONFIG_ACK */
         rb_c4002_live_t c4002_live;          /* RB_MSG_C4002_LIVE */
@@ -200,7 +250,7 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
 
 const char *rb_decode_result_name(rb_decode_result_t result);
 const char *rb_msg_type_name(rb_msg_type_t type);
-const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" / "controller" */
+const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" / "valve" / "controller" */
 
 /*
  * Check every C4002 parameter against the sensor's limits. Returns NULL if

@@ -23,6 +23,7 @@ void run_thermal_tests(void);
 void run_json_tests(void);
 void run_kconfig_tests(void);
 void run_c4002_tuning_tests(void);
+void run_valve_tests(void);
 void run_ctrl_cmd_tests(void);
 
 void setUp(void) {}
@@ -40,6 +41,7 @@ void app_main(void)
     run_json_tests();
     run_kconfig_tests();
     run_c4002_tuning_tests();
+    run_valve_tests();
     run_ctrl_cmd_tests();
     const int failures = UNITY_END();
 #if CONFIG_IDF_TARGET_LINUX
