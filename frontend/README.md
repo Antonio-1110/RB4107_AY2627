@@ -8,9 +8,10 @@ and can not operate, silence or reset anything on the controller.
 index.html        page layout: overview and stall detail views
 css/dashboard.css styling
 js/config.js      API base URL, poll interval, request timeout
-js/api.js         the GET calls the page makes (/api/devices/, history, events)
+js/api.js         the GET calls the page makes (/api/devices/, history, events, thermal_frame)
 js/dashboard.js   state, polling and rendering of both views
 js/chart.js       temperature history canvas
+js/heatmap.js     thermal camera heat map canvas
 js/dom.js         small DOM helpers
 js/format.js      value formatting
 ```

@@ -18,7 +18,7 @@ def thermal_fields(thermal):
     valid = thermal.get("valid") is True
     mapping = {"temperature_c": "max_c", "temperature_avg_c": "mean_c",
                "temperature_min_c": "min_c", "hot_region_c": "hot_region_c",
-               "rate_c_per_min": "rate_c_per_min"}
+               "rate_c_per_min": "rate_c_per_min", "pixels_above_threshold": "pixels_above_threshold"}
     return {key: finite(thermal.get(source)) if valid else None for key, source in mapping.items()}
 
 

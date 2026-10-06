@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from ingest.demo import demo_telemetry
+from ingest.demo import demo_telemetry, demo_thermal_frame
 from ingest.handlers import handle
 from ingest.locations import load_location_catalog
 from ingest.storage import worker_status
@@ -49,15 +49,18 @@ class Command(BaseCommand):
                     worker_status(True, mode="demo-direct")
                 for index, controller_id in enumerate(ids):
                     concrete = "/".join(controller_id if part == "+" else part for part in prefix.split("/"))
-                    topic = f"{concrete}/controller/state"
-                    data = demo_telemetry(controller_id, index, tick, boot_id)
-                    payload = json.dumps(data).encode()
-                    msg = parse(topic, payload, prefix)
-                    if options["direct"]:
-                        handle(msg)
-                    else:
-                        # Never replace a real controller's retained broker snapshot.
-                        client.publish(topic, payload, qos=1, retain=False).wait_for_publish(5)
+                    for topic, data in (
+                        (f"{concrete}/controller/state", demo_telemetry(controller_id, index, tick, boot_id)),
+                        (f"{concrete}/sensors/node_03/thermal_frame",
+                         demo_thermal_frame(controller_id, index, tick, boot_id)),
+                    ):
+                        payload = json.dumps(data).encode()
+                        msg = parse(topic, payload, prefix)
+                        if options["direct"]:
+                            handle(msg)
+                        else:
+                            # Never replace a real controller's retained broker snapshot.
+                            client.publish(topic, payload, qos=1, retain=False).wait_for_publish(5)
                 tick += 1
                 if options["once"]:
                     break

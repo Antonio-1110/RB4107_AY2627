@@ -48,7 +48,7 @@ warning/shutdown timing (`test_kconfig.c`); self-test pass/fail/timeout, latched
 restarting the timing, heat detected after the person already left, the
 optional rate threshold, the timing hook only ever shortening, 32-bit clock
 wrap-around, config validation, the sequence tracking edge cases, protocol
-presence/thermal packet round trips and corruption on every byte, C4002 frame resync and errors, thermal features,
+presence/thermal packet round trips and corruption on every byte, heat-map picture pieces (round trip, corruption, roles) and their reassembly (lost or mixed-up pieces), C4002 frame resync and errors, thermal features,
 JSON null/escaping/overflow, and the topic table.
 
 All tests pass on the host (linux target) and on the ESP32-S3 (QEMU).

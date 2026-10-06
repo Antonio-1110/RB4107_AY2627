@@ -20,6 +20,7 @@ void run_fault_tests(void);
 void run_protocol_tests(void);
 void run_c4002_tests(void);
 void run_thermal_tests(void);
+void run_thermal_frame_tests(void);
 void run_json_tests(void);
 void run_kconfig_tests(void);
 void run_c4002_tuning_tests(void);
@@ -37,6 +38,7 @@ void app_main(void)
     run_protocol_tests();
     run_c4002_tests();
     run_thermal_tests();
+    run_thermal_frame_tests();
     run_json_tests();
     run_kconfig_tests();
     run_c4002_tuning_tests();

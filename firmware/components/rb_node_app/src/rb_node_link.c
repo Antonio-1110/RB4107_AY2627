@@ -75,6 +75,9 @@ static void link_task(void *arg)
             pkt.body.heartbeat = (rb_heartbeat_t){.fault_flags = faults, .tx_ok = st.delivered, .tx_fail = st.failed};
             rb_node_link_send(&pkt);
         }
+        if (s_cfg.extra != NULL) {
+            s_cfg.extra(now, s_cfg.ctx);
+        }
         if ((int32_t)(now - next_log) >= 0) {
             next_log = now + CONFIG_RB_NODE_HEALTH_LOG_PERIOD_MS;
             rb_espnow_tx_stats_t st;
@@ -89,6 +92,18 @@ static void link_task(void *arg)
             }
         }
     }
+}
+
+esp_err_t rb_node_link_send_frame_piece(uint32_t frame_number, const rb_thermal_frame_piece_t *piece)
+{
+    const rb_packet_t hdr = {
+        .type = RB_MSG_THERMAL_FRAME,
+        .role = s_cfg.role,
+        .node_id = CONFIG_RB_NODE_ID,
+        .sequence = frame_number,
+        .uptime_ms = now_ms(),
+    };
+    return rb_espnow_send_frame_piece(s_peer, &hdr, piece);
 }
 
 esp_err_t rb_node_link_start(const rb_node_link_config_t *config)

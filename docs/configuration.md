@@ -79,6 +79,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_THERMAL_VALID_MAX_DC` | Highest plausible pixel temperature (0.1 degC) | `3000` | 500 – 4000 |  |
 | `CONFIG_RB_THERMAL_MAX_INVALID_PIXELS` | Invalid pixels tolerated per frame | `8` | 0 – 768 |  |
 | `CONFIG_RB_THERMAL_DIAG_DUMP_EVERY` | Dump the raw frame over serial every N frames (0 = never) | `0` | 0 – 10000 |  |
+| `CONFIG_RB_THERMAL_HEATMAP` | Send the heat-map picture to the controller (dashboard) | `y` |  |  |
+| `CONFIG_RB_THERMAL_HEATMAP_PERIOD_MS` | Heat-map picture period (ms) | `3000` | 1000 – 10000 |  |
 
 ## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)
 
@@ -185,6 +187,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_MQTT_OUTBOX_LIMIT_KB` | Outbox limit while disconnected (KB) | `32` | 4 – 256 |  |
 | `CONFIG_RB_MQTT_TELEMETRY_PERIOD_MS` | Periodic telemetry interval (ms) | `1000` | 200 – 60000 |  |
 | `CONFIG_RB_MQTT_PUBLISH_SENSOR_TOPICS` | Also publish per-node presence/thermal topics every period | `y` |  |  |
+| `CONFIG_RB_MQTT_PUBLISH_HEATMAP` | Publish the thermal node's heat-map pictures | `y` |  |  |
 
 ## Diagnostics / simulation
 

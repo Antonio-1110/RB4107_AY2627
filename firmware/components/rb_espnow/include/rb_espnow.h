@@ -37,6 +37,14 @@ esp_err_t rb_espnow_add_peer(const uint8_t mac[6]);
  */
 esp_err_t rb_espnow_send(const uint8_t mac[6], rb_packet_t *pkt);
 
+/*
+ * Send one THERMAL_FRAME piece. hdr->sequence is the frame number and is sent
+ * as given: frame pieces don't use the node's packet sequence, so the
+ * controller's missed-packet count only covers the packets it tracks.
+ */
+esp_err_t rb_espnow_send_frame_piece(const uint8_t mac[6], const rb_packet_t *hdr,
+                                     const rb_thermal_frame_piece_t *piece);
+
 void rb_espnow_get_tx_stats(rb_espnow_tx_stats_t *out);
 
 /* ---- Receiver (controller side) ---- */
@@ -58,7 +66,16 @@ typedef struct {
     uint32_t bad_crc;
     uint32_t bad_role;          /* unknown role, or data that does not match the role */
     uint32_t queue_overflow;    /* dropped because the consumer fell behind */
+    uint32_t frame_pieces;      /* valid THERMAL_FRAME pieces passed to the frame handler */
 } rb_espnow_rx_stats_t;
+
+/*
+ * Receives THERMAL_FRAME pieces, which never go to the receive queue (they
+ * are display only and much bigger than the other packets). Runs in the
+ * Wi-Fi task: must be quick and must not block.
+ */
+typedef void (*rb_espnow_frame_handler_t)(const rb_packet_t *hdr, const rb_thermal_frame_piece_t *piece,
+                                          void *ctx);
 
 /*
  * Validate every received frame (length, magic, version, type, CRC) and post
@@ -66,6 +83,9 @@ typedef struct {
  * rb_espnow_start() first.
  */
 esp_err_t rb_espnow_start_receiver(QueueHandle_t queue);
+
+/* Optional. Without a handler, THERMAL_FRAME pieces are ignored. Set it before rb_espnow_start_receiver(). */
+void rb_espnow_set_frame_handler(rb_espnow_frame_handler_t handler, void *ctx);
 
 void rb_espnow_get_rx_stats(rb_espnow_rx_stats_t *out);
 

@@ -112,6 +112,7 @@ For fault events, `fault` is `{"name": "mqtt_disconnected", "class": "TELEMETRY"
 | `faults` | `controller/faults` | `faults: [{name, class}]` (active faults) |
 | `presence` | `sensors/<node>/presence` (each presence node) | `sensor_node`, `presence{valid, detected, moving, stationary, distance_m}` |
 | `thermal` | `sensors/<node>/thermal` (the thermal node) | `sensor_node`, `thermal{...}` |
+| `thermal_frame` | `sensors/<node>/thermal_frame` (the thermal node) | `sensor_node`, `frame{...}` (below) |
 | `node_status` | `sensors/<node>/status` | `sensor_node`, `role` (`presence` / `thermal`), `link`, `valid`, `node_fault_flags`, `missed_packets`, `restarts` |
 | `controller_status` | `controller/status` | `boot_id`, `online` (retained; the Last Will publishes `false`) |
 | `c4002_live` | `sensors/<node>/c4002_live` (presence nodes) | `sensor_node`, `node_uptime_ms`, `results`, `age_ms`, `target`, `gate_size_cm`, `presence_gates[]`, `presence{distance_cm, energy, countdown_s}`, `motion{distance_cm, speed_cm_s, energy, direction}`, `light_lux`, `calibration_remaining_s` |
@@ -120,3 +121,29 @@ For fault events, `fault` is `{"name": "mqtt_disconnected", "class": "TELEMETRY"
 The one message the controller receives, `c4002_command` on
 `sensors/<node>/c4002_set`, is also in the schema file; see
 [c4002_tuning.md](c4002_tuning.md).
+
+## `thermal_frame` (topic `sensors/<node>/thermal_frame`)
+
+One MLX90640 picture for the dashboard heat map, about every 3 s. Display
+only: the safety decision uses the `thermal` values, never this. About 1.3 KB.
+
+```json
+{
+  "schema_version": 2, "type": "thermal_frame", "controller_id": "controller_01",
+  "boot_id": "3f9a01c2", "timestamp": null, "uptime_ms": 51310, "sequence": 312,
+  "sensor_node": "node_03",
+  "frame": {"number": 17, "width": 32, "height": 24, "base_c": 24.00, "step_c": 0.56,
+            "invalid": 255, "hot_threshold_c": 50.0, "hot_region_radius": 1,
+            "encoding": "u8_base64", "pixels": "/wAAAAAA...(1024 characters)"}
+}
+```
+
+- `pixels` is base64 of `width × height` bytes, row by row. Pixel value `v` is
+  `base_c + v × step_c` °C; the value `invalid` (255) means no reading.
+- `hot_threshold_c` and `hot_region_radius` are the node's own settings
+  (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, `RB_THERMAL_HOT_REGION_RADIUS`), so the
+  dashboard can outline the pixels and region its `thermal` values come from.
+- `number` is the thermal node's picture counter; it restarts when the node
+  reboots. The header's `uptime_ms` and `timestamp` are when the controller
+  received the picture.
+- Not retained: a late subscriber waits a few seconds for the next picture.

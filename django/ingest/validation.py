@@ -8,6 +8,8 @@ message can't kill the subscriber.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import math
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ TYPE_TO_DEF = {
     "faults": "faults",
     "presence": "presence_msg",
     "thermal": "thermal_msg",
+    "thermal_frame": "thermal_frame_msg",
     "node_status": "node_status",
     "event": "event",
     "controller_status": "controller_status",
@@ -42,6 +45,7 @@ TOPIC_TYPES = {
     "controller/faults": {"faults"},
     "sensors/*/presence": {"presence"},
     "sensors/*/thermal": {"thermal"},
+    "sensors/*/thermal_frame": {"thermal_frame"},
     "sensors/*/status": {"node_status"},
     "events/warning": {"event"},
     "events/shutdown": {"event"},
@@ -157,7 +161,19 @@ def parse(topic: str, payload: bytes, prefix: str | None = None) -> Message:
     if error is not None:
         where = "/".join(str(p) for p in error.absolute_path) or "(root)"
         raise InvalidMessage(f"schema: {error.message} at {where}")
+    if msg_type == "thermal_frame":
+        _check_pixels(data["frame"])
     return Message(topic=topic, kind=kind, type=msg_type, data=data)
+
+
+def _check_pixels(frame: dict) -> None:
+    """The schema checks the base64 text; this checks it decodes to one byte per pixel."""
+    try:
+        pixels = base64.b64decode(frame["pixels"], validate=True)
+    except (binascii.Error, ValueError):
+        raise InvalidMessage("schema: frame.pixels is not valid base64") from None
+    if len(pixels) != frame["width"] * frame["height"]:
+        raise InvalidMessage(f"schema: frame.pixels has {len(pixels)} bytes, expected width*height")
 
 
 def _reject_constant(value):

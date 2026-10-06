@@ -28,6 +28,12 @@ typedef struct {
     uint16_t (*sample)(rb_packet_t *data, void *ctx);
     /* One-line summary of a reading for the periodic log. */
     void (*describe)(const rb_packet_t *data, char *buf, size_t len);
+    /*
+     * Optional. Called every tick after the regular packets, to send extra
+     * display-only packets (the thermal node's heat-map pieces) with
+     * rb_node_link_send_frame_piece(). Must not block.
+     */
+    void (*extra)(uint32_t now_ms, void *ctx);
     void *ctx;
 } rb_node_link_config_t;
 
@@ -41,6 +47,8 @@ esp_err_t rb_node_link_send(rb_packet_t *pkt);
 
 /* The controller's MAC (RB_NODE_CONTROLLER_MAC): commands from anyone else are ignored. */
 void rb_node_link_controller_mac(uint8_t mac[6]);
+/* Send one THERMAL_FRAME piece to the controller. Call it from the extra hook. */
+esp_err_t rb_node_link_send_frame_piece(uint32_t frame_number, const rb_thermal_frame_piece_t *piece);
 
 #ifdef __cplusplus
 }
