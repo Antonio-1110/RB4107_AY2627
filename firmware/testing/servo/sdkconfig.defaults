@@ -1,0 +1,2 @@
+# No CONFIG_IDF_TARGET: pick the valve node's chip with `idf.py set-target <chip>`.
+# Pins and angles: menuconfig -> RB4107 configuration -> Valve node (servo gas valve).
