@@ -28,7 +28,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DJANGO_DIR="$ROOT/django"
 # Reachable from the LAN: other machines open http://<this Mac's IP>:8000/.
-# Their address must be in DJANGO_ALLOWED_HOSTS (django/.env).
+# The address they use must be in DJANGO_ALLOWED_HOSTS (the IP and .local
+# name are by default).
 HTTP_ADDR="${RB4107_HTTP_ADDR:-0.0.0.0:8000}"
 MQTT_PORT=1883
 PID_FILE="${TMPDIR:-/tmp}/rb4107_dev.pid" # read by tools/stop_dev.sh
@@ -63,9 +64,6 @@ if [[ -z "$PYTHON" ]] || ! "$PYTHON" -c "import django, paho.mqtt, jsonschema" 2
     echo "[dev] Django requirements are missing. Set up the venv first:" >&2
     echo "      cd django && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt" >&2
     exit 1
-fi
-if [[ ! -f "$DJANGO_DIR/.env" ]]; then
-    echo "[dev] note: django/.env not found, using defaults (cp .env.example .env to customise)"
 fi
 
 port_open() {

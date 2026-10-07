@@ -36,17 +36,18 @@ idf.py -B build_b -D SDKCONFIG=build_b/sdkconfig \
        -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.node_b" -p <PORT> flash monitor
 ```
 
-Order:
+**No configuration is needed.** The defaults are this project's hardware:
+pins, relay polarity, buzzer, radar settings, node IDs, the S3's MAC on every
+node (`44:B1:76:A9:BB:6C`) and the MacBook as the broker
+(`AntoniodeMacBook-Air.local`, then `192.168.1.50`). Build and flash each
+board in any order; at boot the controller logs `ONLINE` for each node as it
+hears it.
 
-1. **Controller:** in `idf.py menuconfig` → *RB4107 configuration* check the
-   broker host (`RB_BROKER_HOST`, already the MacBook's `.local` name, see
-   [Broker](#broker)) and the ESP-NOW channel (`RB_ESPNOW_CHANNEL`). Flash it and copy the MAC address it prints.
-2. **Each C6 node:** `RB_NODE_CONTROLLER_MAC` must be that MAC. Each node's
-   `sdkconfig.defaults` already has this project's S3 (`44:B1:76:A9:BB:6C`);
-   change it there only if the S3 board is replaced. Use the same channel,
-   then flash. The MAC matters: a node only follows the controller
-   to another channel (below) when it knows the controller's MAC.
-3. At boot the controller logs `ONLINE` for each node as it hears it.
+If a project was built before these defaults changed, delete its
+`sdkconfig` (and `build_b/sdkconfig` for node B) first: an existing
+`sdkconfig` keeps its old values. Change a default only when the hardware
+changes, e.g. `RB_NODE_CONTROLLER_MAC` in the nodes' `sdkconfig.defaults` if
+the S3 board is replaced.
 
 **New to the hardware?** Check each part on its own first with the projects in
 [`firmware/testing/`](../firmware/testing) (radar, thermal camera, buzzer,
@@ -104,8 +105,6 @@ First time only:
 cd django
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-python manage.py migrate
 ```
 
 Then, from the repository root:

@@ -46,8 +46,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_C4002_APPLY_SETTINGS` | Push the detection settings below to the sensor at boot | `y` |  |  |
 | `CONFIG_RB_C4002_REPORT_PERIOD_DS` | Report period (0.1 s units) | `5` | 1 – 255 |  |
 | `CONFIG_RB_C4002_RANGE_MIN_CM` | Detection range minimum (cm) | `0` | 0 – 1100 |  |
-| `CONFIG_RB_C4002_RANGE_MAX_CM` | Detection range maximum (cm) | `1100` | 0 – 1100 |  |
-| `RB_C4002_RESOLUTION` (choice) | Distance gate resolution: `CONFIG_RB_C4002_RESOLUTION_80CM` = 80 cm (15 gates, ~11 m); `CONFIG_RB_C4002_RESOLUTION_20CM` = 20 cm (25 gates, ~4.9 m) | `CONFIG_RB_C4002_RESOLUTION_80CM` |  |  |
+| `CONFIG_RB_C4002_RANGE_MAX_CM` | Detection range maximum (cm) | `500` | 0 – 1100 |  |
+| `RB_C4002_RESOLUTION` (choice) | Distance gate resolution: `CONFIG_RB_C4002_RESOLUTION_80CM` = 80 cm (15 gates, ~11 m); `CONFIG_RB_C4002_RESOLUTION_20CM` = 20 cm (25 gates, ~4.9 m) | `CONFIG_RB_C4002_RESOLUTION_20CM` |  |  |
 | `CONFIG_RB_C4002_MOTION_SENSITIVITY` | Motion sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
 | `CONFIG_RB_C4002_PRESENCE_SENSITIVITY` | Static presence sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
 | `CONFIG_RB_C4002_DISAPPEAR_DELAY_S` | Target disappear delay (s) | `1` | 0 – 65535 |  |
@@ -184,6 +184,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `RB_NET_TYPE` (choice) | Controller network interface: `CONFIG_RB_NET_ETHERNET_WIFI` = Ethernet, Wi-Fi when Ethernet is down; `CONFIG_RB_NET_ETHERNET` = Ethernet (on-board W5500); `CONFIG_RB_NET_WIFI` = Wi-Fi station; `CONFIG_RB_NET_NONE` = none (local safety only); `CONFIG_RB_NET_QEMU_OPENETH` = QEMU emulated Ethernet (testing only, never on hardware) | `CONFIG_RB_NET_ETHERNET_WIFI` |  |  |
+| `CONFIG_RB_NET_USES_ETHERNET` |  | `y if RB_NET_ETHERNET || RB_NET_ETHERNET_WIFI` |  |  |
+| `CONFIG_RB_NET_USES_WIFI` |  | `y if RB_NET_WIFI || RB_NET_ETHERNET_WIFI` |  |  |
 | `CONFIG_RB_NET_FALLBACK_S` | Switch to Wi-Fi after Ethernet has had no IP address for (s) | `5` | 1 – 300 |  |
 
 ## Network (ESP32-S3) → W5500 Ethernet

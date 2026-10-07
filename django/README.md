@@ -29,13 +29,14 @@ Run from this folder with the virtualenv active.
 
 ## Configuration (environment variables)
 
-`django/.env` (copy from `.env.example`) is loaded automatically; exported
-environment variables win.
+The defaults are the demo setup, so nothing needs setting. To change
+something, copy `.env.example` to `django/.env` (loaded automatically);
+exported environment variables win.
 
 | Variable | Default | |
 |---|---|---|
 | `RB4107_MQTT_HOST` / `_PORT` | `localhost` / `1883` | broker |
-| `RB4107_MQTT_TOPIC` | `rb4107/#` | prefix must match the firmware's `RB_MQTT_TOPIC_PREFIX`; use `rb4107/+/#` for several controllers |
+| `RB4107_MQTT_TOPIC` | `rb4107/+/#` | one tree per controller, `rb4107/<controller_id>` (the firmware's `RB_MQTT_TOPIC_PREFIX`); `rb4107/#` for a single controller on the plain `rb4107` prefix |
 | `RB4107_MQTT_QOS` | `1` | subscription QoS |
 | `RB4107_MQTT_CLIENT_ID` | `rb4107-django-subscriber` | fixed, so the broker keeps a persistent session |
 | `RB4107_MQTT_PERSISTENT_SESSION` | `1` | broker queues QoS 1 events while the subscriber is down |

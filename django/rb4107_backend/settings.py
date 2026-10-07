@@ -23,7 +23,10 @@ def env(name: str, default: str) -> str:
 # beyond the bench.
 SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = env("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = [h for h in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
+# The defaults are the demo setup, so no django/.env is needed: this MacBook
+# by its fixed lab IP and its mDNS name (also the controller's broker).
+ALLOWED_HOSTS = [h for h in env("DJANGO_ALLOWED_HOSTS",
+                                "localhost,127.0.0.1,192.168.1.50,AntoniodeMacBook-Air.local").split(",") if h]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -69,7 +72,8 @@ RB4107_MQTT = {
     "PORT": int(env("RB4107_MQTT_PORT", "1883")),
     "USERNAME": env("RB4107_MQTT_USERNAME", "") or None,
     "PASSWORD": env("RB4107_MQTT_PASSWORD", "") or None,
-    "TOPIC": env("RB4107_MQTT_TOPIC", "rb4107/#"),
+    # One tree per controller: rb4107/<controller_id>/... (RB_MQTT_TOPIC_PREFIX).
+    "TOPIC": env("RB4107_MQTT_TOPIC", "rb4107/+/#"),
     "QOS": int(env("RB4107_MQTT_QOS", "1")),
     # A fixed client ID plus a persistent session means the broker queues
     # QoS 1 events (warnings, shutdowns, faults) while the subscriber is

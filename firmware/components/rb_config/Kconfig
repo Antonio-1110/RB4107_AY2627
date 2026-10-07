@@ -169,15 +169,16 @@ menu "RB4107 configuration"
             config RB_C4002_RANGE_MAX_CM
                 int "Detection range maximum (cm)"
                 range 0 1100
-                default 1100
+                default 500
                 depends on RB_C4002_APPLY_SETTINGS
                 help
-                    Shrinking this to the cooking area is one of the knobs for
-                    the false static-presence investigation.
+                    5 m covers a stall's cooking area (the demo setup). Shrinking
+                    this to the cooking area is one of the knobs for the false
+                    static-presence investigation.
 
             choice RB_C4002_RESOLUTION
                 prompt "Distance gate resolution"
-                default RB_C4002_RESOLUTION_80CM
+                default RB_C4002_RESOLUTION_20CM
                 depends on RB_C4002_APPLY_SETTINGS
                 config RB_C4002_RESOLUTION_80CM
                     bool "80 cm (15 gates, ~11 m)"
