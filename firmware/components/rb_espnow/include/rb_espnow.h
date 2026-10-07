@@ -47,6 +47,33 @@ esp_err_t rb_espnow_send_frame_piece(const uint8_t mac[6], const rb_packet_t *hd
 
 void rb_espnow_get_tx_stats(rb_espnow_tx_stats_t *out);
 
+/* ---- Following the controller's channel (node side) ---- */
+
+/*
+ * Sends one ordinary packet to the controller (e.g. a HEARTBEAT). Called
+ * from the follow task, so it must be safe from any task and must not block.
+ */
+typedef void (*rb_espnow_probe_fn_t)(void *ctx);
+
+/*
+ * Keep this node on the controller's channel, which is the access point's
+ * channel when the controller uses Wi-Fi. Starts on the channel saved in NVS,
+ * if any. After CONFIG_RB_ESPNOW_LOST_FAILURES unacknowledged packets in a
+ * row (or rb_espnow_follow_check()), a task probes the current channel, then
+ * channels 1-13, and stays on the first one the controller acknowledges.
+ * Call it after rb_espnow_start() and rb_espnow_add_peer(controller_mac).
+ * Does nothing when CONFIG_RB_ESPNOW_FOLLOW_CHANNEL is off, or when
+ * controller_mac is broadcast (broadcasts are never acknowledged).
+ */
+esp_err_t rb_espnow_follow_start(const uint8_t controller_mac[6], rb_espnow_probe_fn_t probe, void *ctx);
+
+/*
+ * Ask the follow task to check that the controller still acknowledges on
+ * the current channel, and search if it doesn't. For a node that mostly
+ * listens (the valve node). Never blocks.
+ */
+void rb_espnow_follow_check(void);
+
 /* ---- Receiver (controller side) ---- */
 
 /* One validated packet, as posted to the receive queue. */

@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
     rb_json_header_t hdr;
     uint8_t protocol_version;     /* ESP-NOW protocol version of the node data */
+    uint8_t espnow_channel;       /* radio channel ESP-NOW is on now (0 = unknown) */
 
     /* controller/state: the combined view. */
     const char *presence_state;   /* PRESENT / ABSENT / UNKNOWN, as the state machine used it */

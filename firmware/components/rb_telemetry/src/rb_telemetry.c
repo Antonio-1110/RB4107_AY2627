@@ -17,6 +17,7 @@
 #include "rb_time.h"
 #include "rb_topics.h"
 #include "rb_wallclock.h"
+#include "rb_wifi.h"
 
 static const char *TAG = "MQTT";
 
@@ -96,6 +97,7 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
 {
     memset(t, 0, sizeof(*t));
     t->protocol_version = RB_PROTOCOL_VERSION;
+    t->espnow_channel = rb_wifi_get_channel();
     t->presence_state = rb_tristate_presence_name(snap->inputs.presence);
 
     size_t count = 0;

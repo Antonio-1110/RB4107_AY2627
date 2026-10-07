@@ -108,6 +108,38 @@ static QueueHandle_t s_rx;
 static uint32_t s_last_cmd_seq;
 static uint32_t s_last_status_ms;
 static uint32_t s_commands;
+static uint32_t s_last_cmd_ms;
+static uint32_t s_last_check_ms;
+static portMUX_TYPE s_status_lock = portMUX_INITIALIZER_UNLOCKED;
+/* Latest VALVE_STATUS, resent as the channel probe. The valve starts closed. */
+static rb_valve_status_t s_status = {.position = RB_VALVE_POS_CLOSED, .reason = RB_VALVE_REASON_BOOT};
+
+/* Quiet this long and the controller may have changed channel: check it still acknowledges. */
+#define COMMAND_SILENCE_MS (CONFIG_RB_VALVE_LINK_TIMEOUT_MS / 2)
+
+static void send_status_packet(const rb_valve_status_t *status, uint32_t now)
+{
+    rb_packet_t pkt = {
+        .type = RB_MSG_VALVE_STATUS,
+        .role = RB_NODE_ROLE_VALVE,
+        .node_id = CONFIG_RB_NODE_ID,
+        .uptime_ms = now,
+    };
+    pkt.body.valve_status = *status;
+    const esp_err_t err = rb_espnow_send(s_controller, &pkt);
+    if (err != ESP_OK) {
+        RB_LOG_EVERY_MS(5000, ESP_LOGW, TAG, "VALVE_STATUS not sent: %s", esp_err_to_name(err));
+    }
+}
+
+/* Runs in the ESP-NOW follow task. */
+static void probe(void *ctx)
+{
+    portENTER_CRITICAL(&s_status_lock);
+    const rb_valve_status_t status = s_status;
+    portEXIT_CRITICAL(&s_status_lock);
+    send_status_packet(&status, rb_time_mono_ms());
+}
 
 static esp_err_t link_start(void)
 {
@@ -121,6 +153,7 @@ static esp_err_t link_start(void)
     ESP_RETURN_ON_ERROR(rb_espnow_start(CONFIG_RB_ESPNOW_CHANNEL), TAG, "ESP-NOW start");
     ESP_RETURN_ON_ERROR(rb_espnow_add_peer(s_controller), TAG, "add peer");
     ESP_RETURN_ON_ERROR(rb_espnow_start_receiver(s_rx), TAG, "ESP-NOW receiver");
+    ESP_RETURN_ON_ERROR(rb_espnow_follow_start(s_controller, probe, NULL), TAG, "channel follow");
 
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -147,31 +180,35 @@ static void link_poll(valve_logic_t *v, uint32_t now)
         }
         s_commands++;
         s_last_cmd_seq = p->sequence;
+        s_last_cmd_ms = now;
         valve_logic_on_command(v, p->body.valve_command.command, now);
+    }
+    /*
+     * The node mostly listens, and its own status packets are too rare to
+     * notice a channel change before the valve closes on its link timeout.
+     */
+    if (rb_time_elapsed(now, s_last_cmd_ms, COMMAND_SILENCE_MS) &&
+        rb_time_elapsed(now, s_last_check_ms, COMMAND_SILENCE_MS)) {
+        s_last_check_ms = now;
+        rb_espnow_follow_check();
     }
 }
 
 static void send_status(const valve_logic_t *v, uint32_t now)
 {
-    rb_packet_t pkt = {
-        .type = RB_MSG_VALVE_STATUS,
-        .role = RB_NODE_ROLE_VALVE,
-        .node_id = CONFIG_RB_NODE_ID,
-        .uptime_ms = now,
-    };
     uint8_t flags = 0;
     flags |= !rb_time_elapsed(now, v->changed_ms, CONFIG_RB_VALVE_TRAVEL_MS) ? RB_VALVE_FLAG_MOVING : 0;
     flags |= v->latched ? RB_VALVE_FLAG_LATCHED : 0;
-    pkt.body.valve_status = (rb_valve_status_t){
+    const rb_valve_status_t status = {
         .position = v->open ? RB_VALVE_POS_OPEN : RB_VALVE_POS_CLOSED,
         .flags = flags,
         .reason = v->reason,
         .last_command_seq = s_last_cmd_seq,
     };
-    const esp_err_t err = rb_espnow_send(s_controller, &pkt);
-    if (err != ESP_OK) {
-        RB_LOG_EVERY_MS(5000, ESP_LOGW, TAG, "VALVE_STATUS not sent: %s", esp_err_to_name(err));
-    }
+    portENTER_CRITICAL(&s_status_lock);
+    s_status = status;
+    portEXIT_CRITICAL(&s_status_lock);
+    send_status_packet(&status, now);
     s_last_status_ms = now;
 }
 

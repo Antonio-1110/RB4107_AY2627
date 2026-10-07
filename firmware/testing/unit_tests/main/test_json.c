@@ -48,6 +48,7 @@ static void test_unknown_values_are_null(void)
     TEST_ASSERT_NOT_EQUAL(0, rb_json_telemetry(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"timestamp\":null"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"presence_state\":\"PRESENT\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"espnow_channel\":null"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "{\"sensor_node\":\"node_01\",\"role\":\"presence\",\"link\":\"ONLINE\","
                                      "\"valid\":true,\"detected\":true}"));
     /* An offline radar's last reading is not reported as a person (or as nobody). */
@@ -65,6 +66,14 @@ static void test_unknown_values_are_null(void)
     TEST_ASSERT_NOT_EQUAL(0, rb_json_node_status(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"sensor_node\":\"node_02\",\"role\":\"presence\",\"link\":\"OFFLINE\","
                                      "\"valid\":false"));
+}
+
+static void test_telemetry_reports_espnow_channel(void)
+{
+    rb_telemetry_t t = sample();
+    t.espnow_channel = 6;
+    TEST_ASSERT_NOT_EQUAL(0, rb_json_telemetry(&t, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"protocol_version\":0,\"espnow_channel\":6,"));
 }
 
 static void test_controller_status_carries_boot_id(void)
@@ -168,6 +177,7 @@ static void test_thermal_frame_fits_payload_buffer(void)
 void run_json_tests(void)
 {
     RUN_TEST(test_unknown_values_are_null);
+    RUN_TEST(test_telemetry_reports_espnow_channel);
     RUN_TEST(test_controller_status_carries_boot_id);
     RUN_TEST(test_overflow_returns_zero);
     RUN_TEST(test_string_escaping);

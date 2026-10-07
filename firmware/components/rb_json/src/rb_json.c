@@ -147,6 +147,8 @@ size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len)
     rb_json_begin_message(&w, &t->hdr, "telemetry");
     rb_json_key(&w, "protocol_version");
     rb_json_int(&w, t->protocol_version);
+    rb_json_key(&w, "espnow_channel");
+    t->espnow_channel != 0 ? rb_json_int(&w, t->espnow_channel) : rb_json_null(&w);
     rb_json_key(&w, "presence_state");
     rb_json_str(&w, t->presence_state);
     nodes_arr(&w, t);

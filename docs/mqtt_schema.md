@@ -45,6 +45,7 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "uptime_ms": 18400,
   "sequence": 4127,
   "protocol_version": 2,
+  "espnow_channel": 1,
   "presence_state": "ABSENT",
   "nodes": [
     {"sensor_node": "node_01", "role": "presence", "link": "ONLINE", "valid": true, "detected": false},
@@ -68,6 +69,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   presence node with a valid reading; it is `null` for the thermal node and
   for any node that is invalid, STALE or OFFLINE.
 - `thermal` is the thermal node's reading.
+- `espnow_channel` is the radio channel ESP-NOW uses right now: always
+  `RB_ESPNOW_CHANNEL` on Ethernet, the router's channel on Wi-Fi (the nodes
+  follow it). `null` if unknown.
 - `safety.reset_required` is true while the supply is cut and latched: only an
   operator reset restores it. `warning_after_ms` and `shutdown_after_ms` are the
   timers in use (the test timers when `test_timers` is true);
