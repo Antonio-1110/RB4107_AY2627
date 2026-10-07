@@ -63,13 +63,20 @@ def build_reset_command(controller_id: str) -> dict:
     return command
 
 
-def controller_command_topic() -> str:
-    return f"{validation.topic_prefix(settings.RB4107_MQTT['TOPIC'])}/controller/command"
-
-
-def command_topic(node: str) -> str:
+def controller_prefix(controller_id: str) -> str:
+    """The configured prefix with a '+' level filled in: with rb4107/+/# every
+    controller has its own rb4107/<controller_id> tree, and a command must go
+    to that one (a topic with a wildcard can't be published to)."""
     prefix = validation.topic_prefix(settings.RB4107_MQTT["TOPIC"])
-    return f"{prefix}/sensors/{node}/c4002_set"
+    return "/".join(controller_id if part == "+" else part for part in prefix.split("/"))
+
+
+def controller_command_topic(controller_id: str) -> str:
+    return f"{controller_prefix(controller_id)}/controller/command"
+
+
+def command_topic(controller_id: str, node: str) -> str:
+    return f"{controller_prefix(controller_id)}/sensors/{node}/c4002_set"
 
 
 def publish(topic: str, command: dict) -> None:

@@ -4,12 +4,20 @@
 #   2. MQTT subscriber    (python manage.py mqtt_subscriber)
 #   3. Django dev server  (python manage.py runserver, dashboard at /)
 #
-# Ctrl-C stops all three. If any one of them exits, the others are stopped too.
+# With --demo it also starts simulated controllers (python manage.py
+# simulate_fleet): the stalls of django/locations.demo.json, which the single
+# bench stall can't show, next to the real controller_01 on the same
+# dashboard. Demo runs use their own database (django/demo.sqlite3), so the
+# made-up stalls never mix into the real data.
+#
+# Ctrl-C (or tools/stop_dev.sh from another terminal) stops everything. If any
+# one of them exits, the others are stopped too.
 # This is a dev helper, not a deployment method.
 #
-# Usage:   tools/run_dev.sh
+# Usage:   tools/run_dev.sh            the real controller(s)
+#          tools/run_dev.sh --demo     plus simulated stalls
 # Options (environment variables):
-#   RB4107_HTTP_ADDR=127.0.0.1:8000   address for runserver
+#   RB4107_HTTP_ADDR=0.0.0.0:8000     address for runserver (127.0.0.1:8000 = this Mac only)
 #   RB4107_SKIP_BROKER=1              don't start Mosquitto (use one already running)
 #   RB4107_NO_BROWSER=1               don't open the dashboard in the browser
 #
@@ -19,9 +27,30 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DJANGO_DIR="$ROOT/django"
-HTTP_ADDR="${RB4107_HTTP_ADDR:-127.0.0.1:8000}"
+# Reachable from the LAN: other machines open http://<this Mac's IP>:8000/.
+# Their address must be in DJANGO_ALLOWED_HOSTS (django/.env).
+HTTP_ADDR="${RB4107_HTTP_ADDR:-0.0.0.0:8000}"
 MQTT_PORT=1883
+PID_FILE="${TMPDIR:-/tmp}/rb4107_dev.pid" # read by tools/stop_dev.sh
 export PYTHONUNBUFFERED=1
+
+DEMO=0
+case "${1:-}" in
+    "") ;;
+    --demo) DEMO=1 ;;
+    *) echo "usage: $0 [--demo]" >&2; exit 2 ;;
+esac
+if [[ "$DEMO" == 1 ]]; then
+    export RB4107_LOCATION_CATALOG_FILE=locations.demo.json
+    export RB4107_SQLITE_PATH="$DJANGO_DIR/demo.sqlite3"
+    # Every controller, real or simulated, under its own rb4107/<controller_id>.
+    export RB4107_MQTT_TOPIC="rb4107/+/#"
+fi
+
+if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "[dev] already running (pid $(cat "$PID_FILE")); stop it with tools/stop_dev.sh" >&2
+    exit 1
+fi
 
 # --- Python: prefer the project's virtualenv ---------------------------------
 if [[ -x "$DJANGO_DIR/.venv/bin/python" ]]; then
@@ -44,10 +73,12 @@ port_open() {
 }
 
 # --- Process bookkeeping -----------------------------------------------------
-# Job control gives every background job its own process group, so Ctrl-C
-# reaches only this script, and cleanup can stop each job with its children
-# (runserver's autoreloader starts a second Python process).
-set -m
+# Each job starts with job control on, so it gets its own process group:
+# Ctrl-C reaches only this script, and cleanup can stop each job with its
+# children (runserver's autoreloader starts a second Python process). Job
+# control is off the rest of the time: with it on, every foreground command
+# (each `sleep` below) also gets its own group and takes the terminal, so
+# Ctrl-C would only kill that sleep and the script would carry on.
 PIDS=""
 NAMES=""
 
@@ -66,7 +97,9 @@ prefix() {
 # start <label> <command...>: run in the background, prefixing each output line.
 start() {
     local label="$1"; shift
+    set -m
     "$@" > >(prefix "$label") 2>&1 &
+    set +m
     PIDS="$PIDS $!"
     NAMES="$NAMES $label"
 }
@@ -89,12 +122,17 @@ cleanup() {
     done
     for pid in $PIDS; do kill -KILL -- "-$pid" 2>/dev/null; done
     wait 2>/dev/null
+    rm -f "$PID_FILE"
     echo "[dev] all stopped"
 }
-trap 'cleanup; exit 0' INT TERM
+trap 'cleanup; exit 0' INT TERM HUP
 trap cleanup EXIT
+echo $$ > "$PID_FILE"
 
 # --- 1. Broker -----------------------------------------------------------------
+if [[ "$DEMO" == 1 ]]; then
+    echo "[dev] demo: simulated stalls from locations.demo.json next to the real controller"
+fi
 if [[ "${RB4107_SKIP_BROKER:-0}" == 1 ]]; then
     echo "[dev] RB4107_SKIP_BROKER=1, not starting Mosquitto"
 elif port_open $MQTT_PORT; then
@@ -123,6 +161,9 @@ if ! "$PYTHON" manage.py migrate --noinput >/dev/null; then
 fi
 
 start subscriber "$PYTHON" manage.py mqtt_subscriber
+if [[ "$DEMO" == 1 ]]; then
+    start simulator "$PYTHON" manage.py simulate_fleet
+fi
 start web "$PYTHON" manage.py runserver "$HTTP_ADDR"
 
 # The dashboard (frontend/) is served by runserver at /, so there is no
@@ -133,6 +174,9 @@ for _ in $(seq 1 60); do
     sleep 0.25
 done
 echo "[dev] dashboard: $URL   (Ctrl-C stops everything)"
+if [[ "${HTTP_ADDR%:*}" == 0.0.0.0 ]]; then
+    echo "[dev] from other machines: http://$("$ROOT/tools/mqtt/lan_ip.sh" 2>/dev/null || echo '<this-mac-ip>'):${HTTP_ADDR##*:}/"
+fi
 if [[ "${RB4107_NO_BROWSER:-0}" != 1 ]]; then
     if command -v open >/dev/null 2>&1 && [[ "$(uname)" == Darwin ]]; then
         open "$URL"

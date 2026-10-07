@@ -240,14 +240,19 @@ function filteredStalls() {
     );
   });
 }
+// Simulated stalls (simulate_fleet) share the screen with the real one in a demo.
+const simulatedTag = () => make("span", "SIMULATED", "pill demo");
+
 function stallButton(stall) {
   const button = make("button", null, `stall-tile severity-${stall.severity}`);
   button.type = "button";
   button.dataset.stallFocus = `tile:${stall.stall_id}`;
   button.addEventListener("click", () => openStall(stall.stall_id));
   const head = make("div", null, "stall-tile-head");
+  const name = make("strong", stall.stall_name);
+  if (stall.simulation) name.append(" ", simulatedTag());
   head.append(
-    make("strong", stall.stall_name),
+    name,
     makeBadge(
       `${human(stall.severity)}${stall.state_last_known ? " · last known" : ""}`,
       stall.severity,
@@ -314,6 +319,7 @@ function renderRoster(stalls) {
     open.type = "button";
     open.dataset.stallFocus = `row:${stall.stall_id}`;
     open.addEventListener("click", () => openStall(stall.stall_id));
+    if (stall.simulation) open.append(" ", simulatedTag());
     locationCell.append(
       open,
       make(

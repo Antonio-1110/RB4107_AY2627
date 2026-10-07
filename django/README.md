@@ -1,11 +1,15 @@
 # Django backend
 
 Receives the controller's MQTT messages, stores them in SQLite and serves a
-read-only JSON API plus the dashboard in [`frontend/`](../frontend). It never
-controls anything: safety logic, the relay and the reset stay on the ESP32-S3.
+JSON API plus the dashboard in [`frontend/`](../frontend). The API is read-only
+except for two commands it forwards to the controller over MQTT: the shutdown
+reset ([remote_reset.md](../docs/remote_reset.md)) and C4002 radar tuning
+([c4002_tuning.md](../docs/c4002_tuning.md)). Safety logic and the relay stay
+on the ESP32-S3; a reset only has an effect while it is in SHUTDOWN (or as the
+acknowledgement in WARNING).
 
 ```text
-Mosquitto → mqtt_subscriber → schema validation → SQLite → Django GET API → frontend/
+Mosquitto → mqtt_subscriber → schema validation → SQLite → Django API → frontend/
 ```
 
 First-time setup and running it: [docs/setup.md](../docs/setup.md#backend-and-dashboard).

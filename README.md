@@ -43,7 +43,7 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 | Folder | What's in it |
 |---|---|
 | [`firmware/`](firmware) | ESP-IDF firmware: `presence_node`, `thermal_node`, `controller`, shared `components/`, and single-part bench tests in `testing/` |
-| [`django/`](django) | MQTT subscriber, database and read-only API |
+| [`django/`](django) | MQTT subscriber, database and API (read-only except the shutdown reset and C4002 tuning) |
 | [`frontend/`](frontend) | the monitoring dashboard (plain HTML/CSS/JS, served by Django) |
 | [`tools/`](tools) | broker scripts, dev launcher, test and diagnostic scripts |
 | [`docs/`](docs) | setup guide and design docs |

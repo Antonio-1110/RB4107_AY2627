@@ -38,6 +38,7 @@
       "station_name": "Main cooking station",
       "response_route": "Terminal 1 → Public → Level 3 → Demo stall 01",
       "demo_only": true,
+      "demo_scenario": "monitoring",
       "location_source": "Synthetic demo entry"
     },
     "demo-t2-02": {
@@ -55,6 +56,7 @@
       "station_name": "Hot-kitchen station",
       "response_route": "Terminal 2 → Public → Level 3 → Demo stall 02",
       "demo_only": true,
+      "demo_scenario": "shutdown",
       "location_source": "Synthetic demo entry"
     },
     "demo-t2-03": {
@@ -72,6 +74,7 @@
       "station_name": "Cookline station",
       "response_route": "Terminal 2 → Public → Level 3 → Demo stall 03",
       "demo_only": true,
+      "demo_scenario": "unattended",
       "location_source": "Synthetic demo entry"
     },
     "demo-t3-foodcourt-a": {
@@ -89,6 +92,7 @@
       "station_name": "Cooking station A",
       "response_route": "Terminal 3 → Public → Basement 2 → Demo food court stall",
       "demo_only": true,
+      "demo_scenario": "warning",
       "location_source": "Synthetic demo entry"
     },
     "demo-t3-foodcourt-b": {
@@ -106,6 +110,7 @@
       "station_name": "Cooking station B",
       "response_route": "Terminal 3 → Public → Basement 2 → Demo food court stall",
       "demo_only": true,
+      "demo_scenario": "monitoring",
       "location_source": "Synthetic demo entry"
     },
     "demo-t3-04": {
@@ -123,6 +128,7 @@
       "station_name": "Main cooking station",
       "response_route": "Terminal 3 → Public → Basement 2 → Demo stall 04",
       "demo_only": true,
+      "demo_scenario": "idle",
       "location_source": "Synthetic demo entry"
     },
     "demo-t3-05": {
@@ -140,6 +146,7 @@
       "station_name": "Demo cooking station",
       "response_route": "Terminal 3 → Transit → Level 3 → Demo stall 05",
       "demo_only": true,
+      "demo_scenario": "fault_radars",
       "location_source": "Synthetic demo entry"
     },
     "demo-t4-06": {
@@ -157,6 +164,7 @@
       "station_name": "Cookline station",
       "response_route": "Terminal 4 → Public → Level 2M → Demo stall 06",
       "demo_only": true,
+      "demo_scenario": "network_loss",
       "location_source": "Synthetic demo entry"
     },
     "hotel-demo-kitchen": {
@@ -174,6 +182,7 @@
       "station_name": "Range station",
       "response_route": "Demo Hotel → Main Building → Level 1 → Main kitchen",
       "demo_only": true,
+      "demo_scenario": "fault_node_offline",
       "location_source": "Synthetic example showing that non-airport sites use the same schema"
     }
   }
