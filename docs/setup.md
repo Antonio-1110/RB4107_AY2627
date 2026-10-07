@@ -42,7 +42,8 @@ Order:
    broker IP (`RB_BROKER_HOST`, see [Broker](#broker)) and the ESP-NOW channel
    (`RB_ESPNOW_CHANNEL`). Flash it and copy the MAC address it prints.
 2. **Each C6 node:** set `RB_NODE_CONTROLLER_MAC` to that MAC and the same
-   channel, then flash.
+   channel, then flash. The MAC matters: a node only follows the controller
+   to another channel (below) when it knows the controller's MAC.
 3. At boot the controller logs `ONLINE` for each node as it hears it.
 
 **New to the hardware?** Check each part on its own first with the projects in
@@ -77,8 +78,17 @@ tools/mqtt/lan_ip.sh           # the IP to put in RB_BROKER_HOST on the controll
 ```
 
 The controller and laptop must be on the same network. Ethernet is the
-default (`RB_NET_TYPE`). With Wi-Fi, every board's `RB_ESPNOW_CHANNEL` must
-match the router's channel.
+default (`RB_NET_TYPE`), and ESP-NOW then stays on `RB_ESPNOW_CHANNEL`.
+
+With Wi-Fi, the router sets the channel, and ESP-NOW on the controller moves
+with it (the controller logs `ESP-NOW channel 1 -> 6` and reports
+`espnow_channel` in telemetry). The nodes follow on their own
+(`RB_ESPNOW_FOLLOW_CHANNEL`): after a few unacknowledged packets a node probes
+channels 1–13, stays on the one where the controller answers (log
+`controller found on channel 6`) and remembers it for the next boot. This
+takes about a second, also when the router changes channel later. It needs
+`RB_NODE_CONTROLLER_MAC` set on every node; a node sending to broadcast stays
+on `RB_ESPNOW_CHANNEL`, which must then match the router.
 
 ## Backend and dashboard
 

@@ -3,4 +3,4 @@
 idf_component_register(SRCS "src/rb_node_board.c" "src/rb_node_link.c"
                        INCLUDE_DIRS "include"
                        REQUIRES rb_protocol esp_common
-                       PRIV_REQUIRES rb_config rb_log rb_espnow esp_timer esp_driver_gpio esp_hw_support freertos)
+                       PRIV_REQUIRES rb_config rb_log rb_espnow rb_wifi esp_timer esp_driver_gpio esp_hw_support freertos)

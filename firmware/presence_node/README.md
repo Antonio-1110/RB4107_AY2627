@@ -63,8 +63,9 @@ P3, confirmed on the bench), status LED IO15. See
    ```
    The boot log must say `presence node (C4002), node ID 2`.
 
-If you see `controller not acknowledging` in the log, the MAC address or the
-channel is wrong, or the S3 isn't running. If the controller logs
+If you see `controller not acknowledging` in the log, the node searches the
+other channels for the S3 (`controller found on channel N` when it does). If it
+keeps failing, the MAC address is wrong or the S3 isn't running. If the controller logs
 `dropped packet from node_NN`, that node ID isn't configured on the controller
 (menuconfig → *Sensor node link* in project `controller`).
 

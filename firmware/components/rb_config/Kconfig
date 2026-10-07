@@ -28,10 +28,32 @@ menu "RB4107 configuration"
             range 1 13
             default 1
             help
-                The node and the controller must use the same channel. If the
-                controller joins a Wi-Fi network (section 17), ESP-NOW has to
-                use that access point's channel. OPEN QUESTION: final S3
-                ESP-NOW/Wi-Fi configuration.
+                The channel the controller and every node start on. With the
+                controller on Ethernet nothing changes it. With the controller
+                on Wi-Fi, ESP-NOW has to use the access point's channel, and
+                the nodes find it (RB_ESPNOW_FOLLOW_CHANNEL).
+
+        config RB_ESPNOW_FOLLOW_CHANNEL
+            bool "Nodes: follow the controller when it changes channel"
+            default y
+            help
+                When the controller stops acknowledging, the node probes the
+                channels 1-13 and stays on the first one the controller
+                acknowledges, then saves it in NVS for the next boot. Needs
+                RB_NODE_CONTROLLER_MAC set: broadcasts are never acknowledged,
+                so a node sending to broadcast stays on RB_ESPNOW_CHANNEL.
+                UNVERIFIED: not yet tested with a real access point changing
+                channel.
+
+        config RB_ESPNOW_LOST_FAILURES
+            int "Nodes: search after this many unacknowledged packets in a row"
+            depends on RB_ESPNOW_FOLLOW_CHANNEL
+            range 2 50
+            default 5
+            help
+                ESP-NOW already retries every packet, so a few failures in a
+                row mean the controller is gone from this channel. A sensor
+                node sends about 3 packets a second, so 5 is under 2 seconds.
 
     endmenu
 

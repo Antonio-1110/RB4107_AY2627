@@ -71,8 +71,12 @@ Controller (S3-POE-ETH-8DI-8DO)        Valve node ESP32
 
 ### Wireless version
 
-Only the servo and a power supply. The node must use the same ESP-NOW
-channel as the controller (`RB_ESPNOW_CHANNEL`, default 1).
+Only the servo and a power supply. The node starts on the controller's ESP-NOW
+channel (`RB_ESPNOW_CHANNEL`, default 1). If the controller is on Wi-Fi and
+moves to the router's channel, the node follows it: when keep-opens stop for
+half of `RB_VALVE_LINK_TIMEOUT_MS`, it checks the controller still
+acknowledges and otherwise searches the channels, well before the valve
+closes on its timeout. This needs `RB_NODE_CONTROLLER_MAC` set.
 
 ## Flashing
 

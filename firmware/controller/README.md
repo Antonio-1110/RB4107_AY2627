@@ -32,6 +32,14 @@ MLX90640 → C6 thermal node    (thermal_node,  node 3) ─┘    ↓
 
 Flashing order, MAC address and channel: [docs/setup.md](../../docs/setup.md#firmware).
 
+On Wi-Fi (`RB_NET_WIFI`) the router sets the radio channel, and ESP-NOW moves
+with it. The controller logs each change (`ESP-NOW channel 1 -> 6 (set by the
+access point)`) and publishes the current channel as `espnow_channel` in
+telemetry. It doesn't tell the nodes: each node notices the controller has
+stopped acknowledging and searches the channels for it
+(`RB_ESPNOW_FOLLOW_CHANNEL`). On Ethernet the channel is always
+`RB_ESPNOW_CHANNEL`.
+
 ## Diagnostic console
 
 Type at the `rb4107>` prompt in `idf.py monitor`:

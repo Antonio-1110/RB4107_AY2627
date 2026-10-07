@@ -10,6 +10,7 @@
 #include "freertos/task.h"
 #include "rb_config.h"
 #include "rb_espnow.h"
+#include "rb_wifi.h"
 
 static const char *TAG = "ESPNOW";
 
@@ -19,6 +20,7 @@ static const char *TAG = "ESPNOW";
 
 static rb_node_link_config_t s_cfg;
 static uint8_t s_peer[6];
+static volatile uint16_t s_faults; /* latest sensor fault flags, for heartbeats sent as channel probes */
 
 static uint32_t now_ms(void)
 {
@@ -42,6 +44,20 @@ void rb_node_link_controller_mac(uint8_t mac[6])
     memcpy(mac, s_peer, 6);
 }
 
+static void send_heartbeat(uint16_t faults)
+{
+    rb_espnow_tx_stats_t st;
+    rb_espnow_get_tx_stats(&st);
+    rb_packet_t pkt = {.type = RB_MSG_HEARTBEAT};
+    pkt.body.heartbeat = (rb_heartbeat_t){.fault_flags = faults, .tx_ok = st.delivered, .tx_fail = st.failed};
+    rb_node_link_send(&pkt);
+}
+
+static void probe(void *ctx)
+{
+    send_heartbeat(s_faults);
+}
+
 static void link_task(void *arg)
 {
     uint16_t last_faults = 0xFFFF; /* forces a first SENSOR_FAULT report */
@@ -54,6 +70,7 @@ static void link_task(void *arg)
 
         rb_packet_t data = {0};
         const uint16_t faults = s_cfg.sample(&data, s_cfg.ctx);
+        s_faults = faults;
 
         if (faults != last_faults) {
             rb_packet_t pkt = {.type = RB_MSG_SENSOR_FAULT};
@@ -69,11 +86,7 @@ static void link_task(void *arg)
         }
         if ((int32_t)(now - next_heartbeat) >= 0) {
             next_heartbeat = now + CONFIG_RB_NODE_HEARTBEAT_PERIOD_MS;
-            rb_espnow_tx_stats_t st;
-            rb_espnow_get_tx_stats(&st);
-            rb_packet_t pkt = {.type = RB_MSG_HEARTBEAT};
-            pkt.body.heartbeat = (rb_heartbeat_t){.fault_flags = faults, .tx_ok = st.delivered, .tx_fail = st.failed};
-            rb_node_link_send(&pkt);
+            send_heartbeat(faults);
         }
         if (s_cfg.extra != NULL) {
             s_cfg.extra(now, s_cfg.ctx);
@@ -88,7 +101,8 @@ static void link_task(void *arg)
                           ") | %s | faults 0x%04x",
                      st.sent, st.delivered, st.failed, st.consecutive_failures, reading, faults);
             if (st.consecutive_failures >= 10) {
-                ESP_LOGW(TAG, "controller not acknowledging: check RB_NODE_CONTROLLER_MAC and RB_ESPNOW_CHANNEL");
+                ESP_LOGW(TAG, "controller not acknowledging on channel %u: check RB_NODE_CONTROLLER_MAC",
+                         rb_wifi_get_channel());
             }
         }
     }
@@ -115,6 +129,7 @@ esp_err_t rb_node_link_start(const rb_node_link_config_t *config)
                         "bad RB_NODE_CONTROLLER_MAC '%s'", CONFIG_RB_NODE_CONTROLLER_MAC);
     ESP_RETURN_ON_ERROR(rb_espnow_start(CONFIG_RB_ESPNOW_CHANNEL), TAG, "ESP-NOW start");
     ESP_RETURN_ON_ERROR(rb_espnow_add_peer(s_peer), TAG, "add peer");
+    ESP_RETURN_ON_ERROR(rb_espnow_follow_start(s_peer, probe, NULL), TAG, "channel follow");
     ESP_LOGI(TAG, "sending to " MACSTR " as %s node %d", MAC2STR(s_peer), rb_node_role_name(s_cfg.role),
              CONFIG_RB_NODE_ID);
     return xTaskCreate(link_task, "espnow_link", LINK_TASK_STACK, NULL, LINK_TASK_PRIO, NULL) == pdPASS

@@ -41,7 +41,9 @@ sensor*) default to SDA IO6 / SCL IO7, confirmed on the bench (see
 2. `idf.py menuconfig` → *RB4107 configuration*:
    - *Sensor node* → `RB_NODE_CONTROLLER_MAC` = that MAC (the node ID is
      already 3 from `sdkconfig.defaults`),
-   - *ESP-NOW link* → `RB_ESPNOW_CHANNEL` = same value as on the S3.
+   - *ESP-NOW link* → `RB_ESPNOW_CHANNEL` = same value as on the S3 (the
+     node starts there and follows the S3 if it moves to a Wi-Fi router's
+     channel).
 3. `idf.py -p <PORT> flash monitor`
 
 To test the camera on its own first (I2C pins, frames, readings at different

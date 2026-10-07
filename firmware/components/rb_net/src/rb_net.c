@@ -149,12 +149,33 @@ static esp_err_t start_ethernet(void)
 
 #elif CONFIG_RB_NET_WIFI
 
+#define CHANNEL_WATCH_MS 1000
+
 static esp_timer_handle_t s_retry_timer;
+static esp_timer_handle_t s_channel_timer;
 static uint32_t s_backoff_ms = 1000;
+static uint8_t s_channel = CONFIG_RB_ESPNOW_CHANNEL;
 
 static void retry_connect(void *arg)
 {
     esp_wifi_connect();
+}
+
+/*
+ * The access point sets the channel, and ESP-NOW goes with it. The nodes
+ * find the new channel on their own; this only reports it. Checked while
+ * associated, because the radio hops between channels while (re)connecting.
+ */
+static void watch_channel(void *arg)
+{
+    if (s_state == RB_NET_DOWN) {
+        return;
+    }
+    const uint8_t channel = rb_wifi_get_channel();
+    if (channel != 0 && channel != s_channel) {
+        ESP_LOGW(TAG, "ESP-NOW channel %u -> %u (set by the access point); the nodes follow it", s_channel, channel);
+        s_channel = channel;
+    }
 }
 
 static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -162,12 +183,8 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
     if (id == WIFI_EVENT_STA_CONNECTED) {
         s_backoff_ms = 1000;
         ESP_LOGI(TAG, "Wi-Fi associated, channel %u", rb_wifi_get_channel());
-        if (rb_wifi_get_channel() != CONFIG_RB_ESPNOW_CHANNEL) {
-            ESP_LOGW(TAG, "access point is on channel %u but RB_ESPNOW_CHANNEL is %d: ESP-NOW now uses channel %u, "
-                          "so every sensor node must match", rb_wifi_get_channel(), CONFIG_RB_ESPNOW_CHANNEL,
-                     rb_wifi_get_channel());
-        }
         set_state(RB_NET_LINK_UP);
+        watch_channel(NULL);
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
         set_state(RB_NET_DOWN);
         ESP_LOGW(TAG, "Wi-Fi disconnected; retrying in %lu ms", (unsigned long)s_backoff_ms);
@@ -183,6 +200,9 @@ static esp_err_t start_wifi(void)
     ESP_RETURN_ON_ERROR(rb_wifi_base_start(), TAG, "wifi");
     const esp_timer_create_args_t targs = {.callback = retry_connect, .name = "wifi_retry"};
     ESP_RETURN_ON_ERROR(esp_timer_create(&targs, &s_retry_timer), TAG, "timer");
+    const esp_timer_create_args_t wargs = {.callback = watch_channel, .name = "wifi_channel"};
+    ESP_RETURN_ON_ERROR(esp_timer_create(&wargs, &s_channel_timer), TAG, "timer");
+    ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_channel_timer, CHANNEL_WATCH_MS * 1000), TAG, "timer");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi_event, NULL), TAG, "events");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_got_ip, NULL), TAG, "ip");
 

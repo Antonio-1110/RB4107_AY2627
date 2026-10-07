@@ -17,7 +17,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `CONFIG_RB_ESPNOW_CHANNEL` | Wi-Fi channel used for ESP-NOW | `1` | 1 – 13 | ⚠ |
+| `CONFIG_RB_ESPNOW_CHANNEL` | Wi-Fi channel used for ESP-NOW | `1` | 1 – 13 |  |
+| `CONFIG_RB_ESPNOW_FOLLOW_CHANNEL` | Nodes: follow the controller when it changes channel | `y` |  | ⚠ |
+| `CONFIG_RB_ESPNOW_LOST_FAILURES` | Nodes: search after this many unacknowledged packets in a row | `5` | 2 – 50 |  |
 
 ## Sensor node (ESP32-C6)
 
@@ -255,7 +257,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|
 | GPIO assignments | `RB_C4002_*_GPIO`, `RB_MLX_S*_GPIO`, `RB_NODE_STATUS_LED_GPIO`, `RB_S3_I2C_*`, `RB_BUZZER_GPIO`, `RB_ETH_*_GPIO` |
 | Relay polarity | `RB_SHUTDOWN_POLARITY`, `RB_RELAY_ACTIVE_LEVEL`, `RB_SHUTDOWN_BOOT_STATE` |
-| ESP-NOW peer MAC | `RB_NODE_CONTROLLER_MAC`, `RB_ESPNOW_CHANNEL` |
+| ESP-NOW peer MAC and channel | `RB_NODE_CONTROLLER_MAC`, `RB_ESPNOW_CHANNEL`, `RB_ESPNOW_FOLLOW_CHANNEL` (nodes follow the controller to the Wi-Fi router's channel, see [setup.md](setup.md#broker)) |
 | Node IDs | `RB_NODE_ID` (each node; 1, 2 = presence, 3 = thermal), `RB_CTRL_PRESENCE_NODE_COUNT`, `RB_CTRL_PRESENCE_A_NODE_ID`, `RB_CTRL_PRESENCE_B_NODE_ID`, `RB_CTRL_THERMAL_NODE_ID` (controller) |
 | Sensor timeouts | `RB_C4002_STALE_TIMEOUT_MS`, `RB_MLX_STALE_TIMEOUT_MS`, `RB_CTRL_NODE_STALE_MS`, `RB_CTRL_NODE_OFFLINE_MS` |
 | Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, C4002 sensor-side settings |
