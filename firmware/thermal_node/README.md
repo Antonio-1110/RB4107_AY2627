@@ -39,8 +39,8 @@ sensor*) default to SDA IO6 / SCL IO7, confirmed on the bench (see
 1. Flash project `controller` on the S3 (or `testing/s3_board` during bring-up) and copy the MAC
    address it prints.
 2. `idf.py menuconfig` → *RB4107 configuration*:
-   - *Sensor node* → `RB_NODE_CONTROLLER_MAC` = that MAC (the node ID is
-     already 3 from `sdkconfig.defaults`),
+   - *Sensor node* → `RB_NODE_CONTROLLER_MAC` = that MAC (already this
+     project's S3, and the node ID already 3, from `sdkconfig.defaults`),
    - *ESP-NOW link* → `RB_ESPNOW_CHANNEL` = same value as on the S3 (the
      node starts there and follows the S3 if it moves to a Wi-Fi router's
      channel).

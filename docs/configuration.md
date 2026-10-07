@@ -212,6 +212,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_BROKER_HOST` | Broker host (MacBook LAN IP or hostname) | `""` |  |  |
+| `CONFIG_RB_BROKER_FALLBACK_HOST` | Fallback broker host (empty = none) | `""` |  |  |
 | `CONFIG_RB_BROKER_PORT` | Broker port | `1883` | 1 – 65535 |  |
 | `CONFIG_RB_MQTT_CONTROLLER_ID` | Controller ID (MQTT client ID and JSON controller_id) | `"controller_01"` |  |  |
 | `CONFIG_RB_MQTT_TOPIC_PREFIX` | Topic prefix | `"rb4107"` |  |  |
