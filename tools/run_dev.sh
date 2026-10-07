@@ -73,10 +73,12 @@ port_open() {
 }
 
 # --- Process bookkeeping -----------------------------------------------------
-# Job control gives every background job its own process group, so Ctrl-C
-# reaches only this script, and cleanup can stop each job with its children
-# (runserver's autoreloader starts a second Python process).
-set -m
+# Each job starts with job control on, so it gets its own process group:
+# Ctrl-C reaches only this script, and cleanup can stop each job with its
+# children (runserver's autoreloader starts a second Python process). Job
+# control is off the rest of the time: with it on, every foreground command
+# (each `sleep` below) also gets its own group and takes the terminal, so
+# Ctrl-C would only kill that sleep and the script would carry on.
 PIDS=""
 NAMES=""
 
@@ -95,7 +97,9 @@ prefix() {
 # start <label> <command...>: run in the background, prefixing each output line.
 start() {
     local label="$1"; shift
+    set -m
     "$@" > >(prefix "$label") 2>&1 &
+    set +m
     PIDS="$PIDS $!"
     NAMES="$NAMES $label"
 }
