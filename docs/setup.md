@@ -118,6 +118,9 @@ opens the dashboard at http://127.0.0.1:8000/. Ctrl-C stops all three. From
 another terminal, or after closing the one it ran in, `tools/stop_dev.sh` does
 the same and also cleans up anything left over (for example "port 8000 already
 in use" after a crash). It only touches this project's processes.
+Stopping erases the recorded data (`django/db.sqlite3`, `demo.sqlite3`), so
+every run starts with an empty dashboard. With `--demo` the made-up stalls come
+back within seconds, since they are generated, not stored.
 Options: `RB4107_SKIP_BROKER=1` if a broker is already running,
 `RB4107_NO_BROWSER=1` to not open the browser.
 

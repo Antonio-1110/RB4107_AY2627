@@ -11,7 +11,9 @@
 # made-up stalls never mix into the real data.
 #
 # Ctrl-C (or tools/stop_dev.sh from another terminal) stops everything. If any
-# one of them exits, the others are stopped too.
+# one of them exits, the others are stopped too. Stopping also deletes the
+# database (django/db.sqlite3, demo.sqlite3): every run starts empty, nothing
+# from a demo is kept.
 # This is a dev helper, not a deployment method.
 #
 # Usage:   tools/run_dev.sh            the real controller(s)
@@ -103,6 +105,11 @@ start() {
 }
 
 STOPPING=0
+# Every run starts with an empty database; nothing is kept between runs.
+erase_data() {
+    rm -f "$DJANGO_DIR"/db.sqlite3{,-wal,-shm} "$DJANGO_DIR"/demo.sqlite3{,-wal,-shm}
+}
+
 cleanup() {
     [[ $STOPPING == 1 ]] && return
     STOPPING=1
@@ -121,7 +128,8 @@ cleanup() {
     for pid in $PIDS; do kill -KILL -- "-$pid" 2>/dev/null; done
     wait 2>/dev/null
     rm -f "$PID_FILE"
-    echo "[dev] all stopped"
+    erase_data
+    echo "[dev] all stopped, data erased"
 }
 trap 'cleanup; exit 0' INT TERM HUP
 trap cleanup EXIT

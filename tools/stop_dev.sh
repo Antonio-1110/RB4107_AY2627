@@ -8,6 +8,8 @@
 #      with -9, or a leftover from a crash): manage.py processes whose working
 #      directory is this project's django/, and Mosquitto started with
 #      tools/mqtt/mosquitto.conf. Other projects' servers are left alone.
+#   3. Delete the database (django/db.sqlite3, demo.sqlite3), as run_dev.sh
+#      does when it stops: no data is kept between runs.
 #
 # Usage:   tools/stop_dev.sh
 # Written for the bash 3.2 that ships with macOS.
@@ -76,15 +78,16 @@ if [[ -n "$LEFT" ]]; then
     fi
 fi
 
-# --- Report --------------------------------------------------------------------
+# --- 3. Data, once nothing is using it -------------------------------------------
 STILL=""
 for pid in $LEFT; do alive "$pid" && STILL="$STILL $pid"; done
 if [[ -n "$STILL" ]]; then
-    echo "[stop] could not stop:$STILL" >&2
+    echo "[stop] could not stop:$STILL (data kept)" >&2
     exit 1
 fi
+rm -f "$DJANGO_DIR"/db.sqlite3{,-wal,-shm} "$DJANGO_DIR"/demo.sqlite3{,-wal,-shm}
 if [[ $STOPPED_DEV == 0 && -z "$LEFT" ]]; then
-    echo "[stop] nothing running"
+    echo "[stop] nothing running, data erased"
 else
-    echo "[stop] all stopped"
+    echo "[stop] all stopped, data erased"
 fi
