@@ -144,7 +144,7 @@ def c4002_command(request, device_id, node):
         command = commands.build_c4002_command(device_id, body)
     except (ValueError, commands.CommandError) as error:
         return JsonResponse({"error": str(error)}, status=400)
-    topic = commands.command_topic(node)
+    topic = commands.command_topic(device_id, node)
     try:
         commands.publish(topic, command)
     except commands.BrokerUnavailable as error:
@@ -162,7 +162,7 @@ def reset(request, device_id):
         command = commands.build_reset_command(device.device_id)
     except commands.CommandError as error:
         return JsonResponse({"error": str(error)}, status=400)
-    topic = commands.controller_command_topic()
+    topic = commands.controller_command_topic(device.device_id)
     try:
         commands.publish(topic, command)
     except commands.BrokerUnavailable as error:

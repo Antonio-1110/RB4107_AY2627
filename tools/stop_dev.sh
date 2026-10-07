@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Stop the host stack started by tools/run_dev.sh or tools/run_demo.sh (broker,
-# MQTT subscriber or simulator, Django dev server), e.g. from another terminal
-# or after closing the one it ran in.
+# Stop the host stack started by tools/run_dev.sh (broker, MQTT subscriber,
+# simulator with --demo, Django dev server), e.g. from another terminal or
+# after closing the one it ran in.
 #
 #   1. Ask run_dev.sh to shut down, which stops everything the same way Ctrl-C does.
 #   2. Then stop anything of this project's still running (run_dev.sh killed

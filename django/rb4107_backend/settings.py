@@ -81,6 +81,8 @@ RB4107_MQTT = {
     "RECONNECT_MAX_S": int(env("RB4107_MQTT_RECONNECT_MAX_S", "30")),
 }
 
+TEST_RUNNER = "rb4107_backend.test_runner.Runner"
+
 # The same JSON Schema the firmware is tested against (docs/schema).
 RB4107_SCHEMA_FILE = Path(env("RB4107_SCHEMA_FILE", str(REPO_ROOT / "docs" / "schema" / "rb4107_mqtt.schema.json")))
 RB4107_SUPPORTED_SCHEMA_VERSIONS = {2}

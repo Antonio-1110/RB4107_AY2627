@@ -2,7 +2,8 @@
 import json
 from unittest import mock
 
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
 
 from ingest import commands, validation
 from ingest.demo import demo_telemetry
@@ -29,6 +30,15 @@ class ResetCommandTest(TestCase):
         self.assertEqual(command["controller_id"], "controller_01")
         self.assertEqual(response.json()["request_id"], command["request_id"])
         validation.check_command(command)
+
+    @mock.patch("ingest.commands.publish")
+    def test_per_controller_prefix_gets_the_controller_id(self, publish):
+        # With rb4107/+/# each controller has its own tree; a wildcard topic can't be published to.
+        with override_settings(RB4107_MQTT={**settings.RB4107_MQTT, "TOPIC": "rb4107/+/#"}):
+            self.assertEqual(self.client.post(URL).status_code, 202)
+            self.assertEqual(commands.command_topic("controller_02", "node_01"),
+                             "rb4107/controller_02/sensors/node_01/c4002_set")
+        self.assertEqual(publish.call_args.args[0], "rb4107/controller_01/controller/command")
 
     @mock.patch("ingest.commands.publish")
     def test_unknown_device_and_get_are_refused(self, publish):

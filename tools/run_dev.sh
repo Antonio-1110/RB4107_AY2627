@@ -4,16 +4,18 @@
 #   2. MQTT subscriber    (python manage.py mqtt_subscriber)
 #   3. Django dev server  (python manage.py runserver, dashboard at /)
 #
-# With RB4107_DEMO=1 (what tools/run_demo.sh sets) it runs made-up stalls
-# instead, with no hardware or broker: simulate_fleet --direct replaces the
-# broker and subscriber, using django/locations.demo.json and its own
-# database (django/demo.sqlite3), so demo data never mixes with real data.
+# With --demo it also starts simulated controllers (python manage.py
+# simulate_fleet): the stalls of django/locations.demo.json, which the single
+# bench stall can't show, next to the real controller_01 on the same
+# dashboard. Demo runs use their own database (django/demo.sqlite3), so the
+# made-up stalls never mix into the real data.
 #
 # Ctrl-C (or tools/stop_dev.sh from another terminal) stops everything. If any
 # one of them exits, the others are stopped too.
 # This is a dev helper, not a deployment method.
 #
-# Usage:   tools/run_dev.sh
+# Usage:   tools/run_dev.sh            the real controller(s)
+#          tools/run_dev.sh --demo     plus simulated stalls
 # Options (environment variables):
 #   RB4107_HTTP_ADDR=0.0.0.0:8000     address for runserver (127.0.0.1:8000 = this Mac only)
 #   RB4107_SKIP_BROKER=1              don't start Mosquitto (use one already running)
@@ -30,11 +32,19 @@ DJANGO_DIR="$ROOT/django"
 HTTP_ADDR="${RB4107_HTTP_ADDR:-0.0.0.0:8000}"
 MQTT_PORT=1883
 PID_FILE="${TMPDIR:-/tmp}/rb4107_dev.pid" # read by tools/stop_dev.sh
-DEMO="${RB4107_DEMO:-0}"
 export PYTHONUNBUFFERED=1
+
+DEMO=0
+case "${1:-}" in
+    "") ;;
+    --demo) DEMO=1 ;;
+    *) echo "usage: $0 [--demo]" >&2; exit 2 ;;
+esac
 if [[ "$DEMO" == 1 ]]; then
     export RB4107_LOCATION_CATALOG_FILE=locations.demo.json
     export RB4107_SQLITE_PATH="$DJANGO_DIR/demo.sqlite3"
+    # Every controller, real or simulated, under its own rb4107/<controller_id>.
+    export RB4107_MQTT_TOPIC="rb4107/+/#"
 fi
 
 if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
@@ -117,8 +127,9 @@ echo $$ > "$PID_FILE"
 
 # --- 1. Broker -----------------------------------------------------------------
 if [[ "$DEMO" == 1 ]]; then
-    echo "[dev] demo mode: simulated stalls from locations.demo.json, no broker"
-elif [[ "${RB4107_SKIP_BROKER:-0}" == 1 ]]; then
+    echo "[dev] demo: simulated stalls from locations.demo.json next to the real controller"
+fi
+if [[ "${RB4107_SKIP_BROKER:-0}" == 1 ]]; then
     echo "[dev] RB4107_SKIP_BROKER=1, not starting Mosquitto"
 elif port_open $MQTT_PORT; then
     echo "[dev] something is already listening on port $MQTT_PORT, using it as the broker"
@@ -127,18 +138,16 @@ else
     start broker "$ROOT/tools/mqtt/start_broker.sh"
 fi
 
-if [[ "$DEMO" != 1 ]]; then
-    echo "[dev] waiting for the broker on port $MQTT_PORT..."
-    for _ in $(seq 1 40); do
-        port_open $MQTT_PORT && break
-        sleep 0.25
-    done
-    if ! port_open $MQTT_PORT; then
-        echo "[dev] broker did not come up on port $MQTT_PORT (see [broker] lines above)" >&2
-        exit 1
-    fi
-    echo "[dev] broker is up"
+echo "[dev] waiting for the broker on port $MQTT_PORT..."
+for _ in $(seq 1 40); do
+    port_open $MQTT_PORT && break
+    sleep 0.25
+done
+if ! port_open $MQTT_PORT; then
+    echo "[dev] broker did not come up on port $MQTT_PORT (see [broker] lines above)" >&2
+    exit 1
 fi
+echo "[dev] broker is up"
 
 # --- 2. Database, subscriber and web server ----------------------------------
 cd "$DJANGO_DIR"
@@ -147,10 +156,9 @@ if ! "$PYTHON" manage.py migrate --noinput >/dev/null; then
     exit 1
 fi
 
+start subscriber "$PYTHON" manage.py mqtt_subscriber
 if [[ "$DEMO" == 1 ]]; then
-    start simulator "$PYTHON" manage.py simulate_fleet --direct
-else
-    start subscriber "$PYTHON" manage.py mqtt_subscriber
+    start simulator "$PYTHON" manage.py simulate_fleet
 fi
 start web "$PYTHON" manage.py runserver "$HTTP_ADDR"
 

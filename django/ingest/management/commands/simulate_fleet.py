@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from ingest.demo import demo_telemetry, demo_thermal_frame
+from ingest.demo import demo_controller_status, demo_telemetry, demo_thermal_frame, network_phase
 from ingest.handlers import handle
 from ingest.locations import load_location_catalog
 from ingest.storage import worker_status
@@ -22,10 +22,29 @@ class Command(BaseCommand):
         parser.add_argument("--once", action="store_true", help="Generate one snapshot and exit")
         parser.add_argument("--interval", type=float, default=2)
 
+    @staticmethod
+    def messages(concrete, controller_id, index, tick, boot_id, scenario):
+        """What one simulated controller publishes this tick."""
+        status = []
+        if scenario == "network_loss":
+            phase, before = network_phase(tick), network_phase(tick - 1) if tick else None
+            if phase == "silent" or (phase == "offline" and before == "offline"):
+                return []
+            if phase == "offline":  # the broker publishes the Last Will once when the link drops
+                return [(f"{concrete}/controller/status", demo_controller_status(controller_id, False, boot_id))]
+            if before != "online":  # reconnected
+                status = [(f"{concrete}/controller/status", demo_controller_status(controller_id, True, boot_id))]
+        return status + [
+            (f"{concrete}/controller/state", demo_telemetry(controller_id, index, tick, boot_id, scenario)),
+            (f"{concrete}/sensors/node_03/thermal_frame",
+             demo_thermal_frame(controller_id, index, tick, boot_id, scenario)),
+        ]
+
     def handle(self, *args, **options):
         if options["interval"] <= 0:
             raise CommandError("--interval must be positive")
-        ids = [key for key, value in load_location_catalog()["devices"].items() if value.get("demo_only")]
+        demo = {key: value for key, value in load_location_catalog()["devices"].items() if value.get("demo_only")}
+        ids = list(demo)
         if not ids:
             raise CommandError("The location catalogue has no demo_only controllers. "
                                "Set RB4107_LOCATION_CATALOG_FILE=locations.demo.json first.")
@@ -49,11 +68,8 @@ class Command(BaseCommand):
                     worker_status(True, mode="demo-direct")
                 for index, controller_id in enumerate(ids):
                     concrete = "/".join(controller_id if part == "+" else part for part in prefix.split("/"))
-                    for topic, data in (
-                        (f"{concrete}/controller/state", demo_telemetry(controller_id, index, tick, boot_id)),
-                        (f"{concrete}/sensors/node_03/thermal_frame",
-                         demo_thermal_frame(controller_id, index, tick, boot_id)),
-                    ):
+                    scenario = demo[controller_id].get("demo_scenario")
+                    for topic, data in self.messages(concrete, controller_id, index, tick, boot_id, scenario):
                         payload = json.dumps(data).encode()
                         msg = parse(topic, payload, prefix)
                         if options["direct"]:

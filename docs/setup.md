@@ -116,11 +116,20 @@ in use" after a crash). It only touches this project's processes.
 Options: `RB4107_SKIP_BROKER=1` if a broker is already running,
 `RB4107_NO_BROWSER=1` to not open the browser.
 
-No hardware? Run `tools/run_demo.sh` instead. It fills the dashboard with the
-made-up stalls in `django/locations.demo.json` (`simulate_fleet --direct`, no
-broker) and keeps that data in its own `django/demo.sqlite3`. The real
-controller is not shown in this mode. Only one of the two scripts runs at a
-time; `tools/stop_dev.sh` stops either.
+For a demonstration, `tools/run_dev.sh --demo` adds simulated stalls next to
+the real one: the cases a single bench stall can't show at once (several
+incidents across sites, a stall that has cut its supply and is cooling down,
+two stations in one stall, a radar node unplugged, a stall losing its
+network). They come from `django/locations.demo.json` (`demo_scenario` per
+stall), are tagged SIMULATED on the dashboard, and are kept in their own
+`django/demo.sqlite3`, so they never mix with real data. The real controller
+works as usual alongside them, Reset shutdown included. Without hardware the
+demo still runs, just without the real stall.
+
+Each controller publishes under its own `rb4107/<controller_id>` tree
+(`RB_MQTT_TOPIC_PREFIX`, `rb4107/controller_01` for the bench) and Django
+subscribes to `rb4107/+/#` (`RB4107_MQTT_TOPIC`), so real and simulated
+controllers share the broker without overwriting each other.
 
 Other machines on the same network open `http://192.168.1.50:8000/`. The
 router gives the MacBook that fixed IP, and it is also the controller's

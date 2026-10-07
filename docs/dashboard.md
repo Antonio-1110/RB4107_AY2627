@@ -88,17 +88,24 @@ compared with the kitchen, that comes from how the camera is mounted.
 
 Edit `django/locations.json`, keyed by the firmware's `controller_id`
 (`RB_MQTT_CONTROLLER_ID`). The `controller_01` entry is the lab bench.
-`django/locations.demo.json` holds made-up stalls for `simulate_fleet`;
-select it with `RB4107_LOCATION_CATALOG_FILE=locations.demo.json`. Its terminal
-layout is illustrative and its stall names are fictional.
+`django/locations.demo.json` holds made-up stalls for `simulate_fleet`
+(`tools/run_dev.sh --demo` selects it). Its terminal layout is illustrative
+and its stall names are fictional. Each demo stall plays the scenario in its
+`demo_scenario`: `monitoring`, `unattended`, `warning`, `shutdown` (supply
+cut, cooling down), `idle`, `fault_radars` (both radars invalid),
+`fault_node_offline` (one radar node unplugged: FAULT, as in the firmware) or
+`network_loss` (online, then stale, then offline by Last Will, then back,
+every 2 minutes). Simulated stalls are tagged SIMULATED.
 Unknown IDs are accepted and displayed as unassigned locations.
 
 Multiple controllers can share a `stall_id` while having different
 `station_name` values. Their worst displayed severity is used in the overview;
-each station remains selectable. Physical multi-controller deployments need
-unique firmware topic prefixes (`RB_MQTT_TOPIC_PREFIX`, e.g. `rb4107/controller_01`) and unique controller IDs.
-Use `RB4107_MQTT_TOPIC=rb4107/+/#` to subscribe to all controller namespaces.
-The original rb4107/controller/state single-controller tree remains supported.
+each station remains selectable. Each controller
+publishes under its own prefix (`RB_MQTT_TOPIC_PREFIX`, `rb4107/controller_01`
+for the bench) with a unique controller ID, and Django subscribes to
+`RB4107_MQTT_TOPIC=rb4107/+/#`. Commands (reset, C4002 tuning) go to that
+controller's own tree. A single controller on the plain `rb4107` prefix still
+works with `RB4107_MQTT_TOPIC=rb4107/#`.
 
 ## Freshness, events and limitations
 

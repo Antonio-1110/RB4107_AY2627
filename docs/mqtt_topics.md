@@ -1,7 +1,9 @@
 # MQTT topics
 
 Defined in [`firmware/components/rb_topics`](../firmware/components/rb_topics).
-The prefix `rb4107` is configurable (`RB_MQTT_TOPIC_PREFIX`). Node names are
+The prefix is configurable (`RB_MQTT_TOPIC_PREFIX`). The controller uses
+`rb4107/controller_01`, one tree per controller, so read `rb4107/` below as
+`rb4107/<controller_id>/`. Node names are
 `node_<id>` with the ID zero-padded to two digits. With the default IDs:
 `node_01` and `node_02` are the presence nodes, `node_03` the thermal node.
 
