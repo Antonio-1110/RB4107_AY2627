@@ -53,7 +53,13 @@ DATABASES = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": env("RB4107_SQLITE_PATH", str(BASE_DIR / "db.sqlite3")),
         # WAL: the dashboard's reads no longer block the MQTT subscriber's writes.
-        "OPTIONS": {"timeout": 20, "init_command": "PRAGMA journal_mode=WAL;"},
+        # IMMEDIATE: a transaction takes the write lock when it begins. The
+        # subscriber writes from two threads (messages, heartbeat), and a
+        # transaction that read first and then tried to write failed at once
+        # with "database is locked" whenever the other had written in between;
+        # the timeout never applied. Now the second one waits for the first.
+        "OPTIONS": {"timeout": 20, "init_command": "PRAGMA journal_mode=WAL;",
+                    "transaction_mode": "IMMEDIATE"},
     }
 }
 
