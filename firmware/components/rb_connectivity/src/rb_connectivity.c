@@ -1,5 +1,6 @@
 #include "rb_connectivity.h"
 
+#include <string.h>
 #include "esp_log.h"
 #include "fault_manager.h"
 #include "rb_config.h"
@@ -16,6 +17,7 @@ static char s_status_topic[96];
 static char s_online[128];
 static char s_offline[128];
 static bool s_services_started;
+static const char *s_mqtt_interface; /* the interface MQTT last (re)connected over */
 
 static void on_mqtt_state(rb_mqtt_state_t state, void *ctx)
 {
@@ -25,10 +27,21 @@ static void on_mqtt_state(rb_mqtt_state_t state, void *ctx)
 static void on_net_state(rb_net_state_t state, void *ctx)
 {
     fault_set(FAULT_NETWORK_DOWN, state != RB_NET_CONNECTED, (int32_t)state);
-    if (state != RB_NET_CONNECTED || s_services_started) {
+    if (state != RB_NET_CONNECTED) {
+        return;
+    }
+    const char *interface = rb_net_interface_name();
+    if (s_services_started) {
+        /* The old connection is tied to the other interface's address: start over on this one. */
+        if (strcmp(interface, s_mqtt_interface) != 0) {
+            ESP_LOGI(TAG, "network now on %s: reconnecting to the broker", interface);
+            s_mqtt_interface = interface;
+            rb_mqtt_reconnect();
+        }
         return;
     }
     s_services_started = true;
+    s_mqtt_interface = interface;
     rb_wallclock_start_sntp();
 
     rb_mqtt_config_t cfg = rb_mqtt_config_from_kconfig();

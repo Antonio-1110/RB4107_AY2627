@@ -72,6 +72,9 @@ esp_err_t rb_mqtt_publish(const char *topic, const char *payload, int qos, bool 
  */
 esp_err_t rb_mqtt_subscribe(const char *filter, int qos, rb_mqtt_rx_cb_t cb, void *ctx);
 
+/* Drop the broker connection and connect again, e.g. after the network moved to another interface. */
+void rb_mqtt_reconnect(void);
+
 rb_mqtt_state_t rb_mqtt_state(void);
 const char *rb_mqtt_state_name(rb_mqtt_state_t state);
 void rb_mqtt_get_stats(rb_mqtt_stats_t *out);

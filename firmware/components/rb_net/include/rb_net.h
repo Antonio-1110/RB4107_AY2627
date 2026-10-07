@@ -1,8 +1,10 @@
 #pragma once
 
 /*
- * Controller network connectivity (TODO section 17): W5500 Ethernet by
- * default, Wi-Fi station as the alternative (menuconfig RB_NET_TYPE).
+ * Controller network connectivity (TODO section 17), menuconfig RB_NET_TYPE:
+ * W5500 Ethernet with Wi-Fi station as the fallback by default, or either one
+ * alone. With the fallback, the state and IP are those of Ethernet while it
+ * has an address, otherwise those of Wi-Fi.
  *
  * The network only carries telemetry. Nothing on the safety path waits for
  * it, and losing it is a TELEMETRY-class fault.
@@ -29,6 +31,7 @@ esp_err_t rb_net_start(rb_net_state_cb_t cb, void *ctx);
 
 rb_net_state_t rb_net_state(void);
 const char *rb_net_state_name(rb_net_state_t state);
+/* "Ethernet" or "Wi-Fi": the interface the state and IP belong to. */
 const char *rb_net_interface_name(void);
 
 /* IPv4 address (0.0.0.0 if not connected). */

@@ -183,7 +183,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `RB_NET_TYPE` (choice) | Controller network interface: `CONFIG_RB_NET_ETHERNET` = Ethernet (on-board W5500); `CONFIG_RB_NET_WIFI` = Wi-Fi station; `CONFIG_RB_NET_NONE` = none (local safety only); `CONFIG_RB_NET_QEMU_OPENETH` = QEMU emulated Ethernet (testing only, never on hardware) | `CONFIG_RB_NET_ETHERNET` |  | ⚠ |
+| `RB_NET_TYPE` (choice) | Controller network interface: `CONFIG_RB_NET_ETHERNET_WIFI` = Ethernet, Wi-Fi when Ethernet is down; `CONFIG_RB_NET_ETHERNET` = Ethernet (on-board W5500); `CONFIG_RB_NET_WIFI` = Wi-Fi station; `CONFIG_RB_NET_NONE` = none (local safety only); `CONFIG_RB_NET_QEMU_OPENETH` = QEMU emulated Ethernet (testing only, never on hardware) | `CONFIG_RB_NET_ETHERNET_WIFI` |  |  |
+| `CONFIG_RB_NET_FALLBACK_S` | Switch to Wi-Fi after Ethernet has had no IP address for (s) | `5` | 1 – 300 |  |
 
 ## Network (ESP32-S3) → W5500 Ethernet
 
@@ -264,6 +265,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC`, `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
 | Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |
+| Network interface | `RB_NET_TYPE` (Ethernet with Wi-Fi fallback by default), `RB_NET_FALLBACK_S`, `RB_WIFI_SSID`, `RB_WIFI_PASSWORD` |
 | MQTT broker | `RB_BROKER_HOST`, `RB_BROKER_PORT`, `RB_MQTT_TOPIC_PREFIX`, `RB_MQTT_TELEMETRY_PERIOD_MS` |
 
 How to change values (menuconfig or a file): [setup.md](setup.md#changing-settings).

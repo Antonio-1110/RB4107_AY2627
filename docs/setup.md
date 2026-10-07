@@ -77,8 +77,12 @@ tools/mqtt/start_broker.sh     # allow incoming connections if macOS asks
 tools/mqtt/lan_ip.sh           # the IP to put in RB_BROKER_HOST on the controller
 ```
 
-The controller and laptop must be on the same network. Ethernet is the
-default (`RB_NET_TYPE`), and ESP-NOW then stays on `RB_ESPNOW_CHANNEL`.
+The controller and laptop must be on the same network. By default
+(`RB_NET_TYPE`) the controller uses Ethernet, and ESP-NOW stays on
+`RB_ESPNOW_CHANNEL`. Set `RB_WIFI_SSID` and `RB_WIFI_PASSWORD` as well, and it
+switches to Wi-Fi after Ethernet has had no IP address for
+`RB_NET_FALLBACK_S`, then back to Ethernet as soon as it has one. The broker
+must be reachable from both networks.
 
 With Wi-Fi, the router sets the channel, and ESP-NOW on the controller moves
 with it (the controller logs `ESP-NOW channel 1 -> 6` and reports
