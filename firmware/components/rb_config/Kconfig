@@ -942,7 +942,10 @@ menu "RB4107 configuration"
             config RB_WIFI_MAX_BACKOFF_MS
                 int "Longest reconnect back-off (ms)"
                 range 1000 300000
-                default 30000
+                default 16000
+                help
+                    Retries wait 1, 2, 4, 8 ... seconds, doubling up to this
+                    value, then start over at 1 s.
 
         endmenu
 

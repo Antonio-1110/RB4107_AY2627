@@ -241,7 +241,8 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
         ESP_LOGW(TAG, "Wi-Fi disconnected; retrying in %lu ms", (unsigned long)s_backoff_ms);
         esp_timer_stop(s_retry_timer);
         esp_timer_start_once(s_retry_timer, (uint64_t)s_backoff_ms * 1000);
-        s_backoff_ms = s_backoff_ms * 2 > CONFIG_RB_WIFI_MAX_BACKOFF_MS ? CONFIG_RB_WIFI_MAX_BACKOFF_MS : s_backoff_ms * 2;
+        /* 1, 2, 4 ... up to the longest, then start over: a slow router is retried soon again. */
+        s_backoff_ms = s_backoff_ms * 2 > CONFIG_RB_WIFI_MAX_BACKOFF_MS ? 1000 : s_backoff_ms * 2;
     }
 }
 

@@ -208,7 +208,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|---|---|---|
 | `CONFIG_RB_WIFI_SSID` | SSID | `""` |  |  |
 | `CONFIG_RB_WIFI_PASSWORD` | Password | `""` |  |  |
-| `CONFIG_RB_WIFI_MAX_BACKOFF_MS` | Longest reconnect back-off (ms) | `30000` | 1000 – 300000 |  |
+| `CONFIG_RB_WIFI_MAX_BACKOFF_MS` | Longest reconnect back-off (ms) | `16000` | 1000 – 300000 |  |
 
 ## MQTT broker (MacBook)
 
