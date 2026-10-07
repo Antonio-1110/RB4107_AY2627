@@ -44,6 +44,8 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
 | `firmware/components/rb_config/Kconfig` | every tunable. Regenerate `docs/configuration.md` after editing it (command at the end of that file) |
 | `django/` | MQTT subscriber, SQLite, read-only API; serves `frontend/` at `/` |
 | `tools/run_dev.sh` | starts broker + subscriber + Django for local dev |
+| `tools/run_demo.sh` | same, with simulated stalls instead of the broker and subscriber (no hardware) |
+| `tools/stop_dev.sh` | stops what `run_dev.sh` / `run_demo.sh` started, plus leftovers (this project only) |
 | `tools/run_host_tests.sh` | firmware unit tests (linux target) + Django tests |
 
 ## Decisions already made (don't reopen without the user)

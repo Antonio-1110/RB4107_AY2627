@@ -1,10 +1,11 @@
 # Monitoring dashboard
 
 The dashboard in [`frontend/`](../frontend) shows every controller's reported
-state. It reads a read-only JSON API from the Django backend, which is fed by
-the existing `mqtt_subscriber` and JSON-schema validator. It can not operate or
-silence anything: local protection stays on the ESP32-S3. Its only safety
-command is the reset of a latched shutdown ([remote_reset.md](remote_reset.md)).
+state. It reads a JSON API from the Django backend, which is fed by the
+existing `mqtt_subscriber` and JSON-schema validator. It can not operate or
+silence anything: local protection stays on the ESP32-S3. It sends two kinds of
+command: the reset of a latched shutdown ([remote_reset.md](remote_reset.md))
+and C4002 radar tuning ([c4002_tuning.md](c4002_tuning.md)).
 
 ## Data path and files
 

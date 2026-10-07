@@ -109,16 +109,27 @@ tools/run_dev.sh
 ```
 
 It starts Mosquitto, the MQTT subscriber and the Django server together and
-opens the dashboard at http://127.0.0.1:8000/. Ctrl-C stops all three.
+opens the dashboard at http://127.0.0.1:8000/. Ctrl-C stops all three. From
+another terminal, or after closing the one it ran in, `tools/stop_dev.sh` does
+the same and also cleans up anything left over (for example "port 8000 already
+in use" after a crash). It only touches this project's processes.
 Options: `RB4107_SKIP_BROKER=1` if a broker is already running,
 `RB4107_NO_BROWSER=1` to not open the browser.
 
-No hardware? Set `RB4107_LOCATION_CATALOG_FILE=locations.demo.json` in
-`django/.env` and run `python manage.py simulate_fleet --direct` (without the
-subscriber) to fill the dashboard with made-up stalls.
+No hardware? Run `tools/run_demo.sh` instead. It fills the dashboard with the
+made-up stalls in `django/locations.demo.json` (`simulate_fleet --direct`, no
+broker) and keeps that data in its own `django/demo.sqlite3`. The real
+controller is not shown in this mode. Only one of the two scripts runs at a
+time; `tools/stop_dev.sh` stops either.
 
-The server has no login. Keep it on 127.0.0.1 and use an SSH tunnel to view
-it from another computer. More: [django/README.md](../django/README.md).
+Other machines on the same network open `http://192.168.1.50:8000/`. The
+router gives the MacBook that fixed IP, and it is also the controller's
+`RB_BROKER_HOST` and in `DJANGO_ALLOWED_HOSTS`. Change all three together if
+the IP changes. The server has no login: anyone on the network can use the
+dashboard, including **Reset shutdown** and C4002 tuning. That is fine for this
+demo on a controlled network. On a shared network, start it with
+`RB4107_HTTP_ADDR=127.0.0.1:8000` and use an SSH tunnel instead. More:
+[django/README.md](../django/README.md).
 
 ## Tests
 
