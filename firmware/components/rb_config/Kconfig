@@ -833,9 +833,18 @@ menu "RB4107 configuration"
 
         choice RB_NET_TYPE
             prompt "Controller network interface"
-            default RB_NET_ETHERNET
+            default RB_NET_ETHERNET_WIFI
             help
-                OPEN QUESTION: Ethernet or Wi-Fi for the final S3 -> MQTT path.
+                Only telemetry uses the network; safety never waits for it.
+            config RB_NET_ETHERNET_WIFI
+                bool "Ethernet, Wi-Fi when Ethernet is down"
+                help
+                    Ethernet is used whenever it has an IP address. After
+                    RB_NET_FALLBACK_S without one (cable out, no DHCP, W5500
+                    not responding) the controller joins the Wi-Fi network,
+                    and leaves it again as soon as Ethernet is back. MQTT
+                    reconnects over the new interface each time. With no
+                    RB_WIFI_SSID set this is the same as Ethernet only.
             config RB_NET_ETHERNET
                 bool "Ethernet (on-board W5500)"
             config RB_NET_WIFI
@@ -851,8 +860,25 @@ menu "RB4107 configuration"
                     machine: MQTT/Django tests without hardware.
         endchoice
 
+        config RB_NET_USES_ETHERNET
+            bool
+            default y if RB_NET_ETHERNET || RB_NET_ETHERNET_WIFI
+
+        config RB_NET_USES_WIFI
+            bool
+            default y if RB_NET_WIFI || RB_NET_ETHERNET_WIFI
+
+        config RB_NET_FALLBACK_S
+            int "Switch to Wi-Fi after Ethernet has had no IP address for (s)"
+            depends on RB_NET_ETHERNET_WIFI
+            range 1 300
+            default 5
+            help
+                Counted from boot and from every Ethernet link loss. Link
+                drops shorter than this never touch Wi-Fi.
+
         menu "W5500 Ethernet"
-            depends on RB_NET_ETHERNET
+            depends on RB_NET_USES_ETHERNET
 
             comment "Pins from the earlier prototype controller"
 
@@ -900,7 +926,7 @@ menu "RB4107 configuration"
         endmenu
 
         menu "Wi-Fi station"
-            depends on RB_NET_WIFI
+            depends on RB_NET_USES_WIFI
 
             config RB_WIFI_SSID
                 string "SSID"

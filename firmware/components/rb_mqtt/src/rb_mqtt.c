@@ -211,6 +211,18 @@ esp_err_t rb_mqtt_subscribe(const char *filter, int qos, rb_mqtt_rx_cb_t cb, voi
     return ESP_OK;
 }
 
+void rb_mqtt_reconnect(void)
+{
+    if (s_client == NULL) {
+        return;
+    }
+    if (s_state == RB_MQTT_CONNECTED) {
+        esp_mqtt_client_disconnect(s_client); /* the client reconnects after RB_MQTT_RECONNECT_MS */
+    } else {
+        esp_mqtt_client_reconnect(s_client); /* skip the rest of the wait */
+    }
+}
+
 rb_mqtt_state_t rb_mqtt_state(void)
 {
     return s_state;

@@ -22,7 +22,7 @@ MLX90640 → C6 thermal node    (thermal_node,  node 3) ─┘    ↓
                                         ↙               ↘
                                     Buzzer             Relay
                                                 │
-                                                ↓ Ethernet
+                                                ↓ Ethernet (Wi-Fi when Ethernet is down)
                                  Mosquitto on the MacBook (tools/mqtt)
                                                 ↓
                                  Django subscriber (django/)
@@ -32,13 +32,20 @@ MLX90640 → C6 thermal node    (thermal_node,  node 3) ─┘    ↓
 
 Flashing order, MAC address and channel: [docs/setup.md](../../docs/setup.md#firmware).
 
-On Wi-Fi (`RB_NET_WIFI`) the router sets the radio channel, and ESP-NOW moves
-with it. The controller logs each change (`ESP-NOW channel 1 -> 6 (set by the
+By default (`RB_NET_ETHERNET_WIFI`) the controller uses Ethernet, and joins
+the Wi-Fi network in `RB_WIFI_SSID` only after Ethernet has had no IP address
+for `RB_NET_FALLBACK_S` (5 s). It leaves Wi-Fi as soon as Ethernet has an
+address again, and MQTT reconnects over the new interface each time (log
+`network now on Wi-Fi: reconnecting to the broker`). `status` on the console
+shows which interface is in use. With no SSID set it is Ethernet only.
+
+On Wi-Fi the router sets the radio channel, and ESP-NOW moves with it. The controller logs each change (`ESP-NOW channel 1 -> 6 (set by the
 access point)`) and publishes the current channel as `espnow_channel` in
 telemetry. It doesn't tell the nodes: each node notices the controller has
 stopped acknowledging and searches the channels for it
-(`RB_ESPNOW_FOLLOW_CHANNEL`). On Ethernet the channel is always
-`RB_ESPNOW_CHANNEL`.
+(`RB_ESPNOW_FOLLOW_CHANNEL`). On Ethernet the channel is
+`RB_ESPNOW_CHANNEL`; after a Wi-Fi fallback the controller returns to it and
+the nodes follow again.
 
 ## Diagnostic console
 
