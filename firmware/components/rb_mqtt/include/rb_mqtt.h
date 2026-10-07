@@ -36,6 +36,7 @@ typedef void (*rb_mqtt_rx_cb_t)(const char *topic, const char *data, size_t len,
 
 typedef struct {
     char uri[96];              /* mqtt://host:port */
+    char fallback_uri[96];     /* tried in turn with uri after a failed attempt; "" = none */
     const char *client_id;
     const char *status_topic;  /* retained online/offline status (Last Will) */
     const char *online_payload;
@@ -76,6 +77,8 @@ esp_err_t rb_mqtt_subscribe(const char *filter, int qos, rb_mqtt_rx_cb_t cb, voi
 void rb_mqtt_reconnect(void);
 
 rb_mqtt_state_t rb_mqtt_state(void);
+/* The broker URI in use (or tried next). */
+const char *rb_mqtt_broker_uri(void);
 const char *rb_mqtt_state_name(rb_mqtt_state_t state);
 void rb_mqtt_get_stats(rb_mqtt_stats_t *out);
 

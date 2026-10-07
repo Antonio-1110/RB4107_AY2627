@@ -12,6 +12,7 @@ static const char *TAG = "MQTT";
 
 static esp_mqtt_client_handle_t s_client;
 static rb_mqtt_config_t s_cfg;
+static const char *volatile s_uri; /* s_cfg.uri or s_cfg.fallback_uri */
 static volatile rb_mqtt_state_t s_state = RB_MQTT_DISCONNECTED;
 static rb_mqtt_state_cb_t s_cb;
 static void *s_cb_ctx;
@@ -37,6 +38,10 @@ rb_mqtt_config_t rb_mqtt_config_from_kconfig(void)
         .client_id = CONFIG_RB_MQTT_CONTROLLER_ID,
     };
     snprintf(cfg.uri, sizeof(cfg.uri), "mqtt://%s:%d", CONFIG_RB_BROKER_HOST, CONFIG_RB_BROKER_PORT);
+    if (CONFIG_RB_BROKER_FALLBACK_HOST[0] != '\0') {
+        snprintf(cfg.fallback_uri, sizeof(cfg.fallback_uri), "mqtt://%s:%d", CONFIG_RB_BROKER_FALLBACK_HOST,
+                 CONFIG_RB_BROKER_PORT);
+    }
     return cfg;
 }
 
@@ -110,7 +115,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         break;
     case MQTT_EVENT_CONNECTED:
         count(&s_stats.connects);
-        ESP_LOGI(TAG, "broker connected (%s)", s_cfg.uri);
+        ESP_LOGI(TAG, "broker connected (%s)", s_uri);
         set_state(RB_MQTT_CONNECTED);
         if (s_cfg.status_topic != NULL && s_cfg.online_payload != NULL) {
             esp_mqtt_client_enqueue(s_client, s_cfg.status_topic, s_cfg.online_payload, 0, 1, 1, true);
@@ -127,8 +132,13 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         on_data(data);
         break;
     case MQTT_EVENT_DISCONNECTED:
+        /* Also sent for every failed connection attempt: try the other host next. */
         count(&s_stats.disconnects);
-        ESP_LOGW(TAG, "broker disconnected; retrying every %d ms", CONFIG_RB_MQTT_RECONNECT_MS);
+        if (s_cfg.fallback_uri[0] != '\0') {
+            s_uri = s_uri == s_cfg.uri ? s_cfg.fallback_uri : s_cfg.uri;
+            esp_mqtt_client_set_uri(s_client, s_uri);
+        }
+        ESP_LOGW(TAG, "broker disconnected; next attempt in %d ms (%s)", CONFIG_RB_MQTT_RECONNECT_MS, s_uri);
         set_state(RB_MQTT_DISCONNECTED);
         break;
     case MQTT_EVENT_ERROR: {
@@ -149,6 +159,7 @@ esp_err_t rb_mqtt_start(const rb_mqtt_config_t *config, rb_mqtt_state_cb_t cb, v
     ESP_RETURN_ON_FALSE(CONFIG_RB_BROKER_HOST[0] != '\0', ESP_ERR_INVALID_ARG, TAG,
                         "RB_BROKER_HOST is empty: set the MacBook IP in menuconfig");
     s_cfg = *config;
+    s_uri = s_cfg.uri;
     s_cb = cb;
     s_cb_ctx = ctx;
 
@@ -171,7 +182,11 @@ esp_err_t rb_mqtt_start(const rb_mqtt_config_t *config, rb_mqtt_state_cb_t cb, v
     ESP_RETURN_ON_FALSE(s_client != NULL, ESP_FAIL, TAG, "client init");
     ESP_RETURN_ON_ERROR(esp_mqtt_client_register_event(s_client, ESP_EVENT_ANY_ID, on_event, NULL), TAG, "events");
     set_state(RB_MQTT_CONNECTING);
-    ESP_LOGI(TAG, "connecting to %s as %s", s_cfg.uri, s_cfg.client_id);
+    if (s_cfg.fallback_uri[0] != '\0') {
+        ESP_LOGI(TAG, "connecting to %s (fallback %s) as %s", s_cfg.uri, s_cfg.fallback_uri, s_cfg.client_id);
+    } else {
+        ESP_LOGI(TAG, "connecting to %s as %s", s_cfg.uri, s_cfg.client_id);
+    }
     return esp_mqtt_client_start(s_client);
 }
 
@@ -226,6 +241,11 @@ void rb_mqtt_reconnect(void)
 rb_mqtt_state_t rb_mqtt_state(void)
 {
     return s_state;
+}
+
+const char *rb_mqtt_broker_uri(void)
+{
+    return s_uri != NULL ? s_uri : "";
 }
 
 const char *rb_mqtt_state_name(rb_mqtt_state_t state)

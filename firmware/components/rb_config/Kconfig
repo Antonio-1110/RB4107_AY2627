@@ -954,7 +954,18 @@ menu "RB4107 configuration"
             default ""
             help
                 The MacBook running Mosquitto. See tools/mqtt/README.md for how
-                to find its LAN IP. Set it here rather than in code.
+                to find its LAN IP. A <name>.local hostname also works
+                (resolved over mDNS) and stays the same when the router gives
+                the MacBook another IP. Set it here rather than in code.
+
+        config RB_BROKER_FALLBACK_HOST
+            string "Fallback broker host (empty = none)"
+            default ""
+            help
+                Tried in turn with RB_BROKER_HOST: after each failed
+                connection attempt the controller switches to the other one.
+                For example the MacBook's .local name as the host and its
+                usual LAN IP here.
 
         config RB_BROKER_PORT
             int "Broker port"
