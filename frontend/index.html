@@ -51,6 +51,10 @@
             <p>Total stalls</p>
             <strong id="summary-total">0</strong>
           </article>
+          <article class="summary-card cooking">
+            <p>Cooking now</p>
+            <strong id="summary-cooking">0</strong>
+          </article>
           <article class="summary-card critical">
             <p>Critical</p>
             <strong id="summary-critical">0</strong>
@@ -138,6 +142,7 @@
                 <tr>
                   <th>Stall / location</th>
                   <th>Safety</th>
+                  <th>Cooking</th>
                   <th>Presence</th>
                   <th>Max temp.</th>
                   <th>Unattended</th>
@@ -192,6 +197,13 @@
             ><span id="test-timers-badge" class="pill warn" hidden>FIRMWARE TEST TIMERS</span>
           </div>
         </div>
+        <section class="card cooking-banner unknown" id="cooking-banner" aria-label="Active cooking">
+          <div>
+            <p class="label">ACTIVE COOKING</p>
+            <h2 id="cooking-label">Unknown</h2>
+          </div>
+          <p class="metric-detail" id="cooking-detail">Awaiting report</p>
+        </section>
         <section class="metrics" aria-label="Latest device-reported readings">
           <article class="card metric" id="card-presence">
             <p class="label">HUMAN PRESENCE</p>

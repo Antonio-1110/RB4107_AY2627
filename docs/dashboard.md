@@ -73,6 +73,26 @@ the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
 UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
 BOOT/SELF_TEST show as "controller starting".
 
+## Active cooking
+
+Every controller and stall shows whether its stove is in use (`cooking` in
+`/api/devices/`, `classify_cooking()` in `django/ingest/locations.py`): a badge
+on the stall tiles and roster, a banner on the stall page, and a *Cooking now*
+count. It is display only. The firmware makes the decision: cooking starts
+when the thermal camera's hot region reaches `RB_SAFETY_HEAT_ON_DC`
+(placeholder 50 °C, or a fast rise) and ends below `RB_SAFETY_HEAT_OFF_DC`
+(40 °C); the thresholds are still being tuned ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)).
+
+| Controller state | Shown as |
+|---|---|
+| MONITORING, UNATTENDED, WARNING | COOKING |
+| IDLE | NOT COOKING |
+| SHUTDOWN | SUPPLY CUT (gas cut, stove cooling) |
+| FAULT, BOOT, SELF_TEST or no state | a guess from the hot region with the same default thresholds: LIKELY COOKING (≥ 50 °C), LIKELY NOT COOKING (< 40 °C), otherwise COOKING UNKNOWN (dashed badge) |
+
+A stall with several stations shows the most active one, and how many of them
+are cooking. Stale data is marked *last known*.
+
 ## Heat map
 
 The stall detail view draws the thermal camera's latest picture (32 × 24) with

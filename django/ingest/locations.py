@@ -84,6 +84,51 @@ def classify_display_state(device):
             "source_field": source, "freshness_seconds": source_age, "last_known": last_known}
 
 
+# Active cooking. The firmware decides it: cooking starts when the thermal
+# camera's hot region reaches RB_SAFETY_HEAT_ON_DC (placeholder 50 degC, or a
+# fast rise) and ends below RB_SAFETY_HEAT_OFF_DC (40 degC); issue #21 tunes
+# them. Its safety state says the result: IDLE is not cooking, MONITORING /
+# UNATTENDED / WARNING are cooking. Only when the state can't say (FAULT,
+# starting up) is it guessed from the hot region with the same default
+# thresholds, and labelled "likely".
+HEAT_ON_C, HEAT_OFF_C = 50.0, 40.0
+COOKING_STATES = {"monitoring": "Cook at the stove", "unattended": "Nobody at the stove",
+                  "warning": "Nobody at the stove · warning"}
+COOKING_RANK = {"cooking": 5, "likely_cooking": 4, "supply_cut": 3, "unknown": 2,
+                "likely_not_cooking": 1, "not_cooking": 0}
+ACTIVE_COOKING = {"cooking", "likely_cooking"}
+
+
+def classify_cooking(device):
+    """Whether a controller's stove is in use, for display; never used for safety."""
+    values = device["values"]
+    safety = values.get("safety_state")
+    hot_field = "hot_region_c" if _finite(values.get("hot_region_c")) else "temperature_c"
+    hot = values.get(hot_field) if _finite(values.get(hot_field)) else None
+    hot_text = f"hot region {hot:.0f} °C" if hot is not None else "no temperature"
+    if safety in COOKING_STATES:
+        status, label, detail, source = "cooking", "COOKING", f"{COOKING_STATES[safety]} · {hot_text}", "safety_state"
+    elif safety == "idle":
+        status, label, detail, source = ("not_cooking", "NOT COOKING",
+                                         f"Stove off or cold · {hot_text} (cooking from {HEAT_ON_C:.0f} °C)",
+                                         "safety_state")
+    elif safety == "shutdown":
+        status, label, detail, source = ("supply_cut", "SUPPLY CUT",
+                                         f"Gas cut by the controller · stove cooling, {hot_text}", "safety_state")
+    elif hot is not None and hot >= HEAT_ON_C:
+        status, label, source = "likely_cooking", "LIKELY COOKING", hot_field
+        detail = f"Controller {safety or 'state unknown'} · {hot_text} (≥ {HEAT_ON_C:.0f} °C)"
+    elif hot is not None and hot < HEAT_OFF_C:
+        status, label, source = "likely_not_cooking", "LIKELY NOT COOKING", hot_field
+        detail = f"Controller {safety or 'state unknown'} · {hot_text} (< {HEAT_OFF_C:.0f} °C)"
+    else:
+        status, label, detail, source = "unknown", "COOKING UNKNOWN", f"Controller {safety or 'state unknown'} · {hot_text}", None
+    age = device["field_age_seconds"].get(source) if source else None
+    last_known = device["connection"] != "online" or age is None or age > device["stale_after_seconds"]
+    return {"status": status, "label": label, "detail": detail, "active": status in ACTIVE_COOKING,
+            "source_field": source, "hot_region_c": hot, "last_known": last_known}
+
+
 def _finite(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
@@ -119,7 +164,12 @@ def aggregate_stalls(devices):
                    "state": item["display_state"], "values": item["values"],
                    "connection": item["connection"], "last_seen_at": item["last_seen_at"]}
                   for item in ordered if item["display_state"]["active"]]
+        by_cooking = max(members, key=lambda item: (COOKING_RANK[item["cooking"]["status"]],
+                                                    SEVERITY_RANK[item["display_state"]["level"]]))
+        cooking = {**by_cooking["cooking"],
+                   "stations_cooking": sum(item["cooking"]["active"] for item in members)}
         stalls.append({"stall_id": stall_id, "stall_name": lead["location"]["stall_name"],
+                       "cooking": cooking,
                        "location": lead["location"], "severity": lead["display_state"]["level"],
                        "state_title": lead["display_state"]["title"],
                        "state_last_known": lead["display_state"]["last_known"], "connection": connection,
@@ -137,8 +187,9 @@ def aggregate_stalls(devices):
 
 def fleet_summary(stalls):
     summary = {"total": len(stalls), "critical": 0, "warning": 0, "fault": 0,
-               "normal": 0, "unknown": 0, "connectivity_issues": 0}
+               "normal": 0, "unknown": 0, "connectivity_issues": 0, "cooking": 0}
     for stall in stalls:
+        summary["cooking"] += stall["cooking"]["active"]
         summary[stall["severity"]] = summary.get(stall["severity"], 0) + 1
         if stall["connection"] != "online":
             summary["connectivity_issues"] += 1

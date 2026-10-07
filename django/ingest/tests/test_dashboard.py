@@ -30,6 +30,33 @@ class DashboardIntegrationTest(TestCase):
     def latest(self):
         return self.client.get("/api/devices/controller_01/latest/").json()
 
+    def test_cooking_follows_the_firmware_state(self):
+        hot = {"valid": True, "max_c": 90.0, "min_c": 24.0, "mean_c": 40.0, "hot_region_c": 85.0,
+               "rate_c_per_min": 0.0, "pixels_above_threshold": 30}
+        cases = {"IDLE": "not_cooking", "MONITORING": "cooking", "UNATTENDED": "cooking",
+                 "WARNING": "cooking", "SHUTDOWN": "supply_cut"}
+        for state, status in cases.items():
+            with self.subTest(state=state):
+                self.send(state, thermal=hot)
+                cooking = self.latest()["cooking"]
+                self.assertEqual(cooking["status"], status)
+                self.assertEqual(cooking["active"], status == "cooking")
+                self.assertFalse(cooking["last_known"])
+        # The state can't say in FAULT: guessed from the hot region, and labelled as a guess.
+        self.send("FAULT", thermal=hot)
+        self.assertEqual(self.latest()["cooking"]["status"], "likely_cooking")
+        self.send("FAULT", thermal={**hot, "max_c": 30.0, "hot_region_c": 28.0})
+        self.assertEqual(self.latest()["cooking"]["status"], "likely_not_cooking")
+        self.send("FAULT", thermal={**hot, "valid": False})
+        self.assertEqual(self.latest()["cooking"]["status"], "unknown")
+
+    def test_stall_and_summary_count_cooking(self):
+        self.send("UNATTENDED")
+        fleet = self.client.get("/api/devices/").json()
+        self.assertEqual(fleet["summary"]["cooking"], 1)
+        self.assertEqual(fleet["stalls"][0]["cooking"]["status"], "cooking")
+        self.assertEqual(fleet["stalls"][0]["cooking"]["stations_cooking"], 1)
+
     def test_firmware_payload_reaches_dashboard_and_history(self):
         msg = self.send()
         response = self.latest()

@@ -172,6 +172,7 @@ function renderSummary() {
   const summary = fleet.summary || {};
   for (const [id, key] of [
     ["summary-total", "total"],
+    ["summary-cooking", "cooking"],
     ["summary-critical", "critical"],
     ["summary-warning", "warning"],
     ["summary-fault", "fault"],
@@ -240,6 +241,12 @@ function filteredStalls() {
     );
   });
 }
+// Whether the stove is in use (classify_cooking in django/ingest/locations.py).
+function cookingBadge(cooking) {
+  const text = `${cooking.label}${cooking.last_known ? " · last known" : ""}`;
+  return make("span", text, `state-badge cooking-badge ${cooking.status}`);
+}
+
 // Simulated stalls (simulate_fleet) share the screen with the real one in a demo.
 const simulatedTag = () => make("span", "SIMULATED", "pill demo");
 
@@ -258,6 +265,10 @@ function stallButton(stall) {
       stall.severity,
     ),
   );
+  const cooking = make("p", null, "stall-cooking");
+  cooking.append(cookingBadge(stall.cooking));
+  if (stall.station_count > 1)
+    cooking.append(` ${stall.cooking.stations_cooking} of ${stall.station_count} stations cooking`);
   const place = make(
     "p",
     `${stall.location.access_zone} · ${stall.location.level} · ${stall.location.area}`,
@@ -267,7 +278,7 @@ function stallButton(stall) {
     `${number(stall.temperature_c) ? stall.temperature_c.toFixed(1) + " °C" : "—"} · ${seconds(stall.unattended_seconds)} unattended · ${human(stall.connection)}`,
     "stall-tile-facts",
   );
-  button.append(head, place, facts);
+  button.append(head, cooking, place, facts);
   return button;
 }
 function renderLocationGroups(stalls) {
@@ -306,7 +317,7 @@ function renderRoster(stalls) {
   if (!stalls.length) {
     const row = body.insertRow(),
       cell = row.insertCell();
-    cell.colSpan = 8;
+    cell.colSpan = 9;
     cell.className = "empty-cell";
     cell.textContent = "No stalls match the selected filters.";
     return;
@@ -335,6 +346,7 @@ function renderRoster(stalls) {
           stall.severity,
         ),
       );
+    row.insertCell().append(cookingBadge(stall.cooking));
     row.insertCell().textContent =
       stall.occupied === "mixed"
         ? "Mixed"
@@ -397,6 +409,10 @@ function renderDevice(device) {
     device.connection === "online" ? "good" : "warn",
   );
   $("demo-badge").hidden = value.simulation !== true;
+  const cooking = device.cooking;
+  $("cooking-banner").className = `card cooking-banner ${cooking.status}`;
+  set("cooking-label", `${cooking.label}${cooking.last_known ? " · last known" : ""}`);
+  set("cooking-detail", cooking.detail);
   $("test-timers-badge").hidden = value.test_timers !== true;
   set(
     "thermal-extra",
@@ -731,6 +747,7 @@ function markFleetLastKnown() {
   fleet.devices = fleet.devices.map((device) => ({
     ...device,
     connection: "unknown",
+    cooking: { ...device.cooking, last_known: true },
     display_state: {
       ...device.display_state,
       last_known: true,
@@ -744,6 +761,7 @@ function markFleetLastKnown() {
   fleet.stalls = fleet.stalls.map((stall) => ({
     ...stall,
     connection: "unknown",
+    cooking: { ...stall.cooking, last_known: true },
     temperature_fresh: false,
     state_last_known: true,
     severity: stall.severity === "normal" ? "unknown" : stall.severity,
@@ -763,6 +781,7 @@ function markFleetLastKnown() {
     unknown: 0,
     normal: 0,
     connectivity_issues: fleet.stalls.length,
+    cooking: fleet.stalls.filter((stall) => stall.cooking.active).length,
   };
   for (const stall of fleet.stalls) summary[stall.severity] = (summary[stall.severity] || 0) + 1;
   fleet.summary = summary;

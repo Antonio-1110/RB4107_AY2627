@@ -317,7 +317,7 @@ p {
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -364,6 +364,67 @@ p {
 }
 .summary-card.normal {
   border-left-color: var(--green);
+}
+.summary-card.cooking {
+  border-left-color: var(--orange);
+}
+.summary-card.cooking strong {
+  color: var(--orange);
+}
+/* Active cooking (classify_cooking): badges, and the banner on the stall page. */
+.cooking-badge.cooking,
+.cooking-banner.cooking {
+  background: #ffe9db;
+  color: #9d4212;
+}
+.cooking-badge.likely_cooking,
+.cooking-banner.likely_cooking {
+  background: #fff4ec;
+  color: #9d4212;
+  outline: 1px dashed currentColor;
+}
+.cooking-badge.supply_cut,
+.cooking-banner.supply_cut {
+  background: #f9dfdd;
+  color: var(--red-dark);
+}
+.cooking-badge.not_cooking,
+.cooking-badge.likely_not_cooking,
+.cooking-banner.not_cooking,
+.cooking-banner.likely_not_cooking {
+  background: #e2f2ea;
+  color: var(--green);
+}
+.cooking-badge.likely_not_cooking,
+.cooking-banner.likely_not_cooking,
+.cooking-badge.unknown,
+.cooking-banner.unknown {
+  outline: 1px dashed currentColor;
+}
+.cooking-badge.unknown,
+.cooking-banner.unknown {
+  background: #edf0f2;
+  color: #56656d;
+}
+.cooking-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  border-left: 6px solid currentColor;
+}
+.cooking-banner h2 {
+  font-size: 24px;
+  margin: 4px 0 0;
+}
+.cooking-banner .label,
+.cooking-banner .metric-detail {
+  color: inherit;
+}
+.stall-tile .stall-cooking {
+  color: #3e525d;
 }
 .filter-card {
   display: grid;

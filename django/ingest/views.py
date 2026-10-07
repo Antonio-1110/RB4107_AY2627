@@ -13,7 +13,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import commands, validation
 from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
-from .locations import (active_alerts, aggregate_stalls, classify_display_state,
+from .locations import (active_alerts, aggregate_stalls, classify_cooking, classify_display_state,
                         fleet_summary, load_location_catalog, location_for)
 
 
@@ -52,6 +52,7 @@ def serialize(device, now, worker, catalog=None):
             "stale_after_seconds": settings.DEVICE_STALE_SECONDS,
             "location": location_for(device.device_id, catalog)}
     result["display_state"] = classify_display_state(result)
+    result["cooking"] = classify_cooking(result)
     return result
 
 
