@@ -49,7 +49,7 @@ P3, confirmed on the bench), status LED IO15. See
    address it prints.
 2. **Presence node A (node ID 1):**
    ```bash
-   idf.py menuconfig   # Sensor node → RB_NODE_CONTROLLER_MAC = that MAC; ESP-NOW link → same channel as the S3
+   idf.py menuconfig   # Sensor node → RB_NODE_CONTROLLER_MAC = that MAC (already this project's S3 in sdkconfig.defaults); ESP-NOW link → same channel as the S3
    idf.py -p <PORT> flash monitor
    ```
 3. **Presence node B (node ID 2):** same firmware, built with

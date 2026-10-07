@@ -4,3 +4,6 @@
 # Mode (wired / wireless), pins and servo angles: menuconfig ->
 # RB4107 configuration -> Valve node (servo gas valve).
 CONFIG_RB_NODE_ID=4
+# The controller ESP32-S3's Wi-Fi STA MAC (printed at its boot). Needed for
+# acknowledged sends, and so for following the controller's Wi-Fi channel.
+CONFIG_RB_NODE_CONTROLLER_MAC="44:B1:76:A9:BB:6C"

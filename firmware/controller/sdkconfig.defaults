@@ -9,8 +9,10 @@ CONFIG_RB_DIAG_CONSOLE=y
 CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
 # Critical failure test (section 30): log safety-loop continuity during MQTT outages.
 CONFIG_RB_DIAG_CONTINUITY_MONITOR=y
-# The MacBook running Mosquitto and Django. The router gives it this fixed IP.
-CONFIG_RB_BROKER_HOST="192.168.1.50"
+# The MacBook running Mosquitto and Django: its mDNS name works on any network,
+# and the controller alternates with the fixed IP the lab router gives it.
+CONFIG_RB_BROKER_HOST="AntoniodeMacBook-Air.local"
+CONFIG_RB_BROKER_FALLBACK_HOST="192.168.1.50"
 # Each controller publishes under its own rb4107/<controller_id> tree, so
 # several (or simulated ones in a demo) can share the broker; Django
 # subscribes to rb4107/+/#.

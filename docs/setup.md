@@ -38,11 +38,13 @@ idf.py -B build_b -D SDKCONFIG=build_b/sdkconfig \
 
 Order:
 
-1. **Controller:** in `idf.py menuconfig` → *RB4107 configuration* set the
-   broker IP (`RB_BROKER_HOST`, see [Broker](#broker)) and the ESP-NOW channel
-   (`RB_ESPNOW_CHANNEL`). Flash it and copy the MAC address it prints.
-2. **Each C6 node:** set `RB_NODE_CONTROLLER_MAC` to that MAC and the same
-   channel, then flash. The MAC matters: a node only follows the controller
+1. **Controller:** in `idf.py menuconfig` → *RB4107 configuration* check the
+   broker host (`RB_BROKER_HOST`, already the MacBook's `.local` name, see
+   [Broker](#broker)) and the ESP-NOW channel (`RB_ESPNOW_CHANNEL`). Flash it and copy the MAC address it prints.
+2. **Each C6 node:** `RB_NODE_CONTROLLER_MAC` must be that MAC. Each node's
+   `sdkconfig.defaults` already has this project's S3 (`44:B1:76:A9:BB:6C`);
+   change it there only if the S3 board is replaced. Use the same channel,
+   then flash. The MAC matters: a node only follows the controller
    to another channel (below) when it knows the controller's MAC.
 3. At boot the controller logs `ONLINE` for each node as it hears it.
 
@@ -136,9 +138,12 @@ subscribes to `rb4107/+/#` (`RB4107_MQTT_TOPIC`), so real and simulated
 controllers share the broker without overwriting each other.
 
 Other machines on the same network open `http://192.168.1.50:8000/`. The
-router gives the MacBook that fixed IP, and it is also the controller's
-`RB_BROKER_HOST` and in `DJANGO_ALLOWED_HOSTS`. Change all three together if
-the IP changes. The server has no login: anyone on the network can use the
+lab router gives the MacBook that fixed IP, and it is also in
+`DJANGO_ALLOWED_HOSTS`. The controller finds the broker by the MacBook's mDNS
+name (`RB_BROKER_HOST="AntoniodeMacBook-Air.local"` in
+`firmware/controller/sdkconfig.defaults`), which works on any network, and
+alternates with that IP (`RB_BROKER_FALLBACK_HOST`) after each failed attempt;
+`mqtt` on the controller console shows which one is in use. The server has no login: anyone on the network can use the
 dashboard, including **Reset shutdown** and C4002 tuning. That is fine for this
 demo on a controlled network. On a shared network, start it with
 `RB4107_HTTP_ADDR=127.0.0.1:8000` and use an SSH tunnel instead. More:

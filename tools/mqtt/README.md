@@ -39,7 +39,9 @@ localhost-only. Use this script instead.)
 Enter that value in the S3 firmware: `idf.py menuconfig` → *RB4107
 configuration* → *MQTT broker (MacBook)* → `RB_BROKER_HOST`. It is not
 hard-coded anywhere. If the MacBook's IP changes, use a DHCP reservation or
-its `.local` hostname.
+its `.local` hostname (`scutil --get LocalHostName` plus `.local`). The
+project default is the hostname, with the lab IP as
+`RB_BROKER_FALLBACK_HOST`.
 
 ## 5. Verify
 
