@@ -185,14 +185,28 @@ def aggregate_stalls(devices):
                                             item["location"]["level"], item["stall_name"]))
 
 
+ACTIVE_SEVERITIES = {"critical", "warning", "fault"}
+
+
+# Each stall lands in exactly one summary card, so the cards add up to the
+# total. An active alarm keeps its severity even when the stall is offline
+# (last known); otherwise an offline / stale stall is a connectivity issue,
+# and "unknown" is left for online stalls whose controller state is unknown.
+def summary_bucket(stall):
+    if stall["severity"] in ACTIVE_SEVERITIES:
+        return stall["severity"]
+    if stall["connection"] != "online":
+        return "connectivity_issues"
+    return stall["severity"]
+
+
 def fleet_summary(stalls):
     summary = {"total": len(stalls), "critical": 0, "warning": 0, "fault": 0,
                "normal": 0, "unknown": 0, "connectivity_issues": 0, "cooking": 0}
     for stall in stalls:
         summary["cooking"] += stall["cooking"]["active"]
-        summary[stall["severity"]] = summary.get(stall["severity"], 0) + 1
-        if stall["connection"] != "online":
-            summary["connectivity_issues"] += 1
+        bucket = summary_bucket(stall)
+        summary[bucket] = summary.get(bucket, 0) + 1
     return summary
 
 

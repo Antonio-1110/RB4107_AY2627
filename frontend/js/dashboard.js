@@ -168,6 +168,14 @@ function renderGlobalAlerts() {
   }
   for (const [key, card] of existing) if (!keep.has(key)) card.remove();
 }
+// Mirrors summary_bucket() in django/ingest/locations.py: each stall is in
+// exactly one summary card. Active alarms keep their severity when offline;
+// other offline / stale stalls are connectivity issues.
+function summaryBucket(stall) {
+  if (["critical", "warning", "fault"].includes(stall.severity)) return stall.severity;
+  if (stall.connection !== "online") return "connectivity";
+  return stall.severity;
+}
 function renderSummary() {
   const summary = fleet.summary || {};
   for (const [id, key] of [
@@ -228,10 +236,7 @@ function filteredStalls() {
     ]
       .join(" ")
       .toLowerCase();
-    const severityMatch =
-      !severity ||
-      stall.severity === severity ||
-      (severity === "connectivity" && stall.connection !== "online");
+    const severityMatch = !severity || summaryBucket(stall) === severity;
     return (
       (!query || searchable.includes(query)) &&
       (!site || stall.location.site_name === site) &&
@@ -780,10 +785,14 @@ function markFleetLastKnown() {
     fault: 0,
     unknown: 0,
     normal: 0,
-    connectivity_issues: fleet.stalls.length,
+    connectivity_issues: 0,
     cooking: fleet.stalls.filter((stall) => stall.cooking.active).length,
   };
-  for (const stall of fleet.stalls) summary[stall.severity] = (summary[stall.severity] || 0) + 1;
+  for (const stall of fleet.stalls) {
+    const bucket = summaryBucket(stall);
+    const key = bucket === "connectivity" ? "connectivity_issues" : bucket;
+    summary[key] = (summary[key] || 0) + 1;
+  }
   fleet.summary = summary;
 }
 async function refresh(forceHistory = false) {
