@@ -18,7 +18,7 @@ Each board gets one firmware:
 | Board | Project | Node ID |
 |---|---|---|
 | ESP32-C6 + C4002, presence node A | `firmware/presence_node` | 1 |
-| ESP32-C6 + C4002, presence node B | `firmware/presence_node` with `sdkconfig.node_b` | 2 |
+| ESP32-C6 + C4002, presence node B | `firmware/presence_node` with `sdkconfig.node_b`, or the same build with `RB_NODE_ID_BY_MAC` | 2 |
 | ESP32-C6 + MLX90640, thermal node | `firmware/thermal_node` | 3 |
 | ESP32-S3 controller | `firmware/controller` | – |
 
@@ -29,7 +29,11 @@ idf.py build                      # the chip (C6 or S3) comes from sdkconfig.def
 idf.py -p <PORT> flash monitor
 ```
 
-Presence node B uses its own build folder so it never shares a config with A:
+Both presence nodes can run the same build: list their MACs in
+`CONFIG_RB_NODE_ID_BY_MAC` in `firmware/presence_node/sdkconfig.defaults`
+(e.g. `"AA:BB:CC:DD:EE:01=1, AA:BB:CC:DD:EE:02=2"`; each board prints its MAC
+at boot) and each board picks its node ID from its own MAC. Without that list,
+presence node B uses its own build folder so it never shares a config with A:
 
 ```bash
 idf.py -B build_b -D SDKCONFIG=build_b/sdkconfig \

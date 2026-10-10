@@ -7,7 +7,7 @@
  *    CONFIG_RB_NODE_DATA_PERIOD_MS,
  *  - HEARTBEAT every CONFIG_RB_NODE_HEARTBEAT_PERIOD_MS,
  *  - SENSOR_FAULT right away whenever a sensor fault flag changes.
- * Every packet carries CONFIG_RB_NODE_ID and the node's role.
+ * Every packet carries rb_node_id() and the node's role.
  */
 #include <stddef.h>
 #include <stdint.h>

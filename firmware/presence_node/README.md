@@ -52,7 +52,15 @@ P3, confirmed on the bench), status LED IO15. See
    idf.py menuconfig   # Sensor node → RB_NODE_CONTROLLER_MAC = that MAC (already this project's S3 in sdkconfig.defaults); ESP-NOW link → same channel as the S3
    idf.py -p <PORT> flash monitor
    ```
-3. **Presence node B (node ID 2):** same firmware, built with
+3. **Presence node B (node ID 2):** flash the same build. Once both boards'
+   MACs (printed at boot as `Wi-Fi STA MAC ...`) are in `RB_NODE_ID_BY_MAC`
+   in `sdkconfig.defaults`, e.g.
+   `CONFIG_RB_NODE_ID_BY_MAC="AA:BB:CC:DD:EE:01=1, AA:BB:CC:DD:EE:02=2"`,
+   each board picks its own node ID and no per-board setup is needed. Delete
+   `sdkconfig` (or run `idf.py fullclean`) after editing the defaults so the
+   build picks them up.
+
+   Without the MAC list, build B with
    `sdkconfig.node_b` on top and its own build folder, so A and B never share
    a configuration:
    ```bash
