@@ -759,6 +759,17 @@ menu "RB4107 configuration"
                     network can send it: turn this off outside the demo
                     (docs/remote_reset.md).
 
+            config RB_CTRL_REMOTE_PRESENCE_FILTER
+                bool "Accept presence filter settings from the dashboard"
+                default y
+                help
+                    A "presence_filter" command on <prefix>/controller/command
+                    changes the absence debounce and the presence-return filter
+                    (length and gap) of the running state machine, within
+                    limits checked here (docs/remote_reset.md). Not saved: the
+                    menuconfig values come back on reboot, or when the
+                    dashboard sends "presence_filter_defaults".
+
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
                 range 4 64
@@ -1124,10 +1135,24 @@ menu "RB4107 configuration"
         config RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS
             int "Presence must last (ms) to cancel UNATTENDED/WARNING"
             range 0 60000
-            default 0
+            default 3000
             help
-                Raise this if spurious static detections by the C4002 cancel
-                the unattended timer.
+                A single radar reading (a hand waved at the sensor, someone
+                walking past) must not cancel the unattended timers. A wave
+                shows as about 1.5-2 s of presence (the C4002's disappear
+                delay keeps it), so keep this above that. A real return takes
+                this much longer to silence the warning. 0 = the first reading
+                counts. The dashboard can change it until the next reboot.
+
+        config RB_SAFETY_PRESENCE_RETURN_GAP_MS
+            int "Gaps shorter than this (ms) don't restart the presence count"
+            range 0 10000
+            default 1000
+            help
+                Radar flicker from a person who is really there: a short run
+                of "absent" readings in the middle of a return does not start
+                the count above again. The person must still be detected when
+                the count completes. 0 = any absent reading restarts it.
 
         config RB_SAFETY_WARNING_TIMEOUT_S
             int "Unattended time before WARNING (s)"

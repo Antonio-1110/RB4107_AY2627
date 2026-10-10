@@ -49,8 +49,9 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 }
 #endif
 
-#if CONFIG_RB_CTRL_REMOTE_RESET
-/* MQTT task: operator reset sent from the dashboard (docs/remote_reset.md). */
+#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
+#define RB_CTRL_COMMANDS 1
+/* MQTT task: operator reset and presence filter sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
 {
     rb_ctrl_cmd_t cmd;
@@ -63,16 +64,42 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGI(TAG, "command for controller %s ignored", cmd.controller_id);
         return;
     }
-    ESP_LOGW(TAG, "operator reset from the dashboard (request %u)", (unsigned)cmd.request_id);
-    rb_controller_request_reset();
+    switch (cmd.action) {
+    case RB_CTRL_ACTION_RESET:
+#if CONFIG_RB_CTRL_REMOTE_RESET
+        ESP_LOGW(TAG, "operator reset from the dashboard (request %u)", (unsigned)cmd.request_id);
+        rb_controller_request_reset();
+#else
+        ESP_LOGW(TAG, "dashboard reset refused: turned off in menuconfig");
+#endif
+        break;
+    case RB_CTRL_ACTION_PRESENCE_FILTER:
+    case RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
+        ESP_LOGW(TAG, "presence filter from the dashboard (request %u)", (unsigned)cmd.request_id);
+        if (cmd.action == RB_CTRL_ACTION_PRESENCE_FILTER) {
+            const rb_presence_filter_t filter = {
+                .absence_debounce_ms = cmd.absence_ms,
+                .presence_return_debounce_ms = cmd.return_ms,
+                .presence_return_gap_ms = cmd.return_gap_ms,
+            };
+            rb_controller_set_presence_filter(&filter);
+        } else {
+            rb_controller_set_presence_filter(NULL);
+        }
+#else
+        ESP_LOGW(TAG, "dashboard presence filter refused: turned off in menuconfig");
+#endif
+        break;
+    }
 }
 
-static esp_err_t remote_reset_start(void)
+static esp_err_t remote_commands_start(void)
 {
     char filter[96];
     snprintf(filter, sizeof(filter), "%s/%s", CONFIG_RB_MQTT_TOPIC_PREFIX, RB_TOPIC_CONTROLLER_COMMAND);
     ESP_RETURN_ON_ERROR(rb_mqtt_subscribe(filter, 1, on_controller_command, NULL), TAG, "subscribe");
-    ESP_LOGI(TAG, "dashboard reset: listening on %s", filter);
+    ESP_LOGI(TAG, "dashboard commands: listening on %s", filter);
     return ESP_OK;
 }
 #endif
@@ -128,9 +155,9 @@ esp_err_t rb_controller_app_start(void)
     if (rb_c4002_relay_start(cfg.nodes.presence_node_ids, cfg.nodes.presence_node_count) != ESP_OK) {
         ESP_LOGE(TAG, "remote C4002 tuning not started; safety unaffected");
     }
-#if CONFIG_RB_CTRL_REMOTE_RESET
-    if (remote_reset_start() != ESP_OK) {
-        ESP_LOGE(TAG, "dashboard reset not started; reset from the console or by power cycle");
+#ifdef RB_CTRL_COMMANDS
+    if (remote_commands_start() != ESP_OK) {
+        ESP_LOGE(TAG, "dashboard commands not started; reset from the console or by power cycle");
     }
 #endif
     if (rb_telemetry_start() != ESP_OK) {

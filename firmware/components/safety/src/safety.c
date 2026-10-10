@@ -175,8 +175,12 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
                             in->self_test == SAFETY_SELFTEST_PASS;
 
     const bool absent_confirmed = sm->absent_timing && elapsed(now, sm->absent_since_ms, cfg->absence_debounce_ms);
-    const bool present_confirmed =
-        sm->present_timing && elapsed(now, sm->present_since_ms, cfg->presence_return_debounce_ms);
+    /*
+     * A return only counts while the radar still sees the person: a short burst
+     * (a hand wave, someone walking past) never cancels the unattended timers.
+     */
+    const bool present_confirmed = sm->present_timing && in->presence == RB_TRUE &&
+                                   elapsed(now, sm->present_since_ms, cfg->presence_return_debounce_ms);
 
     uint32_t warning_ms = cfg->warning_timeout_ms;
     uint32_t shutdown_ms = cfg->shutdown_timeout_ms;
@@ -328,7 +332,11 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
         sm->heat_active = sm->heat_active ? t >= sm->cfg.heat_off_temp_c : (t >= sm->cfg.heat_on_temp_c || rising_fast);
     }
 
-    /* Presence debounce timers. UNKNOWN stops both. */
+    /*
+     * Presence debounce timers. UNKNOWN stops both. The return timer survives
+     * "absent" gaps shorter than presence_return_gap_ms (radar flicker from a
+     * person who is really there).
+     */
     if (in->presence == RB_FALSE) {
         if (!sm->absent_timing) {
             sm->absent_timing = true;
@@ -342,7 +350,8 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
             sm->present_timing = true;
             sm->present_since_ms = now_ms;
         }
-    } else {
+        sm->present_last_ms = now_ms;
+    } else if (in->presence == RB_UNKNOWN || elapsed(now_ms, sm->present_last_ms, sm->cfg.presence_return_gap_ms)) {
         sm->present_timing = false;
     }
 

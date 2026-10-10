@@ -1,6 +1,7 @@
-"""Dashboard -> controller commands: remote C4002 tuning (docs/c4002_tuning.md)
-and the operator reset of a latched shutdown (docs/remote_reset.md). Nothing
-here can trigger a shutdown or drive an output directly.
+"""Dashboard -> controller commands: remote C4002 tuning (docs/c4002_tuning.md),
+the operator reset of a latched shutdown and the presence filter
+(docs/remote_reset.md). Nothing here can trigger a shutdown or drive an output
+directly.
 """
 
 from __future__ import annotations
@@ -56,6 +57,31 @@ def build_reset_command(controller_id: str) -> dict:
     """The operator reset: the same as the controller console's `reset` command."""
     command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
                "request_id": secrets.randbelow(65535) + 1, "action": "reset"}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
+PRESENCE_FILTER_KEYS = ("absence_ms", "return_ms", "return_gap_ms")
+
+
+def build_presence_filter_command(controller_id: str, body: dict) -> dict:
+    """{"absence_ms", "return_ms", "return_gap_ms"} sets the presence filter until the
+    controller reboots; {"defaults": true} goes back to the menuconfig values."""
+    if not isinstance(body, dict):
+        raise CommandError("body must be a JSON object")
+    if body == {"defaults": True}:
+        values, action = {}, "presence_filter_defaults"
+    else:
+        extra = sorted(set(body) - set(PRESENCE_FILTER_KEYS))
+        missing = [key for key in PRESENCE_FILTER_KEYS if key not in body]
+        if extra or missing:
+            raise CommandError(f"send {', '.join(PRESENCE_FILTER_KEYS)} (milliseconds), or {{\"defaults\": true}}")
+        values, action = {key: body[key] for key in PRESENCE_FILTER_KEYS}, "presence_filter"
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
     try:
         validation.check_command(command)
     except validation.InvalidMessage as exc:

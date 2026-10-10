@@ -52,6 +52,7 @@ frontend/
 | `uptime_ms` | `uptime_seconds` | Unit conversion |
 | `nodes[]` and sensor topics | `sensors[node_id]` | Distinct C4002/MLX90640 diagnostics for each controller |
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
+| `safety.presence_filter` | `presence_filter` (`absence_seconds`, `return_seconds`, `return_gap_seconds`, `source`) | Presence filter in use, shown and changed in the System status card ([remote_reset.md](remote_reset.md#presence-filter)); `null` from older firmware |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
 | `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state. The card outlines the pixels above the node's hot-pixel threshold, boxes its hot region, and works out the pixel size at a chosen distance for either lens (55° or 110°) |

@@ -103,7 +103,18 @@
             "warning_after_ms": {"type": "integer", "minimum": 0, "description": "configured unattended time before WARNING"},
             "shutdown_after_ms": {"type": "integer", "minimum": 0, "description": "configured time before SHUTDOWN, counted from shutdown_counts_from"},
             "shutdown_counts_from": {"enum": ["UNATTENDED", "WARNING"]},
-            "test_timers": {"type": "boolean"}
+            "test_timers": {"type": "boolean"},
+            "presence_filter": {
+              "type": "object",
+              "description": "presence filter in use: absence needed before UNATTENDED, presence needed to cancel UNATTENDED/WARNING, absent gaps that don't restart that count",
+              "required": ["absence_ms", "return_ms", "return_gap_ms", "source"],
+              "properties": {
+                "absence_ms": {"type": "integer", "minimum": 0},
+                "return_ms": {"type": "integer", "minimum": 0},
+                "return_gap_ms": {"type": "integer", "minimum": 0},
+                "source": {"enum": ["menuconfig", "dashboard"]}
+              }
+            }
           }
         },
         "faults": {"type": "array", "items": {"type": "string"}}
@@ -317,7 +328,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter until reboot; presence_filter_defaults = back to the menuconfig values (docs/remote_reset.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -326,8 +337,14 @@
         "type": {"const": "controller_command"},
         "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
-        "action": {"enum": ["reset"]}
-      }
+        "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults"]},
+        "absence_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "return_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "return_gap_ms": {"type": "integer", "minimum": 0, "maximum": 5000}
+      },
+      "if": {"properties": {"action": {"const": "presence_filter"}}},
+      "then": {"required": ["absence_ms", "return_ms", "return_gap_ms"]},
+      "else": {"not": {"anyOf": [{"required": ["absence_ms"]}, {"required": ["return_ms"]}, {"required": ["return_gap_ms"]}]}}
     }
   }
 }

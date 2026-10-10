@@ -138,6 +138,10 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.shutdown_counts_from =
         snap->shutdown_timing == SAFETY_SHUTDOWN_AFTER_WARNING_START ? "WARNING" : "UNATTENDED";
     t->safety.test_timers = snap->test_timers;
+    t->safety.absence_ms = snap->absence_debounce_ms;
+    t->safety.return_ms = snap->presence_return_debounce_ms;
+    t->safety.return_gap_ms = snap->presence_return_gap_ms;
+    t->safety.filter_remote = snap->presence_filter_remote;
     t->safety.loop_count = snap->loop_count;
 
     t->faults = faults;

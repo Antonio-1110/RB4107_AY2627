@@ -164,6 +164,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_THERMAL_NODE_ID` | Thermal node ID | `3` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_C4002_REMOTE_TUNING` | Relay C4002 tuning commands from the dashboard to the presence nodes | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_RESET` | Accept the operator reset from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER` | Accept presence filter settings from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |
@@ -248,7 +249,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_SAFETY_HEAT_OFF_DC` | Cooking over below hot-region temperature (0.1 degC) | `400` | 0 – 3000 | ⚠ |
 | `CONFIG_RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN` | Also detect cooking when rising at least (0.1 degC/min), 0 = off | `0` | 0 – 10000 | ⚠ |
 | `CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS` | Absence must last (ms) before UNATTENDED | `2000` | 0 – 60000 |  |
-| `CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS` | Presence must last (ms) to cancel UNATTENDED/WARNING | `0` | 0 – 60000 |  |
+| `CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS` | Presence must last (ms) to cancel UNATTENDED/WARNING | `3000` | 0 – 60000 |  |
+| `CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS` | Gaps shorter than this (ms) don't restart the presence count | `1000` | 0 – 10000 |  |
 | `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `60` | 1 – 3600 |  |
 | `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `90` | 1 – 3600 |  |
 | `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  | ⚠ |
@@ -264,7 +266,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | ESP-NOW peer MAC and channel | `RB_NODE_CONTROLLER_MAC`, `RB_ESPNOW_CHANNEL`, `RB_ESPNOW_FOLLOW_CHANNEL` (nodes follow the controller to the Wi-Fi router's channel, see [setup.md](setup.md#broker)) |
 | Node IDs | `RB_NODE_ID` (each node; 1, 2 = presence, 3 = thermal), `RB_CTRL_PRESENCE_NODE_COUNT`, `RB_CTRL_PRESENCE_A_NODE_ID`, `RB_CTRL_PRESENCE_B_NODE_ID`, `RB_CTRL_THERMAL_NODE_ID` (controller) |
 | Sensor timeouts | `RB_C4002_STALE_TIMEOUT_MS`, `RB_MLX_STALE_TIMEOUT_MS`, `RB_CTRL_NODE_STALE_MS`, `RB_CTRL_NODE_OFFLINE_MS` |
-| Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, C4002 sensor-side settings |
+| Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS` (also live from the dashboard, `RB_CTRL_REMOTE_PRESENCE_FILTER`), C4002 sensor-side settings |
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC`, `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
 | Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |
