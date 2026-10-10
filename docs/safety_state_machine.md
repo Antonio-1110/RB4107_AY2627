@@ -34,11 +34,11 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 | MONITORING | hot-region temp < `heat_off_temp_c` (hysteresis) | IDLE |
 | MONITORING | absent for `absence_debounce_ms` | UNATTENDED |
 | UNATTENDED | sensors not OK | FAULT |
-| UNATTENDED | present for `presence_return_debounce_ms` | MONITORING |
+| UNATTENDED | present for `presence_return_debounce_ms` (see presence filter) | MONITORING |
 | UNATTENDED | heat stopped **and** cooling policy = return-to-idle | IDLE |
 | UNATTENDED | unattended ≥ `warning_timeout_ms` | WARNING |
 | WARNING | sensors not OK | FAULT |
-| WARNING | present (+ reset in exit-on-ack mode) | MONITORING |
+| WARNING | present for `presence_return_debounce_ms` (+ reset in exit-on-ack mode) | MONITORING |
 | WARNING | heat stopped **and** cooling policy = return-to-idle | IDLE |
 | WARNING | shutdown timer expired (see timing mode) | SHUTDOWN |
 | SHUTDOWN | operator reset (latched until then) | IDLE |
@@ -67,6 +67,15 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
   is still away, the timeline continues. If no timeline was running, it
   starts from the moment the fault began.
 - After an operator reset from SHUTDOWN all timing starts over.
+- Presence filter: absence must last `absence_debounce_ms` (default 2 s)
+  before UNATTENDED. A return must last `presence_return_debounce_ms`
+  (default 3 s) before it cancels UNATTENDED or WARNING, so a single reading
+  (a hand waved at the radar, someone walking past) leaves the unattended
+  timer running. "Absent" gaps shorter than `presence_return_gap_ms`
+  (default 1 s) don't restart that count, but the person must still be
+  detected when it completes. UNKNOWN presence stops it at once. The
+  dashboard can change all three until the next reboot
+  ([remote_reset.md](remote_reset.md#presence-filter)).
 - The optional `timing_hook` lets the temperature trend shorten the
   warning/shutdown timeouts later. It can only make them stricter.
 

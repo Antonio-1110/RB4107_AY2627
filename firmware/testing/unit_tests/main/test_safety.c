@@ -440,6 +440,105 @@ static void test_config_validation(void)
     TEST_ASSERT_FALSE(safety_config_valid(&cfg));
 }
 
+/* ---- presence-return filter (a hand wave must not reset the timers) ---- */
+
+static safety_config_t return_filter_config(void)
+{
+    safety_config_t cfg = th_default_config();
+    cfg.presence_return_debounce_ms = 3000;
+    cfg.presence_return_gap_ms = 1000;
+    return cfg;
+}
+
+/* Presence for `on` ms, then absent for `off` ms. */
+static void blip(th_t *h, uint32_t on, uint32_t off)
+{
+    h->in.presence = RB_TRUE;
+    th_run(h, on);
+    h->in.presence = RB_FALSE;
+    th_run(h, off);
+}
+
+static void test_wave_keeps_unattended_timer(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, 20000);
+    const uint32_t before = safety_unattended_ms(&h.sm, h.now);
+    blip(&h, 2000, 2000); /* a wave: ~2 s seen, then gone */
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_UINT32_WITHIN(TH_STEP_MS, before + 4000, safety_unattended_ms(&h.sm, h.now));
+    /* The warning still comes 60 s after the person left. */
+    th_run(&h, cfg.warning_timeout_ms - safety_unattended_ms(&h.sm, h.now) - TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    th_run(&h, 2 * TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_WARNING);
+}
+
+static void test_wave_during_warning_keeps_shutdown(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, cfg.warning_timeout_ms);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    blip(&h, 2500, 1500);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    th_run(&h, cfg.shutdown_timeout_ms - safety_unattended_ms(&h.sm, h.now) + TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_SHUTDOWN);
+}
+
+static void test_return_survives_short_flicker(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, 10000);
+    blip(&h, 1500, 500); /* flicker shorter than the 1 s gap */
+    h.in.presence = RB_TRUE;
+    th_run(&h, 900);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    th_run(&h, 200); /* 3 s since the return began */
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_long_gap_restarts_return_count(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, 10000);
+    blip(&h, 2000, 1500); /* gap longer than 1 s: the count starts again */
+    h.in.presence = RB_TRUE;
+    th_run(&h, 2000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    th_run(&h, 1000 + TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_return_needs_presence_when_count_completes(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, 10000);
+    blip(&h, 2500, 900); /* the 3 s pass inside the gap: not a return */
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    th_run(&h, 2000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+}
+
 void run_safety_tests(void)
 {
     RUN_TEST(test_boot_selftest_pass_to_idle);
@@ -464,4 +563,9 @@ void run_safety_tests(void)
     RUN_TEST(test_timing_hook_can_only_shorten);
     RUN_TEST(test_monotonic_wraparound);
     RUN_TEST(test_config_validation);
+    RUN_TEST(test_wave_keeps_unattended_timer);
+    RUN_TEST(test_wave_during_warning_keeps_shutdown);
+    RUN_TEST(test_return_survives_short_flicker);
+    RUN_TEST(test_long_gap_restarts_return_count);
+    RUN_TEST(test_return_needs_presence_when_count_completes);
 }

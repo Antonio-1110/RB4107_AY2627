@@ -91,6 +91,10 @@ typedef struct {
         uint32_t shutdown_after_ms;
         const char *shutdown_counts_from; /* "UNATTENDED" / "WARNING" */
         bool test_timers;
+        uint32_t absence_ms;          /* presence filter in use */
+        uint32_t return_ms;
+        uint32_t return_gap_ms;
+        bool filter_remote;           /* presence filter set from the dashboard */
         uint32_t loop_count;
     } safety;
 

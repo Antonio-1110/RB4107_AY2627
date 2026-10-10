@@ -88,6 +88,17 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_str(w, t->safety.shutdown_counts_from);
     rb_json_key(w, "test_timers");
     rb_json_bool(w, t->safety.test_timers);
+    rb_json_key(w, "presence_filter");
+    rb_json_obj_begin(w);
+    rb_json_key(w, "absence_ms");
+    rb_json_int(w, t->safety.absence_ms);
+    rb_json_key(w, "return_ms");
+    rb_json_int(w, t->safety.return_ms);
+    rb_json_key(w, "return_gap_ms");
+    rb_json_int(w, t->safety.return_gap_ms);
+    rb_json_key(w, "source");
+    rb_json_str(w, t->safety.filter_remote ? "dashboard" : "menuconfig");
+    rb_json_obj_end(w);
     rb_json_obj_end(w);
 }
 
