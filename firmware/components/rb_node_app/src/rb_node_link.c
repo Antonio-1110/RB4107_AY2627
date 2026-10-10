@@ -10,6 +10,7 @@
 #include "freertos/task.h"
 #include "rb_config.h"
 #include "rb_espnow.h"
+#include "rb_node_id.h"
 #include "rb_wifi.h"
 
 static const char *TAG = "ESPNOW";
@@ -30,7 +31,7 @@ static uint32_t now_ms(void)
 esp_err_t rb_node_link_send(rb_packet_t *pkt)
 {
     pkt->role = s_cfg.role;
-    pkt->node_id = CONFIG_RB_NODE_ID;
+    pkt->node_id = rb_node_id();
     pkt->uptime_ms = now_ms();
     esp_err_t err = rb_espnow_send(s_peer, pkt);
     if (err != ESP_OK) {
@@ -113,7 +114,7 @@ esp_err_t rb_node_link_send_frame_piece(uint32_t frame_number, const rb_thermal_
     const rb_packet_t hdr = {
         .type = RB_MSG_THERMAL_FRAME,
         .role = s_cfg.role,
-        .node_id = CONFIG_RB_NODE_ID,
+        .node_id = rb_node_id(),
         .sequence = frame_number,
         .uptime_ms = now_ms(),
     };
@@ -130,8 +131,8 @@ esp_err_t rb_node_link_start(const rb_node_link_config_t *config)
     ESP_RETURN_ON_ERROR(rb_espnow_start(CONFIG_RB_ESPNOW_CHANNEL), TAG, "ESP-NOW start");
     ESP_RETURN_ON_ERROR(rb_espnow_add_peer(s_peer), TAG, "add peer");
     ESP_RETURN_ON_ERROR(rb_espnow_follow_start(s_peer, probe, NULL), TAG, "channel follow");
-    ESP_LOGI(TAG, "sending to " MACSTR " as %s node %d", MAC2STR(s_peer), rb_node_role_name(s_cfg.role),
-             CONFIG_RB_NODE_ID);
+    ESP_LOGI(TAG, "sending to " MACSTR " as %s node %lu", MAC2STR(s_peer), rb_node_role_name(s_cfg.role),
+             (unsigned long)rb_node_id());
     return xTaskCreate(link_task, "espnow_link", LINK_TASK_STACK, NULL, LINK_TASK_PRIO, NULL) == pdPASS
                ? ESP_OK
                : ESP_ERR_NO_MEM;

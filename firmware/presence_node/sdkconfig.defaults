@@ -2,9 +2,11 @@ CONFIG_IDF_TARGET="esp32c6"
 # USB-C goes to the native USB-Serial/JTAG, which keeps UART0/UART1 pins free
 # for the C4002.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
-# Presence node A. For presence node B, build with sdkconfig.node_b on top
-# (see README).
+# Both presence nodes run this one build: each picks its node ID from its own
+# MAC in RB_NODE_ID_BY_MAC (A = 1, B = 2). A board whose MAC isn't listed uses
+# RB_NODE_ID. Fill in the MACs each board prints at boot ("Wi-Fi STA MAC ...").
 CONFIG_RB_NODE_ID=1
+CONFIG_RB_NODE_ID_BY_MAC=""
 # The controller ESP32-S3's Wi-Fi STA MAC (printed at its boot). Needed for
 # acknowledged sends, and so for following the controller's Wi-Fi channel.
 CONFIG_RB_NODE_CONTROLLER_MAC="44:B1:76:A9:BB:6C"
