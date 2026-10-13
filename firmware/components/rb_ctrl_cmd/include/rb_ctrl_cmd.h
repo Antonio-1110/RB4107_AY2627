@@ -11,9 +11,11 @@
  * Actions:
  *   "reset"                     the operator reset / acknowledge, as the
  *                               diagnostic console's `reset` command
- *   "presence_filter"           change the presence filter of the running
- *                               state machine; needs absence_ms, return_ms and
- *                               return_gap_ms (milliseconds, limits below)
+ *   "presence_filter"           change the presence filter and the
+ *                               buzzer/shutdown times of the running state
+ *                               machine; needs absence_ms, return_ms,
+ *                               return_gap_ms, warning_ms and shutdown_ms
+ *                               (milliseconds, limits below)
  *   "presence_filter_defaults"  back to the menuconfig values
  *   "thermal_threshold"         send a new hot-pixel threshold to the thermal
  *                               node, which saves it; needs
@@ -36,6 +38,8 @@ extern "C" {
 #define RB_CTRL_ABSENCE_MAX_MS 10000
 #define RB_CTRL_RETURN_MAX_MS 10000
 #define RB_CTRL_RETURN_GAP_MAX_MS 5000
+#define RB_CTRL_TIMEOUT_MIN_MS 1000 /* warning_ms and shutdown_ms, as the menuconfig 1..3600 s */
+#define RB_CTRL_TIMEOUT_MAX_MS 3600000
 /* Dashboard limit for "thermal_threshold": 0..300.0 degC. */
 #define RB_CTRL_HOT_PIXEL_MAX_DC 3000
 
@@ -55,6 +59,8 @@ typedef struct {
     uint32_t absence_ms;
     uint32_t return_ms;
     uint32_t return_gap_ms;
+    uint32_t warning_ms;
+    uint32_t shutdown_ms;
     /* RB_CTRL_ACTION_THERMAL_THRESHOLD only. */
     uint16_t hot_pixel_threshold_dc;
 } rb_ctrl_cmd_t;

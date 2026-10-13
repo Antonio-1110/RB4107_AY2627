@@ -295,11 +295,12 @@
                 Available only while a shutdown is latched.
               </p>
             </div>
-            <h3 class="presence-filter-title">Presence filter</h3>
+            <h3 class="presence-filter-title">Presence filter and timers</h3>
             <p class="muted small">
               How long the radar must agree before the state changes. A hand waved at the sensor
-              stays shorter than "Return after", so it does not reset the unattended timer. Changes
-              last until the controller reboots.
+              stays shorter than "Return after", so it does not reset the unattended timer. Buzzer
+              and shutdown times count from when the person left (shutdown counts as shown under
+              Shutdown above). Changes last until the controller reboots.
             </p>
             <fieldset id="presence-filter-form" class="tuning-grid presence-filter-grid" disabled>
               <label
@@ -310,6 +311,12 @@
               /></label>
               <label
                 >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
+              /></label>
+              <label
+                >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
+              /></label>
+              <label
+                >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
               /></label>
             </fieldset>
             <div class="reset-actions">

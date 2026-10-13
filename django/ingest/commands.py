@@ -64,12 +64,15 @@ def build_reset_command(controller_id: str) -> dict:
     return command
 
 
-PRESENCE_FILTER_KEYS = ("absence_ms", "return_ms", "return_gap_ms")
+PRESENCE_FILTER_KEYS = ("absence_ms", "return_ms", "return_gap_ms", "warning_ms", "shutdown_ms")
 
 
 def build_presence_filter_command(controller_id: str, body: dict) -> dict:
-    """{"absence_ms", "return_ms", "return_gap_ms"} sets the presence filter until the
-    controller reboots; {"defaults": true} goes back to the menuconfig values."""
+    """{"absence_ms", "return_ms", "return_gap_ms", "warning_ms", "shutdown_ms"} sets the
+    presence filter and the buzzer/shutdown times until the controller reboots;
+    {"defaults": true} goes back to the menuconfig values. Whether shutdown_ms
+    must be above warning_ms depends on shutdown_counts_from, so the controller
+    checks that (and the dashboard before sending)."""
     if not isinstance(body, dict):
         raise CommandError("body must be a JSON object")
     if body == {"defaults": True}:

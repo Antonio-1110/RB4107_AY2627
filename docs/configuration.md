@@ -165,7 +165,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_THERMAL_NODE_ID` | Thermal node ID | `3` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_C4002_REMOTE_TUNING` | Relay C4002 tuning commands from the dashboard to the presence nodes | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_RESET` | Accept the operator reset from the dashboard | `y` |  |  |
-| `CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER` | Accept presence filter settings from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER` | Accept presence filter and buzzer/shutdown times from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD` | Relay the hot-pixel threshold from the dashboard to the thermal node | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
@@ -250,11 +250,11 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_SAFETY_HEAT_ON_DC` | Cooking detected at hot-region temperature (0.1 degC) | `500` | 0 – 3000 | ⚠ |
 | `CONFIG_RB_SAFETY_HEAT_OFF_DC` | Cooking over below hot-region temperature (0.1 degC) | `400` | 0 – 3000 | ⚠ |
 | `CONFIG_RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN` | Also detect cooking when rising at least (0.1 degC/min), 0 = off | `0` | 0 – 10000 | ⚠ |
-| `CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS` | Absence must last (ms) before UNATTENDED | `2000` | 0 – 60000 |  |
+| `CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS` | Absence must last (ms) before UNATTENDED | `1000` | 0 – 60000 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS` | Presence must last (ms) to cancel UNATTENDED/WARNING | `3000` | 0 – 60000 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS` | Gaps shorter than this (ms) don't restart the presence count | `1000` | 0 – 10000 |  |
-| `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `60` | 1 – 3600 |  |
-| `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `90` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `20` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `40` | 1 – 3600 |  |
 | `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  | ⚠ |
 | `RB_SAFETY_WARNING_EXIT` (choice) | Person returns during WARNING: `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` = return to MONITORING; `CONFIG_RB_SAFETY_WARNING_EXIT_ACK` = stay in WARNING until the person acknowledges (reset input) | `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` |  | ⚠ |
 | `RB_SAFETY_COOLING` (choice) | Temperature falls while UNATTENDED/WARNING: `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` = keep the timers running; `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` = return to IDLE and cancel the timers | `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` |  | ⚠ |
