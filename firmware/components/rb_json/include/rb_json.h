@@ -39,6 +39,10 @@ typedef struct {
     const char *link;             /* NEVER_SEEN / ONLINE / STALE / OFFLINE */
     bool valid;                   /* fresh, valid reading from an ONLINE node */
     bool detected;                /* presence nodes: person seen (only used when valid) */
+    const char *verdict;          /* presence nodes with the radar rules on: "none" "passing" "dwelling", else NULL */
+    uint32_t episode_ms;          /* ... the current episode (or the last one): how long, */
+    uint32_t stationary_ms;       /* ... how much of it as a stationary target, */
+    uint16_t span_cm;             /* ... and the spread of the distances */
 } rb_json_node_t;
 
 typedef struct {
@@ -112,6 +116,9 @@ typedef struct {
         float tier2_temp_c, tier2_rate_c_per_min, tier2_rate_min_temp_c;
         uint32_t tier2_warning_ms, tier2_shutdown_ms;
         bool tiers_remote;            /* tier settings set from the dashboard */
+        const char *radar_rules;      /* "off" "observe" "enforce" (placeholder rules) */
+        uint32_t radar_dwell_ms, radar_stationary_min_ms;
+        uint16_t radar_settle_span_cm, radar_zone_max_cm;
         bool paused;                  /* the clock is stopped: someone is at the stove */
         uint32_t pause_used_ms;
         uint32_t pause_budget_ms;     /* in force on this timeline */

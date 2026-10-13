@@ -100,7 +100,12 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
     occupied = scenario in {"monitoring", "network_loss", "fault_node_offline"}
     temp, rate = _pan_temperature(scenario, index, tick)
     unattended_ms, state_ms = _timers(scenario, tick)
-    radar = {"link": "ONLINE", "valid": True, "detected": occupied}
+    radar = {"link": "ONLINE", "valid": True, "detected": occupied or scenario == "passing"}
+    if boot_id:  # the radar rules (placeholder): a verdict per radar and the episode behind it
+        verdict = "dwelling" if occupied else "passing" if scenario == "passing" else "none"
+        radar.update(verdict=verdict, episode_ms=7000 if occupied else 2500 if verdict == "passing" else 0,
+                     stationary_ms=4500 if occupied else 500 if verdict == "passing" else 0,
+                     span_cm=30 if occupied else 190 if verdict == "passing" else 0)
     radar_b = dict(radar)
     faults = []
     presence = "PRESENT" if occupied else "ABSENT"
@@ -147,6 +152,8 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                               effective_warning_ms=HOT_WARNING_S * 1000 if scenario == "hot_pan" else WARNING_S * 1000,
                               effective_shutdown_ms=TIERS["critical"]["shutdown_ms"] if scenario == "hot_pan" else SHUTDOWN_AFTER_S * 1000,
                               tiers=TIERS,
+                              radar_rules={"mode": "observe", "dwell_ms": 4000, "stationary_min_ms": 1500,
+                                           "settle_span_cm": 60, "zone_max_cm": 0},
                               paused=scenario == "passing", pause_used_ms=4000 if scenario == "passing" else 0,
                               pause_budget_ms=30000,
                               presence_unknown=presence == "UNKNOWN", thermal_lost=False,

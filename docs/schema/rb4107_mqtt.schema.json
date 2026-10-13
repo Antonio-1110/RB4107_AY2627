@@ -49,7 +49,11 @@
         "role": {"$ref": "#/$defs/node_role"},
         "link": {"$ref": "#/$defs/node_link"},
         "valid": {"type": "boolean"},
-        "detected": {"$ref": "#/$defs/nullable_bool", "description": "presence nodes with a valid reading only; null otherwise"}
+        "detected": {"$ref": "#/$defs/nullable_bool", "description": "presence nodes with a valid reading only; null otherwise"},
+        "verdict": {"enum": ["none", "passing", "dwelling"], "description": "radar state and distance rules (placeholder): passing = a target that has not settled at the stove, dwelling = arrived and settled there. Only presence nodes, only while the rules are on"},
+        "episode_ms": {"type": "integer", "minimum": 0, "description": "the current (or last) episode of a target near this radar: how long it lasted"},
+        "stationary_ms": {"type": "integer", "minimum": 0, "description": "... how much of it as a stationary target"},
+        "span_cm": {"type": "integer", "minimum": 0, "description": "... the spread of the distances seen"}
       },
       "if": {"properties": {"valid": {"const": false}}},
       "then": {"properties": {"detected": {"type": "null"}}}
@@ -125,6 +129,18 @@
                   }
                 }
               ]
+            },
+            "radar_rules": {
+              "type": "object",
+              "description": "the radar state and distance rules (a placeholder, not tuned on real data): off = not computed, observe = computed and reported but not used, enforce = a radar that only sees someone passing does not count as at the stove",
+              "required": ["mode"],
+              "properties": {
+                "mode": {"enum": ["off", "observe", "enforce"]},
+                "dwell_ms": {"type": "integer", "minimum": 0},
+                "stationary_min_ms": {"type": "integer", "minimum": 0},
+                "settle_span_cm": {"type": "integer", "minimum": 0},
+                "zone_max_cm": {"type": "integer", "minimum": 0}
+              }
             },
             "paused": {"type": "boolean", "description": "the unattended clock is stopped because someone is at the stove (until presence_return_debounce_ms of presence cancels the timeline, or the pause budget is used up)"},
             "pause_used_ms": {"type": "integer", "minimum": 0, "description": "time paused on this timeline"},

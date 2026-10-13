@@ -23,7 +23,7 @@ static const char *TAG = "MQTT";
 
 #define TELEMETRY_STACK 6144
 #define TOPIC_LEN 96
-#define PAYLOAD_LEN 2048 /* also fits a heat-map picture: 1024 base64 characters plus ~300 */
+#define PAYLOAD_LEN 3072 /* also fits a heat-map picture: 1024 base64 characters plus ~300 */
 
 static char s_payload[PAYLOAD_LEN];
 static char s_timestamp[32];
@@ -106,13 +106,22 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
         const sensor_node_state_t *n = &snap->nodes.nodes[slot];
         rb_topic_node_name(n->node_id, s_node_names[slot], sizeof(s_node_names[slot]));
         if (snap->nodes.enabled[slot]) {
-            nodes[count++] = (rb_json_node_t){
+            nodes[count] = (rb_json_node_t){
                 .name = s_node_names[slot],
                 .role = rb_node_role_name(n->role),
                 .link = node_link_state_name(n->link),
                 .valid = n->sensor_ok,
                 .detected = n->presence.presence_detected,
             };
+            if (n->role == RB_NODE_ROLE_PRESENCE && snap->nodes.rules_mode != RADAR_RULES_OFF) {
+                const radar_episode_t *ep = &n->episode;
+                nodes[count].verdict = radar_verdict_name(radar_episode_verdict(ep));
+                nodes[count].episode_ms = ep->active ? (uint32_t)(snap->mono_ms - ep->start_ms) : ep->last_duration_ms;
+                nodes[count].stationary_ms = ep->active ? ep->stationary_ms : ep->last_stationary_ms;
+                nodes[count].span_cm = ep->active ? (ep->max_cm >= ep->min_cm && ep->max_cm != 0 ? (uint16_t)(ep->max_cm - ep->min_cm) : 0)
+                                                  : ep->last_span_cm;
+            }
+            count++;
         }
     }
     t->nodes = nodes;
@@ -163,6 +172,13 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.tier2_warning_ms = snap->tiers.tier2_warning_ms;
     t->safety.tier2_shutdown_ms = snap->tiers.tier2_shutdown_ms;
     t->safety.tiers_remote = snap->tiers_remote;
+    if (snap->nodes.rules_mode != RADAR_RULES_OFF) {
+        t->safety.radar_rules = radar_rules_mode_name(snap->nodes.rules_mode);
+        t->safety.radar_dwell_ms = snap->nodes.rules.dwell_ms;
+        t->safety.radar_stationary_min_ms = snap->nodes.rules.stationary_min_ms;
+        t->safety.radar_settle_span_cm = snap->nodes.rules.settle_span_cm;
+        t->safety.radar_zone_max_cm = snap->nodes.rules.zone_max_cm;
+    }
     t->safety.paused = snap->paused;
     t->safety.pause_used_ms = snap->pause_used_ms;
     t->safety.pause_budget_ms = snap->pause_budget_ms;

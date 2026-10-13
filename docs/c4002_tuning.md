@@ -178,9 +178,9 @@ Full schema: `c4002_config` and `c4002_command` in
 | ESP-NOW `C4002_CONFIG` | 102 B | 250 B (`_Static_assert` in `rb_protocol.h`) |
 | ESP-NOW `C4002_CONFIG_ACK` | 96 B | 250 B |
 | MQTT command (largest, all keys) | ~520 B | S3 MQTT receive buffer, 1024 B by default |
-| MQTT `c4002_config` reply | ~880 B | telemetry payload buffer, 2048 B |
+| MQTT `c4002_config` reply | ~880 B | telemetry payload buffer, 3072 B |
 | ESP-NOW `C4002_LIVE` | 46 B, at most 4 a second | 250 B |
-| MQTT `c4002_live` | ~470 B | telemetry payload buffer, 2048 B |
+| MQTT `c4002_live` | ~470 B | telemetry payload buffer, 3072 B |
 | Settings saved in NVS | 76 B | |
 | RAM | node: one 4 KB task + a 4-entry queue (~0.5 KB); S3: ~1.1 KB of state, no new task | C6 and S3: 512 KB SRAM |
 

@@ -221,6 +221,25 @@ function liveLines(values, age, elapsed) {
   else if (filter && number(returning) && returning > 0 && ["unattended", "warning"].includes(values.safety_state))
     person += ` · return counted ${s1(Math.min(returning, filter.return_seconds))} of ${s1(filter.return_seconds)}`;
   set("cd-person-live", `Person: ${person}`);
+  // The radar state and distance rules (a placeholder): what each radar's recent target looks like.
+  const rules = values.radar_rules,
+    VERDICT = { none: "nobody", passing: "passing", dwelling: "dwelling at the stove" };
+  const radars = Object.entries(values.sensors || {})
+    .filter(([, sensor]) => sensor && sensor.verdict)
+    .map(
+      ([name, sensor]) =>
+        `${name}: ${VERDICT[sensor.verdict] || sensor.verdict}` +
+        (sensor.verdict !== "none" || sensor.episode_seconds
+          ? ` (${number(sensor.episode_seconds) ? sensor.episode_seconds.toFixed(1) : "?"} s, ${number(sensor.stationary_seconds) ? sensor.stationary_seconds.toFixed(1) : "?"} s still, span ${sensor.span_cm ?? "?"} cm)`
+          : ""),
+    );
+  set(
+    "cd-person-radars",
+    rules
+      ? `Radar rules (a placeholder, not tuned on real walks; ${rules.mode === "observe" ? "shown, not used" : rules.mode === "enforce" ? "in use: a radar that only sees someone passing does not count as at the stove" : "off"}): ` +
+          (radars.length ? radars.join(" · ") : "no radar episode yet.")
+      : "",
+  );
   set(
     "cd-timer-live",
     number(values.unattended_seconds)

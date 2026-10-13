@@ -32,6 +32,15 @@ def _cooking(value):
             "cooking_source": value.get("source")}
 
 
+def _radar_rules(safety):
+    rules = safety.get("radar_rules") if isinstance(safety.get("radar_rules"), dict) else None
+    if not rules:
+        return None
+    return {"mode": rules["mode"], "dwell_seconds": _seconds(rules.get("dwell_ms")),
+            "stationary_min_seconds": _seconds(rules.get("stationary_min_ms")),
+            "settle_span_cm": rules.get("settle_span_cm"), "zone_max_cm": rules.get("zone_max_cm")}
+
+
 def _flags(safety):
     """Firmware since 2026-10-14 reports the sensor flags, whether cooking is detected and the debounce
     progress; older firmware doesn't (None = not reported)."""
@@ -115,6 +124,7 @@ def normalize(message):
             presence_filter=_presence_filter(safety.get("presence_filter")),
             **_cooking(safety.get("cooking")),
             **_flags(safety),
+            radar_rules=_radar_rules(safety),
             **_cooking_trend(safety),
             faults=data["faults"],
             simulation=data.get("simulation") is True,
@@ -128,6 +138,9 @@ def normalize(message):
                       "role": node["role"], "link": node["link"], "valid": valid}
             if node["role"] == "presence":
                 sensor["occupied"] = node["detected"] if valid else None
+                if node.get("verdict") is not None:  # radar rules on (firmware since 2026-10-14)
+                    sensor.update(verdict=node["verdict"], episode_seconds=_seconds(node.get("episode_ms")),
+                                  stationary_seconds=_seconds(node.get("stationary_ms")), span_cm=node.get("span_cm"))
                 if not valid:
                     sensor.update(moving=None, stationary=None, distance_m=None)
             else:

@@ -118,7 +118,7 @@ why, using only what the controller reports:
   *presence sensor unknown* and *thermal sensor lost* flags.
 - **The three rules** with their live value and adjustable setting:
   1. *Cooking*: the cooking temperature (saved on the controller).
-  2. *Person*: absent after / stays this long to cancel (5 s) / ignore gaps up to, and the attendance settings (every radar or either; the pause budget).
+  2. *Person*: absent after / stays this long to cancel (5 s) / ignore gaps up to, and the attendance settings (every radar or either; the pause budget). Below them a read-only line shows each radar's episode verdict (nobody / passing / dwelling), see [the radar rules](safety_state_machine.md#radar-state-and-distance-rules-placeholder).
   3. *Timer*: buzzer after / shut down after.
   Changes to 2 and 3 last until the controller reboots
   ([remote_reset.md](remote_reset.md)). The state itself is decided by the

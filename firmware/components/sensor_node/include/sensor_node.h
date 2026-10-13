@@ -49,6 +49,70 @@ typedef enum {
     NODE_LINK_OFFLINE,
 } node_link_state_t;
 
+/*
+ * PLACEHOLDER (not tuned on real data): tell a passer-by from someone tending the stove, per radar,
+ * from the sequence of states the radar reports (none / moving / stationary) and the distance.
+ *
+ * An EPISODE starts with the first non-none sample and ends after quiet_gap_ms of none. A radar is
+ *   - DWELLING when, in the episode, the target spent at least dwell_ms in the cook zone, at least
+ *     stationary_min_ms of it as a stationary target, and over the last settle_window_ms its distance
+ *     moved no more than settle_span_cm (arrived and settled: stirring, inspecting the pot);
+ *   - PASSING for any other episode (a walker crosses many distances and does not settle).
+ * It stays DWELLING until the episode ends. Modes: OFF = not computed; OBSERVE = computed and reported
+ * but not used by the safety logic (the default, so real walk-bys can be collected); ENFORCE = a radar
+ * that detects someone but is not DWELLING does not count as "at the stove" (it still counts as "nearby").
+ */
+typedef enum {
+    RADAR_RULES_OFF = 0,
+    RADAR_RULES_OBSERVE,
+    RADAR_RULES_ENFORCE,
+} radar_rules_mode_t;
+
+typedef enum {
+    RADAR_VERDICT_NONE = 0,   /* no episode */
+    RADAR_VERDICT_PASSING,
+    RADAR_VERDICT_DWELLING,
+} radar_verdict_t;
+
+typedef struct {
+    uint32_t quiet_gap_ms;        /* none for this long ends an episode */
+    uint32_t dwell_ms;            /* time in the cook zone needed */
+    uint32_t stationary_min_ms;   /* of which this much as a stationary target */
+    uint32_t settle_window_ms;    /* the distance must have settled over this window ... */
+    uint16_t settle_span_cm;      /* ... to within this span */
+    uint16_t zone_max_cm;         /* the cook zone: targets up to this far away; 0 = no limit */
+} radar_rules_config_t;
+
+#define RADAR_RING 24
+
+typedef struct {
+    bool active;
+    bool dwelling;
+    uint32_t start_ms;
+    uint32_t last_sample_ms;
+    uint32_t last_present_ms;
+    uint8_t prev_state;           /* 0 none, 1 moving, 2 stationary */
+    uint16_t prev_cm;             /* 0xFFFF unknown */
+    bool have_prev;
+    uint32_t zone_ms, stationary_ms, moving_ms;
+    uint16_t min_cm, max_cm;      /* distances seen in the episode */
+    uint16_t recent_span_cm;      /* over the settle window, at the last sample */
+    uint16_t ring_cm[RADAR_RING];
+    uint32_t ring_ms[RADAR_RING];
+    uint8_t ring_head, ring_count;
+    /* The last finished episode, for tuning. */
+    uint32_t last_duration_ms, last_stationary_ms;
+    uint16_t last_span_cm;
+    radar_verdict_t last_verdict;
+} radar_episode_t;
+
+void radar_episode_update(radar_episode_t *ep, const radar_rules_config_t *cfg, uint32_t now_ms, uint8_t state,
+                          int32_t distance_cm);
+void radar_episode_tick(radar_episode_t *ep, const radar_rules_config_t *cfg, uint32_t now_ms);
+radar_verdict_t radar_episode_verdict(const radar_episode_t *ep);
+const char *radar_verdict_name(radar_verdict_t verdict);       /* "none" "passing" "dwelling" */
+const char *radar_rules_mode_name(radar_rules_mode_t mode);    /* "off" "observe" "enforce" */
+
 typedef struct {
     uint32_t node_id;
     rb_node_role_t role;
@@ -76,6 +140,8 @@ typedef struct {
     uint32_t restarts;
     uint32_t wrong_role;
     uint32_t restart_ms[NODE_RESTART_HISTORY]; /* ring buffer, indexed by restarts */
+
+    radar_episode_t episode;  /* presence nodes: see the radar rules above */
 
     /* Health tracking (section 8). */
     node_link_state_t link;
@@ -142,6 +208,8 @@ typedef struct {
      * presence_fuse_all()); false: either radar is enough (presence_fuse()).
      */
     bool require_all;
+    radar_rules_config_t rules;
+    radar_rules_mode_t rules_mode;
 } node_set_config_t;
 
 typedef struct {
@@ -149,6 +217,8 @@ typedef struct {
     bool enabled[NODE_SLOT_COUNT];
     uint32_t unknown_node;        /* packets from a node ID that isn't configured */
     bool require_all;             /* the fusion in use; the owner may change it at run time */
+    radar_rules_config_t rules;
+    radar_rules_mode_t rules_mode;
 } node_set_t;
 
 /*
@@ -160,6 +230,7 @@ typedef struct {
     rb_tristate_t presence;                           /* at the stove: presence_fuse_all() or presence_fuse() */
     rb_tristate_t presence_any;                       /* somebody near either radar: presence_fuse() */
     rb_tristate_t presence_each[NODE_SET_MAX_PRESENCE];
+    radar_verdict_t radar_verdict[NODE_SET_MAX_PRESENCE];
     bool thermal_valid;
     float hot_region_temp_c;      /* NAN unless thermal_valid */
     float max_temp_c;

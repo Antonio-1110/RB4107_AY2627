@@ -64,6 +64,19 @@ rb_controller_config_t rb_controller_config_from_kconfig(void)
 #if CONFIG_RB_CTRL_PRESENCE_FUSION_ALL
             .require_all = true,
 #endif
+#if CONFIG_RB_CTRL_RADAR_RULES_ENFORCE
+            .rules_mode = RADAR_RULES_ENFORCE,
+#elif CONFIG_RB_CTRL_RADAR_RULES_OBSERVE
+            .rules_mode = RADAR_RULES_OBSERVE,
+#endif
+#if !CONFIG_RB_CTRL_RADAR_RULES_OFF
+            .rules = {.quiet_gap_ms = CONFIG_RB_CTRL_RADAR_QUIET_GAP_MS,
+                      .dwell_ms = CONFIG_RB_CTRL_RADAR_DWELL_MS,
+                      .stationary_min_ms = CONFIG_RB_CTRL_RADAR_STATIONARY_MIN_MS,
+                      .settle_window_ms = CONFIG_RB_CTRL_RADAR_SETTLE_WINDOW_MS,
+                      .settle_span_cm = CONFIG_RB_CTRL_RADAR_SETTLE_SPAN_CM,
+                      .zone_max_cm = CONFIG_RB_CTRL_RADAR_ZONE_MAX_CM},
+#endif
         },
         .rx_queue_len = CONFIG_RB_CTRL_RX_QUEUE_LEN,
         .event_queue_len = CONFIG_RB_CTRL_EVENT_QUEUE_LEN,

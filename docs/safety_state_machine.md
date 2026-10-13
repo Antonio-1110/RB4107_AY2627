@@ -90,6 +90,28 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 - The optional `timing_hook` lets the temperature trend shorten the
   warning/shutdown timeouts later. It can only make them stricter.
 
+## Radar state and distance rules (placeholder)
+
+The C4002 reports each target as none, moving or stationary, with a distance.
+The controller keeps a small **episode** per radar: it starts when the radar
+first sees a target, survives gaps up to `quiet_gap_ms` (1.5 s), and records
+how long it lasted, how much of it was a stationary target, and how far the
+distance wandered (`span_cm`). The verdict is:
+
+- `none`: no episode;
+- `dwelling`: at least `dwell_ms` (4 s) long, with at least
+  `stationary_min_ms` (1.5 s) stationary, and a distance span inside
+  `settle_span_cm` (60 cm) over the last `settle_window_ms` (4 s), and
+  (optionally) inside `zone_max_cm`;
+- `passing`: anything else (a target that keeps moving or sweeping range).
+
+Modes (`RB_CTRL_RADAR_RULES`): **off**; **observe** (default: verdicts are
+computed and shown on the dashboard but change nothing); **enforce** (a radar
+that sees someone but only *passing* does not count as "at the stove" in the
+attendance fusion, so a walker behind the stove neither pauses nor cancels
+the clock). Every number is a placeholder, not tuned on real walks or cooks;
+see [demo_vs_deployment.md](demo_vs_deployment.md).
+
 ## Cooking judgment: is heat still going in?
 
 "Cooking" starts when the hottest pixel reaches the cooking temperature (50 °C

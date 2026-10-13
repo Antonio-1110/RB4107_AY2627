@@ -5,6 +5,130 @@
 
 #define NODE_RESTART_UPTIME_MARGIN_MS 1000u
 
+/* ---- radar episodes (placeholder rules, see sensor_node.h) ---- */
+
+#define CM_UNKNOWN 0xFFFFu
+
+static bool in_zone(const radar_rules_config_t *cfg, uint16_t cm)
+{
+    return cfg->zone_max_cm == 0 || cm == CM_UNKNOWN || cm <= cfg->zone_max_cm;
+}
+
+static void episode_end(radar_episode_t *ep)
+{
+    ep->last_duration_ms = (uint32_t)(ep->last_present_ms - ep->start_ms);
+    ep->last_stationary_ms = ep->stationary_ms;
+    ep->last_span_cm = ep->max_cm >= ep->min_cm && ep->max_cm != 0 ? (uint16_t)(ep->max_cm - ep->min_cm) : 0;
+    ep->last_verdict = ep->dwelling ? RADAR_VERDICT_DWELLING : RADAR_VERDICT_PASSING;
+    ep->active = false;
+    ep->dwelling = false;
+}
+
+void radar_episode_update(radar_episode_t *ep, const radar_rules_config_t *cfg, uint32_t now_ms, uint8_t state,
+                          int32_t distance_cm)
+{
+    const bool present = state != 0;
+    const uint16_t cm = distance_cm >= 0 && distance_cm < (int32_t)CM_UNKNOWN ? (uint16_t)distance_cm : CM_UNKNOWN;
+    if (ep->active && (uint32_t)(now_ms - ep->last_sample_ms) > cfg->quiet_gap_ms * 4u) {
+        episode_end(ep); /* samples stopped for a long time: whatever was there is over */
+    }
+    if (!ep->active) {
+        if (!present) {
+            return;
+        }
+        const radar_verdict_t last = ep->last_verdict;
+        const uint32_t d = ep->last_duration_ms, s = ep->last_stationary_ms;
+        const uint16_t span = ep->last_span_cm;
+        memset(ep, 0, sizeof(*ep));
+        ep->last_verdict = last;
+        ep->last_duration_ms = d;
+        ep->last_stationary_ms = s;
+        ep->last_span_cm = span;
+        ep->active = true;
+        ep->start_ms = now_ms;
+        ep->min_cm = CM_UNKNOWN;
+    }
+    if (ep->have_prev) {
+        uint32_t dt = (uint32_t)(now_ms - ep->last_sample_ms);
+        if (dt > cfg->quiet_gap_ms) {
+            dt = cfg->quiet_gap_ms; /* a packet gap is not time spent present */
+        }
+        if (ep->prev_state != 0 && in_zone(cfg, ep->prev_cm)) {
+            ep->zone_ms += dt;
+            if (ep->prev_state == 2) {
+                ep->stationary_ms += dt;
+            } else {
+                ep->moving_ms += dt;
+            }
+        }
+    }
+    ep->last_sample_ms = now_ms;
+    ep->prev_state = state;
+    ep->prev_cm = cm;
+    ep->have_prev = true;
+    if (present) {
+        ep->last_present_ms = now_ms;
+        if (cm != CM_UNKNOWN) {
+            if (ep->min_cm == CM_UNKNOWN || cm < ep->min_cm) {
+                ep->min_cm = cm;
+            }
+            if (cm > ep->max_cm) {
+                ep->max_cm = cm;
+            }
+            ep->ring_ms[ep->ring_head] = now_ms;
+            ep->ring_cm[ep->ring_head] = cm;
+            ep->ring_head = (uint8_t)((ep->ring_head + 1) % RADAR_RING);
+            if (ep->ring_count < RADAR_RING) {
+                ep->ring_count++;
+            }
+            uint16_t lo = CM_UNKNOWN, hi = 0;
+            for (uint8_t k = 0; k < ep->ring_count; k++) {
+                const uint8_t idx = (uint8_t)((ep->ring_head + RADAR_RING - 1 - k) % RADAR_RING);
+                if ((uint32_t)(now_ms - ep->ring_ms[idx]) > cfg->settle_window_ms) {
+                    break;
+                }
+                lo = ep->ring_cm[idx] < lo ? ep->ring_cm[idx] : lo;
+                hi = ep->ring_cm[idx] > hi ? ep->ring_cm[idx] : hi;
+            }
+            ep->recent_span_cm = hi >= lo && lo != CM_UNKNOWN ? (uint16_t)(hi - lo) : 0;
+        }
+    } else if ((uint32_t)(now_ms - ep->last_present_ms) >= cfg->quiet_gap_ms) {
+        episode_end(ep);
+        return;
+    }
+    if (!ep->dwelling && ep->zone_ms >= cfg->dwell_ms && ep->stationary_ms >= cfg->stationary_min_ms &&
+        ep->recent_span_cm <= cfg->settle_span_cm) {
+        ep->dwelling = true; /* arrived and settled: latched until the episode ends */
+    }
+}
+
+void radar_episode_tick(radar_episode_t *ep, const radar_rules_config_t *cfg, uint32_t now_ms)
+{
+    if (ep->active && (uint32_t)(now_ms - ep->last_sample_ms) >= cfg->quiet_gap_ms * 2u + 1000u) {
+        episode_end(ep); /* no packets: the node is gone or silent, the episode is over */
+    }
+}
+
+radar_verdict_t radar_episode_verdict(const radar_episode_t *ep)
+{
+    if (!ep->active) {
+        return RADAR_VERDICT_NONE;
+    }
+    return ep->dwelling ? RADAR_VERDICT_DWELLING : RADAR_VERDICT_PASSING;
+}
+
+const char *radar_verdict_name(radar_verdict_t verdict)
+{
+    static const char *const names[] = {"none", "passing", "dwelling"};
+    return (unsigned)verdict < 3 ? names[verdict] : "?";
+}
+
+const char *radar_rules_mode_name(radar_rules_mode_t mode)
+{
+    static const char *const names[] = {"off", "observe", "enforce"};
+    return (unsigned)mode < 3 ? names[mode] : "?";
+}
+
 void sensor_node_init(sensor_node_state_t *node, uint32_t node_id, rb_node_role_t role)
 {
     memset(node, 0, sizeof(*node));
@@ -193,6 +317,8 @@ void node_set_init(node_set_t *set, const node_set_config_t *cfg)
     sensor_node_init(&set->nodes[NODE_SLOT_THERMAL], cfg->thermal_node_id, RB_NODE_ROLE_THERMAL);
     set->enabled[NODE_SLOT_THERMAL] = true;
     set->require_all = cfg->require_all;
+    set->rules = cfg->rules;
+    set->rules_mode = cfg->rules_mode;
 }
 
 node_seq_result_t node_set_on_packet(node_set_t *set, const rb_packet_t *pkt, uint32_t now_ms, node_slot_t *slot_out)
@@ -202,7 +328,16 @@ node_seq_result_t node_set_on_packet(node_set_t *set, const rb_packet_t *pkt, ui
             if (slot_out != NULL) {
                 *slot_out = (node_slot_t)slot;
             }
-            return sensor_node_on_packet(&set->nodes[slot], pkt, now_ms);
+            const node_seq_result_t res = sensor_node_on_packet(&set->nodes[slot], pkt, now_ms);
+            const bool accepted = res == NODE_SEQ_FIRST || res == NODE_SEQ_OK || res == NODE_SEQ_GAP || res == NODE_SEQ_NODE_RESTART;
+            if (accepted && set->rules_mode != RADAR_RULES_OFF && pkt->type == RB_MSG_PRESENCE_DATA &&
+                pkt->body.presence.valid) {
+                const presence_reading_t *p = &pkt->body.presence;
+                const uint8_t state = p->moving_target ? 1 : (p->stationary_target || p->presence_detected ? 2 : 0);
+                radar_episode_update(&set->nodes[slot].episode, &set->rules, now_ms, state,
+                                     isfinite(p->distance_m) ? (int32_t)lroundf(p->distance_m * 100.0f) : -1);
+            }
+            return res;
         }
     }
     if (slot_out != NULL) {
@@ -217,6 +352,9 @@ void node_set_evaluate(node_set_t *set, const sensor_node_health_config_t *cfg, 
 {
     for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
         events[slot] = set->enabled[slot] ? sensor_node_evaluate(&set->nodes[slot], cfg, now_ms) : 0;
+        if (set->enabled[slot] && set->rules_mode != RADAR_RULES_OFF && set->nodes[slot].role == RB_NODE_ROLE_PRESENCE) {
+            radar_episode_tick(&set->nodes[slot].episode, &set->rules, now_ms);
+        }
     }
 }
 
@@ -257,7 +395,17 @@ void node_set_inputs(const node_set_t *set, node_inputs_t *out)
     }
     /* Enabled presence slots are always the first n. */
     out->presence_any = presence_fuse(out->presence_each, n);
-    out->presence = set->require_all ? presence_fuse_all(out->presence_each, n) : out->presence_any;
+    /* ENFORCE: a radar that sees someone who is only passing does not count as "at the stove". */
+    rb_tristate_t at_stove[NODE_SET_MAX_PRESENCE];
+    for (int i = 0; i < NODE_SET_MAX_PRESENCE; i++) {
+        const node_slot_t slot = (node_slot_t)(NODE_SLOT_PRESENCE_A + i);
+        out->radar_verdict[i] = set->rules_mode != RADAR_RULES_OFF ? radar_episode_verdict(&set->nodes[slot].episode) : RADAR_VERDICT_NONE;
+        at_stove[i] = out->presence_each[i];
+        if (set->rules_mode == RADAR_RULES_ENFORCE && at_stove[i] == RB_TRUE && out->radar_verdict[i] != RADAR_VERDICT_DWELLING) {
+            at_stove[i] = RB_FALSE;
+        }
+    }
+    out->presence = set->require_all ? presence_fuse_all(at_stove, n) : presence_fuse(at_stove, n);
 
     const sensor_node_state_t *th = &set->nodes[NODE_SLOT_THERMAL];
     const thermal_reading_t *t = &th->thermal;

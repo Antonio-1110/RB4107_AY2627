@@ -127,6 +127,21 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
         rb_json_str(w, t->safety.tiers_remote ? "dashboard" : "menuconfig");
         rb_json_obj_end(w);
     }
+    if (t->safety.radar_rules != NULL) {
+        rb_json_key(w, "radar_rules");
+        rb_json_obj_begin(w);
+        rb_json_key(w, "mode");
+        rb_json_str(w, t->safety.radar_rules);
+        rb_json_key(w, "dwell_ms");
+        rb_json_int(w, t->safety.radar_dwell_ms);
+        rb_json_key(w, "stationary_min_ms");
+        rb_json_int(w, t->safety.radar_stationary_min_ms);
+        rb_json_key(w, "settle_span_cm");
+        rb_json_int(w, t->safety.radar_settle_span_cm);
+        rb_json_key(w, "zone_max_cm");
+        rb_json_int(w, t->safety.radar_zone_max_cm);
+        rb_json_obj_end(w);
+    }
     rb_json_key(w, "paused");
     rb_json_bool(w, t->safety.paused);
     rb_json_key(w, "pause_used_ms");
@@ -233,6 +248,16 @@ static void nodes_arr(rb_json_writer_t *w, const rb_telemetry_t *t)
         const bool presence = n->role != NULL && strcmp(n->role, "presence") == 0;
         rb_json_key(w, "detected");
         presence && n->valid ? rb_json_bool(w, n->detected) : rb_json_null(w);
+        if (n->verdict != NULL) {
+            rb_json_key(w, "verdict");
+            rb_json_str(w, n->verdict);
+            rb_json_key(w, "episode_ms");
+            rb_json_int(w, n->episode_ms);
+            rb_json_key(w, "stationary_ms");
+            rb_json_int(w, n->stationary_ms);
+            rb_json_key(w, "span_cm");
+            rb_json_int(w, n->span_cm);
+        }
         rb_json_obj_end(w);
     }
     rb_json_arr_end(w);

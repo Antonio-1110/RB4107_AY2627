@@ -729,6 +729,64 @@ menu "RB4107 configuration"
                     bool "either radar sees them (the earlier behaviour)"
             endchoice
 
+            choice RB_CTRL_RADAR_RULES
+                prompt "Radar state and distance rules (placeholder, untuned)"
+                default RB_CTRL_RADAR_RULES_OBSERVE
+                help
+                    Tell a passer-by from someone tending the stove, per radar,
+                    from the sequence of states (none, moving, stationary) and the
+                    distance (docs/safety_state_machine.md, "Radar state and
+                    distance rules"). The numbers below are guesses, not tuned on
+                    real walk-bys. OBSERVE computes the verdict and shows it on
+                    the dashboard without using it, so real data can be
+                    collected first.
+                config RB_CTRL_RADAR_RULES_OFF
+                    bool "off"
+                config RB_CTRL_RADAR_RULES_OBSERVE
+                    bool "observe: computed and reported, not used"
+                config RB_CTRL_RADAR_RULES_ENFORCE
+                    bool "enforce: a radar that only sees someone passing does not count as at the stove"
+            endchoice
+
+            config RB_CTRL_RADAR_QUIET_GAP_MS
+                int "A none for this long ends an episode (ms)"
+                range 200 10000
+                default 1500
+                depends on !RB_CTRL_RADAR_RULES_OFF
+
+            config RB_CTRL_RADAR_DWELL_MS
+                int "Time in the cook zone needed to count as dwelling (ms)"
+                range 500 60000
+                default 4000
+                depends on !RB_CTRL_RADAR_RULES_OFF
+
+            config RB_CTRL_RADAR_STATIONARY_MIN_MS
+                int "... of which as a stationary target at least (ms)"
+                range 0 60000
+                default 1500
+                depends on !RB_CTRL_RADAR_RULES_OFF
+
+            config RB_CTRL_RADAR_SETTLE_WINDOW_MS
+                int "The distance must have settled over the last (ms) ..."
+                range 500 30000
+                default 4000
+                depends on !RB_CTRL_RADAR_RULES_OFF
+
+            config RB_CTRL_RADAR_SETTLE_SPAN_CM
+                int "... to within a span of (cm)"
+                range 5 500
+                default 60
+                depends on !RB_CTRL_RADAR_RULES_OFF
+
+            config RB_CTRL_RADAR_ZONE_MAX_CM
+                int "Cook zone: targets up to this far from the radar (cm, 0 = no limit)"
+                range 0 1100
+                default 0
+                depends on !RB_CTRL_RADAR_RULES_OFF
+                help
+                    Set it just beyond where the cook stands (see also the
+                    radar's range limit in the tuning card).
+
             config RB_CTRL_REMOTE_ATTENDANCE
                 bool "Accept the fusion and the pause budget from the dashboard"
                 default y

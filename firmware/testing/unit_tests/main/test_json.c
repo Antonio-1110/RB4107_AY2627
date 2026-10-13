@@ -6,7 +6,7 @@
 #include "rb_topics.h"
 #include "unity.h"
 
-static char buf[2048];
+static char buf[3072];
 
 static const rb_json_node_t NODES[] = {
     {"node_01", "presence", "ONLINE", true, true},
@@ -76,6 +76,27 @@ static rb_telemetry_t sample(void)
         .faults = faults,
         .fault_count = 1,
     };
+}
+
+static void test_radar_rule_fields(void)
+{
+    static const rb_json_node_t nodes[] = {
+        {"node_01", "presence", "ONLINE", true, true, "dwelling", 6200, 4100, 35},
+        {"node_02", "presence", "ONLINE", true, true, "passing", 900, 0, 120},
+    };
+    rb_telemetry_t t = sample();
+    t.nodes = nodes;
+    t.node_count = 2;
+    t.safety.radar_rules = "observe";
+    TEST_ASSERT_NOT_EQUAL(0, rb_json_telemetry(&t, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"verdict\":\"dwelling\",\"episode_ms\":6200,\"stationary_ms\":4100,\"span_cm\":35"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"verdict\":\"passing\",\"episode_ms\":900"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"radar_rules\":{\"mode\":\"observe\""));
+    /* With the rules off, none of it is sent. */
+    t = sample();
+    TEST_ASSERT_NOT_EQUAL(0, rb_json_telemetry(&t, buf, sizeof(buf)));
+    TEST_ASSERT_NULL(strstr(buf, "verdict"));
+    TEST_ASSERT_NULL(strstr(buf, "radar_rules"));
 }
 
 static void test_unknown_values_are_null(void)
@@ -226,6 +247,7 @@ static void test_thermal_frame_fits_payload_buffer(void)
 void run_json_tests(void)
 {
     RUN_TEST(test_unknown_values_are_null);
+    RUN_TEST(test_radar_rule_fields);
     RUN_TEST(test_telemetry_reports_espnow_channel);
     RUN_TEST(test_controller_status_carries_boot_id);
     RUN_TEST(test_overflow_returns_zero);

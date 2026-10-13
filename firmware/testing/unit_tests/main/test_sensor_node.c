@@ -439,6 +439,204 @@ static void test_node_set_require_all_and_nearby(void)
     TEST_ASSERT_EQUAL(RB_TRUE, in.presence);
 }
 
+/* ---- radar state and distance rules (placeholder values, simulated sequences, not real walks) ---- */
+
+static const radar_rules_config_t RULES = {.quiet_gap_ms = 1500, .dwell_ms = 4000, .stationary_min_ms = 1500,
+                                           .settle_window_ms = 4000, .settle_span_cm = 60, .zone_max_cm = 0};
+
+enum { N = 0, M = 1, S = 2 };
+
+/* One sample every 500 ms from t, as the radar reports it. */
+static uint32_t feed_samples(radar_episode_t *ep, const radar_rules_config_t *cfg, uint32_t t, const uint8_t *state,
+                             const int32_t *cm, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        radar_episode_update(ep, cfg, t, state[i], cm[i]);
+        t += 500;
+    }
+    return t;
+}
+
+static void test_a_walker_is_passing_not_dwelling(void)
+{
+    radar_episode_t ep = {0};
+    /* none, moving across many distances, a moment of "stationary" as they leave the lobe, none */
+    const uint8_t st[] = {N, M, M, M, M, M, S, N, N, N, N};
+    const int32_t cm[] = {-1, 320, 260, 190, 130, 90, 110, -1, -1, -1, -1};
+    uint32_t t = 0;
+    for (size_t i = 0; i < sizeof(st); i++, t += 500) {
+        radar_episode_update(&ep, &RULES, t, st[i], cm[i]);
+        TEST_ASSERT_TRUE(radar_episode_verdict(&ep) != RADAR_VERDICT_DWELLING);
+    }
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_NONE, radar_episode_verdict(&ep)); /* the episode ended after the quiet gap */
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, ep.last_verdict);
+    TEST_ASSERT_TRUE(ep.last_span_cm >= 200); /* a walker crosses a wide range of distances */
+}
+
+static void test_a_slow_walker_who_never_settles_is_passing(void)
+{
+    radar_episode_t ep = {0};
+    uint8_t st[20];
+    int32_t cm[20];
+    for (int i = 0; i < 20; i++) { /* 10 s of walking 30 cm every half second */
+        st[i] = M;
+        cm[i] = 400 - 30 * i;
+    }
+    feed_samples(&ep, &RULES, 0, st, cm, 20);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, radar_episode_verdict(&ep));
+}
+
+static void test_a_cook_who_arrives_and_settles_is_dwelling(void)
+{
+    radar_episode_t ep = {0};
+    /* arrives (moving, closing in), then stirs and checks the pot at about one metre: stationary with arm movements */
+    const uint8_t st[] = {M, M, M, M, S, S, M, S, S, M, S, S, S, M};
+    const int32_t cm[] = {250, 200, 150, 110, 100, 100, 105, 100, 95, 100, 100, 105, 100, 100};
+    uint32_t t = feed_samples(&ep, &RULES, 0, st, cm, 6);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, radar_episode_verdict(&ep)); /* not yet: 3 s in */
+    feed_samples(&ep, &RULES, t, st + 6, cm + 6, 8);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, radar_episode_verdict(&ep));
+    /* a flicker of "none" shorter than the quiet gap keeps the episode and the verdict */
+    radar_episode_update(&ep, &RULES, 7000, N, -1);
+    radar_episode_update(&ep, &RULES, 7500, S, 100);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, radar_episode_verdict(&ep));
+    /* leaving: none for the quiet gap ends it */
+    for (uint32_t t2 = 8000; t2 <= 9500; t2 += 500) {
+        radar_episode_update(&ep, &RULES, t2, N, -1);
+    }
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_NONE, radar_episode_verdict(&ep));
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, ep.last_verdict);
+}
+
+static void test_standing_still_behind_the_radar_looks_like_a_cook(void)
+{
+    /* the known limit of one radar: someone who stops and stays where the radar sees a stationary target */
+    radar_episode_t ep = {0};
+    uint8_t st[20];
+    int32_t cm[20];
+    for (int i = 0; i < 20; i++) {
+        st[i] = S;
+        cm[i] = 90;
+    }
+    feed_samples(&ep, &RULES, 0, st, cm, 20);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, radar_episode_verdict(&ep)); /* only the second radar can tell */
+}
+
+static void test_the_cook_zone_limits_what_counts(void)
+{
+    radar_rules_config_t cfg = RULES;
+    cfg.zone_max_cm = 150;
+    uint8_t st[20];
+    int32_t far[20], near[20];
+    for (int i = 0; i < 20; i++) {
+        st[i] = S;
+        far[i] = 300;
+        near[i] = 120;
+    }
+    radar_episode_t a = {0}, b = {0};
+    feed_samples(&a, &cfg, 0, st, far, 20);
+    feed_samples(&b, &cfg, 0, st, near, 20);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, radar_episode_verdict(&a)); /* 10 s, but out of the zone */
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, radar_episode_verdict(&b));
+}
+
+static void test_a_long_gap_starts_a_new_episode(void)
+{
+    radar_episode_t ep = {0};
+    const uint8_t st[] = {S, S, S, S, S, S, S, S, S};
+    const int32_t cm[] = {100, 100, 100, 100, 100, 100, 100, 100, 100};
+    feed_samples(&ep, &RULES, 0, st, cm, 9); /* 4 s: dwelling */
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, radar_episode_verdict(&ep));
+    for (uint32_t t = 5000; t <= 7000; t += 500) {
+        radar_episode_update(&ep, &RULES, t, N, -1);
+    }
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_NONE, radar_episode_verdict(&ep));
+    radar_episode_update(&ep, &RULES, 7500, M, 200); /* a walker right after: a new episode, not dwelling */
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, radar_episode_verdict(&ep));
+}
+
+static void test_a_silent_radar_ends_the_episode(void)
+{
+    radar_episode_t ep = {0};
+    radar_episode_update(&ep, &RULES, 0, M, 200);
+    radar_episode_update(&ep, &RULES, 500, M, 150);
+    radar_episode_tick(&ep, &RULES, 1000);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, radar_episode_verdict(&ep));
+    radar_episode_tick(&ep, &RULES, 6000); /* no packets for a long time */
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_NONE, radar_episode_verdict(&ep));
+}
+
+static rb_packet_t radar_packet(uint32_t node, uint32_t seq, uint32_t now, uint8_t state, int32_t cm)
+{
+    rb_packet_t p = presence_packet(node, seq, now, state != N);
+    p.body.presence.moving_target = state == M;
+    p.body.presence.stationary_target = state == S;
+    p.body.presence.distance_m = cm >= 0 ? (float)cm / 100.0f : NAN;
+    return p;
+}
+
+static void test_enforce_mode_keeps_a_passer_by_from_being_at_the_stove(void)
+{
+    for (int mode = RADAR_RULES_OBSERVE; mode <= RADAR_RULES_ENFORCE; mode++) {
+        nodes_t n = {0};
+        node_set_config_t cfg = NODES;
+        cfg.require_all = true;
+        cfg.rules = RULES;
+        cfg.rules_mode = (radar_rules_mode_t)mode;
+        node_set_init(&n.set, &cfg);
+        uint32_t ev[NODE_SLOT_COUNT];
+        node_inputs_t in;
+        rb_packet_t t = thermal_packet(1, 0, 30.0f);
+        node_set_on_packet(&n.set, &t, 0, NULL);
+        uint32_t seq = 0, now = 0;
+        /* both radars see a walker for 2.5 s */
+        for (int i = 0; i < 5; i++, now += 500) {
+            rb_packet_t a = radar_packet(NODE_A, ++seq, now, M, 300 - 40 * i), b = radar_packet(NODE_B, seq, now, M, 280 - 40 * i);
+            node_set_on_packet(&n.set, &a, now, NULL);
+            node_set_on_packet(&n.set, &b, now, NULL);
+            rb_packet_t th = thermal_packet(seq + 1, now, 30.0f);
+            node_set_on_packet(&n.set, &th, now, NULL);
+            node_set_evaluate(&n.set, &HEALTH, now, ev);
+        }
+        node_set_inputs(&n.set, &in);
+        TEST_ASSERT_EQUAL(RB_TRUE, in.presence_any);
+        TEST_ASSERT_EQUAL(RADAR_VERDICT_PASSING, in.radar_verdict[0]);
+        TEST_ASSERT_EQUAL(mode == RADAR_RULES_ENFORCE ? RB_FALSE : RB_TRUE, in.presence);
+        /* then both settle at the stove for 5 s */
+        for (int i = 0; i < 10; i++, now += 500) {
+            rb_packet_t a = radar_packet(NODE_A, ++seq, now, S, 100), b = radar_packet(NODE_B, seq, now, S, 105);
+            node_set_on_packet(&n.set, &a, now, NULL);
+            node_set_on_packet(&n.set, &b, now, NULL);
+            rb_packet_t th = thermal_packet(seq + 1, now, 30.0f);
+            node_set_on_packet(&n.set, &th, now, NULL);
+            node_set_evaluate(&n.set, &HEALTH, now, ev);
+        }
+        node_set_inputs(&n.set, &in);
+        TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, in.radar_verdict[0]);
+        TEST_ASSERT_EQUAL(RADAR_VERDICT_DWELLING, in.radar_verdict[1]);
+        TEST_ASSERT_EQUAL(RB_TRUE, in.presence);
+    }
+}
+
+static void test_rules_off_changes_nothing(void)
+{
+    nodes_t n = {0};
+    node_set_config_t cfg = NODES;
+    cfg.rules = RULES;
+    cfg.rules_mode = RADAR_RULES_OFF;
+    node_set_init(&n.set, &cfg);
+    rb_packet_t a = radar_packet(NODE_A, 1, 0, M, 300), b = radar_packet(NODE_B, 1, 0, M, 300), t = thermal_packet(1, 0, 30.0f);
+    node_set_on_packet(&n.set, &a, 0, NULL);
+    node_set_on_packet(&n.set, &b, 0, NULL);
+    node_set_on_packet(&n.set, &t, 0, NULL);
+    uint32_t ev[NODE_SLOT_COUNT];
+    node_set_evaluate(&n.set, &HEALTH, 0, ev);
+    node_inputs_t in;
+    node_set_inputs(&n.set, &in);
+    TEST_ASSERT_EQUAL(RB_TRUE, in.presence);
+    TEST_ASSERT_EQUAL(RADAR_VERDICT_NONE, in.radar_verdict[0]);
+}
+
 void run_sensor_node_tests(void)
 {
     RUN_TEST(test_sequence_tracking);
@@ -455,4 +653,13 @@ void run_sensor_node_tests(void)
     RUN_TEST(test_either_radar_keeps_attended);
     RUN_TEST(test_presence_fuse_all_truth_table);
     RUN_TEST(test_node_set_require_all_and_nearby);
+    RUN_TEST(test_a_walker_is_passing_not_dwelling);
+    RUN_TEST(test_a_slow_walker_who_never_settles_is_passing);
+    RUN_TEST(test_a_cook_who_arrives_and_settles_is_dwelling);
+    RUN_TEST(test_standing_still_behind_the_radar_looks_like_a_cook);
+    RUN_TEST(test_the_cook_zone_limits_what_counts);
+    RUN_TEST(test_a_long_gap_starts_a_new_episode);
+    RUN_TEST(test_a_silent_radar_ends_the_episode);
+    RUN_TEST(test_enforce_mode_keeps_a_passer_by_from_being_at_the_stove);
+    RUN_TEST(test_rules_off_changes_nothing);
 }
