@@ -173,6 +173,8 @@ static void safety_task(void *arg)
                 next.absence_debounce_ms = next_filter.absence_debounce_ms;
                 next.presence_return_debounce_ms = next_filter.presence_return_debounce_ms;
                 next.presence_return_gap_ms = next_filter.presence_return_gap_ms;
+                next.warning_timeout_ms = next_filter.warning_timeout_ms;
+                next.shutdown_timeout_ms = next_filter.shutdown_timeout_ms;
             }
             if (safety_set_config(&sm, &next)) {
                 if (new_config) {
@@ -185,11 +187,17 @@ static void safety_task(void *arg)
                 filter_on = next_filter_on;
                 filter = next_filter;
                 if (new_filter) {
-                    ESP_LOGW(TAG, "presence filter (%s): absent after %lu ms, return after %lu ms, gaps up to %lu ms",
+                    ESP_LOGW(TAG,
+                             "presence filter (%s): absent after %lu ms, return after %lu ms, gaps up to %lu ms, "
+                             "warning %lu ms, shutdown %lu ms",
                              filter_on ? "dashboard" : "menuconfig", (unsigned long)next.absence_debounce_ms,
                              (unsigned long)next.presence_return_debounce_ms,
-                             (unsigned long)next.presence_return_gap_ms);
+                             (unsigned long)next.presence_return_gap_ms, (unsigned long)next.warning_timeout_ms,
+                             (unsigned long)next.shutdown_timeout_ms);
                 }
+            } else {
+                ESP_LOGE(TAG, "safety settings refused (warning %lu ms, shutdown %lu ms): kept the ones in use",
+                         (unsigned long)next.warning_timeout_ms, (unsigned long)next.shutdown_timeout_ms);
             }
         }
 

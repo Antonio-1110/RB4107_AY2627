@@ -770,12 +770,13 @@ menu "RB4107 configuration"
                     (docs/remote_reset.md).
 
             config RB_CTRL_REMOTE_PRESENCE_FILTER
-                bool "Accept presence filter settings from the dashboard"
+                bool "Accept presence filter and buzzer/shutdown times from the dashboard"
                 default y
                 help
                     A "presence_filter" command on <prefix>/controller/command
-                    changes the absence debounce and the presence-return filter
-                    (length and gap) of the running state machine, within
+                    changes the absence debounce, the presence-return filter
+                    (length and gap) and the warning and shutdown times of the
+                    running state machine, within
                     limits checked here (docs/remote_reset.md). Not saved: the
                     menuconfig values come back on reboot, or when the
                     dashboard sends "presence_filter_defaults".
@@ -1140,7 +1141,10 @@ menu "RB4107 configuration"
         config RB_SAFETY_ABSENCE_DEBOUNCE_MS
             int "Absence must last (ms) before UNATTENDED"
             range 0 60000
-            default 2000
+            default 1000
+            help
+                The unattended time still counts from when the absence began.
+                The dashboard can change it until the next reboot.
 
         config RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS
             int "Presence must last (ms) to cancel UNATTENDED/WARNING"
@@ -1167,14 +1171,18 @@ menu "RB4107 configuration"
         config RB_SAFETY_WARNING_TIMEOUT_S
             int "Unattended time before WARNING (s)"
             range 1 3600
-            default 60
+            default 20
+            help
+                Short demo value. The dashboard can change it until the next
+                reboot.
 
         config RB_SAFETY_SHUTDOWN_TIMEOUT_S
             int "Shutdown timeout (s)"
             range 1 3600
-            default 90
+            default 40
             help
-                Meaning depends on "Shutdown timeout counts from" below.
+                Meaning depends on "Shutdown timeout counts from" below. Short
+                demo value. The dashboard can change it until the next reboot.
 
         choice RB_SAFETY_SHUTDOWN_TIMING
             prompt "Shutdown timeout counts from"

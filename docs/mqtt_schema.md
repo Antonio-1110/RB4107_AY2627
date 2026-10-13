@@ -82,8 +82,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
 - `safety.presence_filter` is the presence filter in use: absence needed before
   UNATTENDED, presence needed to cancel UNATTENDED/WARNING, and the "absent"
   gaps that don't restart that count. `source` is `dashboard` after a
-  `presence_filter` command, otherwise `menuconfig`
-  ([remote_reset.md](remote_reset.md#presence-filter)). Older firmware leaves
+  `presence_filter` command, otherwise `menuconfig`; that command also sets
+  `warning_after_ms` and `shutdown_after_ms`
+  ([remote_reset.md](remote_reset.md#presence-filter-and-timers)). Older firmware leaves
   it out.
 
 ## `event` (topics `events/warning`, `events/shutdown`, `events/fault`)

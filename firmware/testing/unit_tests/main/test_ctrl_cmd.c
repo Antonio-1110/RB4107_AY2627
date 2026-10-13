@@ -27,13 +27,15 @@ static void test_presence_filter_is_parsed(void)
     char err[80];
     TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
                                    "\"request_id\":9,\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":1000,"
-                                   "\"action\":\"presence_filter\"}",
+                                   "\"warning_ms\":20000,\"shutdown_ms\":3600000,\"action\":\"presence_filter\"}",
                                    &cmd, err),
                              err);
     TEST_ASSERT_EQUAL(RB_CTRL_ACTION_PRESENCE_FILTER, cmd.action);
     TEST_ASSERT_EQUAL_UINT32(2000, cmd.absence_ms);
     TEST_ASSERT_EQUAL_UINT32(3000, cmd.return_ms);
     TEST_ASSERT_EQUAL_UINT32(1000, cmd.return_gap_ms);
+    TEST_ASSERT_EQUAL_UINT32(20000, cmd.warning_ms);
+    TEST_ASSERT_EQUAL_UINT32(3600000, cmd.shutdown_ms);
 
     TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
                                    "\"request_id\":10,\"action\":\"presence_filter_defaults\"}",
@@ -48,13 +50,24 @@ static void test_bad_presence_filters_are_rejected(void)
     static const char *const bad[] = {
         /* a value missing, above its limit, negative or a string */
         HEAD "\"action\":\"presence_filter\",\"absence_ms\":2000,\"return_ms\":3000}",
-        HEAD "\"action\":\"presence_filter\",\"absence_ms\":10001,\"return_ms\":3000,\"return_gap_ms\":1000}",
-        HEAD "\"action\":\"presence_filter\",\"absence_ms\":2000,\"return_ms\":10001,\"return_gap_ms\":1000}",
-        HEAD "\"action\":\"presence_filter\",\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":5001}",
-        HEAD "\"action\":\"presence_filter\",\"absence_ms\":-1,\"return_ms\":3000,\"return_gap_ms\":1000}",
-        HEAD "\"action\":\"presence_filter\",\"absence_ms\":\"2000\",\"return_ms\":3000,\"return_gap_ms\":1000}",
+        HEAD "\"action\":\"presence_filter\",\"warning_ms\":20000,\"shutdown_ms\":40000,"
+             "\"absence_ms\":10001,\"return_ms\":3000,\"return_gap_ms\":1000}",
+        HEAD "\"action\":\"presence_filter\",\"warning_ms\":20000,\"shutdown_ms\":40000,"
+             "\"absence_ms\":2000,\"return_ms\":10001,\"return_gap_ms\":1000}",
+        HEAD "\"action\":\"presence_filter\",\"warning_ms\":20000,\"shutdown_ms\":40000,"
+             "\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":5001}",
+        HEAD "\"action\":\"presence_filter\",\"warning_ms\":20000,\"shutdown_ms\":40000,"
+             "\"absence_ms\":-1,\"return_ms\":3000,\"return_gap_ms\":1000}",
+        HEAD "\"action\":\"presence_filter\",\"warning_ms\":20000,\"shutdown_ms\":40000,"
+             "\"absence_ms\":\"2000\",\"return_ms\":3000,\"return_gap_ms\":1000}",
+        HEAD "\"action\":\"presence_filter\",\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":1000}",
+        HEAD "\"action\":\"presence_filter\",\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":1000,"
+             "\"warning_ms\":999,\"shutdown_ms\":40000}",
+        HEAD "\"action\":\"presence_filter\",\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":1000,"
+             "\"warning_ms\":20000,\"shutdown_ms\":3600001}",
         /* filter values with another action */
         HEAD "\"action\":\"reset\",\"return_ms\":3000}",
+        HEAD "\"action\":\"reset\",\"warning_ms\":20000}",
         HEAD "\"action\":\"presence_filter_defaults\",\"absence_ms\":2000,\"return_ms\":3000,\"return_gap_ms\":1000}",
     };
 #undef HEAD

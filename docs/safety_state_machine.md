@@ -67,15 +67,15 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
   is still away, the timeline continues. If no timeline was running, it
   starts from the moment the fault began.
 - After an operator reset from SHUTDOWN all timing starts over.
-- Presence filter: absence must last `absence_debounce_ms` (default 2 s)
+- Presence filter: absence must last `absence_debounce_ms` (default 1 s)
   before UNATTENDED. A return must last `presence_return_debounce_ms`
   (default 3 s) before it cancels UNATTENDED or WARNING, so a single reading
   (a hand waved at the radar, someone walking past) leaves the unattended
   timer running. "Absent" gaps shorter than `presence_return_gap_ms`
   (default 1 s) don't restart that count, but the person must still be
   detected when it completes. UNKNOWN presence stops it at once. The
-  dashboard can change all three until the next reboot
-  ([remote_reset.md](remote_reset.md#presence-filter)).
+  dashboard can change all three, and the warning and shutdown times, until
+  the next reboot ([remote_reset.md](remote_reset.md#presence-filter-and-timers)).
 - The optional `timing_hook` lets the temperature trend shorten the
   warning/shutdown timeouts later. It can only make them stricter.
 

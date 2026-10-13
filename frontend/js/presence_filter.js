@@ -1,8 +1,9 @@
 "use strict";
-// Presence filter in the System status card (docs/remote_reset.md). Changes how
-// long the radar must agree before the safety state machine counts "absent" or
-// "returned", until the controller reboots. The controller's answer is
-// safety.presence_filter in the next telemetry.
+// Presence filter and timers in the System status card (docs/remote_reset.md).
+// Changes how long the radar must agree before the safety state machine counts
+// "absent" or "returned", and when the buzzer and shutdown come, until the
+// controller reboots. The controller's answer is safety.presence_filter (and
+// warning_after_ms / shutdown_after_ms) in the next telemetry.
 
 import { sendPresenceFilter } from "./api.js";
 import { $ } from "./dom.js";
@@ -13,12 +14,15 @@ const FIELDS = [
   ["pf-absence", "absence_ms", "absence_seconds"],
   ["pf-return", "return_ms", "return_seconds"],
   ["pf-gap", "return_gap_ms", "return_gap_seconds"],
+  ["pf-warning", "warning_ms", "warning_seconds"],
+  ["pf-shutdown", "shutdown_ms", "shutdown_seconds"],
 ];
 
 let deviceId = "",
   edited = false, // the user changed an input: don't overwrite it with telemetry
   sending = false, // request in flight
-  pending = null; // {request_id, sentAt, expect: {key: seconds} or "menuconfig"}
+  pending = null, // {request_id, sentAt, expect: {key: seconds} or "menuconfig"}
+  shutdownCountsFrom = null; // "UNATTENDED" or "WARNING", from telemetry
 
 function setStatus(text, style = "") {
   const status = $("pf-status");
@@ -28,7 +32,19 @@ function setStatus(text, style = "") {
 
 const describe = (filter) =>
   `absent after ${filter.absence_seconds} s, return after ${filter.return_seconds} s, ` +
-  `gaps up to ${filter.return_gap_seconds} s ignored (${filter.source === "dashboard" ? "set here" : "menuconfig"})`;
+  `gaps up to ${filter.return_gap_seconds} s ignored, buzzer after ${filter.warning_seconds} s, ` +
+  `shutdown after ${filter.shutdown_seconds} s (${filter.source === "dashboard" ? "set here" : "menuconfig"})`;
+
+// The presence filter plus the warning/shutdown times, which telemetry reports separately.
+function current(values) {
+  const filter = values.presence_filter;
+  if (!filter) return null;
+  return {
+    ...filter,
+    warning_seconds: values.warning_after_seconds,
+    shutdown_seconds: values.shutdown_after_seconds,
+  };
+}
 
 function answered(filter) {
   if (!filter) return false;
@@ -42,7 +58,8 @@ export function renderPresenceFilter(device) {
     edited = false;
     pending = null;
   }
-  const filter = device.values.presence_filter,
+  shutdownCountsFrom = device.values.shutdown_counts_from;
+  const filter = current(device.values),
     reachable = device.connection !== "offline";
   if (filter && !edited) {
     for (const [id, , key] of FIELDS) $(id).value = number(filter[key]) ? filter[key] : "";
@@ -111,6 +128,10 @@ $("pf-apply").addEventListener("click", () => {
     }
     body[wire] = Math.round(value * 1000);
     expect[key] = body[wire] / 1000;
+  }
+  if (shutdownCountsFrom === "UNATTENDED" && body.shutdown_ms <= body.warning_ms) {
+    setStatus("Shut down after must be longer than Buzzer after (both count from when the person left).", "bad");
+    return;
   }
   send(body, expect);
 });

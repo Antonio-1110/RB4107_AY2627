@@ -82,6 +82,8 @@ static void on_controller_command(const char *topic, const char *data, size_t le
                 .absence_debounce_ms = cmd.absence_ms,
                 .presence_return_debounce_ms = cmd.return_ms,
                 .presence_return_gap_ms = cmd.return_gap_ms,
+                .warning_timeout_ms = cmd.warning_ms,
+                .shutdown_timeout_ms = cmd.shutdown_ms,
             };
             rb_controller_set_presence_filter(&filter);
         } else {

@@ -157,17 +157,22 @@ void rb_controller_request_reset(void);
  */
 esp_err_t rb_controller_set_safety_config(const safety_config_t *config, bool test_timers);
 
-/* The presence filter fields of safety_config_t. */
+/* The presence filter and buzzer/shutdown time fields of safety_config_t. */
 typedef struct {
     uint32_t absence_debounce_ms;
     uint32_t presence_return_debounce_ms;
     uint32_t presence_return_gap_ms;
+    uint32_t warning_timeout_ms;
+    uint32_t shutdown_timeout_ms;
 } rb_presence_filter_t;
 
 /*
- * Override the presence filter (dashboard tuning). It stays on top of any
- * later rb_controller_set_safety_config() until a reboot or a call with NULL,
- * which goes back to the configured values. Applied at the next step.
+ * Override the presence filter and the warning/shutdown times (dashboard
+ * tuning). It stays on top of any later rb_controller_set_safety_config()
+ * (the accelerated test timers included) until a reboot or a call with NULL,
+ * which goes back to the configured values. Applied at the next step; values
+ * safety_config_valid() refuses (shutdown not after the warning) are logged
+ * and ignored.
  */
 esp_err_t rb_controller_set_presence_filter(const rb_presence_filter_t *filter);
 

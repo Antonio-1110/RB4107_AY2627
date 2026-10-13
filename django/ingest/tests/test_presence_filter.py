@@ -1,4 +1,4 @@
-"""Presence filter from the dashboard: the command endpoint and the telemetry field."""
+"""Presence filter and buzzer/shutdown times from the dashboard: the command endpoint and the telemetry field."""
 import json
 from unittest import mock
 
@@ -11,7 +11,7 @@ from ingest.storage import worker_status
 from ingest.validation import parse
 
 URL = "/api/devices/controller_01/presence_filter/"
-FILTER = {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000}
+FILTER = {"absence_ms": 1000, "return_ms": 3000, "return_gap_ms": 1000, "warning_ms": 20000, "shutdown_ms": 40000}
 
 
 class PresenceFilterCommandTest(TestCase):
@@ -42,7 +42,10 @@ class PresenceFilterCommandTest(TestCase):
 
     @mock.patch("ingest.commands.publish")
     def test_bad_values_are_refused(self, publish):
-        for body in [{}, {"return_ms": 3000}, {**FILTER, "return_ms": 10001}, {**FILTER, "return_gap_ms": 5001},
+        no_timers = {key: FILTER[key] for key in ("absence_ms", "return_ms", "return_gap_ms")}
+        for body in [{}, {"return_ms": 3000}, no_timers, {**FILTER, "warning_ms": 999},
+                     {**FILTER, "shutdown_ms": 3600001}, {**FILTER, "warning_ms": "20000"},
+                     {**FILTER, "return_ms": 10001}, {**FILTER, "return_gap_ms": 5001},
                      {**FILTER, "absence_ms": -1}, {**FILTER, "return_ms": 2.5}, {**FILTER, "extra": 1},
                      {**FILTER, "defaults": True}, [1]]:
             with self.subTest(body=body):
@@ -53,6 +56,8 @@ class PresenceFilterCommandTest(TestCase):
         command = commands.build_reset_command("controller_01")
         with self.assertRaises(validation.InvalidMessage):
             validation.check_command({**command, **FILTER})
+        with self.assertRaises(validation.InvalidMessage):
+            validation.check_command({**command, "warning_ms": 20000})
 
     def test_filter_in_use_reaches_the_dashboard(self):
         values = self.client.get("/api/devices/controller_01/latest/").json()["values"]

@@ -20,7 +20,7 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 1. Each sensor node reads one sensor and sends the readings to the controller
    over ESP-NOW.
 2. The controller combines the two radars and runs the safety state machine:
-   `IDLE → MONITORING → UNATTENDED → WARNING (buzzer, 60 s) → SHUTDOWN (relay, 90 s)`.
+   `IDLE → MONITORING → UNATTENDED → WARNING (buzzer, 20 s) → SHUTDOWN (relay, 40 s)`.
    A shutdown stays latched until someone resets it.
 3. Missing or invalid sensor data is never treated as "safe": it puts the
    controller in `FAULT`.
