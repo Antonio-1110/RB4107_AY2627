@@ -142,6 +142,9 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.return_ms = snap->presence_return_debounce_ms;
     t->safety.return_gap_ms = snap->presence_return_gap_ms;
     t->safety.filter_remote = snap->presence_filter_remote;
+    t->safety.cooking_on_c = snap->heat_on_temp_c;
+    t->safety.cooking_off_c = snap->heat_off_temp_c;
+    t->safety.cooking_remote = snap->cooking_temp_remote;
     t->safety.loop_count = snap->loop_count;
 
     t->faults = faults;

@@ -323,9 +323,13 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 
 const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)
 {
-    /* Heat detector with hysteresis. Invalid thermal data leaves it unchanged (FAULT handles that case). */
-    if (in->thermal_valid && isfinite(in->hot_region_temp_c)) {
-        const float t = in->hot_region_temp_c;
+    /*
+     * Heat detector with hysteresis on the hottest pixel (the same number the
+     * dashboard outlines). Invalid thermal data leaves it unchanged (FAULT
+     * handles that case).
+     */
+    if (in->thermal_valid && isfinite(in->cooking_temp_c)) {
+        const float t = in->cooking_temp_c;
         const bool rising_fast = sm->cfg.heat_on_rate_c_per_min > 0.0f && isfinite(in->temp_rate_c_per_min) &&
                                  in->temp_rate_c_per_min >= sm->cfg.heat_on_rate_c_per_min &&
                                  t >= sm->cfg.heat_off_temp_c;

@@ -19,7 +19,7 @@ js/chart.js       temperature history canvas
 js/heatmap.js     thermal camera heat map canvas
 js/reset.js       "Reset shutdown" button and its status
 js/tuning.js      C4002 radar tuning panel
-js/thermal_threshold.js  hot-pixel threshold control in the thermal camera card
+js/cooking_temp.js       cooking temperature control in the thermal camera card
 js/live_radar.js  live radar view of one presence node (gates over the last minute)
 js/dom.js         small DOM helpers
 js/format.js      value formatting

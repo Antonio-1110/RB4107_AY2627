@@ -262,8 +262,10 @@ safety packets".
 
 ## THERMAL_CONFIG (type 11, 28 bytes total)
 
-Controller → thermal node: the hot-pixel threshold set on the dashboard
-([remote_reset.md](remote_reset.md#hot-pixel-threshold)). Only the controller
+Controller → thermal node: the cooking temperature set on the dashboard, used
+by the node as its hot-pixel threshold
+([remote_reset.md](remote_reset.md#cooking-temperature)). The controller always
+sends action `1`. Only the controller
 role may send it. The node checks that it came from `RB_NODE_CONTROLLER_MAC`
 and names its own node ID, uses the value from the next frame and saves it in
 NVS. There is no answer message: the threshold in use is in every

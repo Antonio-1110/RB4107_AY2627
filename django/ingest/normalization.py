@@ -22,6 +22,13 @@ def _presence_filter(value):
             "return_gap_seconds": _seconds(value["return_gap_ms"]), "source": value["source"]}
 
 
+def _cooking(value):
+    """Firmware since 2026-10-13 publishes the cooking temperatures it uses; older firmware doesn't."""
+    value = value if isinstance(value, dict) else {}
+    return {"cooking_on_c": finite(value.get("on_c")), "cooking_off_c": finite(value.get("off_c")),
+            "cooking_source": value.get("source")}
+
+
 def thermal_fields(thermal):
     valid = thermal.get("valid") is True
     mapping = {"temperature_c": "max_c", "temperature_avg_c": "mean_c",
@@ -60,6 +67,7 @@ def normalize(message):
             unattended_seconds=safety["unattended_ms"] / 1000,
             test_timers=safety["test_timers"],
             presence_filter=_presence_filter(safety.get("presence_filter")),
+            **_cooking(safety.get("cooking")),
             faults=data["faults"],
             simulation=data.get("simulation") is True,
             protocol_version=data["protocol_version"],

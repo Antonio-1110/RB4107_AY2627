@@ -99,6 +99,15 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_key(w, "source");
     rb_json_str(w, t->safety.filter_remote ? "dashboard" : "menuconfig");
     rb_json_obj_end(w);
+    rb_json_key(w, "cooking");
+    rb_json_obj_begin(w);
+    rb_json_key(w, "on_c");
+    rb_json_num(w, t->safety.cooking_on_c, 1);
+    rb_json_key(w, "off_c");
+    rb_json_num(w, t->safety.cooking_off_c, 1);
+    rb_json_key(w, "source");
+    rb_json_str(w, t->safety.cooking_remote ? "dashboard" : "menuconfig");
+    rb_json_obj_end(w);
     rb_json_obj_end(w);
 }
 

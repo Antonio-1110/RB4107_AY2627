@@ -59,7 +59,8 @@ Check any capture with `tools/diagnostics/validate_json.py`.
              "warning_after_ms": 60000, "shutdown_after_ms": 90000, "shutdown_counts_from": "UNATTENDED",
              "test_timers": false,
              "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
-                                 "source": "menuconfig"}},
+                                 "source": "menuconfig"},
+             "cooking": {"on_c": 50.0, "off_c": 40.0, "source": "menuconfig"}},
   "faults": ["mqtt_disconnected"]
 }
 ```
@@ -86,6 +87,12 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   `warning_after_ms` and `shutdown_after_ms`
   ([remote_reset.md](remote_reset.md#presence-filter-and-timers)). Older firmware leaves
   it out.
+- `safety.cooking` is the cooking temperature in use: IDLE → MONITORING when
+  the hottest pixel (`thermal.max_c`) reaches `on_c`, back to IDLE below
+  `off_c`. `source` is `dashboard` after a `cooking_temp` command (saved on the
+  controller), otherwise `menuconfig`
+  ([remote_reset.md](remote_reset.md#cooking-temperature)). Older firmware
+  leaves it out.
 
 ## `event` (topics `events/warning`, `events/shutdown`, `events/fault`)
 
@@ -154,9 +161,10 @@ only: the safety decision uses the `thermal` values, never this. About 1.3 KB.
 - `pixels` is base64 of `width × height` bytes, row by row. Pixel value `v` is
   `base_c + v × step_c` °C; the value `invalid` (255) means no reading.
 - `hot_threshold_c` and `hot_region_radius` are the node's own settings
-  (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, or the value set from the dashboard,
-  and `RB_THERMAL_HOT_REGION_RADIUS`), so the
-  dashboard can outline the pixels and region its `thermal` values come from.
+  (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, or the cooking temperature the
+  controller forwarded, and `RB_THERMAL_HOT_REGION_RADIUS`). The dashboard
+  outlines pixels against the controller's `safety.cooking.on_c` when the
+  controller reports it, and against `hot_threshold_c` otherwise.
 - `number` is the thermal node's picture counter; it restarts when the node
   reboots. The header's `uptime_ms` and `timestamp` are when the controller
   received the picture.

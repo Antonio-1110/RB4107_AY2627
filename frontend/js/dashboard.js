@@ -16,7 +16,7 @@ import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderPresenceFilter } from "./presence_filter.js";
 import { renderReset } from "./reset.js";
-import { renderThermalThreshold } from "./thermal_threshold.js";
+import { renderCookingTemp } from "./cooking_temp.js";
 import { renderTuning } from "./tuning.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
@@ -483,6 +483,7 @@ function renderDevice(device) {
   renderSensors(value.sensors || {});
   renderReset(device);
   renderPresenceFilter(device);
+  renderCookingTemp(device);
   renderTuning(device);
   renderDetailAlert(device);
 }
@@ -588,12 +589,16 @@ function drawChart() {
 }
 function renderHeatmap() {
   $("heatmap-empty").hidden = !!heatmap;
+  // Outline and count against the controller's cooking temperature, the number
+  // the safety logic compares the hottest pixel with (the node's own threshold
+  // is a copy of it, and older firmware may not report it).
+  const cookingOn = current?.values?.cooking_on_c;
+  if (heatmap && number(cookingOn)) heatmap.threshold = cookingOn;
   heatmapGeometry = drawHeatmap($("heatmap"), heatmap, {
     showThreshold: $("heatmap-show-threshold").checked,
     showRegion: $("heatmap-show-region").checked,
   });
   renderHeatmapFacts();
-  renderThermalThreshold(current, heatmap, heatmapNumber);
   if (!heatmap) {
     const canvas = $("heatmap");
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);

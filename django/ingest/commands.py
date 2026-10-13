@@ -1,7 +1,7 @@
 """Dashboard -> controller commands: remote C4002 tuning (docs/c4002_tuning.md),
-the operator reset of a latched shutdown, the presence filter and the thermal
-node's hot-pixel threshold (docs/remote_reset.md). Nothing here can trigger a shutdown or drive an output
-directly.
+the operator reset of a latched shutdown, the presence filter and the cooking
+temperature (docs/remote_reset.md). Nothing here can trigger a shutdown or drive
+an output directly.
 """
 
 from __future__ import annotations
@@ -92,23 +92,25 @@ def build_presence_filter_command(controller_id: str, body: dict) -> dict:
     return command
 
 
-HOT_PIXEL_MAX_C = 300.0
+COOKING_TEMP_MAX_C = 300.0
 
 
-def build_thermal_threshold_command(controller_id: str, body: dict) -> dict:
-    """{"hot_pixel_threshold_c": 55.5} sends a new hot-pixel threshold to the thermal
-    node, which saves it; {"defaults": true} goes back to its menuconfig value."""
+def build_cooking_temp_command(controller_id: str, body: dict) -> dict:
+    """{"cooking_temp_c": 55.5} sets the controller's cooking temperature (cooking
+    when the hottest pixel reaches it), which the controller saves and also sends
+    to the thermal node as its hot-pixel threshold; {"defaults": true} goes back
+    to the menuconfig value."""
     if not isinstance(body, dict):
         raise CommandError("body must be a JSON object")
     if body == {"defaults": True}:
-        values, action = {}, "thermal_threshold_defaults"
+        values, action = {}, "cooking_temp_defaults"
     else:
-        value = body.get("hot_pixel_threshold_c")
-        if set(body) != {"hot_pixel_threshold_c"} or isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise CommandError('send {"hot_pixel_threshold_c": <degC>}, or {"defaults": true}')
-        if not 0 <= value <= HOT_PIXEL_MAX_C:
-            raise CommandError(f"hot_pixel_threshold_c must be 0 to {HOT_PIXEL_MAX_C:g} degC")
-        values, action = {"hot_pixel_threshold_dc": round(value * 10)}, "thermal_threshold"
+        value = body.get("cooking_temp_c")
+        if set(body) != {"cooking_temp_c"} or isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise CommandError('send {"cooking_temp_c": <degC>}, or {"defaults": true}')
+        if not 0 <= value <= COOKING_TEMP_MAX_C:
+            raise CommandError(f"cooking_temp_c must be 0 to {COOKING_TEMP_MAX_C:g} degC")
+        values, action = {"cooking_temp_dc": round(value * 10)}, "cooking_temp"
     command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
                "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
     try:

@@ -88,7 +88,7 @@ typedef struct {
     uint32_t self_test_timeout_ms;          /* SELF_TEST -> FAULT if no result in time */
 
     /* Heat detection (UNVERIFIED placeholders until thermal data is collected). */
-    float heat_on_temp_c;                   /* hot-region temp that means cooking has started */
+    float heat_on_temp_c;                   /* hottest-pixel temp that means cooking has started */
     float heat_off_temp_c;                  /* hysteresis: cooking considered over below this */
     float heat_on_rate_c_per_min;           /* also "cooking" when rising this fast (above heat_off); 0 = off */
 
@@ -114,8 +114,8 @@ typedef struct {
 struct safety_inputs {
     rb_tristate_t presence;                 /* UNKNOWN when the data is missing or invalid */
     bool thermal_valid;
-    float hot_region_temp_c;
-    float temp_rate_c_per_min;
+    float cooking_temp_c;                   /* hottest pixel: compared with heat_on/heat_off_temp_c */
+    float temp_rate_c_per_min;              /* the thermal node's hot-region rate */
     safety_selftest_t self_test;            /* must stay PASS after SELF_TEST, otherwise FAULT */
     bool reset_request;                     /* operator reset / acknowledge (e.g. button) */
     bool safety_fault;                      /* any other safety-relevant fault (fault manager) */

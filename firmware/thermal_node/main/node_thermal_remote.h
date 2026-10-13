@@ -1,9 +1,9 @@
 #pragma once
 
 /*
- * Hot-pixel threshold from the dashboard (docs/remote_reset.md):
+ * Hot-pixel threshold = the dashboard's cooking temperature (docs/remote_reset.md):
  *
- *   dashboard -> Django -> MQTT controller/command "thermal_threshold"
+ *   dashboard -> Django -> MQTT controller/command "cooking_temp"
  *     -> controller -> ESP-NOW THERMAL_CONFIG -> this node
  *
  * A new threshold is used from the next frame and saved in NVS, so it

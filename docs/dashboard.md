@@ -55,7 +55,7 @@ frontend/
 | `safety.presence_filter` | `presence_filter` (`absence_seconds`, `return_seconds`, `return_gap_seconds`, `source`) | Presence filter in use, shown and changed in the System status card ([remote_reset.md](remote_reset.md#presence-filter-and-timers)); `null` from older firmware |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
-| `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state. The card outlines the pixels above the node's hot-pixel threshold, boxes its hot region, and works out the pixel size at a chosen distance for either lens (55° or 110°) |
+| `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state. The card outlines the pixels at or above the controller's cooking temperature (`safety.cooking.on_c`, the node's hot-pixel threshold with older firmware), lets you change that temperature ([remote_reset.md](remote_reset.md#cooking-temperature)), boxes its hot region, and works out the pixel size at a chosen distance for either lens (55° or 110°) |
 
 The firmware publishes `safety.reset_required` (`safety_reset_required()` in
 `firmware/components/safety`). For messages from older firmware without it,
@@ -80,16 +80,18 @@ Every controller and stall shows whether its stove is in use (`cooking` in
 `/api/devices/`, `classify_cooking()` in `django/ingest/locations.py`): a badge
 on the stall tiles and roster, a banner on the stall page, and a *Cooking now*
 count. It is display only. The firmware makes the decision: cooking starts
-when the thermal camera's hot region reaches `RB_SAFETY_HEAT_ON_DC`
-(placeholder 50 °C, or a fast rise) and ends below `RB_SAFETY_HEAT_OFF_DC`
-(40 °C); the thresholds are still being tuned ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)).
+when the thermal camera's hottest pixel reaches the cooking temperature
+(`RB_SAFETY_HEAT_ON_DC`, placeholder 50 °C, settable from the Thermal camera
+card; or a fast rise) and ends below the "over" value (10 °C lower by
+default). The controller reports both in `safety.cooking`, and the badge text
+uses them; the thresholds are still being tuned ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)).
 
 | Controller state | Shown as |
 |---|---|
 | MONITORING, UNATTENDED, WARNING | COOKING |
 | IDLE | NOT COOKING |
 | SHUTDOWN | SUPPLY CUT (gas cut, stove cooling) |
-| FAULT, BOOT, SELF_TEST or no state | a guess from the hot region with the same default thresholds: LIKELY COOKING (≥ 50 °C), LIKELY NOT COOKING (< 40 °C), otherwise COOKING UNKNOWN (dashed badge) |
+| FAULT, BOOT, SELF_TEST or no state | a guess from the hottest pixel with the controller's reported thresholds (50/40 °C if it doesn't report them): LIKELY COOKING (≥ on), LIKELY NOT COOKING (< over), otherwise COOKING UNKNOWN (dashed badge) |
 
 A stall with several stations shows the most active one, and how many of them
 are cooking. Stale data is marked *last known*.

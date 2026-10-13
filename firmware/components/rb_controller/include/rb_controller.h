@@ -76,6 +76,9 @@ typedef struct {
     uint32_t presence_return_debounce_ms;
     uint32_t presence_return_gap_ms;
     bool presence_filter_remote;  /* set from the dashboard, not menuconfig */
+    float heat_on_temp_c;         /* cooking from this hottest-pixel temperature */
+    float heat_off_temp_c;        /* cooking over below this one */
+    bool cooking_temp_remote;     /* cooking temperature set from the dashboard, not menuconfig */
 } rb_snapshot_t;
 
 /* Hooks the application provides. All are optional and all run in the safety task. */
@@ -175,6 +178,19 @@ typedef struct {
  * and ignored.
  */
 esp_err_t rb_controller_set_presence_filter(const rb_presence_filter_t *filter);
+
+/* Dashboard limits for the cooking temperature, as RB_SAFETY_HEAT_ON_DC. */
+#define RB_COOKING_TEMP_MIN_C 0.0f
+#define RB_COOKING_TEMP_MAX_C 300.0f
+
+/*
+ * Override the cooking temperature (heat_on_temp_c; heat_off_temp_c follows
+ * it with the configured gap). Stays on top of any later
+ * rb_controller_set_safety_config() until a reboot or a call with NAN, which
+ * goes back to the configured values. Applied at the next step. Saving it
+ * across reboots is the caller's job.
+ */
+esp_err_t rb_controller_set_cooking_temp(float on_c);
 
 #ifdef __cplusplus
 }

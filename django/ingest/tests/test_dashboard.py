@@ -50,6 +50,25 @@ class DashboardIntegrationTest(TestCase):
         self.send("FAULT", thermal={**hot, "valid": False})
         self.assertEqual(self.latest()["cooking"]["status"], "unknown")
 
+    def test_cooking_text_uses_the_controllers_own_temperatures(self):
+        # The hottest pixel (max_c) is what the controller compares, not the hot region.
+        warm = {"valid": True, "max_c": 47.0, "min_c": 24.0, "mean_c": 30.0, "hot_region_c": 40.0,
+                "rate_c_per_min": 0.0, "pixels_above_threshold": 3}
+        data = demo_telemetry("controller_01", boot_id="3f9a01c2")
+        data["safety"].update(state="IDLE", shutdown=False, buzzer="OFF",
+                              cooking={"on_c": 45.5, "off_c": 35.5, "source": "dashboard"})
+        data["thermal"] = warm
+        handle(parse("rb4107/controller/state", json.dumps(data).encode()))
+        latest = self.latest()
+        self.assertEqual(latest["values"]["cooking_on_c"], 45.5)
+        self.assertEqual(latest["values"]["cooking_source"], "dashboard")
+        self.assertIn("hottest 47 °C (cooking from 45.5 °C)", latest["cooking"]["detail"])
+        data["safety"]["state"] = "FAULT"
+        data["safety"]["buzzer"] = "FAULT"
+        data["sequence"] += 1
+        handle(parse("rb4107/controller/state", json.dumps(data).encode()))
+        self.assertEqual(self.latest()["cooking"]["status"], "likely_cooking")
+
     def test_stall_and_summary_count_cooking(self):
         self.send("UNATTENDED")
         fleet = self.client.get("/api/devices/").json()

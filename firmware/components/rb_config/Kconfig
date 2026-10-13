@@ -329,11 +329,11 @@ menu "RB4107 configuration"
                 default 500
                 help
                     Pixels at or above this count towards pixels_above_threshold
-                    and are outlined on the dashboard heat map. Display and
-                    telemetry only: the safety logic uses the hot-region
-                    temperature (RB_SAFETY_HEAT_ON_DC), not this count.
-                    UNVERIFIED placeholder (50.0 degC): set it from measurements.
-                    The dashboard can override it (RB_THERMAL_REMOTE_THRESHOLD).
+                    and are outlined on the dashboard heat map. Keep it equal to
+                    the controller's cooking temperature (RB_SAFETY_HEAT_ON_DC):
+                    the controller sends the dashboard's cooking temperature
+                    here (RB_THERMAL_REMOTE_THRESHOLD), so the outline shows
+                    the pixels that count as cooking.
 
             config RB_THERMAL_HOT_REGION_RADIUS
                 int "Hot region radius (pixels)"
@@ -390,11 +390,11 @@ menu "RB4107 configuration"
                     picture go out 50 ms apart, between the regular packets.
 
             config RB_THERMAL_REMOTE_THRESHOLD
-                bool "Accept the hot-pixel threshold from the dashboard"
+                bool "Accept the hot-pixel threshold from the controller"
                 default y
                 help
-                    The controller relays the dashboard's threshold over
-                    ESP-NOW (THERMAL_CONFIG). It is saved on the node and wins
+                    The controller relays the dashboard's cooking temperature
+                    over ESP-NOW (THERMAL_CONFIG). It is saved on the node and wins
                     over RB_THERMAL_HOT_PIXEL_THRESHOLD_DC until the dashboard
                     sends "default" or the flash is erased.
 
@@ -794,15 +794,18 @@ menu "RB4107 configuration"
                     menuconfig values come back on reboot, or when the
                     dashboard sends "presence_filter_defaults".
 
-            config RB_CTRL_REMOTE_THERMAL_THRESHOLD
-                bool "Relay the hot-pixel threshold from the dashboard to the thermal node"
+            config RB_CTRL_REMOTE_COOKING_TEMP
+                bool "Accept the cooking temperature from the dashboard"
                 default y
                 help
-                    A "thermal_threshold" command on <prefix>/controller/command
-                    is forwarded over ESP-NOW to the thermal node, which saves
-                    it (docs/remote_reset.md). Only the hot-pixel count and the
-                    heat-map outline change: the safety state machine does not
-                    use this threshold.
+                    A "cooking_temp" command on <prefix>/controller/command
+                    replaces "Cooking detected at hottest-pixel temperature"
+                    (RB_SAFETY_HEAT_ON_DC); "cooking over" follows it with the
+                    same gap. It is saved on the controller, so it survives a
+                    reboot, until the dashboard sends "cooking_temp_defaults"
+                    or the flash is erased. The value is also forwarded over
+                    ESP-NOW to the thermal node as its hot-pixel threshold, so
+                    the counted and outlined pixels match (docs/remote_reset.md).
 
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
@@ -1136,15 +1139,17 @@ menu "RB4107 configuration"
             default 10000
 
         config RB_SAFETY_HEAT_ON_DC
-            int "Cooking detected at hot-region temperature (0.1 degC)"
+            int "Cooking detected at hottest-pixel temperature (0.1 degC)"
             range 0 3000
             default 500
             help
-                IDLE -> MONITORING threshold. UNVERIFIED placeholder (50.0 degC):
-                set it from collected thermal data.
+                IDLE -> MONITORING threshold: cooking as soon as any pixel of
+                the thermal camera is at or above it. The dashboard can
+                change it (RB_CTRL_REMOTE_COOKING_TEMP). UNVERIFIED
+                placeholder (50.0 degC): set it from collected thermal data.
 
         config RB_SAFETY_HEAT_OFF_DC
-            int "Cooking over below hot-region temperature (0.1 degC)"
+            int "Cooking over below hottest-pixel temperature (0.1 degC)"
             range 0 3000
             default 400
             help
@@ -1156,9 +1161,9 @@ menu "RB4107 configuration"
             range 0 10000
             default 0
             help
-                Temperature-rate threshold. When non-zero, a hot region that
-                is above the "cooking over" temperature and rising at least
-                this fast also counts as cooking. Off by default: set it only
+                Temperature-rate threshold. When non-zero, a hottest pixel
+                above the "cooking over" temperature with the hot region
+                rising at least this fast also counts as cooking. Off by default: set it only
                 once thermal data has been collected (UNVERIFIED).
 
         config RB_SAFETY_ABSENCE_DEBOUNCE_MS
