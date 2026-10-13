@@ -97,13 +97,14 @@ typedef struct {
     bool presence_unknown, thermal_lost, cooking, absent_timing, present_timing;
     safety_heat_phase_t phase;
     safety_hold_t hold;
+    safety_tier_t tier;
 } sensor_view_t;
 
 static bool sensor_view_changed(const sensor_view_t *a, const sensor_view_t *b)
 {
     return a->presence != b->presence || a->presence_unknown != b->presence_unknown ||
            a->thermal_lost != b->thermal_lost || a->cooking != b->cooking || a->absent_timing != b->absent_timing ||
-           a->present_timing != b->present_timing || a->phase != b->phase || a->hold != b->hold;
+           a->present_timing != b->present_timing || a->phase != b->phase || a->hold != b->hold || a->tier != b->tier;
 }
 
 static void log_node_events(const sensor_node_state_t *node, node_slot_t slot, uint32_t events)
@@ -315,6 +316,7 @@ static void safety_task(void *arg)
             .present_timing = sm.present_timing,
             .phase = sm.heat_phase,
             .hold = sm.hold,
+            .tier = sm.tier,
         };
         if (sensor_view_changed(&view, &last_view) && (!view_posted || (uint32_t)(now - last_view_ms) >= SENSOR_EVENT_MIN_MS)) {
             const rb_event_t evt = {.type = RB_EVT_SENSOR_STATE, .mono_ms = now};
@@ -360,6 +362,10 @@ static void safety_task(void *arg)
             s_snapshot.trend_rate_c_per_min = sm.trend_rate_c_per_min;
             s_snapshot.settle_c = sm.settle_c;
             s_snapshot.hold = sm.hold;
+            s_snapshot.tier = sm.tier;
+            s_snapshot.eff_warning_ms = sm.eff_warning_ms;
+            s_snapshot.eff_shutdown_ms = sm.eff_shutdown_ms;
+            s_snapshot.tiers = sm.cfg;
             s_snapshot.cookware = sm.cfg.cookware;
             s_snapshot.cookware_tau_s = sm.cfg.cookware_tau_s;
             s_snapshot.cookware_remote = cookware != SAFETY_COOKWARE_COUNT;

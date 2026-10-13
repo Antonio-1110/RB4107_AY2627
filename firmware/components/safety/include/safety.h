@@ -108,6 +108,21 @@ typedef enum {
     SAFETY_HOLD_COOLING,      /* the pan is cooling down: the timers wait for a plateau or for it to end */
 } safety_hold_t;
 
+/*
+ * Temperature tiers: how hot the pan is decides how long the person may be away. The
+ * timers only ever get shorter (a tier can't give more time than the base timers).
+ * NORMAL = the base warning/shutdown times (a simmer, boiling water); ELEVATED and
+ * CRITICAL use their own, shorter ones. See docs/safety_state_machine.md.
+ */
+typedef enum {
+    SAFETY_TIER_NORMAL = 0,
+    SAFETY_TIER_ELEVATED,   /* hot (sauté, shallow frying) */
+    SAFETY_TIER_CRITICAL,   /* oil heading for its smoke point */
+    SAFETY_TIER_COUNT,
+} safety_tier_t;
+
+const char *safety_tier_name(safety_tier_t tier); /* "normal" "elevated" "critical" */
+
 /* Buzzer requests. The buzzer driver maps them to patterns. */
 typedef enum {
     SAFETY_BUZZER_OFF = 0,
@@ -162,6 +177,20 @@ typedef struct {
     float cookware_tau_s;                   /* time constant of the cookware, seconds (from the profile) */
     uint32_t trend_window_ms;               /* regression window for the temperature trend, 0 = 120000 */
 
+    /*
+     * Temperature tiers. A tier is off while its temperature is <= 0. Times are measured like the
+     * base ones (from the start of UNATTENDED; with shutdown_timing = AFTER_WARNING_START the
+     * shutdown counts from the start of the warning, i.e. tier shutdown minus tier warning).
+     */
+    float tier1_temp_c;                     /* ELEVATED from this hottest-pixel temperature */
+    uint32_t tier1_warning_ms;
+    uint32_t tier1_shutdown_ms;
+    float tier2_temp_c;                     /* CRITICAL from this temperature ... */
+    float tier2_rate_c_per_min;             /* ... or rising at least this fast above tier2_rate_min_temp_c (0 = off) */
+    float tier2_rate_min_temp_c;
+    uint32_t tier2_warning_ms;
+    uint32_t tier2_shutdown_ms;
+
     safety_timing_hook_t timing_hook;
     void *timing_hook_ctx;
 } safety_config_t;
@@ -209,6 +238,13 @@ typedef struct {
     safety_heat_phase_t heat_phase;
     safety_hold_t hold;               /* what is holding a due transition right now */
     bool held_once;                   /* a transition was held on this timeline: WARNING lasts a minimum time */
+    bool late_warning;                /* the shutdown was already due when the warning came (a tier got shorter) */
+
+    safety_tier_t tier;               /* temperature tier in force */
+    safety_tier_t tier_pending;       /* a different tier that has to persist before it takes over */
+    uint32_t tier_pending_since_ms;
+    uint32_t eff_warning_ms;          /* the warning and shutdown times in force (base, tier and hook applied) */
+    uint32_t eff_shutdown_ms;
     bool return_hold_active;
     uint32_t return_hold_since_ms;
     bool presence_unknown;            /* flag: presence data missing/invalid at the last step */

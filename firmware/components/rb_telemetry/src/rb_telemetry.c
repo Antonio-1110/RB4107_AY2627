@@ -150,6 +150,17 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.trend_rate_c_per_min = snap->trend_rate_c_per_min;
     t->safety.settle_c = snap->settle_c;
     t->safety.hold = safety_hold_name(snap->hold);
+    t->safety.tier = safety_tier_name(snap->tier);
+    t->safety.effective_warning_ms = snap->eff_warning_ms;
+    t->safety.effective_shutdown_ms = snap->eff_shutdown_ms;
+    t->safety.tier1_temp_c = snap->tiers.tier1_temp_c;
+    t->safety.tier1_warning_ms = snap->tiers.tier1_warning_ms;
+    t->safety.tier1_shutdown_ms = snap->tiers.tier1_shutdown_ms;
+    t->safety.tier2_temp_c = snap->tiers.tier2_temp_c;
+    t->safety.tier2_rate_c_per_min = snap->tiers.tier2_rate_c_per_min;
+    t->safety.tier2_rate_min_temp_c = snap->tiers.tier2_rate_min_temp_c;
+    t->safety.tier2_warning_ms = snap->tiers.tier2_warning_ms;
+    t->safety.tier2_shutdown_ms = snap->tiers.tier2_shutdown_ms;
     t->safety.cookware = safety_cookware_name(snap->cookware);
     t->safety.cookware_tau_s = snap->cookware_tau_s;
     t->safety.cookware_remote = snap->cookware_remote;

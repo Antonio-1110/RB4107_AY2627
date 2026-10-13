@@ -72,13 +72,26 @@ class CookingTrendTelemetryTest(TestCase):
         self.assertEqual(values["cookware_source"], "menuconfig")
         self.assertLess(values["cooking_rate_c_per_min"], 0)
 
+    def test_tier_fields_reach_latest(self):
+        worker_status(True)
+        handle(parse("rb4107/controller/state",
+                     json.dumps(demo_telemetry("controller_01", boot_id="b00t", scenario="hot_pan")).encode()))
+        values = self.client.get("/api/devices/controller_01/latest/").json()["values"]
+        self.assertEqual(values["tier"], "critical")
+        self.assertEqual(values["effective_warning_seconds"], 30)
+        self.assertEqual(values["effective_shutdown_seconds"], 120)
+        self.assertEqual(values["tiers"]["elevated"]["temp_c"], 120.0)
+        self.assertEqual(values["tiers"]["critical"]["shutdown_seconds"], 120)
+        self.assertEqual(values["tiers"]["critical"]["rate_c_per_min"], 20.0)
+
     def test_older_firmware_reports_none(self):
         data = demo_telemetry("controller_01", boot_id="b00t")
-        for key in ("hold", "cookware"):
+        for key in ("hold", "cookware", "tier", "effective_warning_ms", "effective_shutdown_ms", "tiers"):
             data["safety"].pop(key)
         for key in ("phase", "rate_c_per_min", "settle_c"):
             data["safety"]["cooking"].pop(key)
         fields = normalize(parse("rb4107/controller/state", json.dumps(data).encode()))
         self.assertIsNone(fields["cooking_phase"])
         self.assertIsNone(fields["hold"])
+        self.assertIsNone(fields["tier"])
         self.assertIsNone(fields["cookware_profile"])

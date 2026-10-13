@@ -85,6 +85,10 @@ typedef struct {
     float trend_rate_c_per_min;   /* NAN until there is enough data */
     float settle_c;               /* where the temperature is heading, NAN if unknown */
     safety_hold_t hold;           /* what holds a due buzzer or shutdown back right now */
+    safety_tier_t tier;           /* temperature tier in force */
+    uint32_t eff_warning_ms;      /* the buzzer and shutdown times in force (base, tier and hook applied) */
+    uint32_t eff_shutdown_ms;
+    safety_config_t tiers;        /* only the tier fields are read: tier1_*, tier2_* */
     safety_cookware_t cookware;   /* cookware profile in use */
     float cookware_tau_s;
     bool cookware_remote;         /* profile set from the dashboard, not menuconfig */

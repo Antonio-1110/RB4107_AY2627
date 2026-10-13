@@ -46,6 +46,14 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
     return false;
 }
 
+/* Temperature tiers: a tier takes over after its temperature has held for a few seconds (a reflection
+ * must not shorten the timers), and gives way only well below its threshold and for longer. */
+#define TIER_UP_PERSIST_MS 4000u
+#define TIER_DOWN_PERSIST_MS 20000u
+#define TIER_HYST_C 10.0f
+/* A shutdown that was already due when the warning came still gives the buzzer this long. */
+#define LATE_WARNING_MIN_MS 10000u
+
 /* Trend of the hottest pixel. */
 #define TREND_SAMPLE_MS 2000u          /* one sample per 2 s */
 #define TREND_GAP_RESET_MS 15000u      /* a longer silence starts the trend over */
@@ -53,6 +61,7 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 #define TREND_DEFAULT_WINDOW_MS 120000u
 #define TREND_MIN_SPAN_MS 60000u       /* needs at least this much history ... */
 #define TREND_MIN_SAMPLES 12           /* ... and this many samples */
+#define TREND_HALF_LIFE_MS 30000.0f    /* recent samples count more: a pan that was steady and now cools shows up sooner */
 #define SETTLE_MARGIN_C 3.0f           /* hysteresis on the cooling decision */
 /*
  * "Cooling" is only believed when the settling estimate is stable. T + tau * rate is exact
@@ -91,6 +100,18 @@ bool safety_config_valid(const safety_config_t *cfg)
     if (!isfinite(cfg->heat_on_rate_c_per_min) || cfg->heat_on_rate_c_per_min < 0.0f) {
         return false;
     }
+    if (!isfinite(cfg->tier1_temp_c) || !isfinite(cfg->tier2_temp_c) || !isfinite(cfg->tier2_rate_c_per_min) ||
+        !isfinite(cfg->tier2_rate_min_temp_c) || cfg->tier2_rate_c_per_min < 0.0f) {
+        return false;
+    }
+    if (cfg->tier1_temp_c > 0.0f && cfg->tier2_temp_c > 0.0f && cfg->tier2_temp_c < cfg->tier1_temp_c) {
+        return false; /* CRITICAL must not start below ELEVATED */
+    }
+    if (cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_UNATTENDED_START &&
+        ((cfg->tier1_temp_c > 0.0f && cfg->tier1_shutdown_ms <= cfg->tier1_warning_ms) ||
+         (cfg->tier2_temp_c > 0.0f && cfg->tier2_shutdown_ms <= cfg->tier2_warning_ms))) {
+        return false; /* a tier's shutdown would come before (or with) its warning */
+    }
     return true;
 }
 
@@ -105,6 +126,7 @@ static void clear_unattended(safety_sm_t *sm)
     sm->unattended_active = false;
     sm->warning_started = false;
     sm->held_once = false;
+    sm->late_warning = false;
 }
 
 /* ---- temperature trend and cooking judgment ---- */
@@ -181,7 +203,7 @@ static void trend_update(safety_sm_t *sm, uint32_t now_ms)
     if (sm->trend_count == 0 || elapsed(now_ms, sm->trend_last_ms, TREND_STALE_MS)) {
         return;
     }
-    double n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+    double n = 0, sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0; /* weighted sums */
     uint32_t oldest_age = 0;
     for (uint16_t k = 0; k < sm->trend_count; k++) {
         const uint16_t idx = (uint16_t)((sm->trend_head + SAFETY_TREND_MAX - 1 - k) % SAFETY_TREND_MAX);
@@ -189,21 +211,23 @@ static void trend_update(safety_sm_t *sm, uint32_t now_ms)
         if (age > window) {
             break;
         }
+        const double w = pow(0.5, (double)age / (double)TREND_HALF_LIFE_MS);
         const double x = -(double)age / 1000.0;
         const double y = sm->trend_c[idx];
         n += 1;
-        sx += x;
-        sy += y;
-        sxx += x * x;
-        sxy += x * y;
+        sw += w;
+        sx += w * x;
+        sy += w * y;
+        sxx += w * x * x;
+        sxy += w * x * y;
         oldest_age = age;
     }
-    const double denom = n * sxx - sx * sx;
+    const double denom = sw * sxx - sx * sx;
     if (n < TREND_MIN_SAMPLES || oldest_age < TREND_MIN_SPAN_MS || denom <= 0.0) {
         return;
     }
-    const double slope = (n * sxy - sx * sy) / denom; /* degC per second */
-    const double now_fit = (sy - slope * sx) / n;     /* the fitted temperature right now */
+    const double slope = (sw * sxy - sx * sy) / denom; /* degC per second */
+    const double now_fit = (sy - slope * sx) / sw;     /* the fitted temperature right now */
     sm->trend_rate_c_per_min = (float)(slope * 60.0);
     if (sm->cfg.cookware_tau_s > 0.0f) {
         sm->settle_c = (float)(now_fit + (double)sm->cfg.cookware_tau_s * slope);
@@ -288,6 +312,76 @@ static safety_hold_t hold_reason(safety_sm_t *sm, const safety_inputs_t *in, uin
     }
     const uint32_t cap = sm->cfg.presence_return_debounce_ms + sm->cfg.presence_return_gap_ms;
     return elapsed(now, sm->return_hold_since_ms, cap) ? SAFETY_HOLD_NONE : SAFETY_HOLD_RETURN;
+}
+
+/* ---- temperature tiers ---- */
+
+static safety_tier_t tier_for(const safety_config_t *cfg, float temp_c, float rate_c_per_min, float hyst_c)
+{
+    const bool rising_hot = cfg->tier2_rate_c_per_min > 0.0f && isfinite(rate_c_per_min) &&
+                            rate_c_per_min >= cfg->tier2_rate_c_per_min && temp_c >= cfg->tier2_rate_min_temp_c - hyst_c;
+    if (cfg->tier2_temp_c > 0.0f && (temp_c >= cfg->tier2_temp_c - hyst_c || rising_hot)) {
+        return SAFETY_TIER_CRITICAL;
+    }
+    if (cfg->tier1_temp_c > 0.0f && temp_c >= cfg->tier1_temp_c - hyst_c) {
+        return SAFETY_TIER_ELEVATED;
+    }
+    return SAFETY_TIER_NORMAL;
+}
+
+static void update_tier(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)
+{
+    if (!sm->heat_active) {
+        sm->tier = SAFETY_TIER_NORMAL;
+        sm->tier_pending = SAFETY_TIER_NORMAL;
+        return;
+    }
+    if (!in->thermal_valid || !isfinite(in->cooking_temp_c)) {
+        return; /* camera away: keep the tier we had (hot oil does not become safe because the camera stopped) */
+    }
+    const float t = in->cooking_temp_c, rate = sm->trend_rate_c_per_min;
+    const safety_tier_t up = tier_for(&sm->cfg, t, rate, 0.0f), down = tier_for(&sm->cfg, t, rate, TIER_HYST_C);
+    safety_tier_t target = sm->tier;
+    uint32_t persist = 0;
+    if (up > sm->tier) {
+        target = up;
+        persist = TIER_UP_PERSIST_MS;
+    } else if (down < sm->tier) {
+        target = down;
+        persist = TIER_DOWN_PERSIST_MS;
+    }
+    if (target == sm->tier) {
+        sm->tier_pending = sm->tier;
+    } else if (sm->tier_pending != target) {
+        sm->tier_pending = target;
+        sm->tier_pending_since_ms = now_ms;
+    } else if (elapsed(now_ms, sm->tier_pending_since_ms, persist)) {
+        sm->tier = target;
+    }
+}
+
+/* Shorten the base times with the tier's. */
+static void apply_tier(const safety_sm_t *sm, uint32_t *warning_ms, uint32_t *shutdown_ms)
+{
+    const safety_config_t *cfg = &sm->cfg;
+    uint32_t w = 0, s = 0;
+    if (sm->tier == SAFETY_TIER_CRITICAL) {
+        w = cfg->tier2_warning_ms;
+        s = cfg->tier2_shutdown_ms;
+    } else if (sm->tier == SAFETY_TIER_ELEVATED) {
+        w = cfg->tier1_warning_ms;
+        s = cfg->tier1_shutdown_ms;
+    }
+    if (w == 0 || s == 0) {
+        return;
+    }
+    if (w < *warning_ms) {
+        *warning_ms = w;
+    }
+    const uint32_t tier_shutdown = cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_WARNING_START ? (s > w ? s - w : 1) : s;
+    if (tier_shutdown < *shutdown_ms) {
+        *shutdown_ms = tier_shutdown;
+    }
 }
 
 /* ---- state exit / entry ---- */
@@ -437,12 +531,15 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 
     uint32_t warning_ms = cfg->warning_timeout_ms;
     uint32_t shutdown_ms = cfg->shutdown_timeout_ms;
+    apply_tier(sm, &warning_ms, &shutdown_ms);
     if (cfg->timing_hook != NULL) {
         uint32_t w = warning_ms, s = shutdown_ms;
         cfg->timing_hook(in, &w, &s, cfg->timing_hook_ctx);
         warning_ms = w < warning_ms ? w : warning_ms;   /* the hook may only make things stricter */
         shutdown_ms = s < shutdown_ms ? s : shutdown_ms;
     }
+    sm->eff_warning_ms = warning_ms;
+    sm->eff_shutdown_ms = shutdown_ms;
     const bool warning_due = sm->unattended_active && elapsed(now, sm->unattended_start_ms, warning_ms);
     const bool shutdown_due = cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_UNATTENDED_START
                                   ? sm->unattended_active && elapsed(now, sm->unattended_start_ms, shutdown_ms)
@@ -513,6 +610,7 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
         sm->hold = hold_reason(sm, in, now, warning_due, person_returned);
         sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
         if (warning_due && sm->hold == SAFETY_HOLD_NONE) {
+            sm->late_warning = shutdown_due; /* a tier got shorter while nobody was there */
             transition(sm, SAFETY_WARNING, "unattended timeout", now);
             return true;
         }
@@ -533,9 +631,9 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
         }
         sm->hold = hold_reason(sm, in, now, shutdown_due, person_returned);
         sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
-        /* A timeline that was held does not jump straight to the shutdown: the buzzer sounds first. */
-        if (shutdown_due && sm->hold == SAFETY_HOLD_NONE &&
-            (!sm->held_once || elapsed(now, sm->state_entered_ms, WARNING_MIN_AFTER_HOLD_MS))) {
+        /* A timeline that was held, or whose limits got shorter, does not jump straight to the shutdown: the buzzer sounds first. */
+        const uint32_t dwell_ms = sm->held_once ? WARNING_MIN_AFTER_HOLD_MS : (sm->late_warning ? LATE_WARNING_MIN_MS : 0);
+        if (shutdown_due && sm->hold == SAFETY_HOLD_NONE && elapsed(now, sm->state_entered_ms, dwell_ms)) {
             transition(sm, SAFETY_SHUTDOWN, "shutdown timeout", now);
             return true;
         }
@@ -597,6 +695,7 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
         sm->heat_active = sm->heat_active ? t >= sm->cfg.heat_off_temp_c : (t >= sm->cfg.heat_on_temp_c || rising_fast);
     }
     judge_heat(sm, in, now_ms);
+    update_tier(sm, in, now_ms);
     sm->presence_unknown = in->presence == RB_UNKNOWN;
     sm->thermal_lost = !in->thermal_valid;
 
@@ -655,6 +754,12 @@ const char *safety_state_name(safety_state_t state)
         "BOOT", "SELF_TEST", "IDLE", "MONITORING", "UNATTENDED", "WARNING", "SHUTDOWN", "FAULT",
     };
     return (unsigned)state < SAFETY_STATE_COUNT ? names[state] : "?";
+}
+
+const char *safety_tier_name(safety_tier_t tier)
+{
+    static const char *const names[] = {"normal", "elevated", "critical"};
+    return (unsigned)tier < sizeof(names) / sizeof(names[0]) ? names[tier] : "?";
 }
 
 const char *safety_heat_phase_name(safety_heat_phase_t phase)

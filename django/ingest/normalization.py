@@ -47,7 +47,17 @@ def _cooking_trend(safety):
     hold the buzzer and shutdown back), and reports the cookware profile; older firmware doesn't."""
     cooking = safety.get("cooking") if isinstance(safety.get("cooking"), dict) else {}
     cookware = safety.get("cookware") if isinstance(safety.get("cookware"), dict) else {}
-    return {"cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),
+    tiers = safety.get("tiers") if isinstance(safety.get("tiers"), dict) else None
+    if tiers:
+        def tier(name):
+            t = tiers.get(name) or {}
+            return {"temp_c": finite(t.get("temp_c")), "rate_c_per_min": finite(t.get("rate_c_per_min")),
+                    "rate_min_temp_c": finite(t.get("rate_min_temp_c")),
+                    "warning_seconds": _seconds(t.get("warning_ms")), "shutdown_seconds": _seconds(t.get("shutdown_ms"))}
+        tiers = {"elevated": tier("elevated"), "critical": tier("critical")}
+    return {"tier": safety.get("tier"), "effective_warning_seconds": _seconds(safety.get("effective_warning_ms")),
+            "effective_shutdown_seconds": _seconds(safety.get("effective_shutdown_ms")), "tiers": tiers,
+            "cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),
             "cooking_settle_c": finite(cooking.get("settle_c")), "hold": safety.get("hold"),
             "cookware_profile": cookware.get("profile"), "cookware_tau_s": finite(cookware.get("tau_s")),
             "cookware_source": cookware.get("source")}

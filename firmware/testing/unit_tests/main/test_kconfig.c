@@ -42,58 +42,82 @@ static void test_kconfig_warning_and_shutdown_timing(void)
 }
 
 /*
- * The defaults must do the right thing for the situation, not just run: after a
- * long cook the person leaves and the burner is either switched off (the pan
- * only cools: no warning, no shutdown, and the timeline ends when it is cold) or
- * turned down to low (heat still goes in: the buzzer at the warning time and the
- * shutdown at the shutdown time).
+ * The defaults must do the right thing for the situation, not just run. After a long cook the person leaves
+ * and the burner is either switched off (the pan only cools down) or kept on (possibly turned down). The
+ * limits depend on how hot the pan is: a simmer gets the base times, a hot pan or hot oil much shorter ones.
  */
-static void leave_after_a_long_cook(th_t *h, const safety_config_t *cfg)
-{
-    th_start(h, cfg, 0);
-    h->in.cooking_temp_c = 150.0f;
-    th_run(h, 150000);
-    TH_EXPECT(h, SAFETY_MONITORING);
-    h->in.presence = RB_FALSE;
-}
+typedef struct {
+    int warning_s, shutdown_s, idle_s; /* -1: did not happen within 40 min */
+} outcome_t;
 
-static void test_kconfig_burner_off_pan_cooling_is_not_warned(void)
+/* The pan sits at start_c, the person leaves, and the pan then heads for end_c with a 10 min time constant. */
+static outcome_t leave_and_watch(float start_c, float end_c)
 {
     const safety_config_t cfg = rb_safety_config_from_kconfig();
     th_t h;
-    leave_after_a_long_cook(&h, &cfg);
+    th_start(&h, &cfg, 0);
+    h.in.cooking_temp_c = start_c;
+    th_run(&h, 150000);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    h.in.presence = RB_FALSE;
     const uint32_t t0 = h.now;
-    for (uint32_t t = 0; t < 400000; t += TH_STEP_MS) { /* past the warning time and the shutdown time */
-        h.in.cooking_temp_c = 25.0f + 125.0f * expf(-(float)t / 1000.0f / 600.0f); /* a pan with the default 10 min profile */
+    outcome_t o = {-1, -1, -1};
+    while (h.now - t0 < 2400000 && o.shutdown_s < 0 && o.idle_s < 0) {
+        const float t = (float)(h.now - t0) / 1000.0f;
+        h.in.cooking_temp_c = end_c + (start_c - end_c) * expf(-t / 600.0f);
         th_run(&h, TH_STEP_MS);
-        TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING && h.sm.state != SAFETY_SHUTDOWN);
+        if (o.warning_s < 0 && h.sm.state == SAFETY_WARNING) o.warning_s = (int)((h.now - t0) / 1000);
+        if (h.sm.state == SAFETY_SHUTDOWN) o.shutdown_s = (int)((h.now - t0) / 1000);
+        if (h.sm.state == SAFETY_IDLE) o.idle_s = (int)((h.now - t0) / 1000);
     }
-    TEST_ASSERT_TRUE(h.now - t0 > cfg.shutdown_timeout_ms);
-    /* Still cooling after 400 s (about 85 degC): the hold ends when it is below the cooking temperature. */
-    for (uint32_t t = 400000; t < 1500000; t += TH_STEP_MS) {
-        h.in.cooking_temp_c = 25.0f + 125.0f * expf(-(float)t / 1000.0f / 600.0f);
-        th_run(&h, TH_STEP_MS);
-        TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING && h.sm.state != SAFETY_SHUTDOWN);
-    }
-    TH_EXPECT(&h, SAFETY_IDLE);
+    return o;
 }
 
-static void test_kconfig_burner_on_low_is_warned_and_shut_down(void)
+static void test_kconfig_a_simmer_gets_the_base_times(void)
 {
     const safety_config_t cfg = rb_safety_config_from_kconfig();
-    th_t h;
-    leave_after_a_long_cook(&h, &cfg);
-    const uint32_t t0 = h.now;
-    uint32_t warning_at = 0, shutdown_at = 0;
-    for (uint32_t t = 0; t < cfg.shutdown_timeout_ms + 60000; t += TH_STEP_MS) {
-        h.in.cooking_temp_c = 90.0f + 60.0f * expf(-(float)t / 1000.0f / 600.0f); /* settles at 90 degC */
-        th_run(&h, TH_STEP_MS);
-        if (warning_at == 0 && h.sm.state == SAFETY_WARNING) warning_at = h.now - t0;
-        if (shutdown_at == 0 && h.sm.state == SAFETY_SHUTDOWN) shutdown_at = h.now - t0;
-    }
-    /* On time, within a few seconds: the trend only holds things back for a cooling pan. */
-    TEST_ASSERT_UINT32_WITHIN(5000, cfg.warning_timeout_ms, warning_at);
-    TEST_ASSERT_UINT32_WITHIN(5000, cfg.shutdown_timeout_ms, shutdown_at);
+    const outcome_t o = leave_and_watch(95.0f, 95.0f); /* burner on, steady */
+    TEST_ASSERT_UINT32_WITHIN(5, cfg.warning_timeout_ms / 1000, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, cfg.shutdown_timeout_ms / 1000, o.shutdown_s);
+}
+
+static void test_kconfig_a_simmer_with_the_burner_off_is_left_alone(void)
+{
+    const outcome_t o = leave_and_watch(95.0f, 25.0f);
+    TEST_ASSERT_EQUAL(-1, o.warning_s); /* no buzzer, no shutdown: it just cools down and the timeline ends */
+    TEST_ASSERT_EQUAL(-1, o.shutdown_s);
+    TEST_ASSERT_TRUE(o.idle_s > 0);
+}
+
+static void test_kconfig_a_hot_pan_on_low_gets_the_shorter_times(void)
+{
+    const outcome_t o = leave_and_watch(150.0f, 130.0f); /* heat still going in, between the tiers' temperatures */
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER1_WARNING_S, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER1_SHUTDOWN_S, o.shutdown_s);
+}
+
+static void test_kconfig_hot_oil_with_the_burner_on_gets_the_shortest_times(void)
+{
+    const outcome_t o = leave_and_watch(220.0f, 210.0f);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_WARNING_S, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S, o.shutdown_s);
+}
+
+static void test_kconfig_hot_oil_turned_down_is_still_shut_down(void)
+{
+    const outcome_t o = leave_and_watch(220.0f, 120.0f); /* falling, but settling hot: heat still going in */
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_WARNING_S, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S, o.shutdown_s);
+}
+
+static void test_kconfig_hot_oil_with_the_burner_off_gets_a_buzzer_but_no_shutdown(void)
+{
+    const outcome_t o = leave_and_watch(220.0f, 25.0f);
+    /* The buzzer comes at the tier's time: cooling can't be recognised that early. The gas is not cut
+     * for a burner that is already off, and the timeline ends when the pan is cold. */
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_WARNING_S, o.warning_s);
+    TEST_ASSERT_EQUAL(-1, o.shutdown_s);
+    TEST_ASSERT_TRUE(o.idle_s > 0);
 }
 
 /* A hand waved at the radar (about 2 s of presence) must not cancel the unattended timers. */
@@ -121,6 +145,10 @@ void run_kconfig_tests(void)
     RUN_TEST(test_kconfig_safety_config_is_valid);
     RUN_TEST(test_kconfig_warning_and_shutdown_timing);
     RUN_TEST(test_kconfig_wave_keeps_unattended);
-    RUN_TEST(test_kconfig_burner_off_pan_cooling_is_not_warned);
-    RUN_TEST(test_kconfig_burner_on_low_is_warned_and_shut_down);
+    RUN_TEST(test_kconfig_a_simmer_gets_the_base_times);
+    RUN_TEST(test_kconfig_a_simmer_with_the_burner_off_is_left_alone);
+    RUN_TEST(test_kconfig_a_hot_pan_on_low_gets_the_shorter_times);
+    RUN_TEST(test_kconfig_hot_oil_with_the_burner_on_gets_the_shortest_times);
+    RUN_TEST(test_kconfig_hot_oil_turned_down_is_still_shut_down);
+    RUN_TEST(test_kconfig_hot_oil_with_the_burner_off_gets_a_buzzer_but_no_shutdown);
 }

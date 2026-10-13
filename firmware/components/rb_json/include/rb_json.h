@@ -103,6 +103,13 @@ typedef struct {
         float trend_rate_c_per_min;   /* NAN = not enough data */
         float settle_c;               /* where the temperature is heading, NAN = unknown */
         const char *hold;             /* "none" "return" "cooling": what holds a due buzzer/shutdown back */
+        const char *tier;             /* "normal" "elevated" "critical": the temperature tier in force */
+        uint32_t effective_warning_ms;   /* the times in force now (warning_after_ms / shutdown_after_ms are the base times) */
+        uint32_t effective_shutdown_ms;
+        float tier1_temp_c;           /* <= 0: tiers off */
+        uint32_t tier1_warning_ms, tier1_shutdown_ms;
+        float tier2_temp_c, tier2_rate_c_per_min, tier2_rate_min_temp_c;
+        uint32_t tier2_warning_ms, tier2_shutdown_ms;
         const char *cookware;         /* cookware profile in use */
         float cookware_tau_s;
         bool cookware_remote;         /* profile set from the dashboard */

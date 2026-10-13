@@ -12,19 +12,24 @@ import math
 from django.utils import timezone
 
 SCENARIOS = ("monitoring", "unattended", "warning", "shutdown", "idle", "fault_radars",
-             "fault_node_offline", "network_loss", "cooling")
+             "fault_node_offline", "network_loss", "cooling", "hot_pan")
 # Without a scenario (tests, older catalogues) the index picks one, as before.
 BY_INDEX = ("monitoring", "shutdown", "unattended", "warning", "monitoring", "idle", "fault_radars",
             "warning", "monitoring")
 STATE = {"monitoring": "MONITORING", "unattended": "UNATTENDED", "warning": "WARNING",
          "shutdown": "SHUTDOWN", "idle": "IDLE", "fault_radars": "UNATTENDED", "fault_node_offline": "MONITORING",
-         "network_loss": "MONITORING", "cooling": "UNATTENDED"}
+         "network_loss": "MONITORING", "cooling": "UNATTENDED", "hot_pan": "UNATTENDED"}
 TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
 SHUTDOWN_CYCLE_S = 600
 COOLING_CYCLE_S = 420
 # The firmware defaults: buzzer 3 min and shutdown 5 min after the person left.
 WARNING_S, SHUTDOWN_AFTER_S = 180, 300
+# The temperature tiers (firmware defaults): hotter pans get shorter times.
+TIERS = {"elevated": {"temp_c": 120.0, "warning_ms": 60000, "shutdown_ms": 150000},
+         "critical": {"temp_c": 200.0, "rate_c_per_min": 20.0, "rate_min_temp_c": 150.0,
+                      "warning_ms": 30000, "shutdown_ms": 120000}}
+HOT_WARNING_S = 30
 
 # network_loss: online, then silent (the dashboard marks it stale), then the
 # broker reports it offline (the controller's MQTT Last Will), then back.
@@ -51,13 +56,15 @@ def _pan_temperature(scenario, index, tick):
         return COOK_C + math.sin(tick / 9 + index) * 0.5, 0.0
     if scenario == "cooling":  # burner off, nobody there: the pan cools by itself (tau 3 min)
         t = seconds % COOLING_CYCLE_S
-        excess = (140 - COOK_C) * math.exp(-t / 180)
+        excess = (110 - COOK_C) * math.exp(-t / 180)
         return COOK_C + excess, -excess / 180 * 60
     if scenario == "shutdown":  # gas cut: cools towards room temperature
         since_cut = seconds % SHUTDOWN_CYCLE_S
         excess = (110 - COOK_C) * math.exp(-since_cut / 240)
         return COOK_C + excess, -excess / 240 * 60
-    base = 95 + (index * 7) % 30  # different dishes, 95-125 °C
+    if scenario == "hot_pan":  # oil in a pan, burner on, nobody there: 200-225 °C
+        return 212 + math.sin(tick / 5 + index) * 8, math.cos(tick / 5 + index) * 2
+    base = 82 + (index * 7) % 20  # different dishes, a simmer to a gentle boil: 82-102 °C, the base-times tier
     phase = tick / 5 + index
     return base + math.sin(phase) * 4, math.cos(phase) * 4 / (5 * TICK_S) * 60
 
@@ -68,6 +75,9 @@ def _timers(scenario, tick):
     # fault_radars: presence unknown while cooking counts as absent, so the same timeline runs
     if scenario in {"unattended", "fault_radars"}:  # left the stove 10 s to just before the buzzer
         unattended = 10 + seconds % (WARNING_S - 14)
+        return unattended * 1000, unattended * 1000
+    if scenario == "hot_pan":  # hot oil: the buzzer comes after 30 s, not 3 min
+        unattended = 5 + seconds % (HOT_WARNING_S - 8)
         return unattended * 1000, unattended * 1000
     if scenario == "cooling":  # past the warning time, but held back while the pan only cools
         unattended = WARNING_S + 15 + seconds % COOLING_CYCLE_S
@@ -131,6 +141,10 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                                        "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
                               cookware={"profile": "light", "tau_s": 300, "source": "menuconfig"},
                               hold="cooling" if scenario == "cooling" else "none",
+                              tier="critical" if scenario == "hot_pan" else "normal",
+                              effective_warning_ms=HOT_WARNING_S * 1000 if scenario == "hot_pan" else WARNING_S * 1000,
+                              effective_shutdown_ms=TIERS["critical"]["shutdown_ms"] if scenario == "hot_pan" else SHUTDOWN_AFTER_S * 1000,
+                              tiers=TIERS,
                               presence_unknown=presence == "UNKNOWN", thermal_lost=False,
                               absent_ms=0, returning_ms=0)
     return data
