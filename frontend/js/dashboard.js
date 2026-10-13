@@ -16,6 +16,7 @@ import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderPresenceFilter } from "./presence_filter.js";
 import { renderReset } from "./reset.js";
+import { renderThermalThreshold } from "./thermal_threshold.js";
 import { renderTuning } from "./tuning.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
@@ -28,6 +29,7 @@ let selectedStall = "",
   activeView = "overview",
   initialRouteApplied = false,
   heatmap = null, // decoded picture of the selected device, or null
+  heatmapNumber = null, // its picture number
   heatmapGeometry = null;
 function freshness(device, key, explicitAge) {
   const age = explicitAge === undefined ? device.field_age_seconds[key] : explicitAge;
@@ -80,6 +82,7 @@ function openStall(stallId, deviceId = "") {
   lastHistoryAt = 0;
   points = [];
   heatmap = null;
+  heatmapNumber = null;
   renderEventsMessage("Loading station history…");
   set("chart-caption", "Loading temperature history…");
   set("heatmap-age", "Loading picture…");
@@ -590,6 +593,7 @@ function renderHeatmap() {
     showRegion: $("heatmap-show-region").checked,
   });
   renderHeatmapFacts();
+  renderThermalThreshold(current, heatmap, heatmapNumber);
   if (!heatmap) {
     const canvas = $("heatmap");
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
@@ -649,6 +653,7 @@ async function refreshHeatmap() {
     if (requested !== selectedDevice) return;
     const frame = data.frames[0];
     heatmap = frame ? decodeFrame(frame) : null;
+    heatmapNumber = frame && Number.isInteger(frame.number) ? frame.number : null;
     const stale = frame && frame.age_seconds > data.stale_after_seconds;
     set(
       "heatmap-age",
@@ -860,6 +865,7 @@ $("brand-home").addEventListener("click", (event) => {
 $("device-select").addEventListener("change", () => {
   selectedDevice = $("device-select").value;
   heatmap = null;
+  heatmapNumber = null;
   set("heatmap-age", "Loading picture…");
   renderHeatmap();
   lastHistoryAt = 0;

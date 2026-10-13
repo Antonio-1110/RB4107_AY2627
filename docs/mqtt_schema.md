@@ -153,7 +153,8 @@ only: the safety decision uses the `thermal` values, never this. About 1.3 KB.
 - `pixels` is base64 of `width × height` bytes, row by row. Pixel value `v` is
   `base_c + v × step_c` °C; the value `invalid` (255) means no reading.
 - `hot_threshold_c` and `hot_region_radius` are the node's own settings
-  (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, `RB_THERMAL_HOT_REGION_RADIUS`), so the
+  (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, or the value set from the dashboard,
+  and `RB_THERMAL_HOT_REGION_RADIUS`), so the
   dashboard can outline the pixels and region its `thermal` values come from.
 - `number` is the thermal node's picture counter; it restarts when the node
   reboots. The header's `uptime_ms` and `timestamp` are when the controller

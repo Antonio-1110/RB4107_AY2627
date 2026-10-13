@@ -373,6 +373,25 @@
                   (dashed box)</label
                 >
               </div>
+              <p class="eyebrow">HOT-PIXEL THRESHOLD</p>
+              <p class="muted small">
+                Pixels at or above it are counted and outlined. Saved on the thermal node, so it
+                survives a reboot. The safety logic does not use it: cooking is detected from the
+                hot-region temperature.
+              </p>
+              <div class="heatmap-footprint">
+                <label
+                  >Threshold (°C)
+                  <input id="tt-value" type="number" min="0" max="300" step="0.5" disabled
+                /></label>
+              </div>
+              <div class="reset-actions">
+                <button id="tt-apply" class="primary-button" type="button" disabled>Apply</button>
+                <button id="tt-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig value
+                </button>
+                <p id="tt-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
               <p class="eyebrow">PIXEL SIZE AT A DISTANCE</p>
               <div class="heatmap-footprint">
                 <label

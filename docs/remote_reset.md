@@ -87,3 +87,42 @@ return may be without restarting it. The menuconfig values
 
 The same limits as the reset apply: no login, so turn
 `RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
+
+## Hot-pixel threshold
+
+The same command topic also carries the thermal node's hot-pixel threshold
+(`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, 50.0 °C by default): pixels at or above
+it are counted in `pixels_above_threshold` and outlined on the heat map. The
+safety state machine does not use it (cooking is detected from the hot-region
+temperature, `RB_SAFETY_HEAT_ON_DC`), so changing it changes no timer.
+
+1. **Hot-pixel threshold** in the Thermal camera card: a field in °C,
+   **Apply** and **Menuconfig value**. They call
+   `POST /api/devices/<id>/thermal_threshold/` with
+   `{"hot_pixel_threshold_c":62.5}` (0 – 300 °C, sent in 0.1 °C steps) or
+   `{"defaults":true}`.
+2. Django publishes on `<prefix>/controller/command`:
+
+   ```json
+   {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
+    "request_id":9,"action":"thermal_threshold","hot_pixel_threshold_dc":625}
+   ```
+
+   or `"action":"thermal_threshold_defaults"` without the value.
+3. The controller (`RB_CTRL_REMOTE_THERMAL_THRESHOLD` on, the default) sends
+   it to the thermal node as a THERMAL_CONFIG packet
+   ([protocol.md](protocol.md#thermal_config-type-11-28-bytes-total)). It
+   learns the node's MAC from the node's packets, so the node must have been
+   heard from since the controller booted. It logs
+   `hot-pixel threshold ... from the dashboard`.
+4. The thermal node (`RB_THERMAL_REMOTE_THRESHOLD` on, the default) uses it
+   from the next frame and saves it in NVS, so it survives a reboot and wins
+   over menuconfig. `thermal_threshold_defaults` erases it; so does
+   `idf.py erase-flash`. A normal `idf.py flash` keeps it.
+5. The answer is the `hot_threshold_c` of the next heat-map pictures, which
+   the card shows as "In use". With the heat map off
+   (`RB_THERMAL_HEATMAP`), the change still happens but the card can't
+   confirm it; the node's serial log shows it.
+
+The same limits as the reset apply: no login, so turn
+`RB_CTRL_REMOTE_THERMAL_THRESHOLD` off outside the demo.

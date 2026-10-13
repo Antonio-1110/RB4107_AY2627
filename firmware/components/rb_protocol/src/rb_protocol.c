@@ -113,6 +113,7 @@ static size_t packet_len(rb_msg_type_t type)
     case RB_MSG_C4002_CONFIG: return RB_PKT_C4002_CONFIG_LEN;
     case RB_MSG_C4002_CONFIG_ACK: return RB_PKT_C4002_CONFIG_ACK_LEN;
     case RB_MSG_C4002_LIVE: return RB_PKT_C4002_LIVE_LEN;
+    case RB_MSG_THERMAL_CONFIG: return RB_PKT_THERMAL_CONFIG_LEN;
     default: return 0;
     }
 }
@@ -128,7 +129,8 @@ static bool role_ok(rb_node_role_t role, rb_msg_type_t type)
         return type == RB_MSG_THERMAL_DATA || type == RB_MSG_HEARTBEAT || type == RB_MSG_SENSOR_FAULT ||
                type == RB_MSG_THERMAL_FRAME;
     case RB_NODE_ROLE_VALVE: return type == RB_MSG_VALVE_STATUS;
-    case RB_NODE_ROLE_CONTROLLER: return type == RB_MSG_VALVE_COMMAND || type == RB_MSG_C4002_CONFIG;
+    case RB_NODE_ROLE_CONTROLLER:
+        return type == RB_MSG_VALVE_COMMAND || type == RB_MSG_C4002_CONFIG || type == RB_MSG_THERMAL_CONFIG;
     default: return false;
     }
 }
@@ -292,6 +294,14 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         put_u32(&w, l->results);
         break;
     }
+    case RB_MSG_THERMAL_CONFIG: {
+        const rb_thermal_config_msg_t *c = &pkt->body.thermal_config;
+        put_u32(&w, c->target_node_id);
+        put_u16(&w, c->request_id);
+        put_u8(&w, c->action);
+        put_u16(&w, (uint16_t)c->hot_threshold_centi);
+        break;
+    }
     default:
         break;
     }
@@ -437,6 +447,14 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         l->results = get_u32(&r);
         break;
     }
+    case RB_MSG_THERMAL_CONFIG: {
+        rb_thermal_config_msg_t *c = &out->body.thermal_config;
+        c->target_node_id = get_u32(&r);
+        c->request_id = get_u16(&r);
+        c->action = get_u8(&r);
+        c->hot_threshold_centi = (int16_t)get_u16(&r);
+        break;
+    }
     default:
         break;
     }
@@ -525,6 +543,7 @@ const char *rb_msg_type_name(rb_msg_type_t type)
     case RB_MSG_C4002_CONFIG_ACK: return "C4002_CONFIG_ACK";
     case RB_MSG_C4002_LIVE: return "C4002_LIVE";
     case RB_MSG_THERMAL_FRAME: return "THERMAL_FRAME";
+    case RB_MSG_THERMAL_CONFIG: return "THERMAL_CONFIG";
     default: return "?";
     }
 }

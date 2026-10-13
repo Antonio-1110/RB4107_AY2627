@@ -136,6 +136,26 @@ static void test_valve_messages_roundtrip(void)
     TEST_ASSERT_EQUAL(0, rb_protocol_encode(&tx, buf, sizeof(buf)));
 }
 
+static void test_thermal_config_roundtrip(void)
+{
+    uint8_t buf[RB_PKT_MAX_LEN];
+    rb_packet_t rx;
+    rb_packet_t tx = {.type = RB_MSG_THERMAL_CONFIG, .role = RB_NODE_ROLE_CONTROLLER, .sequence = 3};
+    tx.body.thermal_config = (rb_thermal_config_msg_t){
+        .target_node_id = 3, .request_id = 4242, .action = RB_THERMAL_ACTION_SET, .hot_threshold_centi = -1250};
+    size_t len = rb_protocol_encode(&tx, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL(RB_PKT_THERMAL_CONFIG_LEN, len);
+    TEST_ASSERT_EQUAL(RB_DECODE_OK, rb_protocol_decode(buf, len, &rx));
+    TEST_ASSERT_EQUAL_UINT32(3, rx.body.thermal_config.target_node_id);
+    TEST_ASSERT_EQUAL_UINT16(4242, rx.body.thermal_config.request_id);
+    TEST_ASSERT_EQUAL_UINT8(RB_THERMAL_ACTION_SET, rx.body.thermal_config.action);
+    TEST_ASSERT_EQUAL_INT16(-1250, rx.body.thermal_config.hot_threshold_centi);
+
+    /* Only the controller sends it. */
+    tx.role = RB_NODE_ROLE_THERMAL;
+    TEST_ASSERT_EQUAL(0, rb_protocol_encode(&tx, buf, sizeof(buf)));
+}
+
 static void test_encode_rejects_bad_input(void)
 {
     rb_packet_t tx = {.type = (rb_msg_type_t)99, .role = RB_NODE_ROLE_PRESENCE};
@@ -236,6 +256,7 @@ void run_protocol_tests(void)
     RUN_TEST(test_role_must_match_data);
     RUN_TEST(test_rejects_corruption);
     RUN_TEST(test_valve_messages_roundtrip);
+    RUN_TEST(test_thermal_config_roundtrip);
     RUN_TEST(test_encode_rejects_bad_input);
     RUN_TEST(test_thermal_frame_piece_roundtrip);
     RUN_TEST(test_thermal_frame_piece_checks);

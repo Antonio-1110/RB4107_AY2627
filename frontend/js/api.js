@@ -46,6 +46,10 @@ export const sendReset = (deviceId) => post(`${device(deviceId)}/reset/`, {});
 // or {defaults: true}. The answer is values.presence_filter in the next telemetry.
 export const sendPresenceFilter = (deviceId, body) => post(`${device(deviceId)}/presence_filter/`, body);
 
+// Hot-pixel threshold of the thermal node: {hot_pixel_threshold_c} or {defaults: true}.
+// The answer is hot_threshold_c in the next heat-map pictures.
+export const sendThermalThreshold = (deviceId, body) => post(`${device(deviceId)}/thermal_threshold/`, body);
+
 // Remote C4002 tuning. The node's answer
 // arrives later in the device's values (sensors.<node>.c4002).
 export const sendC4002Command = (deviceId, node, body) =>
