@@ -91,6 +91,7 @@ def classify_display_state(device):
 # UNATTENDED / WARNING are cooking. Only when the state can't say (FAULT,
 # starting up) is it guessed from the hot region with the same default
 # thresholds, and labelled "likely".
+# Menuconfig defaults, used only when the controller doesn't report its own (older firmware).
 HEAT_ON_C, HEAT_OFF_C = 50.0, 40.0
 COOKING_STATES = {"monitoring": "Cook at the stove", "unattended": "Nobody at the stove",
                   "warning": "Nobody at the stove · warning"}
@@ -100,33 +101,38 @@ ACTIVE_COOKING = {"cooking", "likely_cooking"}
 
 
 def classify_cooking(device):
-    """Whether a controller's stove is in use, for display; never used for safety."""
+    """Whether a controller's stove is in use, for display; never used for safety.
+    The controller's safety state decides; the hottest pixel (temperature_c) and
+    the controller's own cooking temperatures only explain it, or stand in when
+    the state says nothing about cooking."""
     values = device["values"]
     safety = values.get("safety_state")
-    hot_field = "hot_region_c" if _finite(values.get("hot_region_c")) else "temperature_c"
+    on_c = values.get("cooking_on_c") if _finite(values.get("cooking_on_c")) else HEAT_ON_C
+    off_c = values.get("cooking_off_c") if _finite(values.get("cooking_off_c")) else HEAT_OFF_C
+    hot_field = "temperature_c"
     hot = values.get(hot_field) if _finite(values.get(hot_field)) else None
-    hot_text = f"hot region {hot:.0f} °C" if hot is not None else "no temperature"
+    hot_text = f"hottest {hot:.0f} °C" if hot is not None else "no temperature"
     if safety in COOKING_STATES:
         status, label, detail, source = "cooking", "COOKING", f"{COOKING_STATES[safety]} · {hot_text}", "safety_state"
     elif safety == "idle":
         status, label, detail, source = ("not_cooking", "NOT COOKING",
-                                         f"Stove off or cold · {hot_text} (cooking from {HEAT_ON_C:.0f} °C)",
+                                         f"Stove off or cold · {hot_text} (cooking from {on_c:g} °C)",
                                          "safety_state")
     elif safety == "shutdown":
         status, label, detail, source = ("supply_cut", "SUPPLY CUT",
                                          f"Gas cut by the controller · stove cooling, {hot_text}", "safety_state")
-    elif hot is not None and hot >= HEAT_ON_C:
+    elif hot is not None and hot >= on_c:
         status, label, source = "likely_cooking", "LIKELY COOKING", hot_field
-        detail = f"Controller {safety or 'state unknown'} · {hot_text} (≥ {HEAT_ON_C:.0f} °C)"
-    elif hot is not None and hot < HEAT_OFF_C:
+        detail = f"Controller {safety or 'state unknown'} · {hot_text} (≥ {on_c:g} °C)"
+    elif hot is not None and hot < off_c:
         status, label, source = "likely_not_cooking", "LIKELY NOT COOKING", hot_field
-        detail = f"Controller {safety or 'state unknown'} · {hot_text} (< {HEAT_OFF_C:.0f} °C)"
+        detail = f"Controller {safety or 'state unknown'} · {hot_text} (< {off_c:g} °C)"
     else:
         status, label, detail, source = "unknown", "COOKING UNKNOWN", f"Controller {safety or 'state unknown'} · {hot_text}", None
     age = device["field_age_seconds"].get(source) if source else None
     last_known = device["connection"] != "online" or age is None or age > device["stale_after_seconds"]
     return {"status": status, "label": label, "detail": detail, "active": status in ACTIVE_COOKING,
-            "source_field": source, "hot_region_c": hot, "last_known": last_known}
+            "source_field": source, "hottest_c": hot, "last_known": last_known}
 
 
 def _finite(value):

@@ -16,7 +16,7 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 | Input | Source | Unknown/invalid handling |
 |---|---|---|
 | `presence` (tri-state) | the two C4002 presence nodes via ESP-NOW, combined strictly (`node_set_inputs`, `presence_fuse`): PRESENT if either radar sees a person, ABSENT only if both validly say absent | `RB_UNKNOWN` → FAULT. It is never read as "absent" or "present". |
-| `thermal_valid`, `hot_region_temp_c` | MLX90640 features from the thermal node via ESP-NOW | invalid → FAULT |
+| `thermal_valid`, `cooking_temp_c` | MLX90640 features from the thermal node via ESP-NOW; `cooking_temp_c` is the hottest pixel (`max_temp_c`), the same number the dashboard shows and outlines | invalid → FAULT |
 | `self_test` | controller self-test (outputs working) | must read PASS after SELF_TEST; FAIL, timeout or not-yet-passed → FAULT, latched until it passes |
 | `reset_request` | operator reset: dashboard button, console `reset` ([remote_reset.md](remote_reset.md)) | leaves SHUTDOWN; acknowledges WARNING in *exit-on-ack* mode |
 | `safety_fault` | fault manager (safety-relevant faults) | → FAULT |
@@ -29,9 +29,9 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 | SELF_TEST | self-test FAIL, or no result within `self_test_timeout_ms` | FAULT |
 | SELF_TEST | self-test PASS | IDLE |
 | IDLE | sensors not OK | FAULT |
-| IDLE | hot-region temp ≥ `heat_on_temp_c` | MONITORING |
+| IDLE | hottest pixel ≥ `heat_on_temp_c` (the cooking temperature; menuconfig or dashboard) | MONITORING |
 | MONITORING | sensors not OK | FAULT |
-| MONITORING | hot-region temp < `heat_off_temp_c` (hysteresis) | IDLE |
+| MONITORING | hottest pixel < `heat_off_temp_c` (hysteresis) | IDLE |
 | MONITORING | absent for `absence_debounce_ms` | UNATTENDED |
 | UNATTENDED | sensors not OK | FAULT |
 | UNATTENDED | present for `presence_return_debounce_ms` (see presence filter) | MONITORING |

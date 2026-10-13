@@ -89,7 +89,7 @@ enum {
     SEEN_WARNING = 256,
     SEEN_SHUTDOWN = 512,
     SEEN_FILTER = SEEN_ABSENCE | SEEN_RETURN | SEEN_GAP | SEEN_WARNING | SEEN_SHUTDOWN,
-    SEEN_HOT = 1024,
+    SEEN_COOKING = 1024,
 };
 
 /* One of the filter values: an integer min..max milliseconds. */
@@ -166,14 +166,14 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_PRESENCE_FILTER;
                 } else if (is_str && strcmp(str, "presence_filter_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS;
-                } else if (is_str && strcmp(str, "thermal_threshold") == 0) {
-                    out->action = RB_CTRL_ACTION_THERMAL_THRESHOLD;
-                } else if (is_str && strcmp(str, "thermal_threshold_defaults") == 0) {
-                    out->action = RB_CTRL_ACTION_THERMAL_THRESHOLD_DEFAULTS;
+                } else if (is_str && strcmp(str, "cooking_temp") == 0) {
+                    out->action = RB_CTRL_ACTION_COOKING_TEMP;
+                } else if (is_str && strcmp(str, "cooking_temp_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_COOKING_TEMP_DEFAULTS;
                 } else {
                     fail(err, err_len,
-                         "action must be reset, presence_filter, presence_filter_defaults, thermal_threshold or "
-                         "thermal_threshold_defaults");
+                         "action must be reset, presence_filter, presence_filter_defaults, cooking_temp or "
+                         "cooking_temp_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -203,13 +203,13 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                                   err_len)) {
                     return false;
                 }
-            } else if (strcmp(key, "hot_pixel_threshold_dc") == 0) {
-                bit = SEEN_HOT;
-                if (is_str || num > RB_CTRL_HOT_PIXEL_MAX_DC) {
-                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_HOT_PIXEL_MAX_DC);
+            } else if (strcmp(key, "cooking_temp_dc") == 0) {
+                bit = SEEN_COOKING;
+                if (is_str || num > RB_CTRL_COOKING_TEMP_MAX_DC) {
+                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_COOKING_TEMP_MAX_DC);
                     return false;
                 }
-                out->hot_pixel_threshold_dc = (uint16_t)num;
+                out->cooking_temp_dc = (uint16_t)num;
             } else {
                 fail(err, err_len, "unknown key '%s'", key);
                 return false;
@@ -239,8 +239,8 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
         fail(err, err_len, "presence_filter needs all five values, other actions none");
         return false;
     }
-    if ((out->action == RB_CTRL_ACTION_THERMAL_THRESHOLD) != ((seen & SEEN_HOT) != 0)) {
-        fail(err, err_len, "hot_pixel_threshold_dc goes with thermal_threshold only, and it needs it");
+    if ((out->action == RB_CTRL_ACTION_COOKING_TEMP) != ((seen & SEEN_COOKING) != 0)) {
+        fail(err, err_len, "cooking_temp_dc goes with cooking_temp only, and it needs it");
         return false;
     }
     return true;

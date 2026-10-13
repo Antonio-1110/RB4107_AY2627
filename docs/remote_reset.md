@@ -96,41 +96,40 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 The same limits as the reset apply: no login, so turn
 `RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
 
-## Hot-pixel threshold
+## Cooking temperature
 
-The same command topic also carries the thermal node's hot-pixel threshold
-(`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, 50.0 °C by default): pixels at or above
-it are counted in `pixels_above_threshold` and outlined on the heat map. The
-safety state machine does not use it (cooking is detected from the hot-region
-temperature, `RB_SAFETY_HEAT_ON_DC`), so changing it changes no timer.
+The same command topic also carries the cooking temperature: the controller
+counts the stove as cooking (IDLE → MONITORING) when the thermal camera's
+hottest pixel reaches it, and as no longer cooking below the "over" value,
+which stays the menuconfig gap below it (10 °C by default). The menuconfig
+value is `RB_SAFETY_HEAT_ON_DC` (50.0 °C). This is the only cooking threshold:
+the dashboard outlines the pixels at or above it, and the cooking badge comes
+from the controller's state.
 
-1. **Hot-pixel threshold** in the Thermal camera card: a field in °C,
+1. **Cooking temperature** in the Thermal camera card: a field in °C,
    **Apply** and **Menuconfig value**. They call
-   `POST /api/devices/<id>/thermal_threshold/` with
-   `{"hot_pixel_threshold_c":62.5}` (0 – 300 °C, sent in 0.1 °C steps) or
-   `{"defaults":true}`.
+   `POST /api/devices/<id>/cooking_temp/` with `{"cooking_temp_c":62.5}`
+   (0 – 300 °C, sent in 0.1 °C steps) or `{"defaults":true}`.
 2. Django publishes on `<prefix>/controller/command`:
 
    ```json
    {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
-    "request_id":9,"action":"thermal_threshold","hot_pixel_threshold_dc":625}
+    "request_id":9,"action":"cooking_temp","cooking_temp_dc":625}
    ```
 
-   or `"action":"thermal_threshold_defaults"` without the value.
-3. The controller (`RB_CTRL_REMOTE_THERMAL_THRESHOLD` on, the default) sends
-   it to the thermal node as a THERMAL_CONFIG packet
-   ([protocol.md](protocol.md#thermal_config-type-11-28-bytes-total)). It
-   learns the node's MAC from the node's packets, so the node must have been
-   heard from since the controller booted. It logs
-   `hot-pixel threshold ... from the dashboard`.
-4. The thermal node (`RB_THERMAL_REMOTE_THRESHOLD` on, the default) uses it
-   from the next frame and saves it in NVS, so it survives a reboot and wins
-   over menuconfig. `thermal_threshold_defaults` erases it; so does
-   `idf.py erase-flash`. A normal `idf.py flash` keeps it.
-5. The answer is the `hot_threshold_c` of the next heat-map pictures, which
-   the card shows as "In use". With the heat map off
-   (`RB_THERMAL_HEATMAP`), the change still happens but the card can't
-   confirm it; the node's serial log shows it.
+   or `"action":"cooking_temp_defaults"` without the value.
+3. The controller (`RB_CTRL_REMOTE_COOKING_TEMP` on, the default) uses it from
+   the next safety step and saves it in NVS, so it survives a reboot and wins
+   over menuconfig. `cooking_temp_defaults` erases it; so does
+   `idf.py erase-flash`. A normal `idf.py flash` keeps it. It logs
+   `cooking temperature ... from the dashboard`.
+4. The controller also sends the value to the thermal node as a THERMAL_CONFIG
+   packet ([protocol.md](protocol.md#thermal_config-type-11-28-bytes-total)),
+   so the node's `pixels_above_threshold` counts the same pixels. It learns the
+   node's MAC from the node's packets, so the node must have been heard from
+   since the controller booted. This part is display only.
+5. The answer is `safety.cooking` in the next telemetry (`on_c`, `off_c`,
+   `source: "dashboard"`), which the card shows as "In use".
 
 The same limits as the reset apply: no login, so turn
-`RB_CTRL_REMOTE_THERMAL_THRESHOLD` off outside the demo.
+`RB_CTRL_REMOTE_COOKING_TEMP` off outside the demo.

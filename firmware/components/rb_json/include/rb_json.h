@@ -95,6 +95,9 @@ typedef struct {
         uint32_t return_ms;
         uint32_t return_gap_ms;
         bool filter_remote;           /* presence filter set from the dashboard */
+        float cooking_on_c;           /* cooking from this hottest-pixel temperature */
+        float cooking_off_c;          /* cooking over below this one */
+        bool cooking_remote;          /* cooking temperature set from the dashboard */
         uint32_t loop_count;
     } safety;
 

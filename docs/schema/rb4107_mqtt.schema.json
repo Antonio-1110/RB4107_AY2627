@@ -114,6 +114,16 @@
                 "return_gap_ms": {"type": "integer", "minimum": 0},
                 "source": {"enum": ["menuconfig", "dashboard"]}
               }
+            },
+            "cooking": {
+              "type": "object",
+              "description": "cooking temperatures in use: IDLE -> MONITORING when the hottest pixel reaches on_c, back to IDLE below off_c. source dashboard = set from the dashboard and saved on the controller",
+              "required": ["on_c", "off_c", "source"],
+              "properties": {
+                "on_c": {"$ref": "#/$defs/nullable_number"},
+                "off_c": {"$ref": "#/$defs/nullable_number"},
+                "source": {"enum": ["menuconfig", "dashboard"]}
+              }
             }
           }
         },
@@ -328,7 +338,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; thermal_threshold = send a hot-pixel threshold (0.1 degC) to the thermal node, which saves it; thermal_threshold_defaults = the thermal node goes back to its menuconfig value (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value (docs/remote_reset.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -337,14 +347,14 @@
         "type": {"const": "controller_command"},
         "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
-        "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "thermal_threshold",
-                            "thermal_threshold_defaults"]},
+        "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "cooking_temp",
+                            "cooking_temp_defaults"]},
         "absence_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_gap_ms": {"type": "integer", "minimum": 0, "maximum": 5000},
         "warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
-        "hot_pixel_threshold_dc": {"type": "integer", "minimum": 0, "maximum": 3000}
+        "cooking_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000}
       },
       "allOf": [
         {
@@ -354,9 +364,9 @@
                                      {"required": ["warning_ms"]}, {"required": ["shutdown_ms"]}]}}
         },
         {
-          "if": {"properties": {"action": {"const": "thermal_threshold"}}},
-          "then": {"required": ["hot_pixel_threshold_dc"]},
-          "else": {"not": {"required": ["hot_pixel_threshold_dc"]}}
+          "if": {"properties": {"action": {"const": "cooking_temp"}}},
+          "then": {"required": ["cooking_temp_dc"]},
+          "else": {"not": {"required": ["cooking_temp_dc"]}}
         }
       ]
     }

@@ -31,7 +31,7 @@ void th_start(th_t *h, const safety_config_t *cfg, uint32_t t0)
     h->in = (safety_inputs_t){
         .presence = RB_TRUE,
         .thermal_valid = true,
-        .hot_region_temp_c = 25.0f,
+        .cooking_temp_c = 25.0f,
         .temp_rate_c_per_min = 0.0f,
         .self_test = SAFETY_SELFTEST_PASS,
     };
@@ -49,7 +49,7 @@ void th_run(th_t *h, uint32_t ms)
 
 void th_cook(th_t *h)
 {
-    h->in.hot_region_temp_c = 120.0f;
+    h->in.cooking_temp_c = 120.0f;
     th_run(h, TH_STEP_MS);
     TH_EXPECT(h, SAFETY_MONITORING);
 }
@@ -78,7 +78,7 @@ static void test_boot_selftest_fail_or_timeout_to_fault(void)
     th_t h = {0};
     const safety_config_t cfg = th_default_config();
     safety_init(&h.sm, &cfg, NULL, NULL, 0);
-    h.in = (safety_inputs_t){.presence = RB_TRUE, .thermal_valid = true, .hot_region_temp_c = 25, .self_test = SAFETY_SELFTEST_FAIL};
+    h.in = (safety_inputs_t){.presence = RB_TRUE, .thermal_valid = true, .cooking_temp_c = 25, .self_test = SAFETY_SELFTEST_FAIL};
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_FAULT);
 
@@ -98,17 +98,17 @@ static void test_idle_to_monitoring(void)
     th_t h;
     const safety_config_t cfg = th_default_config();
     th_start(&h, &cfg, 0);
-    h.in.hot_region_temp_c = 49.9f;
+    h.in.cooking_temp_c = 49.9f;
     th_run(&h, 1000);
     TH_EXPECT(&h, SAFETY_IDLE);
-    h.in.hot_region_temp_c = 50.0f;
+    h.in.cooking_temp_c = 50.0f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_MONITORING);
     /* Hysteresis: stays until below heat_off. */
-    h.in.hot_region_temp_c = 45.0f;
+    h.in.cooking_temp_c = 45.0f;
     th_run(&h, 1000);
     TH_EXPECT(&h, SAFETY_MONITORING);
-    h.in.hot_region_temp_c = 39.0f;
+    h.in.cooking_temp_c = 39.0f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_IDLE);
 }
@@ -242,7 +242,7 @@ static void test_temperature_drops_during_unattended(void)
     th_start(&h, &cfg, 0);
     th_cook(&h);
     leave(&h);
-    h.in.hot_region_temp_c = 30.0f;
+    h.in.cooking_temp_c = 30.0f;
     th_run(&h, cfg.shutdown_timeout_ms);
     TH_EXPECT(&h, SAFETY_SHUTDOWN);
 
@@ -250,7 +250,7 @@ static void test_temperature_drops_during_unattended(void)
     th_start(&h, &cfg, 0);
     th_cook(&h);
     leave(&h);
-    h.in.hot_region_temp_c = 30.0f;
+    h.in.cooking_temp_c = 30.0f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_IDLE);
     TEST_ASSERT_EQUAL_UINT32(0, safety_unattended_ms(&h.sm, h.now));
@@ -372,7 +372,7 @@ static void test_heat_detected_after_person_left(void)
     h.in.presence = RB_FALSE; /* nobody there for 10 minutes, hob cold */
     th_run(&h, 600000);
     TH_EXPECT(&h, SAFETY_IDLE);
-    h.in.hot_region_temp_c = 120.0f;
+    h.in.cooking_temp_c = 120.0f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_UNATTENDED); /* cooking with nobody there */
     TEST_ASSERT_TRUE(safety_unattended_ms(&h.sm, h.now) <= TH_STEP_MS); /* counts from now, not 10 min ago */
@@ -383,13 +383,13 @@ static void test_rate_threshold_optional(void)
     th_t h;
     safety_config_t cfg = th_default_config();
     th_start(&h, &cfg, 0);
-    h.in.hot_region_temp_c = 45.0f;
+    h.in.cooking_temp_c = 45.0f;
     h.in.temp_rate_c_per_min = 20.0f;
     th_run(&h, 1000);
     TH_EXPECT(&h, SAFETY_IDLE); /* rate trigger off by default */
     cfg.heat_on_rate_c_per_min = 10.0f;
     th_start(&h, &cfg, 0);
-    h.in.hot_region_temp_c = 45.0f;
+    h.in.cooking_temp_c = 45.0f;
     h.in.temp_rate_c_per_min = 20.0f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_MONITORING);

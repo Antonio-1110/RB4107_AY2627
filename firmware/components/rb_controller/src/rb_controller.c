@@ -1,5 +1,6 @@
 #include "rb_controller.h"
 
+#include <math.h>
 #include <string.h>
 #include "esp_check.h"
 #include "esp_log.h"
@@ -33,6 +34,8 @@ static bool s_pending_test_timers;
 static bool s_filter_pending;
 static bool s_pending_filter_on;
 static rb_presence_filter_t s_pending_filter;
+static bool s_cooking_pending;
+static float s_pending_cooking_on_c; /* NAN = back to the configured value */
 
 rb_controller_config_t rb_controller_config_from_kconfig(void)
 {
@@ -130,6 +133,17 @@ static void on_packet(node_set_t *nodes, const rb_espnow_rx_t *rx)
     }
 }
 
+/*
+ * The dashboard's cooking temperature replaces heat_on; heat_off keeps the
+ * configured gap below it (never below 0 degC) so the state doesn't flicker.
+ */
+static void apply_cooking_temp(safety_config_t *cfg, float on_c)
+{
+    const float gap = cfg->heat_on_temp_c - cfg->heat_off_temp_c;
+    cfg->heat_on_temp_c = on_c;
+    cfg->heat_off_temp_c = on_c - gap > 0.0f ? on_c - gap : 0.0f;
+}
+
 static void safety_task(void *arg)
 {
     static safety_sm_t sm;
@@ -141,6 +155,7 @@ static void safety_task(void *arg)
     safety_config_t base = s_cfg.safety; /* the configuration before the dashboard's presence filter */
     bool filter_on = false;
     rb_presence_filter_t filter = {0};
+    float cooking_on_c = NAN; /* dashboard cooking temperature, NAN = the configured one */
 
     for (;;) {
         /* Sensor data wakes the task immediately; otherwise it runs once per tick. */
@@ -164,11 +179,18 @@ static void safety_task(void *arg)
         s_filter_pending = false;
         const bool pending_filter_on = s_pending_filter_on;
         const rb_presence_filter_t pending_filter = s_pending_filter;
+        const bool new_cooking = s_cooking_pending;
+        s_cooking_pending = false;
+        const float pending_cooking_on_c = s_pending_cooking_on_c;
         portEXIT_CRITICAL(&s_req_lock);
-        if (new_config || new_filter) {
+        if (new_config || new_filter || new_cooking) {
             safety_config_t next = new_config ? pending : base;
             const bool next_filter_on = new_filter ? pending_filter_on : filter_on;
             const rb_presence_filter_t next_filter = new_filter ? pending_filter : filter;
+            const float next_cooking_on_c = new_cooking ? pending_cooking_on_c : cooking_on_c;
+            if (isfinite(next_cooking_on_c)) {
+                apply_cooking_temp(&next, next_cooking_on_c);
+            }
             if (next_filter_on) {
                 next.absence_debounce_ms = next_filter.absence_debounce_ms;
                 next.presence_return_debounce_ms = next_filter.presence_return_debounce_ms;
@@ -186,6 +208,12 @@ static void safety_task(void *arg)
                 }
                 filter_on = next_filter_on;
                 filter = next_filter;
+                cooking_on_c = next_cooking_on_c;
+                if (new_cooking) {
+                    ESP_LOGW(TAG, "cooking temperature (%s): cooking from %.1f C, over below %.1f C",
+                             isfinite(cooking_on_c) ? "dashboard" : "menuconfig", next.heat_on_temp_c,
+                             next.heat_off_temp_c);
+                }
                 if (new_filter) {
                     ESP_LOGW(TAG,
                              "presence filter (%s): absent after %lu ms, return after %lu ms, gaps up to %lu ms, "
@@ -231,7 +259,7 @@ static void safety_task(void *arg)
         safety_inputs_t in = {
             .presence = ni.presence,
             .thermal_valid = ni.thermal_valid,
-            .hot_region_temp_c = ni.hot_region_temp_c,
+            .cooking_temp_c = ni.max_temp_c,
             .temp_rate_c_per_min = ni.temp_rate_c_per_min,
             .self_test = s_hooks.self_test != NULL ? s_hooks.self_test(s_hooks.ctx) : SAFETY_SELFTEST_PASS,
             .reset_request = reset,
@@ -270,6 +298,9 @@ static void safety_task(void *arg)
             s_snapshot.presence_return_debounce_ms = sm.cfg.presence_return_debounce_ms;
             s_snapshot.presence_return_gap_ms = sm.cfg.presence_return_gap_ms;
             s_snapshot.presence_filter_remote = filter_on;
+            s_snapshot.heat_on_temp_c = sm.cfg.heat_on_temp_c;
+            s_snapshot.heat_off_temp_c = sm.cfg.heat_off_temp_c;
+            s_snapshot.cooking_temp_remote = isfinite(cooking_on_c);
             xSemaphoreGive(s_snapshot_lock);
         }
     }
@@ -368,6 +399,17 @@ esp_err_t rb_controller_set_safety_config(const safety_config_t *config, bool te
     s_pending_config = *config;
     s_pending_test_timers = test_timers;
     s_config_pending = true;
+    portEXIT_CRITICAL(&s_req_lock);
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_set_cooking_temp(float on_c)
+{
+    ESP_RETURN_ON_FALSE(isnan(on_c) || (on_c >= RB_COOKING_TEMP_MIN_C && on_c <= RB_COOKING_TEMP_MAX_C),
+                        ESP_ERR_INVALID_ARG, TAG, "cooking temperature out of range");
+    portENTER_CRITICAL(&s_req_lock);
+    s_pending_cooking_on_c = on_c;
+    s_cooking_pending = true;
     portEXIT_CRITICAL(&s_req_lock);
     return ESP_OK;
 }

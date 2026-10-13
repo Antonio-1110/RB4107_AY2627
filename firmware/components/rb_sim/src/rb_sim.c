@@ -80,7 +80,7 @@ static void send_thermal(const rb_sim_inputs_t *in, uint32_t now)
     rb_packet_t data = {.type = RB_MSG_THERMAL_DATA};
     data.body.thermal = (thermal_reading_t){
         .valid = valid,
-        .max_temp_c = in->hot_region_c + 5.0f,
+        .max_temp_c = in->hot_region_c, /* the hottest pixel is what the safety logic compares */
         .min_temp_c = 22.0f,
         .mean_temp_c = 26.0f,
         .hot_region_temp_c = in->hot_region_c,

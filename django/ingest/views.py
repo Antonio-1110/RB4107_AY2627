@@ -192,13 +192,13 @@ def presence_filter(request, device_id):
 
 @csrf_exempt  # lab prototype: the API has no login (docs/remote_reset.md)
 @require_POST
-def thermal_threshold(request, device_id):
-    """Send a hot-pixel threshold to the thermal node, which saves it. The node's
-    answer is the hot_threshold_c of its next heat-map picture (thermal_frame/)."""
+def cooking_temp(request, device_id):
+    """Set the controller's cooking temperature, which it saves. The answer is
+    cooking_on_c / cooking_source in /latest/."""
     device = get_object_or_404(Device, device_id=device_id)
     try:
         body = json.loads(request.body or b"{}")
-        command = commands.build_thermal_threshold_command(device.device_id, body)
+        command = commands.build_cooking_temp_command(device.device_id, body)
     except (ValueError, commands.CommandError) as error:
         return JsonResponse({"error": str(error)}, status=400)
     topic = commands.controller_command_topic(device.device_id)

@@ -1,11 +1,14 @@
 #include "rb_controller_app.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "esp_check.h"
 #include "esp_log.h"
 #include "fault_manager.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "rb_app_faults.h"
 #include "rb_c4002_relay.h"
 #include "rb_config.h"
@@ -38,8 +41,59 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #endif
 }
 
-#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
-/* The thermal node's MAC, learned from its packets, so the dashboard threshold can reach it. */
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
+/* The dashboard's cooking temperature, saved so it survives a reboot. */
+#define NVS_NAMESPACE "rb_safety"
+#define NVS_KEY_COOKING "cook_dc"
+
+static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
+{
+    esp_err_t err = nvs_flash_init(); /* also done by Wi-Fi start; a second call is harmless */
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        err = nvs_flash_init();
+    }
+    return err == ESP_OK && nvs_open(NVS_NAMESPACE, mode, h) == ESP_OK;
+}
+
+static void cooking_temp_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return; /* nothing saved yet */
+    }
+    int16_t dc;
+    if (nvs_get_i16(h, NVS_KEY_COOKING, &dc) == ESP_OK && dc >= 0 && dc <= RB_CTRL_COOKING_TEMP_MAX_DC) {
+        rb_controller_set_cooking_temp(dc / 10.0f);
+        ESP_LOGW(TAG, "cooking temperature %.1f C (saved from the dashboard)", dc / 10.0f);
+    }
+    nvs_close(h);
+}
+
+/* erase: forget the saved value (back to menuconfig at the next boot too). */
+static void cooking_temp_save(bool erase, int16_t dc)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the cooking temperature lasts until the next reboot");
+        return;
+    }
+    esp_err_t err = erase ? nvs_erase_key(h, NVS_KEY_COOKING) : nvs_set_i16(h, NVS_KEY_COOKING, dc);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        err = ESP_OK; /* nothing was saved */
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "cooking temperature not saved (%s): it lasts until the next reboot", esp_err_to_name(err));
+    }
+}
+#endif
+
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP && !CONFIG_RB_SIM_NODE
+/* The thermal node's MAC, learned from its packets, so the cooking temperature can reach it. */
 static portMUX_TYPE s_thermal_lock = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t s_thermal_node_id;
 static bool s_thermal_has_mac;
@@ -58,8 +112,12 @@ static void learn_thermal_mac(const rb_espnow_rx_t *rx)
     portEXIT_CRITICAL(&s_thermal_lock);
 }
 
-/* MQTT task: forward the dashboard's hot-pixel threshold to the thermal node. */
-static void send_thermal_threshold(const rb_ctrl_cmd_t *cmd)
+/*
+ * MQTT task: the cooking temperature also becomes the thermal node's hot-pixel
+ * threshold, so the counted and outlined pixels are the ones that count as
+ * cooking. Display only: the safety logic never depends on this arriving.
+ */
+static void send_thermal_threshold(uint16_t request_id, int16_t dc)
 {
     uint8_t mac[6];
     portENTER_CRITICAL(&s_thermal_lock);
@@ -73,29 +131,39 @@ static void send_thermal_threshold(const rb_ctrl_cmd_t *cmd)
     rb_packet_t pkt = {.type = RB_MSG_THERMAL_CONFIG, .role = RB_NODE_ROLE_CONTROLLER, .uptime_ms = rb_time_mono_ms()};
     pkt.body.thermal_config = (rb_thermal_config_msg_t){
         .target_node_id = s_thermal_node_id,
-        .request_id = cmd->request_id,
-        .action = cmd->action == RB_CTRL_ACTION_THERMAL_THRESHOLD ? RB_THERMAL_ACTION_SET : RB_THERMAL_ACTION_DEFAULTS,
-        .hot_threshold_centi = (int16_t)(cmd->hot_pixel_threshold_dc * 10),
+        .request_id = request_id,
+        .action = RB_THERMAL_ACTION_SET,
+        .hot_threshold_centi = (int16_t)(dc * 10),
     };
     esp_err_t err = rb_espnow_add_peer(mac);
     if (err == ESP_OK) {
         err = rb_espnow_send(mac, &pkt);
     }
-    if (cmd->action == RB_CTRL_ACTION_THERMAL_THRESHOLD) {
-        ESP_LOGW(TAG, "hot-pixel threshold %.1f C from the dashboard (request %u): %s",
-                 cmd->hot_pixel_threshold_dc / 10.0f, (unsigned)cmd->request_id,
-                 err == ESP_OK ? "sent" : esp_err_to_name(err));
-    } else {
-        ESP_LOGW(TAG, "hot-pixel threshold back to default from the dashboard (request %u): %s",
-                 (unsigned)cmd->request_id, err == ESP_OK ? "sent" : esp_err_to_name(err));
-    }
+    ESP_LOGI(TAG, "hot-pixel threshold %.1f C to the thermal node: %s", dc / 10.0f,
+             err == ESP_OK ? "sent" : esp_err_to_name(err));
+}
+#endif
+
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
+/* MQTT task: the dashboard's cooking temperature, or back to menuconfig. */
+static void set_cooking_temp(const rb_ctrl_cmd_t *cmd)
+{
+    const bool set = cmd->action == RB_CTRL_ACTION_COOKING_TEMP;
+    const int16_t dc = set ? (int16_t)cmd->cooking_temp_dc : CONFIG_RB_SAFETY_HEAT_ON_DC;
+    ESP_LOGW(TAG, "cooking temperature %.1f C (%s) from the dashboard (request %u)", dc / 10.0f,
+             set ? "set" : "menuconfig default", (unsigned)cmd->request_id);
+    rb_controller_set_cooking_temp(set ? dc / 10.0f : NAN);
+    cooking_temp_save(!set, dc);
+#if !CONFIG_RB_SIM_NODE
+    send_thermal_threshold(cmd->request_id, dc);
+#endif
 }
 #endif
 
 static void node_packet(const rb_espnow_rx_t *rx, void *ctx)
 {
     rb_c4002_relay_on_packet(rx);
-#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP && !CONFIG_RB_SIM_NODE
     learn_thermal_mac(rx);
 #endif
 }
@@ -106,9 +174,9 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 }
 #endif
 
-#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD
+#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
 #define RB_CTRL_COMMANDS 1
-/* MQTT task: operator reset, presence filter and hot-pixel threshold sent from the dashboard (docs/remote_reset.md). */
+/* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
 {
     rb_ctrl_cmd_t cmd;
@@ -150,12 +218,12 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard presence filter refused: turned off in menuconfig");
 #endif
         break;
-    case RB_CTRL_ACTION_THERMAL_THRESHOLD:
-    case RB_CTRL_ACTION_THERMAL_THRESHOLD_DEFAULTS:
-#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
-        send_thermal_threshold(&cmd);
+    case RB_CTRL_ACTION_COOKING_TEMP:
+    case RB_CTRL_ACTION_COOKING_TEMP_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
+        set_cooking_temp(&cmd);
 #else
-        ESP_LOGW(TAG, "dashboard hot-pixel threshold refused: turned off in menuconfig (or simulated nodes)");
+        ESP_LOGW(TAG, "dashboard cooking temperature refused: turned off in menuconfig");
 #endif
         break;
     }
@@ -177,7 +245,7 @@ esp_err_t rb_controller_app_start(void)
     ESP_LOGI(TAG, "RB4107 controller %s starting, boot %s", CONFIG_RB_MQTT_CONTROLLER_ID, rb_time_boot_id());
 
     const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
-#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP && !CONFIG_RB_SIM_NODE
     s_thermal_node_id = cfg.nodes.thermal_node_id;
 #endif
     ESP_RETURN_ON_ERROR(rb_controller_init(&cfg), TAG, "controller queues");
@@ -198,6 +266,9 @@ esp_err_t rb_controller_app_start(void)
         .valve_packet = valve_packet,
 #endif
     };
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
+    cooking_temp_load(); /* applied at the first safety step */
+#endif
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT
     const safety_config_t test = rb_diag_test_safety_config();
