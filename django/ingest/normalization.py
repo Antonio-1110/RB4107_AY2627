@@ -19,7 +19,10 @@ def _presence_filter(value):
     if not isinstance(value, dict):
         return None
     return {"absence_seconds": _seconds(value["absence_ms"]), "return_seconds": _seconds(value["return_ms"]),
-            "return_gap_seconds": _seconds(value["return_gap_ms"]), "source": value["source"]}
+            "return_gap_seconds": _seconds(value["return_gap_ms"]), "source": value["source"],
+            # firmware since 2026-10-14 (attendance): who counts as at the stove, and the pause budget
+            "fusion": value.get("fusion"), "pause_budget_seconds": _seconds(value.get("pause_budget_cfg_ms")),
+            "pause_budget_pct": value.get("pause_budget_pct"), "attendance_source": value.get("attendance_source")}
 
 
 def _cooking(value):
@@ -94,6 +97,10 @@ def normalize(message):
             reset_required, reset_source = shutdown and safety["state"] == "SHUTDOWN", "derived_from_shutdown_state"
         fields.update(
             occupied={"PRESENT": True, "ABSENT": False, "UNKNOWN": None}[data["presence_state"]],
+            nearby={"PRESENT": True, "ABSENT": False, "UNKNOWN": None}.get(data.get("nearby")),
+            paused=safety["paused"] if isinstance(safety.get("paused"), bool) else None,
+            pause_used_seconds=_seconds(safety.get("pause_used_ms")),
+            pause_budget_seconds=_seconds(safety.get("pause_budget_ms")),
             safety_state=safety["state"].lower(),
             relay_state="isolated" if shutdown else "enabled",
             manual_reset_required=reset_required,

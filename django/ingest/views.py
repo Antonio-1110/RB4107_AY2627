@@ -247,6 +247,25 @@ def tiers(request, device_id):
     return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
 
 
+@csrf_exempt  # lab prototype: the API has no login (docs/remote_reset.md)
+@require_POST
+def attendance(request, device_id):
+    """Set who counts as at the stove (every radar or either) and the pause budget, which the controller saves.
+    The answer is presence_filter.fusion / pause_budget_seconds / attendance_source in /latest/."""
+    device = get_object_or_404(Device, device_id=device_id)
+    try:
+        body = json.loads(request.body or b"{}")
+        command = commands.build_attendance_command(device.device_id, body)
+    except (ValueError, commands.CommandError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    topic = commands.controller_command_topic(device.device_id)
+    try:
+        commands.publish(topic, command)
+    except commands.BrokerUnavailable as error:
+        return JsonResponse({"error": str(error)}, status=503)
+    return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
+
+
 LIVE_WINDOW_SECONDS = 60
 LIVE_MAX_SAMPLES = 400
 

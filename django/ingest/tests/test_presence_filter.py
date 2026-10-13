@@ -61,5 +61,6 @@ class PresenceFilterCommandTest(TestCase):
 
     def test_filter_in_use_reaches_the_dashboard(self):
         values = self.client.get("/api/devices/controller_01/latest/").json()["values"]
-        self.assertEqual(values["presence_filter"], {"absence_seconds": 2.0, "return_seconds": 3.0,
-                                                     "return_gap_seconds": 1.0, "source": "menuconfig"})
+        self.assertEqual(values["presence_filter"], {
+            "absence_seconds": 2.0, "return_seconds": 5.0, "return_gap_seconds": 1.0, "source": "menuconfig",
+            "fusion": "all", "pause_budget_seconds": 30.0, "pause_budget_pct": 25, "attendance_source": "menuconfig"})

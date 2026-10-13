@@ -120,6 +120,36 @@ def build_cooking_temp_command(controller_id: str, body: dict) -> dict:
     return command
 
 
+PAUSE_BUDGET_MAX_S = 600
+
+
+def build_attendance_command(controller_id: str, body: dict) -> dict:
+    """{"pause_budget_s": 30, "pause_budget_pct": 25, "fusion": "all"} sets how long a person passing may stop the
+    unattended clock (per timeline, in seconds and as a share of the shutdown time in force; 0 = never pause)
+    and whether someone only counts as at the stove when every working radar sees them ("all") or either
+    does ("any"); the controller saves it. {"defaults": true} goes back to the menuconfig values."""
+    if not isinstance(body, dict):
+        raise CommandError("body must be a JSON object")
+    if body == {"defaults": True}:
+        values, action = {}, "attendance_defaults"
+    else:
+        if set(body) != {"pause_budget_s", "pause_budget_pct", "fusion"}:
+            raise CommandError('send {"pause_budget_s", "pause_budget_pct", "fusion"}, or {"defaults": true}')
+        budget = _number(body, "pause_budget_s", 0, PAUSE_BUDGET_MAX_S, "pause_budget_s")
+        pct = _number(body, "pause_budget_pct", 0, 100, "pause_budget_pct")
+        if body["fusion"] not in ("all", "any"):
+            raise CommandError('fusion must be "all" or "any"')
+        values = {"pause_budget_ms": round(budget * 1000), "pause_budget_pct": round(pct), "presence_fusion": body["fusion"]}
+        action = "attendance"
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
 TIER_TEMP_MAX_C = 300.0
 TIER_RATE_MAX_C_PER_MIN = 1000.0
 TIER_TIME_MIN_S, TIER_TIME_MAX_S = 1, 3600

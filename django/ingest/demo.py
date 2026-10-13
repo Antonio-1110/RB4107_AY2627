@@ -12,13 +12,13 @@ import math
 from django.utils import timezone
 
 SCENARIOS = ("monitoring", "unattended", "warning", "shutdown", "idle", "fault_radars",
-             "fault_node_offline", "network_loss", "cooling", "hot_pan")
+             "fault_node_offline", "network_loss", "cooling", "hot_pan", "passing")
 # Without a scenario (tests, older catalogues) the index picks one, as before.
 BY_INDEX = ("monitoring", "shutdown", "unattended", "warning", "monitoring", "idle", "fault_radars",
             "warning", "monitoring")
 STATE = {"monitoring": "MONITORING", "unattended": "UNATTENDED", "warning": "WARNING",
          "shutdown": "SHUTDOWN", "idle": "IDLE", "fault_radars": "UNATTENDED", "fault_node_offline": "MONITORING",
-         "network_loss": "MONITORING", "cooling": "UNATTENDED", "hot_pan": "UNATTENDED"}
+         "network_loss": "MONITORING", "cooling": "UNATTENDED", "hot_pan": "UNATTENDED", "passing": "UNATTENDED"}
 TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
 SHUTDOWN_CYCLE_S = 600
@@ -74,7 +74,7 @@ def _timers(scenario, tick):
     """(unattended_ms, state_ms)."""
     seconds = tick * TICK_S
     # fault_radars: presence unknown while cooking counts as absent, so the same timeline runs
-    if scenario in {"unattended", "fault_radars"}:  # left the stove 10 s to just before the buzzer
+    if scenario in {"unattended", "fault_radars", "passing"}:  # left the stove 10 s to just before the buzzer
         unattended = 10 + seconds % (WARNING_S - 14)
         return unattended * 1000, unattended * 1000
     if scenario == "hot_pan":  # hot oil: the buzzer comes after 30 s, not 3 min
@@ -115,7 +115,7 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
         "schema_version": 2, "type": "telemetry", "controller_id": controller_id,
         "timestamp": timezone.now().isoformat(), "uptime_ms": 120000 + tick * TICK_S * 1000,
         "sequence": tick * 2 + 1, "protocol_version": 2, "simulation": True,
-        "presence_state": presence,
+        "presence_state": presence, "nearby": "PRESENT" if scenario == "passing" else presence,
         "nodes": [
             {"sensor_node": "node_01", "role": "presence", **radar},
             {"sensor_node": "node_02", "role": "presence", **radar_b},
@@ -135,8 +135,9 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
         data["boot_id"] = boot_id
         data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=WARNING_S * 1000,
                               shutdown_after_ms=SHUTDOWN_AFTER_S * 1000, shutdown_counts_from="UNATTENDED",
-                              presence_filter={"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
-                                               "source": "menuconfig"},
+                              presence_filter={"absence_ms": 2000, "return_ms": 5000, "return_gap_ms": 1000, "fusion": "all",
+                                               "pause_budget_cfg_ms": 30000, "pause_budget_pct": 25,
+                                               "attendance_source": "menuconfig", "source": "menuconfig"},
                               cooking={"active": temp >= 40.0, "phase": phase, "rate_c_per_min": round(rate, 2),
                                        "settle_c": COOK_C if phase == "cooling" else round(temp, 1),
                                        "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
@@ -146,6 +147,8 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                               effective_warning_ms=HOT_WARNING_S * 1000 if scenario == "hot_pan" else WARNING_S * 1000,
                               effective_shutdown_ms=TIERS["critical"]["shutdown_ms"] if scenario == "hot_pan" else SHUTDOWN_AFTER_S * 1000,
                               tiers=TIERS,
+                              paused=scenario == "passing", pause_used_ms=4000 if scenario == "passing" else 0,
+                              pause_budget_ms=30000,
                               presence_unknown=presence == "UNKNOWN", thermal_lost=False,
                               absent_ms=0, returning_ms=0)
     return data
