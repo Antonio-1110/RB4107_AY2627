@@ -57,6 +57,25 @@ class DashboardIntegrationTest(TestCase):
         self.assertEqual(fleet["stalls"][0]["cooking"]["status"], "cooking")
         self.assertEqual(fleet["stalls"][0]["cooking"]["stations_cooking"], 1)
 
+    def test_summary_counts_each_stall_in_one_card(self):
+        def summary():
+            data = self.client.get("/api/devices/").json()["summary"]
+            cards = ("critical", "warning", "fault", "unknown", "connectivity_issues", "normal")
+            self.assertEqual(sum(data[key] for key in cards), data["total"])
+            return data
+
+        self.send("IDLE")
+        self.assertEqual(summary()["normal"], 1)
+        # Offline with no alarm: a connectivity issue, not also "unknown".
+        Device.objects.update(last_seen_at=timezone.now() - timedelta(hours=1))
+        data = summary()
+        self.assertEqual((data["connectivity_issues"], data["unknown"], data["normal"]), (1, 0, 0))
+        # Offline with an active alarm: stays under its severity.
+        self.send("WARNING")
+        Device.objects.update(last_seen_at=timezone.now() - timedelta(hours=1))
+        data = summary()
+        self.assertEqual((data["warning"], data["connectivity_issues"]), (1, 0))
+
     def test_firmware_payload_reaches_dashboard_and_history(self):
         msg = self.send()
         response = self.latest()
