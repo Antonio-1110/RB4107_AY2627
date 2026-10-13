@@ -111,7 +111,9 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
     if boot_id:
         data["boot_id"] = boot_id
         data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=60000,
-                              shutdown_after_ms=90000, shutdown_counts_from="UNATTENDED")
+                              shutdown_after_ms=90000, shutdown_counts_from="UNATTENDED",
+                              presence_filter={"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
+                                               "source": "menuconfig"})
     return data
 
 

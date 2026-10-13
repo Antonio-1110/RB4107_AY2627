@@ -14,6 +14,14 @@ def _seconds(ms):
     return ms / 1000 if isinstance(ms, int) and not isinstance(ms, bool) else None
 
 
+def _presence_filter(value):
+    """Firmware since 2026-10-10 publishes the presence filter; older firmware doesn't."""
+    if not isinstance(value, dict):
+        return None
+    return {"absence_seconds": _seconds(value["absence_ms"]), "return_seconds": _seconds(value["return_ms"]),
+            "return_gap_seconds": _seconds(value["return_gap_ms"]), "source": value["source"]}
+
+
 def thermal_fields(thermal):
     valid = thermal.get("valid") is True
     mapping = {"temperature_c": "max_c", "temperature_avg_c": "mean_c",
@@ -51,6 +59,7 @@ def normalize(message):
             alarm_state={"OFF": "clear", "WARNING": "warning", "SHUTDOWN": "shutdown", "FAULT": "fault"}[safety["buzzer"]],
             unattended_seconds=safety["unattended_ms"] / 1000,
             test_timers=safety["test_timers"],
+            presence_filter=_presence_filter(safety.get("presence_filter")),
             faults=data["faults"],
             simulation=data.get("simulation") is True,
             protocol_version=data["protocol_version"],

@@ -72,6 +72,10 @@ typedef struct {
     uint32_t last_loop_ms;
     uint32_t events_dropped;
     bool test_timers;             /* accelerated diagnostic timers active */
+    uint32_t absence_debounce_ms; /* presence filter in use */
+    uint32_t presence_return_debounce_ms;
+    uint32_t presence_return_gap_ms;
+    bool presence_filter_remote;  /* set from the dashboard, not menuconfig */
 } rb_snapshot_t;
 
 /* Hooks the application provides. All are optional and all run in the safety task. */
@@ -152,6 +156,20 @@ void rb_controller_request_reset(void);
  * change.
  */
 esp_err_t rb_controller_set_safety_config(const safety_config_t *config, bool test_timers);
+
+/* The presence filter fields of safety_config_t. */
+typedef struct {
+    uint32_t absence_debounce_ms;
+    uint32_t presence_return_debounce_ms;
+    uint32_t presence_return_gap_ms;
+} rb_presence_filter_t;
+
+/*
+ * Override the presence filter (dashboard tuning). It stays on top of any
+ * later rb_controller_set_safety_config() until a reboot or a call with NULL,
+ * which goes back to the configured values. Applied at the next step.
+ */
+esp_err_t rb_controller_set_presence_filter(const rb_presence_filter_t *filter);
 
 #ifdef __cplusplus
 }

@@ -36,6 +36,9 @@ static rb_telemetry_t sample(void)
                    .warning_after_ms = 60000,
                    .shutdown_after_ms = 90000,
                    .shutdown_counts_from = "UNATTENDED",
+                   .absence_ms = 2000,
+                   .return_ms = 3000,
+                   .return_gap_ms = 1000,
                    .loop_count = 3},
         .faults = faults,
         .fault_count = 1,
@@ -60,6 +63,8 @@ static void test_unknown_values_are_null(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"controller_id\":\"controller_01\",\"boot_id\":\"3f9a01c2\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"shutdown\":true,\"reset_required\":true,\"warning_after_ms\":60000,"
                                      "\"shutdown_after_ms\":90000,\"shutdown_counts_from\":\"UNATTENDED\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"presence_filter\":{\"absence_ms\":2000,\"return_ms\":3000,"
+                                     "\"return_gap_ms\":1000,\"source\":\"menuconfig\"}}"));
 
     TEST_ASSERT_NOT_EQUAL(0, rb_json_presence(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"detected\":null")); /* invalid presence is not "false" */

@@ -76,7 +76,29 @@ static void fail(char *err, size_t len, const char *fmt, ...)
     va_end(ap);
 }
 
-enum { SEEN_VERSION = 1, SEEN_TYPE = 2, SEEN_ID = 4, SEEN_REQUEST = 8, SEEN_ACTION = 16, SEEN_ALL = 31 };
+enum {
+    SEEN_VERSION = 1,
+    SEEN_TYPE = 2,
+    SEEN_ID = 4,
+    SEEN_REQUEST = 8,
+    SEEN_ACTION = 16,
+    SEEN_ALL = 31,
+    SEEN_ABSENCE = 32,
+    SEEN_RETURN = 64,
+    SEEN_GAP = 128,
+    SEEN_FILTER = SEEN_ABSENCE | SEEN_RETURN | SEEN_GAP,
+};
+
+/* One of the filter values: an integer 0..max milliseconds. */
+static bool filter_value(const char *key, bool is_str, long num, long max, uint32_t *out, char *err, size_t err_len)
+{
+    if (is_str || num > max) {
+        fail(err, err_len, "%s must be an integer 0..%ld", key, max);
+        return false;
+    }
+    *out = (uint32_t)num;
+    return true;
+}
 
 bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *err, size_t err_len)
 {
@@ -134,11 +156,31 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                 out->request_id = (uint16_t)num;
             } else if (strcmp(key, "action") == 0) {
                 bit = SEEN_ACTION;
-                if (!is_str || strcmp(str, "reset") != 0) {
-                    fail(err, err_len, "action must be \"reset\"");
+                if (is_str && strcmp(str, "reset") == 0) {
+                    out->action = RB_CTRL_ACTION_RESET;
+                } else if (is_str && strcmp(str, "presence_filter") == 0) {
+                    out->action = RB_CTRL_ACTION_PRESENCE_FILTER;
+                } else if (is_str && strcmp(str, "presence_filter_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS;
+                } else {
+                    fail(err, err_len, "action must be reset, presence_filter or presence_filter_defaults");
                     return false;
                 }
-                out->action = RB_CTRL_ACTION_RESET;
+            } else if (strcmp(key, "absence_ms") == 0) {
+                bit = SEEN_ABSENCE;
+                if (!filter_value(key, is_str, num, RB_CTRL_ABSENCE_MAX_MS, &out->absence_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "return_ms") == 0) {
+                bit = SEEN_RETURN;
+                if (!filter_value(key, is_str, num, RB_CTRL_RETURN_MAX_MS, &out->return_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "return_gap_ms") == 0) {
+                bit = SEEN_GAP;
+                if (!filter_value(key, is_str, num, RB_CTRL_RETURN_GAP_MAX_MS, &out->return_gap_ms, err, err_len)) {
+                    return false;
+                }
             } else {
                 fail(err, err_len, "unknown key '%s'", key);
                 return false;
@@ -159,8 +201,13 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
         fail(err, err_len, "trailing data after the object");
         return false;
     }
-    if (seen != SEEN_ALL) {
+    if ((seen & SEEN_ALL) != SEEN_ALL) {
         fail(err, err_len, "schema_version, type, controller_id, request_id and action are all required");
+        return false;
+    }
+    const unsigned filter = seen & SEEN_FILTER;
+    if (out->action == RB_CTRL_ACTION_PRESENCE_FILTER ? filter != SEEN_FILTER : filter != 0) {
+        fail(err, err_len, "absence_ms, return_ms and return_gap_ms go with presence_filter only, all three");
         return false;
     }
     return true;

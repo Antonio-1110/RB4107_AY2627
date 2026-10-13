@@ -41,7 +41,8 @@
         <p>
           <strong>Local protection runs on each ESP32-S3.</strong> This dashboard monitors and logs
           reports. A dashboard alert does not operate or silence the local alarm, relay or gas
-          isolation; the only safety command it sends is the reset of a latched shutdown.
+          isolation; the only safety commands it sends are the reset of a latched shutdown and the
+          presence filter timing.
         </p>
       </div>
 
@@ -293,6 +294,30 @@
               <p id="reset-status" class="tuning-status muted">
                 Available only while a shutdown is latched.
               </p>
+            </div>
+            <h3 class="presence-filter-title">Presence filter</h3>
+            <p class="muted small">
+              How long the radar must agree before the state changes. A hand waved at the sensor
+              stays shorter than "Return after", so it does not reset the unattended timer. Changes
+              last until the controller reboots.
+            </p>
+            <fieldset id="presence-filter-form" class="tuning-grid presence-filter-grid" disabled>
+              <label
+                >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
+              /></label>
+              <label
+                >Return after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
+              /></label>
+              <label
+                >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
+              /></label>
+            </fieldset>
+            <div class="reset-actions">
+              <button id="pf-apply" class="primary-button" type="button" disabled>Apply</button>
+              <button id="pf-defaults" class="secondary-button" type="button" disabled>
+                Menuconfig values
+              </button>
+              <p id="pf-status" class="tuning-status muted">Waiting for the controller.</p>
             </div>
             <p class="muted small">
               Firmware-reported values only. The server does not advance the safety timer; the reset

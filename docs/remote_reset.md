@@ -50,3 +50,40 @@ The broker and the Django API have no login, so anyone on the network can send
 the reset. That is accepted for the demo; turn `RB_CTRL_REMOTE_RESET` off in
 menuconfig (Controller) for anything else, and the console and power cycle
 still work.
+
+## Presence filter
+
+The same command topic also changes the presence filter of the running state
+machine ([safety_state_machine.md](safety_state_machine.md#timing-rules)): how
+long absence must last before UNATTENDED, how long a return must last before
+it cancels UNATTENDED or WARNING, and how long an "absent" gap inside that
+return may be without restarting it. The menuconfig values
+(`RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`,
+`RB_SAFETY_PRESENCE_RETURN_GAP_MS`) apply at boot.
+
+1. **Presence filter** in the System status card: three fields in seconds,
+   **Apply** and **Menuconfig values**. They call
+   `POST /api/devices/<id>/presence_filter/` with
+   `{"absence_ms":2000,"return_ms":3000,"return_gap_ms":1000}` or
+   `{"defaults":true}`.
+2. Django publishes on `<prefix>/controller/command`:
+
+   ```json
+   {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
+    "request_id":8,"action":"presence_filter","absence_ms":2000,"return_ms":3000,"return_gap_ms":1000}
+   ```
+
+   or `"action":"presence_filter_defaults"` without the three values. Limits,
+   checked by Django and again by the controller: `absence_ms` and `return_ms`
+   0 – 10000, `return_gap_ms` 0 – 5000.
+3. The controller (`RB_CTRL_REMOTE_PRESENCE_FILTER` on, the default) applies
+   them at the next safety step, logs
+   `presence filter (dashboard): ...`, and keeps them on top of the test
+   timers (`timers test|normal` in the console) until a reboot or
+   `presence_filter_defaults`. Nothing is saved.
+4. The answer is `safety.presence_filter` in the next telemetry
+   (`{"absence_ms":..,"return_ms":..,"return_gap_ms":..,"source":"dashboard"}`),
+   which the card shows as "In use".
+
+The same limits as the reset apply: no login, so turn
+`RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.

@@ -14,6 +14,7 @@ import {
 } from "./heatmap.js";
 import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
+import { renderPresenceFilter } from "./presence_filter.js";
 import { renderReset } from "./reset.js";
 import { renderTuning } from "./tuning.js";
 
@@ -478,6 +479,7 @@ function renderDevice(device) {
   );
   renderSensors(value.sensors || {});
   renderReset(device);
+  renderPresenceFilter(device);
   renderTuning(device);
   renderDetailAlert(device);
 }

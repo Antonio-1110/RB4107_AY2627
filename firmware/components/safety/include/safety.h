@@ -94,7 +94,8 @@ typedef struct {
 
     /* Presence filtering. */
     uint32_t absence_debounce_ms;           /* continuous absence needed before UNATTENDED */
-    uint32_t presence_return_debounce_ms;   /* continuous presence needed to cancel UNATTENDED/WARNING */
+    uint32_t presence_return_debounce_ms;   /* presence needed to cancel UNATTENDED/WARNING */
+    uint32_t presence_return_gap_ms;        /* gaps in that presence shorter than this don't restart it; 0 = none */
 
     /* Timers. */
     uint32_t warning_timeout_ms;
@@ -135,6 +136,7 @@ typedef struct {
     uint32_t absent_since_ms;
     bool present_timing;              /* presence-return debounce running */
     uint32_t present_since_ms;
+    uint32_t present_last_ms;         /* last step with presence TRUE (for the gap tolerance) */
 
     uint32_t monitoring_since_ms;     /* last entry into MONITORING */
     bool unattended_active;           /* unattended timeline in progress (kept through FAULT) */

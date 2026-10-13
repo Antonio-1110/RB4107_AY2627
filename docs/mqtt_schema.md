@@ -57,7 +57,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "safety": {"state": "UNATTENDED", "state_ms": 16400, "unattended_ms": 18400,
              "buzzer": "OFF", "shutdown": false, "reset_required": false,
              "warning_after_ms": 60000, "shutdown_after_ms": 90000, "shutdown_counts_from": "UNATTENDED",
-             "test_timers": false},
+             "test_timers": false,
+             "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
+                                 "source": "menuconfig"}},
   "faults": ["mqtt_disconnected"]
 }
 ```
@@ -77,6 +79,12 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   timers in use (the test timers when `test_timers` is true);
   `shutdown_counts_from` says whether the shutdown time counts from the start
   of UNATTENDED or from entering WARNING.
+- `safety.presence_filter` is the presence filter in use: absence needed before
+  UNATTENDED, presence needed to cancel UNATTENDED/WARNING, and the "absent"
+  gaps that don't restart that count. `source` is `dashboard` after a
+  `presence_filter` command, otherwise `menuconfig`
+  ([remote_reset.md](remote_reset.md#presence-filter)). Older firmware leaves
+  it out.
 
 ## `event` (topics `events/warning`, `events/shutdown`, `events/fault`)
 

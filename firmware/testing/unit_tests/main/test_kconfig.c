@@ -40,8 +40,29 @@ static void test_kconfig_warning_and_shutdown_timing(void)
     TEST_ASSERT_TRUE(h.out.shutdown);
 }
 
+/* A hand waved at the radar (about 2 s of presence) must not cancel the unattended timers. */
+static void test_kconfig_wave_keeps_unattended(void)
+{
+    const safety_config_t cfg = rb_safety_config_from_kconfig();
+    th_t h;
+    th_start(&h, &cfg, 0);
+    h.in.hot_region_temp_c = cfg.heat_on_temp_c + 20.0f;
+    th_run(&h, TH_STEP_MS);
+    h.in.presence = RB_FALSE;
+    th_run(&h, cfg.absence_debounce_ms + 10000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    const uint32_t before = safety_unattended_ms(&h.sm, h.now);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 2000);
+    h.in.presence = RB_FALSE;
+    th_run(&h, 2000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_UINT32_WITHIN(TH_STEP_MS, before + 4000, safety_unattended_ms(&h.sm, h.now));
+}
+
 void run_kconfig_tests(void)
 {
     RUN_TEST(test_kconfig_safety_config_is_valid);
     RUN_TEST(test_kconfig_warning_and_shutdown_timing);
+    RUN_TEST(test_kconfig_wave_keeps_unattended);
 }

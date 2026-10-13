@@ -30,6 +30,9 @@ static bool s_reset_requested;
 static bool s_config_pending;
 static safety_config_t s_pending_config;
 static bool s_pending_test_timers;
+static bool s_filter_pending;
+static bool s_pending_filter_on;
+static rb_presence_filter_t s_pending_filter;
 
 rb_controller_config_t rb_controller_config_from_kconfig(void)
 {
@@ -135,6 +138,9 @@ static void safety_task(void *arg)
     safety_init(&sm, &s_cfg.safety, on_transition, NULL, rb_time_mono_ms());
     bool test_timers = false;
     uint32_t loops = 0;
+    safety_config_t base = s_cfg.safety; /* the configuration before the dashboard's presence filter */
+    bool filter_on = false;
+    rb_presence_filter_t filter = {0};
 
     for (;;) {
         /* Sensor data wakes the task immediately; otherwise it runs once per tick. */
@@ -154,11 +160,37 @@ static void safety_task(void *arg)
         s_config_pending = false;
         const safety_config_t pending = s_pending_config;
         const bool pending_test = s_pending_test_timers;
+        const bool new_filter = s_filter_pending;
+        s_filter_pending = false;
+        const bool pending_filter_on = s_pending_filter_on;
+        const rb_presence_filter_t pending_filter = s_pending_filter;
         portEXIT_CRITICAL(&s_req_lock);
-        if (new_config && safety_set_config(&sm, &pending)) {
-            test_timers = pending_test;
-            ESP_LOGW(TAG, "safety timers now %s: warning %lu ms, shutdown %lu ms", test_timers ? "TEST" : "normal",
-                     (unsigned long)pending.warning_timeout_ms, (unsigned long)pending.shutdown_timeout_ms);
+        if (new_config || new_filter) {
+            safety_config_t next = new_config ? pending : base;
+            const bool next_filter_on = new_filter ? pending_filter_on : filter_on;
+            const rb_presence_filter_t next_filter = new_filter ? pending_filter : filter;
+            if (next_filter_on) {
+                next.absence_debounce_ms = next_filter.absence_debounce_ms;
+                next.presence_return_debounce_ms = next_filter.presence_return_debounce_ms;
+                next.presence_return_gap_ms = next_filter.presence_return_gap_ms;
+            }
+            if (safety_set_config(&sm, &next)) {
+                if (new_config) {
+                    base = pending;
+                    test_timers = pending_test;
+                    ESP_LOGW(TAG, "safety timers now %s: warning %lu ms, shutdown %lu ms",
+                             test_timers ? "TEST" : "normal", (unsigned long)pending.warning_timeout_ms,
+                             (unsigned long)pending.shutdown_timeout_ms);
+                }
+                filter_on = next_filter_on;
+                filter = next_filter;
+                if (new_filter) {
+                    ESP_LOGW(TAG, "presence filter (%s): absent after %lu ms, return after %lu ms, gaps up to %lu ms",
+                             filter_on ? "dashboard" : "menuconfig", (unsigned long)next.absence_debounce_ms,
+                             (unsigned long)next.presence_return_debounce_ms,
+                             (unsigned long)next.presence_return_gap_ms);
+                }
+            }
         }
 
         if (s_hooks.tick != NULL) {
@@ -226,6 +258,10 @@ static void safety_task(void *arg)
             s_snapshot.last_loop_ms = now;
             s_snapshot.events_dropped = s_events_dropped;
             s_snapshot.test_timers = test_timers;
+            s_snapshot.absence_debounce_ms = sm.cfg.absence_debounce_ms;
+            s_snapshot.presence_return_debounce_ms = sm.cfg.presence_return_debounce_ms;
+            s_snapshot.presence_return_gap_ms = sm.cfg.presence_return_gap_ms;
+            s_snapshot.presence_filter_remote = filter_on;
             xSemaphoreGive(s_snapshot_lock);
         }
     }
@@ -324,6 +360,18 @@ esp_err_t rb_controller_set_safety_config(const safety_config_t *config, bool te
     s_pending_config = *config;
     s_pending_test_timers = test_timers;
     s_config_pending = true;
+    portEXIT_CRITICAL(&s_req_lock);
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_set_presence_filter(const rb_presence_filter_t *filter)
+{
+    portENTER_CRITICAL(&s_req_lock);
+    s_pending_filter_on = filter != NULL;
+    if (filter != NULL) {
+        s_pending_filter = *filter;
+    }
+    s_filter_pending = true;
     portEXIT_CRITICAL(&s_req_lock);
     return ESP_OK;
 }

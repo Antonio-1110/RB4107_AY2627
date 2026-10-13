@@ -13,6 +13,7 @@ safety_config_t rb_safety_config_from_kconfig(void)
         .heat_on_rate_c_per_min = CONFIG_RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN / 10.0f,
         .absence_debounce_ms = CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS,
         .presence_return_debounce_ms = CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS,
+        .presence_return_gap_ms = CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS,
         .warning_timeout_ms = CONFIG_RB_SAFETY_WARNING_TIMEOUT_S * 1000u,
         .shutdown_timeout_ms = CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S * 1000u,
 #if CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING
