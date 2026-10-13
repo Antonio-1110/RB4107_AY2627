@@ -109,6 +109,11 @@ bool fault_any_safety_active(void)
     return false;
 }
 
+bool fault_controller_fault_active(void)
+{
+    return (fault_active_mask() & ((1u << FAULT_SHUTDOWN_OUTPUT) | (1u << FAULT_SELF_TEST))) != 0;
+}
+
 void fault_get_status(fault_id_t id, fault_status_t *out)
 {
     memset(out, 0, sizeof(*out));

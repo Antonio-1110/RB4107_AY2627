@@ -256,41 +256,57 @@ static void test_temperature_drops_during_unattended(void)
     TEST_ASSERT_EQUAL_UINT32(0, safety_unattended_ms(&h.sm, h.now));
 }
 
-static void test_c4002_unavailable_is_not_absence(void)
+/* ---- lost sensors: flags, not FAULT ---- */
+
+static void test_presence_unknown_no_heat_flag_only(void)
+{
+    th_t h;
+    const safety_config_t cfg = th_default_config();
+    th_start(&h, &cfg, 0);
+    h.in.presence = RB_UNKNOWN;
+    th_run(&h, cfg.shutdown_timeout_ms + 10000);
+    TH_EXPECT(&h, SAFETY_IDLE); /* no FAULT, no shutdown */
+    TEST_ASSERT_TRUE(h.sm.presence_unknown);
+    TEST_ASSERT_FALSE(h.sm.thermal_lost);
+    TEST_ASSERT_FALSE(h.sm.absent_timing); /* no timer */
+    TEST_ASSERT_FALSE(h.sm.unattended_active);
+    TEST_ASSERT_EQUAL(SAFETY_BUZZER_OFF, h.out.buzzer);
+    h.in.presence = RB_TRUE;
+    th_run(&h, TH_STEP_MS);
+    TEST_ASSERT_FALSE(h.sm.presence_unknown);
+}
+
+static void test_presence_unknown_while_cooking_runs_timeline(void)
 {
     th_t h;
     const safety_config_t cfg = th_default_config();
     th_start(&h, &cfg, 0);
     th_cook(&h);
-    h.in.presence = RB_UNKNOWN;
-    th_run(&h, TH_STEP_MS);
-    TH_EXPECT(&h, SAFETY_FAULT);
-    TEST_ASSERT_EQUAL(SAFETY_BUZZER_FAULT, h.out.buzzer);
-    TEST_ASSERT_FALSE(h.out.shutdown);
-    /* UNKNOWN never starts the unattended timer... */
+    h.in.presence = RB_UNKNOWN; /* the radar dies while the hob is hot */
+    th_run(&h, cfg.absence_debounce_ms + TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_TRUE(h.sm.presence_unknown);
     th_run(&h, cfg.warning_timeout_ms);
-    TH_EXPECT(&h, SAFETY_FAULT);
-    TEST_ASSERT_FALSE(h.sm.unattended_active);
-    /* ...but a fault that persists shuts down. */
-    th_run(&h, cfg.fault_shutdown_timeout_ms - cfg.warning_timeout_ms);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    th_run(&h, cfg.shutdown_timeout_ms - cfg.warning_timeout_ms);
     TH_EXPECT(&h, SAFETY_SHUTDOWN);
 }
 
-static void test_c4002_recovers(void)
+static void test_presence_unknown_then_confirmed_return_cancels(void)
 {
     th_t h;
     const safety_config_t cfg = th_default_config();
     th_start(&h, &cfg, 0);
     th_cook(&h);
     h.in.presence = RB_UNKNOWN;
-    th_run(&h, 5000);
-    TH_EXPECT(&h, SAFETY_FAULT);
+    th_run(&h, 30000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
     h.in.presence = RB_TRUE;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_MONITORING);
 }
 
-static void test_sensor_loss_never_delays_shutdown(void)
+static void test_presence_unknown_keeps_running_timeline(void)
 {
     th_t h;
     const safety_config_t cfg = th_default_config();
@@ -299,14 +315,31 @@ static void test_sensor_loss_never_delays_shutdown(void)
     h.in.presence = RB_FALSE;
     th_run(&h, 50000); /* 50 s unattended */
     TH_EXPECT(&h, SAFETY_UNATTENDED);
-    h.in.presence = RB_UNKNOWN; /* C4002 dies */
+    h.in.presence = RB_UNKNOWN; /* C4002 dies: the timeline is not restarted or postponed */
     th_run(&h, TH_STEP_MS);
-    TH_EXPECT(&h, SAFETY_FAULT);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
     th_run(&h, cfg.shutdown_timeout_ms - 50000 + TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_SHUTDOWN); /* still at 90 s total, not 50 + 90 */
 }
 
-static void test_fault_clears_with_person_absent_keeps_timeline(void)
+static void test_thermal_lost_flag_only(void)
+{
+    th_t h;
+    const safety_config_t cfg = th_default_config();
+    th_start(&h, &cfg, 0);
+    h.in.thermal_valid = false; /* no cooking invented: IDLE stays IDLE */
+    h.in.presence = RB_FALSE;
+    th_run(&h, cfg.shutdown_timeout_ms + 10000);
+    TH_EXPECT(&h, SAFETY_IDLE);
+    TEST_ASSERT_TRUE(h.sm.thermal_lost);
+    TEST_ASSERT_FALSE(h.sm.presence_unknown);
+    TEST_ASSERT_FALSE(h.out.shutdown);
+    h.in.thermal_valid = true;
+    th_run(&h, TH_STEP_MS);
+    TEST_ASSERT_FALSE(h.sm.thermal_lost);
+}
+
+static void test_thermal_lost_keeps_running_timeline(void)
 {
     th_t h;
     const safety_config_t cfg = th_default_config();
@@ -314,26 +347,42 @@ static void test_fault_clears_with_person_absent_keeps_timeline(void)
     th_cook(&h);
     h.in.presence = RB_FALSE;
     th_run(&h, 30000);
-    h.in.thermal_valid = false; /* MLX dropout for 10 s */
+    h.in.thermal_valid = false; /* camera dropout for 10 s: no FAULT, timeline keeps counting */
     th_run(&h, 10000);
-    TH_EXPECT(&h, SAFETY_FAULT);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_TRUE(h.sm.thermal_lost);
     h.in.thermal_valid = true;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_UNATTENDED);
     TEST_ASSERT_UINT32_WITHIN(500, 40000, safety_unattended_ms(&h.sm, h.now));
 }
 
-static void test_mlx_unavailable(void)
+static void test_thermal_lost_with_person_present_stays_monitoring(void)
 {
     th_t h;
     const safety_config_t cfg = th_default_config();
     th_start(&h, &cfg, 0);
-    h.in.thermal_valid = false; /* even in IDLE: we can't tell whether the hob is on */
+    th_cook(&h);
+    h.in.thermal_valid = false;
+    th_run(&h, cfg.shutdown_timeout_ms + 10000);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_fault_only_for_controller_faults(void)
+{
+    th_t h;
+    const safety_config_t cfg = th_default_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.safety_fault = true; /* e.g. relay read-back failure */
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_FAULT);
-    h.in.thermal_valid = true;
+    /* Both sensors lost on top: FAULT still ends when the controller fault clears. */
+    h.in.presence = RB_UNKNOWN;
+    h.in.thermal_valid = false;
+    h.in.safety_fault = false;
     th_run(&h, TH_STEP_MS);
-    TH_EXPECT(&h, SAFETY_IDLE);
+    TH_EXPECT(&h, SAFETY_UNATTENDED); /* heat was active, presence unknown = absent */
 }
 
 static void test_safety_fault_input(void)
@@ -539,6 +588,67 @@ static void test_return_needs_presence_when_count_completes(void)
     TH_EXPECT(&h, SAFETY_UNATTENDED);
 }
 
+/* ---- radar noise: blips must not stop the absence from being confirmed ---- */
+
+static void test_presence_blips_do_not_block_absence(void)
+{
+    th_t h;
+    safety_config_t cfg = return_filter_config();
+    cfg.absence_debounce_ms = 1000;
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.presence = RB_FALSE;
+    /*
+     * Really absent, but a 200 ms "present" blip every 800 ms: the absence never lasts 1 s without
+     * a blip (the old edge timer never confirmed it), yet it is not a 3 s return either.
+     */
+    for (int i = 0; i < 3; i++) {
+        h.in.presence = RB_TRUE;
+        th_run(&h, 200);
+        h.in.presence = RB_FALSE;
+        th_run(&h, 600);
+    }
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_TRUE(safety_unattended_ms(&h.sm, h.now) > 0);
+}
+
+static void test_blip_inside_debounce_keeps_absent_since(void)
+{
+    th_t h;
+    safety_config_t cfg = return_filter_config();
+    cfg.absence_debounce_ms = 2000;
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.presence = RB_FALSE;
+    th_run(&h, 1000);
+    h.in.presence = RB_TRUE; /* one 100 ms blip must not restart the 2 s debounce */
+    th_run(&h, TH_STEP_MS);
+    h.in.presence = RB_FALSE;
+    th_run(&h, 1000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+}
+
+static void test_real_return_after_noise_cancels_timer(void)
+{
+    th_t h;
+    safety_config_t cfg = return_filter_config();
+    cfg.absence_debounce_ms = 1000;
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.presence = RB_FALSE;
+    th_run(&h, 1000 + TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    h.in.presence = RB_TRUE; /* sustained >= 3 s: a real return */
+    th_run(&h, 3000 + TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    TEST_ASSERT_FALSE(h.sm.absent_timing);
+    /* leaving again starts a fresh absence */
+    h.in.presence = RB_FALSE;
+    th_run(&h, 1000 + TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_UINT32_WITHIN(300, 1100, safety_unattended_ms(&h.sm, h.now)); /* counted from the new absence */
+}
+
 void run_safety_tests(void)
 {
     RUN_TEST(test_boot_selftest_pass_to_idle);
@@ -551,11 +661,14 @@ void run_safety_tests(void)
     RUN_TEST(test_shutdown_timing_after_warning_mode);
     RUN_TEST(test_person_returns_during_warning);
     RUN_TEST(test_temperature_drops_during_unattended);
-    RUN_TEST(test_c4002_unavailable_is_not_absence);
-    RUN_TEST(test_c4002_recovers);
-    RUN_TEST(test_sensor_loss_never_delays_shutdown);
-    RUN_TEST(test_fault_clears_with_person_absent_keeps_timeline);
-    RUN_TEST(test_mlx_unavailable);
+    RUN_TEST(test_presence_unknown_no_heat_flag_only);
+    RUN_TEST(test_presence_unknown_while_cooking_runs_timeline);
+    RUN_TEST(test_presence_unknown_then_confirmed_return_cancels);
+    RUN_TEST(test_presence_unknown_keeps_running_timeline);
+    RUN_TEST(test_thermal_lost_flag_only);
+    RUN_TEST(test_thermal_lost_keeps_running_timeline);
+    RUN_TEST(test_thermal_lost_with_person_present_stays_monitoring);
+    RUN_TEST(test_fault_only_for_controller_faults);
     RUN_TEST(test_safety_fault_input);
     RUN_TEST(test_reset_restarts_timing);
     RUN_TEST(test_heat_detected_after_person_left);
@@ -568,4 +681,7 @@ void run_safety_tests(void)
     RUN_TEST(test_return_survives_short_flicker);
     RUN_TEST(test_long_gap_restarts_return_count);
     RUN_TEST(test_return_needs_presence_when_count_completes);
+    RUN_TEST(test_presence_blips_do_not_block_absence);
+    RUN_TEST(test_blip_inside_debounce_keeps_absent_since);
+    RUN_TEST(test_real_return_after_noise_cancels_timer);
 }

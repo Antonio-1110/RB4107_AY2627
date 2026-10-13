@@ -121,7 +121,8 @@ void rb_app_faults_tick(uint32_t now_ms, void *ctx)
 
 bool rb_app_faults_safety_active(void *ctx)
 {
-    return fault_any_safety_active();
+    /* A lost sensor or node only raises the safety flags; it is not a controller fault. */
+    return fault_controller_fault_active();
 }
 
 safety_selftest_t rb_app_self_test(void *ctx)

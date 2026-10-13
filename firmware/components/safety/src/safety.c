@@ -149,18 +149,35 @@ uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms)
     return sm->unattended_active ? (uint32_t)(now_ms - sm->unattended_start_ms) : 0;
 }
 
-static const char *sensor_fault_reason(const safety_inputs_t *in)
+/* FAULT is for the controller itself (self-test, relay output), never for a lost sensor. */
+static bool system_ok(const safety_inputs_t *in)
 {
-    if (in->self_test != SAFETY_SELFTEST_PASS) {
-        return "self-test not passed";
-    }
-    if (in->safety_fault) {
-        return "safety-relevant fault active";
-    }
-    if (in->presence == RB_UNKNOWN) {
-        return "presence data missing/invalid";
-    }
-    return "thermal data missing/invalid";
+    return !in->safety_fault && in->self_test == SAFETY_SELFTEST_PASS;
+}
+
+static const char *fault_reason(const safety_inputs_t *in)
+{
+    return in->self_test != SAFETY_SELFTEST_PASS ? "self-test not passed" : "safety-relevant fault active";
+}
+
+/*
+ * Presence as the timers see it. UNKNOWN while cooking counts as absent (we
+ * can't tell that someone is there); UNKNOWN with nothing cooking starts no
+ * timer at all.
+ */
+static rb_tristate_t effective_presence(const safety_sm_t *sm, const safety_inputs_t *in)
+{
+    return in->presence == RB_UNKNOWN && sm->heat_active ? RB_FALSE : in->presence;
+}
+
+/*
+ * A return only counts while the radar still sees the person: a short burst
+ * (a hand wave, someone walking past) never cancels the unattended timers.
+ */
+static bool present_confirmed(const safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
+{
+    return sm->present_timing && in->presence == RB_TRUE &&
+           elapsed(now, sm->present_since_ms, sm->cfg.presence_return_debounce_ms);
 }
 
 /* One evaluation pass. Returns true if a transition happened. */
@@ -168,19 +185,14 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 {
     const safety_config_t *cfg = &sm->cfg;
     /*
-     * Everything the machine needs to protect the kitchen. The self-test must
-     * have passed: a failed or never-completed self-test keeps FAULT latched.
+     * The controller itself must be sound: a failed or never-completed
+     * self-test, or a failed shutdown output, keeps FAULT latched. A lost
+     * sensor does not (see the flags in safety_step()).
      */
-    const bool sensors_ok = in->presence != RB_UNKNOWN && in->thermal_valid && !in->safety_fault &&
-                            in->self_test == SAFETY_SELFTEST_PASS;
+    const bool sensors_ok = system_ok(in);
 
     const bool absent_confirmed = sm->absent_timing && elapsed(now, sm->absent_since_ms, cfg->absence_debounce_ms);
-    /*
-     * A return only counts while the radar still sees the person: a short burst
-     * (a hand wave, someone walking past) never cancels the unattended timers.
-     */
-    const bool present_confirmed = sm->present_timing && in->presence == RB_TRUE &&
-                                   elapsed(now, sm->present_since_ms, cfg->presence_return_debounce_ms);
+    const bool person_returned = present_confirmed(sm, in, now);
 
     uint32_t warning_ms = cfg->warning_timeout_ms;
     uint32_t shutdown_ms = cfg->shutdown_timeout_ms;
@@ -218,7 +230,7 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 
     case SAFETY_IDLE:
         if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, sensor_fault_reason(in), now);
+            transition(sm, SAFETY_FAULT, fault_reason(in), now);
             return true;
         }
         if (sm->heat_active) {
@@ -229,7 +241,7 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 
     case SAFETY_MONITORING:
         if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, sensor_fault_reason(in), now);
+            transition(sm, SAFETY_FAULT, fault_reason(in), now);
             return true;
         }
         if (!sm->heat_active) {
@@ -244,10 +256,10 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 
     case SAFETY_UNATTENDED:
         if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, sensor_fault_reason(in), now);
+            transition(sm, SAFETY_FAULT, fault_reason(in), now);
             return true;
         }
-        if (present_confirmed) {
+        if (person_returned) {
             transition(sm, SAFETY_MONITORING, "person returned", now);
             return true;
         }
@@ -263,10 +275,10 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 
     case SAFETY_WARNING:
         if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, sensor_fault_reason(in), now);
+            transition(sm, SAFETY_FAULT, fault_reason(in), now);
             return true;
         }
-        if (present_confirmed && (cfg->warning_exit == SAFETY_WARNING_EXIT_ON_PRESENCE || in->reset_request)) {
+        if (person_returned && (cfg->warning_exit == SAFETY_WARNING_EXIT_ON_PRESENCE || in->reset_request)) {
             transition(sm, SAFETY_MONITORING, "person returned during warning", now);
             return true;
         }
@@ -296,7 +308,7 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
                 transition(sm, SAFETY_MONITORING, "fault cleared, person present", now);
             } else {
                 if (!sm->unattended_active) {
-                    /* Presence was unknown during the fault: count from when the fault began. */
+                    /* Nobody seen (or presence unknown while cooking): count from when the fault began. */
                     sm->unattended_active = true;
                     sm->unattended_start_ms = sm->state_entered_ms;
                 }
@@ -325,8 +337,8 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
 {
     /*
      * Heat detector with hysteresis on the hottest pixel (the same number the
-     * dashboard outlines). Invalid thermal data leaves it unchanged (FAULT
-     * handles that case).
+     * dashboard outlines). Invalid thermal data leaves it unchanged: a camera
+     * dropout neither starts nor cancels cooking, it only raises thermal_lost.
      */
     if (in->thermal_valid && isfinite(in->cooking_temp_c)) {
         const float t = in->cooking_temp_c;
@@ -335,20 +347,14 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
                                  t >= sm->cfg.heat_off_temp_c;
         sm->heat_active = sm->heat_active ? t >= sm->cfg.heat_off_temp_c : (t >= sm->cfg.heat_on_temp_c || rising_fast);
     }
+    sm->presence_unknown = in->presence == RB_UNKNOWN;
+    sm->thermal_lost = !in->thermal_valid;
 
     /*
-     * Presence debounce timers. UNKNOWN stops both. The return timer survives
-     * "absent" gaps shorter than presence_return_gap_ms (radar flicker from a
-     * person who is really there).
+     * Return timer: runs while the radar sees someone and survives "absent"
+     * gaps shorter than presence_return_gap_ms (radar flicker from a person
+     * who is really there). UNKNOWN stops it.
      */
-    if (in->presence == RB_FALSE) {
-        if (!sm->absent_timing) {
-            sm->absent_timing = true;
-            sm->absent_since_ms = now_ms;
-        }
-    } else {
-        sm->absent_timing = false;
-    }
     if (in->presence == RB_TRUE) {
         if (!sm->present_timing) {
             sm->present_timing = true;
@@ -359,10 +365,38 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
         sm->present_timing = false;
     }
 
+    /*
+     * Absence timer. It starts at the first "absent" and a presence blip does
+     * not restart it: only a confirmed return (above) stops it, so radar noise
+     * can't keep the absence from ever being confirmed. UNKNOWN with nothing
+     * cooking starts no timer; UNKNOWN while cooking counts as absent.
+     */
+    const rb_tristate_t eff = effective_presence(sm, in);
+    if (present_confirmed(sm, in, now_ms)) {
+        sm->absent_timing = false;
+    } else if (eff == RB_FALSE) {
+        if (!sm->absent_timing) {
+            sm->absent_timing = true;
+            sm->absent_since_ms = now_ms;
+        }
+    } else if (eff == RB_UNKNOWN) {
+        sm->absent_timing = false;
+    }
+
     /* Let chained transitions (e.g. BOOT -> SELF_TEST -> IDLE) settle in one step. */
     for (int i = 0; i < SAFETY_STATE_COUNT && evaluate(sm, in, now_ms); i++) {
     }
     return &sm->outputs;
+}
+
+uint32_t safety_absent_ms(const safety_sm_t *sm, uint32_t now_ms)
+{
+    return sm->absent_timing ? (uint32_t)(now_ms - sm->absent_since_ms) : 0;
+}
+
+uint32_t safety_returning_ms(const safety_sm_t *sm, uint32_t now_ms)
+{
+    return sm->present_timing ? (uint32_t)(now_ms - sm->present_since_ms) : 0;
 }
 
 const char *safety_state_name(safety_state_t state)

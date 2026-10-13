@@ -13,14 +13,15 @@ static void on_change(fault_id_t id, bool active, int32_t detail, void *ctx) { s
 static void run(th_t *h, uint32_t ms)
 {
     for (uint32_t t = 0; t < ms; t += TH_STEP_MS) {
-        h->in.safety_fault = fault_any_safety_active();
+        h->in.safety_fault = fault_controller_fault_active();
         th_run(h, TH_STEP_MS);
     }
 }
 
 static void test_classification(void)
 {
-    /* Every sensor node, and every sensor, is safety-critical. */
+    /* Every sensor node, and every sensor, is safety-critical (it raises the safety flags; only the
+       controller's own faults put the state machine into FAULT). */
     TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_PRESENCE_A_NODE_OFFLINE)->fault_class);
     TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_PRESENCE_B_NODE_OFFLINE)->fault_class);
     TEST_ASSERT_EQUAL(FAULT_CLASS_SAFETY, fault_info(FAULT_THERMAL_NODE_OFFLINE)->fault_class);
@@ -99,10 +100,29 @@ static void test_safety_fault_enters_fault_state(void)
     TH_EXPECT(&h, SAFETY_MONITORING);
 }
 
+static void test_sensor_faults_do_not_enter_fault_state(void)
+{
+    fault_manager_init(fake_now, NULL, NULL);
+    th_t h;
+    const safety_config_t cfg = th_default_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    fault_raise(FAULT_PRESENCE_A_UNAVAILABLE, 0);
+    fault_raise(FAULT_PRESENCE_B_NODE_OFFLINE, 0);
+    fault_raise(FAULT_THERMAL_UNAVAILABLE, 0);
+    TEST_ASSERT_TRUE(fault_any_safety_active());
+    TEST_ASSERT_FALSE(fault_controller_fault_active());
+    run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    fault_raise(FAULT_SELF_TEST, 0);
+    TEST_ASSERT_TRUE(fault_controller_fault_active());
+}
+
 void run_fault_tests(void)
 {
     RUN_TEST(test_classification);
     RUN_TEST(test_raise_clear_bookkeeping);
     RUN_TEST(test_mqtt_disconnect_and_reconnect_do_not_affect_safety);
     RUN_TEST(test_safety_fault_enters_fault_state);
+    RUN_TEST(test_sensor_faults_do_not_enter_fault_state);
 }

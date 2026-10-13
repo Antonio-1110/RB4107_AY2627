@@ -12,8 +12,19 @@
  * - Non-blocking: every timer is "now - start >= timeout", checked on each
  *   step. Nothing in here waits.
  * - Never depends on MQTT or the network.
- * - UNKNOWN presence or invalid thermal data never counts as safe: it leads
- *   to FAULT, and FAULT never delays a shutdown that was already due.
+ * - Missing sensor data is never read as "safe", but it no longer causes
+ *   FAULT. It raises a flag (presence_unknown / thermal_lost) instead:
+ *     - presence UNKNOWN, nothing cooking: flag only, no timer;
+ *     - presence UNKNOWN while cooking (per the thermal camera): flag, and
+ *       presence counts as absent so the unattended timeline runs;
+ *     - thermal camera lost: flag only. The last known cooking state is kept,
+ *       so a timeline already running is not cancelled and no cooking is
+ *       invented.
+ *   FAULT is only for the controller itself: a failed self-test or a failed
+ *   shutdown output (safety_fault). It still shuts down after
+ *   fault_shutdown_timeout_ms, and never delays a shutdown already due.
+ * - Presence debounce lives here and only here. A presence blip never
+ *   restarts the absence timer; only a confirmed return does.
  * - Every transition goes through one function that calls the transition
  *   callback, which is where logging and events hook in.
  */
@@ -112,7 +123,7 @@ typedef struct {
 } safety_config_t;
 
 struct safety_inputs {
-    rb_tristate_t presence;                 /* UNKNOWN when the data is missing or invalid */
+    rb_tristate_t presence;                 /* UNKNOWN when the data is missing or invalid (see the header comment) */
     bool thermal_valid;
     float cooking_temp_c;                   /* hottest pixel: compared with heat_on/heat_off_temp_c */
     float temp_rate_c_per_min;              /* the thermal node's hot-region rate */
@@ -131,8 +142,10 @@ typedef struct {
     safety_outputs_t outputs;
 
     bool heat_active;                 /* heat detector state (with hysteresis) */
+    bool presence_unknown;            /* flag: presence data missing/invalid at the last step */
+    bool thermal_lost;                /* flag: thermal data missing/invalid at the last step */
 
-    bool absent_timing;               /* absence debounce running */
+    bool absent_timing;               /* absence debounce running; only a confirmed return stops it */
     uint32_t absent_since_ms;
     bool present_timing;              /* presence-return debounce running */
     uint32_t present_since_ms;
@@ -173,6 +186,10 @@ bool safety_reset_required(const safety_sm_t *sm);
 
 /* Time spent unattended so far (0 if not on the unattended timeline). */
 uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms);
+
+/* Debounce progress for the dashboard: time since the absence began / since presence began (0 if not running). */
+uint32_t safety_absent_ms(const safety_sm_t *sm, uint32_t now_ms);
+uint32_t safety_returning_ms(const safety_sm_t *sm, uint32_t now_ms);
 
 const char *safety_state_name(safety_state_t state);
 const char *safety_buzzer_name(safety_buzzer_t buzzer);

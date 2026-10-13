@@ -344,14 +344,16 @@ static void test_radar_disappears_and_returns(void)
     }
     TH_EXPECT(&h, SAFETY_MONITORING);
 
-    /* The person leaves while radar A goes silent: B's "absent" alone is not enough. */
+    /* The person leaves while radar A goes silent: B's "absent" alone is not enough to call it
+       absent, so presence is UNKNOWN. The hob is hot, so UNKNOWN counts as absent and the timeline runs. */
     for (int i = 0; i < 30; i++) {
         nodes_send(&n, h.now, false, true, false, 120.0f);
         feed(&h, &n);
         th_run(&h, TH_STEP_MS);
     }
-    TH_EXPECT(&h, SAFETY_FAULT);
-    TEST_ASSERT_EQUAL(SAFETY_BUZZER_FAULT, h.out.buzzer);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_TRUE(h.sm.presence_unknown);
+    TEST_ASSERT_EQUAL(SAFETY_BUZZER_OFF, h.out.buzzer);
 
     /* Radar A returns and the person is back. */
     nodes_send(&n, h.now, true, true, true, 120.0f);

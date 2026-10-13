@@ -69,6 +69,12 @@ void fault_set(fault_id_t id, bool active, int32_t detail);
 bool fault_is_active(fault_id_t id);
 uint32_t fault_active_mask(void);          /* bit n = fault_id_t n */
 bool fault_any_safety_active(void);
+/*
+ * True for the faults that put the safety state machine into FAULT: the
+ * controller's own (failed self-test, failed shutdown output). A lost sensor
+ * or node is SAFETY class too, but it only raises the sensor flags (safety.h).
+ */
+bool fault_controller_fault_active(void);
 void fault_get_status(fault_id_t id, fault_status_t *out);
 
 const fault_info_t *fault_info(fault_id_t id);
