@@ -1086,6 +1086,7 @@ footer {
 .tuning-status {
   margin: 0 0 14px;
   font-size: 12px;
+  white-space: pre-line;
 }
 .tuning-status.good {
   color: var(--green);
