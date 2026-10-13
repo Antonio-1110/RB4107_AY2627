@@ -15,6 +15,7 @@ Start with **[setup.md](setup.md)** to build, flash and run the system.
 | [dashboard.md](dashboard.md) | how firmware fields map to the dashboard, and its limits |
 | [logging.md](logging.md) | log tags, levels and how to change verbosity |
 | [configuration.md](configuration.md) | every menuconfig option (generated from the Kconfig) |
+| [demo_vs_deployment.md](demo_vs_deployment.md) | what the demo leaves out and what a real deployment would need |
 
 Per-project details live next to the code: [`firmware/`](../firmware/README.md)
 (and each project's README), [`django/`](../django/README.md),
