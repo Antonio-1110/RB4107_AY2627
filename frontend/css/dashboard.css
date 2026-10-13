@@ -1097,10 +1097,6 @@ footer {
 .tuning-status.bad {
   color: var(--red);
 }
-.presence-filter-title {
-  margin: 16px 0 4px;
-  font-size: 13px;
-}
 .tuning-grid.presence-filter-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   min-width: 0;
@@ -1232,5 +1228,142 @@ footer {
 @media (max-width: 760px) {
   .tuning-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Countdown card: the biggest card on the stall page, with the three rules beside their live values. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.countdown-card {
+  margin: 0 0 16px;
+  padding: 24px;
+  border-left: 8px solid var(--line);
+}
+.countdown-card.cd-ok {
+  border-left-color: var(--green);
+}
+.countdown-card.cd-run {
+  border-left-color: var(--amber);
+}
+.countdown-card.cd-warn {
+  border-left-color: var(--orange);
+}
+.countdown-card.cd-stop {
+  border-left-color: var(--red);
+  background: #fdf1f0;
+}
+.countdown-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  align-items: center;
+  justify-content: space-between;
+}
+.countdown-head h2 {
+  margin: 4px 0;
+  font-size: clamp(22px, 3vw, 32px);
+}
+.cd-clock {
+  min-width: 150px;
+  text-align: right;
+}
+.cd-clock #cd-seconds {
+  font-size: clamp(56px, 9vw, 96px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cd-clock .cd-unit {
+  margin-left: 4px;
+  font-size: 24px;
+  color: var(--muted);
+}
+.cd-run .cd-clock #cd-seconds {
+  color: var(--amber);
+}
+.cd-warn .cd-clock #cd-seconds {
+  color: var(--orange);
+}
+.cd-stop .cd-clock #cd-seconds {
+  color: var(--red);
+}
+.cd-bar {
+  position: relative;
+  height: 20px;
+  margin: 18px 0 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--line);
+}
+.cd-fill {
+  height: 100%;
+  width: 0;
+  background: var(--amber);
+  transition: width 0.25s linear;
+}
+.cd-warn .cd-fill {
+  background: var(--orange);
+}
+.cd-stop .cd-fill {
+  background: var(--red);
+}
+.cd-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -2px;
+  background: var(--ink);
+}
+.cd-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cd-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+.cd-rules {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 16px;
+  margin: 18px 0 8px;
+}
+.cd-rule {
+  min-width: 0;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.cd-rule h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.cd-live {
+  margin: 0 0 6px;
+  font-weight: 650;
+}
+.cd-rule-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .cd-rules,
+  .cd-rule-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cd-clock {
+    text-align: left;
   }
 }

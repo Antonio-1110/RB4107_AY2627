@@ -78,6 +78,7 @@ def normalize(message):
             shutdown_counts_from=safety.get("shutdown_counts_from"),
             alarm_state={"OFF": "clear", "WARNING": "warning", "SHUTDOWN": "shutdown", "FAULT": "fault"}[safety["buzzer"]],
             unattended_seconds=safety["unattended_ms"] / 1000,
+            state_seconds=_seconds(safety.get("state_ms")),
             test_timers=safety["test_timers"],
             presence_filter=_presence_filter(safety.get("presence_filter")),
             **_cooking(safety.get("cooking")),

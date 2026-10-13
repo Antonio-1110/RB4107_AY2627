@@ -205,6 +205,107 @@
           </div>
           <p class="metric-detail" id="cooking-detail">Awaiting report</p>
         </section>
+        <section class="card countdown-card cd-idle" id="countdown-card" aria-label="Countdown and rules">
+          <div class="countdown-head">
+            <div>
+              <p class="label">COUNTDOWN</p>
+              <h2 id="cd-phase">Waiting for the controller</h2>
+              <p class="metric-detail" id="cd-detail">No telemetry yet.</p>
+            </div>
+            <div class="cd-clock" aria-live="polite">
+              <span id="cd-seconds">—</span>
+              <span class="cd-unit" id="cd-unit"></span>
+              <p class="metric-detail" id="cd-clock-label"></p>
+            </div>
+          </div>
+          <div class="cd-bar" id="cd-bar" role="img" aria-label="Unattended time against the warning and shutdown times">
+            <div class="cd-fill" id="cd-fill"></div>
+            <span class="cd-mark" id="cd-mark-warn"></span>
+            <span class="cd-mark" id="cd-mark-stop"></span>
+          </div>
+          <div class="cd-scale muted small">
+            <span>Person left</span>
+            <span id="cd-scale-warn">Warning —</span>
+            <span id="cd-scale-stop">Shutdown —</span>
+          </div>
+          <div class="cd-flags" id="cd-flags" aria-label="Sensor status"></div>
+          <div class="cd-rules">
+            <section class="cd-rule" aria-labelledby="cd-cooking-title">
+              <h3 id="cd-cooking-title">1 · Cooking</h3>
+              <p class="cd-live" id="cd-cooking-live">—</p>
+              <p class="muted small" id="cd-cooking-rule">
+                The thermal camera decides: cooking starts when the hottest pixel reaches the
+                temperature below and ends under the "over" value.
+              </p>
+              <div class="heatmap-footprint">
+                <label
+                  >Cooking from (°C)
+                  <input id="ct-value" type="number" min="0" max="300" step="0.5" disabled
+                /></label>
+              </div>
+              <div class="reset-actions">
+                <button id="ct-apply" class="primary-button" type="button" disabled>Apply</button>
+                <button id="ct-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig value
+                </button>
+                <p id="ct-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
+            </section>
+            <fieldset id="presence-filter-form" class="cd-rule cd-rule-wide" disabled>
+              <legend class="visually-hidden">Person and timer rules</legend>
+              <div class="cd-rule-columns">
+                <section aria-labelledby="cd-person-title">
+                  <h3 id="cd-person-title">2 · Person</h3>
+                  <p class="cd-live" id="cd-person-live">—</p>
+                  <p class="muted small" id="cd-person-rule">
+                    The S3 decides, not the radars. A radar blip never restarts the absence count;
+                    only a confirmed return does.
+                  </p>
+                  <div class="tuning-grid presence-filter-grid">
+                    <label
+                      >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
+                    /></label>
+                    <label
+                      >Return after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
+                    /></label>
+                    <label
+                      >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
+                    /></label>
+                  </div>
+                </section>
+                <section aria-labelledby="cd-timer-title">
+                  <h3 id="cd-timer-title">3 · Timer</h3>
+                  <p class="cd-live" id="cd-timer-live">—</p>
+                  <p class="muted small" id="cd-timer-rule">
+                    Runs while cooking and nobody is there. The buzzer and shutdown times count from
+                    when the person left.
+                  </p>
+                  <div class="tuning-grid presence-filter-grid">
+                    <label
+                      >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
+                    /></label>
+                    <label
+                      >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
+                    /></label>
+                  </div>
+                </section>
+              </div>
+              <div class="reset-actions">
+                <button id="pf-apply" class="primary-button" type="button" disabled>Apply</button>
+                <button id="pf-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig values
+                </button>
+                <p id="pf-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
+            </fieldset>
+          </div>
+          <p class="muted small">
+            A lost sensor never starts a timer on its own: it shows a flag. If the thermal camera
+            says it is cooking and presence is unknown, presence counts as absent and the timer
+            runs. Changes to the person and timer rules last until the controller reboots; the
+            cooking temperature is saved on the controller.
+          </p>
+        </section>
         <section class="metrics" aria-label="Latest device-reported readings">
           <article class="card metric" id="card-presence">
             <p class="label">HUMAN PRESENCE</p>
@@ -295,37 +396,6 @@
                 Available only while a shutdown is latched.
               </p>
             </div>
-            <h3 class="presence-filter-title">Presence filter and timers</h3>
-            <p class="muted small">
-              How long the radar must agree before the state changes. A hand waved at the sensor
-              stays shorter than "Return after", so it does not reset the unattended timer. Buzzer
-              and shutdown times count from when the person left (shutdown counts as shown under
-              Shutdown above). Changes last until the controller reboots.
-            </p>
-            <fieldset id="presence-filter-form" class="tuning-grid presence-filter-grid" disabled>
-              <label
-                >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
-              /></label>
-              <label
-                >Return after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
-              /></label>
-              <label
-                >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
-              /></label>
-              <label
-                >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
-              /></label>
-              <label
-                >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
-              /></label>
-            </fieldset>
-            <div class="reset-actions">
-              <button id="pf-apply" class="primary-button" type="button" disabled>Apply</button>
-              <button id="pf-defaults" class="secondary-button" type="button" disabled>
-                Menuconfig values
-              </button>
-              <p id="pf-status" class="tuning-status muted">Waiting for the controller.</p>
-            </div>
             <p class="muted small">
               Firmware-reported values only. The server does not advance the safety timer; the reset
               button asks the controller to release a latched shutdown.
@@ -380,26 +450,9 @@
                   (dashed box)</label
                 >
               </div>
-              <p class="eyebrow">COOKING TEMPERATURE</p>
               <p class="muted small">
-                The controller counts the stove as cooking as soon as any pixel reaches this
-                temperature (the outlined pixels), and as no longer cooking once the hottest pixel
-                drops below the "over" value shown under the button. Saved on the controller, so it
-                survives a reboot.
+                The cooking temperature is set in the Countdown card, under "Cooking".
               </p>
-              <div class="heatmap-footprint">
-                <label
-                  >Cooking from (°C)
-                  <input id="ct-value" type="number" min="0" max="300" step="0.5" disabled
-                /></label>
-              </div>
-              <div class="reset-actions">
-                <button id="ct-apply" class="primary-button" type="button" disabled>Apply</button>
-                <button id="ct-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig value
-                </button>
-                <p id="ct-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
               <p class="eyebrow">PIXEL SIZE AT A DISTANCE</p>
               <div class="heatmap-footprint">
                 <label
