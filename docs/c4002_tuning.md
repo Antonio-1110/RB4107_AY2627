@@ -9,6 +9,13 @@ demos and bench tuning (issue #20, false presence),
 not for production: anyone who can reach the API or publish to the broker can
 change a safety sensor.
 
+**Send to** picks the target. With two or more presence nodes it starts on
+**All radars**: every button (apply, read, reset, calibrate, gates,
+thresholds) sends the same command to each node at once, and the status lists
+each node's answer. The form, gate table and live view then show the first
+node. Sending thresholds to all replaces what each node learned in its own
+calibration, so the dashboard asks first. Pick a single node to tune it alone.
+
 ```text
 dashboard ── POST /api/devices/<controller>/nodes/<node>/c4002/ ──► Django
 Django ── MQTT rb4107/sensors/<node>/c4002_set (QoS 1, not retained) ──► S3
