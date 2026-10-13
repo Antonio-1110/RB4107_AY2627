@@ -98,6 +98,11 @@ typedef struct {
         float cooking_on_c;           /* cooking from this hottest-pixel temperature */
         float cooking_off_c;          /* cooking over below this one */
         bool cooking_remote;          /* cooking temperature set from the dashboard */
+        bool cooking_active;          /* cooking detected by the thermal camera */
+        bool presence_unknown;        /* flag: presence data missing/invalid */
+        bool thermal_lost;            /* flag: thermal data missing/invalid */
+        uint32_t absent_ms;           /* absence debounce progress (0 = not running) */
+        uint32_t returning_ms;        /* return debounce progress (0 = not running) */
         uint32_t loop_count;
     } safety;
 

@@ -88,6 +88,14 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_str(w, t->safety.shutdown_counts_from);
     rb_json_key(w, "test_timers");
     rb_json_bool(w, t->safety.test_timers);
+    rb_json_key(w, "presence_unknown");
+    rb_json_bool(w, t->safety.presence_unknown);
+    rb_json_key(w, "thermal_lost");
+    rb_json_bool(w, t->safety.thermal_lost);
+    rb_json_key(w, "absent_ms");
+    rb_json_int(w, t->safety.absent_ms);
+    rb_json_key(w, "returning_ms");
+    rb_json_int(w, t->safety.returning_ms);
     rb_json_key(w, "presence_filter");
     rb_json_obj_begin(w);
     rb_json_key(w, "absence_ms");
@@ -101,6 +109,8 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_obj_end(w);
     rb_json_key(w, "cooking");
     rb_json_obj_begin(w);
+    rb_json_key(w, "active");
+    rb_json_bool(w, t->safety.cooking_active);
     rb_json_key(w, "on_c");
     rb_json_num(w, t->safety.cooking_on_c, 1);
     rb_json_key(w, "off_c");

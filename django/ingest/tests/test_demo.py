@@ -25,12 +25,17 @@ class DemoScenarioTests(SimpleTestCase):
 
     def test_states_follow_the_firmware_rules(self):
         state = lambda scenario, tick=0: demo_telemetry("demo", 0, tick, "b00t", scenario)
-        # A radar node offline is a safety fault: FAULT, even though the other radar sees the cook.
+        # A radar node offline raises its fault but is not FAULT: the other radar still sees the cook.
         offline = state("fault_node_offline")
-        self.assertEqual(offline["safety"]["state"], "FAULT")
+        self.assertEqual(offline["safety"]["state"], "MONITORING")
         self.assertEqual(offline["faults"], ["presence_b_node_offline"])
         self.assertEqual(offline["presence_state"], "PRESENT")
-        self.assertEqual(state("fault_radars")["presence_state"], "UNKNOWN")
+        # Both radars lost while cooking: presence is unknown, flagged, and counts as absent (the timeline runs).
+        radars = state("fault_radars")
+        self.assertEqual(radars["presence_state"], "UNKNOWN")
+        self.assertEqual(radars["safety"]["state"], "UNATTENDED")
+        self.assertTrue(radars["safety"]["presence_unknown"])
+        self.assertFalse(radars["safety"]["thermal_lost"])
         self.assertEqual(state("idle")["presence_state"], "ABSENT")
         # The timers stay inside their state's window while counting.
         for tick in range(0, 120, 7):

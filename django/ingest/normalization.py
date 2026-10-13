@@ -29,6 +29,19 @@ def _cooking(value):
             "cooking_source": value.get("source")}
 
 
+def _flags(safety):
+    """Firmware since 2026-10-14 reports the sensor flags, whether cooking is detected and the debounce
+    progress; older firmware doesn't (None = not reported)."""
+    def flag(key):
+        return safety[key] if isinstance(safety.get(key), bool) else None
+    cooking = safety.get("cooking") if isinstance(safety.get("cooking"), dict) else {}
+    cooking_active = cooking["active"] if isinstance(cooking.get("active"), bool) else None
+    return {"presence_unknown": flag("presence_unknown"), "thermal_lost": flag("thermal_lost"),
+            "cooking_active": cooking_active,
+            "absent_seconds": _seconds(safety.get("absent_ms")),
+            "returning_seconds": _seconds(safety.get("returning_ms"))}
+
+
 def thermal_fields(thermal):
     valid = thermal.get("valid") is True
     mapping = {"temperature_c": "max_c", "temperature_avg_c": "mean_c",
@@ -68,6 +81,7 @@ def normalize(message):
             test_timers=safety["test_timers"],
             presence_filter=_presence_filter(safety.get("presence_filter")),
             **_cooking(safety.get("cooking")),
+            **_flags(safety),
             faults=data["faults"],
             simulation=data.get("simulation") is True,
             protocol_version=data["protocol_version"],

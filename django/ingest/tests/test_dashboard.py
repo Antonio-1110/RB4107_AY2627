@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from ingest.demo import demo_telemetry, demo_thermal_frame
 from ingest.handlers import handle
+from ingest.normalization import normalize
 from ingest.models import Device, InboundMessage, Reading, ThermalFrame, WorkerStatus
 from ingest.storage import worker_status
 from ingest.validation import InvalidMessage, parse
@@ -29,6 +30,27 @@ class DashboardIntegrationTest(TestCase):
 
     def latest(self):
         return self.client.get("/api/devices/controller_01/latest/").json()
+
+    def test_sensor_flags_and_debounce_progress_reach_latest(self):
+        data = demo_telemetry("controller_01", boot_id="b00t")
+        data["safety"].update(presence_unknown=True, thermal_lost=False, absent_ms=400, returning_ms=0)
+        data["safety"]["cooking"]["active"] = True
+        handle(parse("rb4107/controller/state", json.dumps(data).encode()))
+        values = self.latest()["values"]
+        self.assertIs(values["presence_unknown"], True)
+        self.assertIs(values["thermal_lost"], False)
+        self.assertIs(values["cooking_active"], True)
+        self.assertEqual(values["absent_seconds"], 0.4)
+        self.assertEqual(values["returning_seconds"], 0.0)
+        # Older firmware doesn't report them: None, not False.
+        old = demo_telemetry("controller_01", boot_id="b00t")
+        for key in ("presence_unknown", "thermal_lost", "absent_ms", "returning_ms"):
+            old["safety"].pop(key, None)
+        old["safety"]["cooking"].pop("active", None)
+        fields = normalize(parse("rb4107/controller/state", json.dumps(old).encode()))
+        self.assertIsNone(fields["presence_unknown"])
+        self.assertIsNone(fields["cooking_active"])
+        self.assertIsNone(fields["absent_seconds"])
 
     def test_cooking_follows_the_firmware_state(self):
         hot = {"valid": True, "max_c": 90.0, "min_c": 24.0, "mean_c": 40.0, "hot_region_c": 85.0,

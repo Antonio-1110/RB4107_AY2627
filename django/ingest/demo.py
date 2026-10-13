@@ -17,7 +17,7 @@ SCENARIOS = ("monitoring", "unattended", "warning", "shutdown", "idle", "fault_r
 BY_INDEX = ("monitoring", "shutdown", "unattended", "warning", "monitoring", "idle", "fault_radars",
             "warning", "monitoring")
 STATE = {"monitoring": "MONITORING", "unattended": "UNATTENDED", "warning": "WARNING",
-         "shutdown": "SHUTDOWN", "idle": "IDLE", "fault_radars": "FAULT", "fault_node_offline": "FAULT",
+         "shutdown": "SHUTDOWN", "idle": "IDLE", "fault_radars": "UNATTENDED", "fault_node_offline": "MONITORING",
          "network_loss": "MONITORING"}
 TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
@@ -58,7 +58,8 @@ def _pan_temperature(scenario, index, tick):
 def _timers(scenario, tick):
     """(unattended_ms, state_ms)."""
     seconds = tick * TICK_S
-    if scenario == "unattended":  # left the stove 10-55 s ago (warning at 60 s)
+    # fault_radars: presence unknown while cooking counts as absent, so the same timeline runs
+    if scenario in {"unattended", "fault_radars"}:  # left the stove 10-55 s ago (warning at 60 s)
         unattended = 10 + seconds % 46
         return unattended * 1000, unattended * 1000
     if scenario == "warning":  # 60-88 s (supply cut at 90 s)
@@ -114,7 +115,9 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                               shutdown_after_ms=90000, shutdown_counts_from="UNATTENDED",
                               presence_filter={"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                                "source": "menuconfig"},
-                              cooking={"on_c": 50.0, "off_c": 40.0, "source": "menuconfig"})
+                              cooking={"active": temp >= 50.0, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
+                              presence_unknown=presence == "UNKNOWN", thermal_lost=False,
+                              absent_ms=0, returning_ms=0)
     return data
 
 

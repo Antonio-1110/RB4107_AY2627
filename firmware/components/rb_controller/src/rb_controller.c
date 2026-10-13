@@ -301,6 +301,11 @@ static void safety_task(void *arg)
             s_snapshot.heat_on_temp_c = sm.cfg.heat_on_temp_c;
             s_snapshot.heat_off_temp_c = sm.cfg.heat_off_temp_c;
             s_snapshot.cooking_temp_remote = isfinite(cooking_on_c);
+            s_snapshot.cooking_active = sm.heat_active;
+            s_snapshot.presence_unknown = sm.presence_unknown;
+            s_snapshot.thermal_lost = sm.thermal_lost;
+            s_snapshot.absent_ms = safety_absent_ms(&sm, now);
+            s_snapshot.returning_ms = safety_returning_ms(&sm, now);
             xSemaphoreGive(s_snapshot_lock);
         }
     }

@@ -44,6 +44,9 @@ class C4002CommandTest(TestCase):
                      {"action": "read", "range_max_cm": 300}, {"action": "explode"},
                      {"action": "apply", "rang_max_cm": 300},
                      {"action": "apply", "motion_gates": [1, 0]},
+                     # The S3 does the debouncing: the radar's own holds are fixed at 0 and 2.
+                     {"action": "apply", "disappear_delay_s": 1}, {"action": "apply", "lock_time_ds": 10},
+                     {"action": "apply", "report_period_ds": 10},
                      {"action": "calibrate", "calibration_duration_s": 0}]:
             with self.subTest(body=body):
                 self.assertEqual(self.post(body).status_code, 400)

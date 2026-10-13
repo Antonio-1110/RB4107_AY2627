@@ -79,6 +79,11 @@ typedef struct {
     float heat_on_temp_c;         /* cooking from this hottest-pixel temperature */
     float heat_off_temp_c;        /* cooking over below this one */
     bool cooking_temp_remote;     /* cooking temperature set from the dashboard, not menuconfig */
+    bool cooking_active;          /* the heat detector's state: cooking, per the thermal camera */
+    bool presence_unknown;        /* flag: presence data missing/invalid (safety.h) */
+    bool thermal_lost;            /* flag: thermal data missing/invalid */
+    uint32_t absent_ms;           /* absence debounce progress, 0 = not running */
+    uint32_t returning_ms;        /* return debounce progress, 0 = not running */
 } rb_snapshot_t;
 
 /* Hooks the application provides. All are optional and all run in the safety task. */
