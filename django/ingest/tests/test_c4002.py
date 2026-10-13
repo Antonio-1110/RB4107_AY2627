@@ -3,7 +3,8 @@ import json
 from pathlib import Path
 from unittest import mock
 
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
 
 from ingest import commands, validation
 from ingest.demo import demo_telemetry
@@ -111,6 +112,15 @@ class C4002LiveTest(TestCase):
         self.assertEqual(other["samples"], [])
         self.assertEqual(self.client.get(LIVE_URL, {"after": "x"}).status_code, 400)
         self.assertEqual(self.client.get("/api/devices/controller_01/nodes/evil/c4002/live/").status_code, 404)
+
+    def test_live_history_with_per_controller_topics(self):
+        # The default subscription rb4107/+/# puts the controller ID in every topic.
+        with override_settings(RB4107_MQTT={**settings.RB4107_MQTT, "TOPIC": "rb4107/+/#"}):
+            for sample in LIVE_SAMPLES:
+                topic = sample["topic"].replace("rb4107/", "rb4107/controller_02/", 1)
+                handle(parse(topic, json.dumps({**sample["payload"], "controller_id": "controller_02"}).encode()))
+            body = self.client.get("/api/devices/controller_02/nodes/node_01/c4002/live/").json()
+        self.assertEqual([s["target"] for s in body["samples"]], ["stationary", "moving"])
 
     def test_live_is_refused_on_the_wrong_topic(self):
         with self.assertRaises(validation.InvalidMessage):
