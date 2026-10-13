@@ -207,8 +207,9 @@ def c4002_live(request, device_id, node):
     except ValueError:
         return JsonResponse({"error": "after must be an integer"}, status=400)
     # Exact topic and received_at ordering let SQLite use inbound_device_topic_received
-    # instead of walking every row of the device.
-    topic = f"{validation.topic_prefix(settings.RB4107_MQTT['TOPIC'])}/sensors/{node}/c4002_live"
+    # instead of walking every row of the device. With rb4107/+/# the topic carries the
+    # controller ID (rb4107/<controller_id>/sensors/...), so fill it in like commands do.
+    topic = f"{commands.controller_prefix(device_id)}/sensors/{node}/c4002_live"
     rows = InboundMessage.objects.filter(
         device=device, topic=topic, outcome="accepted",
         received_at__gte=timezone.now() - timedelta(seconds=LIVE_WINDOW_SECONDS), id__gt=after,
