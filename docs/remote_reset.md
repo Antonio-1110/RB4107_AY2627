@@ -96,6 +96,15 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 The same limits as the reset apply: no login, so turn
 `RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
 
+## Cookware profile
+
+The Cooking rule (Tuning → Rules) also has a **cookware profile**: mixed, light,
+heavy or liquid (see [safety_state_machine.md](safety_state_machine.md#cooking-judgment-is-heat-still-going-in)).
+**Apply** calls `POST /api/devices/<id>/cookware/` with `{"cookware":"light"}`,
+or `{"defaults":true}` for the menuconfig profile. The controller saves it
+(NVS key `cookware`) and reports it as `safety.cookware` (profile, tau_s,
+source) in its telemetry. Menuconfig: `RB_CTRL_REMOTE_COOKWARE`.
+
 ## Cooking temperature
 
 The same command topic also carries the cooking temperature: the controller

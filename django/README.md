@@ -46,6 +46,7 @@ exported environment variables win.
 | `RB4107_SCHEMA_FILE` | `../docs/schema/rb4107_mqtt.schema.json` | the schema the firmware is tested against |
 | `RB4107_LOCATION_CATALOG_FILE` | `locations.json` | controller ID → site / stall / station. `locations.demo.json` is for `simulate_fleet` |
 | `RB4107_SQLITE_PATH` | `django/db.sqlite3` | use an absolute path when overriding |
+| `RB4107_RETENTION_LIVE_HOURS` / `_FULL_HOURS` / `_THIN_SECONDS` / `_DAYS` / `_OTHER_DAYS` / `_INTERVAL_S` | `24` / `24` / `60` / `30` / `90` / `3600` | how long stored messages are kept ([dashboard.md](../docs/dashboard.md#storage)); `python manage.py prune_history --dry-run` |
 | `RB4107_DEVICE_STALE_SECONDS` | `15` | when the dashboard marks data stale (display only) |
 | `RB4107_WORKER_STALE_SECONDS` | `10` | subscriber heartbeat timeout |
 | `RB4107_FRONTEND_DIR` | `../frontend` | folder served at `/` |

@@ -57,11 +57,13 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "safety": {"state": "UNATTENDED", "state_ms": 16400, "unattended_ms": 18400,
              "buzzer": "OFF", "shutdown": false, "reset_required": false,
              "warning_after_ms": 60000, "shutdown_after_ms": 90000, "shutdown_counts_from": "UNATTENDED",
-             "test_timers": false,
+             "test_timers": false, "hold": "none",
              "presence_unknown": false, "thermal_lost": false, "absent_ms": 0, "returning_ms": 0,
              "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                  "source": "menuconfig"},
-             "cooking": {"active": true, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"}},
+             "cooking": {"active": true, "phase": "holding", "rate_c_per_min": 0.1, "settle_c": 98.7,
+                         "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
+             "cookware": {"profile": "mixed", "tau_s": 1800, "source": "menuconfig"}},
   "faults": ["mqtt_disconnected"]
 }
 ```
@@ -71,6 +73,12 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   [safety_state_machine.md](safety_state_machine.md#lost-sensors-flags-not-fault)).
   `cooking.active` is the heat detector's state. `absent_ms` / `returning_ms`
   are the progress of the absence and return debounce (0 = not running).
+  `cooking.phase` is the judgment from the temperature trend (`off`, `checking`,
+  `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min` and where the
+  temperature is heading (`settle_c`); `cookware` is the profile that sets the
+  cooling time constant; `hold` says why a due buzzer or shutdown is held back
+  (`none`, `return`, `cooling`). See
+  [safety_state_machine.md](safety_state_machine.md#holds-a-due-buzzer-or-shutdown-that-waits).
   The controller publishes `controller/state` immediately whenever presence,
   cooking or one of these flags changes (at most every 200 ms), in addition to
   the periodic message; all four fields are absent from older firmware.

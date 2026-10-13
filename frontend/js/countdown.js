@@ -84,6 +84,25 @@ function phase(values, age, elapsed) {
     }
     const toWarn = number(warnAt) && number(unattended) ? warnAt - unattended : null;
     out.fill = total && number(position) ? position / total : 0;
+    if (values.hold === "cooling" || values.hold === "return") {
+      // A due buzzer or shutdown is being held back for a reason that the controller reports.
+      out.style = "cd-run";
+      out.clock = null;
+      out.clockText = "hold";
+      if (values.hold === "cooling") {
+        out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the pan cools`;
+        out.detail =
+          "No heat is going in: the temperature is heading for " +
+          `${number(values.cooking_settle_c) ? values.cooking_settle_c.toFixed(0) + " °C" : "the room temperature"}. ` +
+          "The next step comes when the trend flattens out hot, or it ends when the pan drops below the cooking temperature.";
+        out.label = "held: cooling";
+      } else {
+        out.title = `${state === "warning" ? "Warning" : "Unattended"}: held, a return is being confirmed`;
+        out.detail = "The radar sees someone and is confirming that they are really back. At most a few seconds.";
+        out.label = "held: return";
+      }
+      return out;
+    }
     if (state === "warning") {
       out.style = "cd-warn";
       out.title = "Warning: shutdown is coming";
@@ -140,11 +159,23 @@ function liveLines(values, age, elapsed) {
   const filter = values.presence_filter,
     cooking = values.cooking_active;
   const hot = number(values.temperature_c) ? `${values.temperature_c.toFixed(1)} °C` : "no reading";
+  const PHASE = {
+    heating: "heating up",
+    holding: "heat going in (steady)",
+    cooling: "only cooling down",
+    checking: "judging the trend",
+  };
+  const phase = values.cooking_phase && PHASE[values.cooking_phase] ? ` · ${PHASE[values.cooking_phase]}` : "";
+  const trend =
+    values.cooking_phase && values.cooking_phase !== "off" && number(values.cooking_rate_c_per_min)
+      ? ` · ${values.cooking_rate_c_per_min > 0 ? "+" : ""}${values.cooking_rate_c_per_min.toFixed(1)} °C/min` +
+        (number(values.cooking_settle_c) ? ` heading for ${values.cooking_settle_c.toFixed(0)} °C` : "")
+      : "";
   set(
     "cd-cooking-live",
     values.thermal_lost === true
       ? "Cooking: unknown · thermal sensor lost"
-      : `Cooking: ${cooking === true ? "yes" : cooking === false ? "no" : "not reported"} · hottest pixel ${hot}` +
+      : `Cooking: ${cooking === true ? "yes" : cooking === false ? "no" : "not reported"}${phase} · hottest pixel ${hot}${trend}` +
           (number(values.cooking_on_c) ? ` (from ${values.cooking_on_c.toFixed(1)} °C, over below ${number(values.cooking_off_c) ? values.cooking_off_c.toFixed(1) : "—"} °C)` : ""),
   );
   let person = values.occupied === true ? "present" : values.occupied === false ? "absent" : "unknown";
@@ -174,7 +205,7 @@ function draw() {
   $("countdown-card").className = `card countdown-card ${view.style}`;
   set("cd-phase", view.title);
   set("cd-detail", view.detail);
-  set("cd-seconds", number(view.clock) ? Math.max(Math.ceil(view.clock), 0).toString() : "—");
+  set("cd-seconds", number(view.clock) ? Math.max(Math.ceil(view.clock), 0).toString() : view.clockText || "—");
   set("cd-unit", number(view.clock) ? "s" : "");
   set("cd-clock-label", view.label);
   const warnAt = values.warning_after_seconds,

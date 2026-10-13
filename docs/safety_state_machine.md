@@ -35,12 +35,12 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 | MONITORING | absent for `absence_debounce_ms` | UNATTENDED |
 | UNATTENDED | self-test not passed, or `safety_fault` | FAULT |
 | UNATTENDED | present for `presence_return_debounce_ms` (see presence filter) | MONITORING |
-| UNATTENDED | heat stopped **and** cooling policy = return-to-idle | IDLE |
-| UNATTENDED | unattended ≥ `warning_timeout_ms` | WARNING |
+| UNATTENDED | the pan dropped below the cooking temperature (cooling policy = return-to-idle, the default) | IDLE |
+| UNATTENDED | unattended ≥ `warning_timeout_ms`, unless held (see "Holds") | WARNING |
 | WARNING | self-test not passed, or `safety_fault` | FAULT |
 | WARNING | present for `presence_return_debounce_ms` (+ reset in exit-on-ack mode) | MONITORING |
-| WARNING | heat stopped **and** cooling policy = return-to-idle | IDLE |
-| WARNING | shutdown timer expired (see timing mode) | SHUTDOWN |
+| WARNING | the pan dropped below the cooking temperature (return-to-idle) | IDLE |
+| WARNING | shutdown timer expired (see timing mode), unless held, and after at least 30 s of warning if a hold was involved | SHUTDOWN |
 | SHUTDOWN | operator reset (latched until then) | IDLE |
 | FAULT | self-test PASS and no `safety_fault` again → IDLE / MONITORING / UNATTENDED depending on heat and presence | |
 | FAULT | shutdown already due on the unattended timeline | SHUTDOWN |
@@ -88,6 +88,77 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
   ([remote_reset.md](remote_reset.md#presence-filter-and-timers)).
 - The optional `timing_hook` lets the temperature trend shorten the
   warning/shutdown timeouts later. It can only make them stricter.
+
+## Cooking judgment: is heat still going in?
+
+"Cooking" starts when the hottest pixel reaches the cooking temperature (50 °C
+on, 40 °C off, adjustable). Once it is on, the S3 asks a second question: is
+heat still going in, or is the pan just cooling down? The two mistakes cost very
+different amounts. Calling a cooling pan "cooking" only causes a nuisance (the
+burner is already off); calling a lowered flame "off" is the dangerous one. A
+falling temperature also means less heat goes in than comes out, which is a low
+fire hazard: oil fires start when a pan keeps being heated unattended
+([NIST TN 2133](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2133.pdf)).
+
+The decision uses the **trend**, not the absolute temperature, so it also works
+for a shiny pan that reads too cold:
+
+1. Every 2 s the S3 stores the hottest pixel. A least-squares fit over the last
+   2 minutes gives the rate (needs at least 12 samples over 60 s; until then the
+   phase is *checking* and heat counts as going in).
+2. From the cooling law (T falls toward its settling temperature as `e^(−t/τ)`),
+   it works out where the temperature is heading: `T_settle = T + τ × rate`.
+3. If `T_settle` is below the cooking-off temperature (40 °C, with a 3 °C
+   hysteresis), the pan is **cooling**: nothing is keeping it hot. Otherwise heat
+   is going in: **holding** (steady or settling hot: a lowered flame, a simmer,
+   boiling water at 100 °C) or **heating** (rising faster than 0.5 °C/min).
+
+τ comes from the **cookware profile**, chosen per stall on the dashboard
+(Tuning → Rules) and saved on the controller. The values are engineering
+estimates from typical mass and heat capacity; no source I found publishes
+measured cooling constants for cookware, so check them against your own pans:
+
+| Profile | For | τ |
+|---|---|---|
+| mixed / unknown (default) | anything | 30 min |
+| light | woks, thin aluminium or stainless pans | 5 min (3–8) |
+| heavy | cast iron, thick clad pans | 15 min (10–20) |
+| liquid | pots of soup, stock, boiling water | 40 min (20–60; longer with a lid) |
+
+Extremes (searing pans, very large stock pots, deep fryers) are not profiled.
+
+What a wrong profile does (simulated on model cooling curves with 0.3 °C camera
+noise, not measured on real cookware; `tools/diagnostics/cooling_sweep.c`
+reproduces it):
+
+- **Profile too short** (e.g. *light* for a heavy pot): a cooling pan is
+  recognised late or never, so the buzzer and shutdown run as before. Nuisance,
+  never dangerous. **When unsure, pick the shorter profile.**
+- **Profile too long** (e.g. *liquid* for a light pan): a lowered flame can be
+  taken for cooling while it is still warming up toward its settling
+  temperature. It ends when the trend flattens, and never lasts longer than
+  4 τ (1 h at most): a pan that is still hot after that has heat going in.
+
+## Holds: a due buzzer or shutdown that waits
+
+A warning or shutdown that comes due can be held back, for two reasons, each
+with a bound:
+
+| Hold | When | How long |
+|---|---|---|
+| **cooling** | the pan is only cooling down (no heat going in) | until the trend flattens out hot (then it fires at once), or the pan drops below the cooking temperature (the timeline is cancelled); at most 4 τ of the profile, 1 h at most |
+| **return** | the radar sees someone right now and the return is being confirmed, but `presence_return_debounce_ms` has not passed | until it is confirmed (the timeline is cancelled), or the radar loses them (the held step fires at once); at most `return_debounce + gap` |
+
+The unattended clock keeps counting while a transition is held. After any hold,
+the buzzer sounds for **at least 30 s** before the shutdown, even if the shutdown
+was due long ago, so the first thing someone nearby hears is the warning.
+
+The earlier rule "a fault never postpones a due shutdown" still applies in
+FAULT. The return hold is the one bounded exception for presence.
+
+The trend can't be known without a working thermal camera: with the camera
+lost, heat counts as going in and nothing is held for cooling. The trend can be
+turned off in menuconfig (`RB_SAFETY_COOKING_TREND`).
 
 ## Lost sensors: flags, not FAULT
 

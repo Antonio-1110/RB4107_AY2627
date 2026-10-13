@@ -50,6 +50,10 @@ export const sendPresenceFilter = (deviceId, body) => post(`${device(deviceId)}/
 // The answer is values.cooking_on_c / cooking_source in the next telemetry.
 export const sendCookingTemp = (deviceId, body) => post(`${device(deviceId)}/cooking_temp/`, body);
 
+// Cookware profile, saved on the controller: {cookware: "mixed"|"light"|"heavy"|"liquid"} or {defaults: true}.
+// The answer is values.cookware_profile / cookware_source in the next telemetry.
+export const sendCookware = (deviceId, body) => post(`${device(deviceId)}/cookware/`, body);
+
 // Remote C4002 tuning. The node's answer
 // arrives later in the device's values (sensors.<node>.c4002).
 export const sendC4002Command = (deviceId, node, body) =>

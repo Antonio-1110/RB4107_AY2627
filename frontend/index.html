@@ -257,6 +257,29 @@
               </button>
               <p id="ct-status" class="tuning-status muted">Waiting for the controller.</p>
             </div>
+            <div data-show="tuning" class="cw-block">
+              <p class="muted small">
+                Cookware: how fast the pans at this stall lose heat. A pan that is only cooling
+                down holds the buzzer and shutdown back; a lowered flame, a simmer or boiling does
+                not. When unsure, pick the shorter time.
+              </p>
+              <label
+                >Cookware profile
+                <select id="cw-select" disabled>
+                  <option value="mixed">Mixed / unknown (30 min)</option>
+                  <option value="light">Light pans: woks, thin aluminium or stainless (5 min)</option>
+                  <option value="heavy">Heavy pans: cast iron, thick clad (15 min)</option>
+                  <option value="liquid">Pots with liquid: soup, stock, boiling water (40 min)</option>
+                </select>
+              </label>
+              <div class="reset-actions">
+                <button id="cw-apply" class="primary-button" type="button" disabled>Apply</button>
+                <button id="cw-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig profile
+                </button>
+                <p id="cw-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
+            </div>
           </section>
           <section class="card cd-rule" aria-labelledby="cd-person-title">
             <h3 id="cd-person-title">Person</h3>

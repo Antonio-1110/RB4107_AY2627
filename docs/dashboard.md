@@ -57,6 +57,7 @@ frontend/
 | `safety.presence_filter` | `presence_filter` (`absence_seconds`, `return_seconds`, `return_gap_seconds`, `source`) | Presence filter in use, shown and changed in the Countdown card ([remote_reset.md](remote_reset.md#presence-filter-and-timers)); `null` from older firmware |
 | `safety.presence_unknown`, `safety.thermal_lost` | `presence_unknown`, `thermal_lost` (`null` from older firmware) | The sensor flags: shown as badges in the Countdown card, never turned into a fault by the backend |
 | `safety.cooking.active` | `cooking_active` | The heat detector's state, as the controller sees it |
+| `safety.hold`, `safety.cooking.phase` / `rate_c_per_min` / `settle_c`, `safety.cookware` | `hold`, `cooking_phase`, `cooking_rate_c_per_min`, `cooking_settle_c`, `cookware_profile`, `cookware_tau_s`, `cookware_source` (`null` from older firmware) | The cooking judgment: shown in the Countdown card ("held while the pan cools", the Cooking tile) and the cookware profile selector in Tuning → Rules |
 | `safety.absent_ms`, `safety.returning_ms`, `safety.state_ms` | `absent_seconds`, `returning_seconds`, `state_seconds` | Progress of the absence / return debounce and time in the current state. The Countdown card advances its clock from them between reports and freezes it ("last known") when the controller goes quiet; the backend never advances a timer |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
@@ -121,6 +122,42 @@ why, using only what the controller reports:
   Changes to 2 and 3 last until the controller reboots
   ([remote_reset.md](remote_reset.md)). The state itself is decided by the
   safety logic on the S3; the dashboard only displays it and sends settings.
+
+## Storage
+
+Every accepted message is stored with its raw JSON, and each telemetry message
+a second time as a reading. Measured on this schema (SQLite, including indexes),
+at the default rates with one controller:
+
+| Message | On disk | Rate | Per day |
+|---|---|---|---|
+| controller telemetry | 3.7 KB | 1 / s | 320 MB |
+| heartbeat | 0.58 KB | 1 / s | 50 MB |
+| per-node presence and thermal topics | 0.65-0.69 KB | 3 / s | 170 MB |
+| raw radar results (live view) | 0.92 KB | about 4 / s | 320 MB |
+| **total** | | | **about 0.86 GB per day (26 GB per month)** |
+
+Heat-map pictures are not stored (only the newest per node). `tools/run_dev.sh`
+erases the database when it stops, so this only builds up when Django runs
+continuously. Left alone, one controller would fill a 256 GB disk in months, so
+the subscriber runs a **retention job** once an hour (`ingest/retention.py`;
+first run a minute after start):
+
+| Rule | Default | Setting |
+|---|---|---|
+| radar live results, heartbeats, per-node topics: delete after | 24 h | `RB4107_RETENTION_LIVE_HOURS` |
+| telemetry: full resolution for | 24 h | `RB4107_RETENTION_FULL_HOURS` |
+| then thinned to one per | 60 s | `RB4107_RETENTION_THIN_SECONDS` |
+| and deleted after | 30 days | `RB4107_RETENTION_DAYS` |
+| faults, node status, tuning replies, rejected messages: delete after | 90 days | `RB4107_RETENTION_OTHER_DAYS` |
+| how often (0 = never) | 3600 s | `RB4107_RETENTION_INTERVAL_S` |
+
+Safety events and the messages that carry them (including restarts) are never
+deleted. That keeps one controller at about 0.4 GB of telemetry history plus a
+day of detail (roughly 1 GB at the default rates, a few GB at most).
+`python manage.py prune_history --dry-run` shows what would go; run it without
+`--dry-run` for a first clean-up. SQLite does not give disk space back by
+itself: run `sqlite3 db.sqlite3 VACUUM` once after a big clean-up.
 
 ## Active cooking
 

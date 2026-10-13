@@ -16,6 +16,7 @@ import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderPresenceFilter } from "./presence_filter.js";
 import { renderCountdown } from "./countdown.js";
+import { renderCookware } from "./cookware.js";
 import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
@@ -488,6 +489,7 @@ function renderDevice(device) {
   renderPresenceFilter(device);
   renderCookingTemp(device);
   renderCountdown(device);
+  renderCookware(device);
   renderTuning(device);
   renderDetailAlert(device);
 }
