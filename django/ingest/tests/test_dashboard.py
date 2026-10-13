@@ -339,3 +339,13 @@ class FrontendServingTests(TestCase):
     def test_does_not_serve_files_outside_assets(self):
         self.assertEqual(self.client.get("/js/../index.html").status_code, 404)
         self.assertEqual(self.client.get("/README.md").status_code, 404)
+
+
+class DashboardFilesTest(TestCase):
+    def test_dashboard_files_are_revalidated_not_guessed_cacheable(self):
+        # A browser that keeps an old js/dom.js next to a new js/chart.js breaks the whole page.
+        for url in ("/", "/js/dom.js", "/css/dashboard.css"):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("no-cache", response["Cache-Control"])

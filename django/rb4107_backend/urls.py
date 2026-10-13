@@ -1,9 +1,16 @@
 """Telemetry API, C4002 tuning, reset, presence filter and thermal threshold commands, and the dashboard from the repository's frontend/ folder."""
 from django.conf import settings
 from django.urls import path, re_path
-from django.views.static import serve
+from django.views.decorators.cache import cache_control
+from django.views.static import serve as _serve
 
 from ingest import views
+
+# The dashboard files change with every update. Without a Cache-Control header a
+# browser decides for itself how long to keep each one, so it can mix an old
+# dom.js with a new chart.js and the page never starts. no-cache means "ask
+# first": an unchanged file still answers 304.
+serve = cache_control(no_cache=True)(_serve)
 
 urlpatterns = [
     path("api/health/", views.health),
