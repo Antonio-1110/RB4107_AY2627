@@ -1,5 +1,6 @@
 // Temperature history graph, drawn on a <canvas> without a chart library.
 
+import { cssVar } from "./dom.js";
 import { when } from "./format.js";
 
 // Draws `points` ({received_at, temperature_c}) onto `canvas`. Readings more
@@ -35,16 +36,16 @@ export function drawTemperatureChart(canvas, emptyMessage, points, gapSeconds) {
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const py = top + ((bottom - top) * i) / 4;
-    ctx.strokeStyle = "#e9eef0";
+    ctx.strokeStyle = cssVar("--line");
     ctx.beginPath();
     ctx.moveTo(left, py);
     ctx.lineTo(right, py);
     ctx.stroke();
-    ctx.fillStyle = "#74858d";
+    ctx.fillStyle = cssVar("--muted");
     ctx.textAlign = "right";
     ctx.fillText((max - ((max - min) * i) / 4).toFixed(0), left - 9, py + 3);
   }
-  ctx.strokeStyle = "#18867e";
+  ctx.strokeStyle = cssVar("--teal");
   ctx.lineWidth = 2;
   ctx.beginPath();
   points.forEach((point, index) => {
@@ -57,11 +58,11 @@ export function drawTemperatureChart(canvas, emptyMessage, points, gapSeconds) {
   });
   ctx.stroke();
   const last = points.at(-1);
-  ctx.fillStyle = "#18867e";
+  ctx.fillStyle = cssVar("--teal");
   ctx.beginPath();
   ctx.arc(x(last), y(last), 3, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#74858d";
+  ctx.fillStyle = cssVar("--muted");
   ctx.textAlign = "left";
   ctx.fillText(when(points[0].received_at), left, height - 5);
   ctx.textAlign = "right";

@@ -7,8 +7,9 @@
 // room empty is a false positive to turn off or desensitise.
 
 import { fetchC4002Live } from "./api.js";
+import { isTuning } from "./mode.js";
 import { LIVE_POLL_MS } from "./config.js";
-import { $ } from "./dom.js";
+import { $, cssVar } from "./dom.js";
 
 const WINDOW_MS = 60000;
 const HIST_WIDTH = 64;
@@ -50,7 +51,7 @@ function schedule(ms) {
 
 async function poll() {
   if (!deviceId || !node || busy) return;
-  if (document.hidden) {
+  if (document.hidden || !isTuning()) {
     schedule(LIVE_POLL_MS * 4);
     return;
   }
@@ -151,10 +152,10 @@ function draw() {
   // Gate rows; turned-off gates (from the node's settings) shaded grey.
   for (let g = 0; g < gates; g++) {
     const off = settings && settings.resolution_cm === size && settings.presence_gates[g] === 0;
-    ctx.fillStyle = off ? "#e3e7ea" : g % 2 ? "#fafcfc" : "#f3f6f7";
+    ctx.fillStyle = off ? cssVar("--line") : g % 2 ? cssVar("--card") : cssVar("--bg");
     ctx.fillRect(left, y((g + 1) * size), right - left, rowH);
   }
-  ctx.fillStyle = "#667783";
+  ctx.fillStyle = cssVar("--muted");
   const labelEvery = gates > 15 ? 5 : 3;
   for (let g = 0; g <= gates; g += labelEvery) ctx.fillText(`${((g * size) / 100).toFixed(1)} m`, 4, y(g * size) + 3);
   for (let sec = 60; sec >= 10; sec -= 10) ctx.fillText(`-${sec}s`, x(end - sec * 1000) - 10, bottom + 14);
@@ -162,7 +163,7 @@ function draw() {
 
   // Range limits from the settings.
   if (settings) {
-    ctx.strokeStyle = "#137b75";
+    ctx.strokeStyle = cssVar("--teal");
     ctx.setLineDash([4, 3]);
     for (const cm of [settings.range_min_cm, settings.range_max_cm]) {
       if (cm > 0 && cm < maxCm) {
@@ -197,8 +198,8 @@ function draw() {
   });
 
   // Settings changes.
-  ctx.strokeStyle = "#675493";
-  ctx.fillStyle = "#675493";
+  ctx.strokeStyle = cssVar("--purple");
+  ctx.fillStyle = cssVar("--purple");
   for (const m of marks) {
     const mx = x(m.at - clockOffset);
     ctx.beginPath();
@@ -210,16 +211,16 @@ function draw() {
 
   // How often each gate fired in the window.
   const hx = right + 8;
-  ctx.fillStyle = "#667783";
+  ctx.fillStyle = cssVar("--muted");
   ctx.fillText("% fired", hx + 4, bottom + 14);
   for (let g = 0; g < gates; g++) {
     const share = samples.length ? hits[g] / samples.length : 0;
-    ctx.fillStyle = "#f3f6f7";
+    ctx.fillStyle = cssVar("--bg");
     ctx.fillRect(hx, y((g + 1) * size) + 1, HIST_WIDTH - 8, rowH - 2);
     ctx.fillStyle = "rgba(189, 87, 25, 0.75)";
     ctx.fillRect(hx, y((g + 1) * size) + 1, (HIST_WIDTH - 8) * share, rowH - 2);
     if (share >= 0.05 && rowH >= 9) {
-      ctx.fillStyle = "#142936";
+      ctx.fillStyle = cssVar("--ink");
       ctx.fillText(`${g}: ${Math.round(share * 100)}`, hx + 2, y(g * size) - rowH / 2 + 3);
     }
   }
@@ -230,4 +231,5 @@ function draw() {
 }
 
 window.addEventListener("resize", draw);
+window.addEventListener("rb-redraw", draw);
 document.addEventListener("visibilitychange", () => !document.hidden && schedule(0));

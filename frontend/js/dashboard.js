@@ -16,6 +16,7 @@ import { $, make, makeBadge, pill, set } from "./dom.js";
 import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderPresenceFilter } from "./presence_filter.js";
 import { renderCountdown } from "./countdown.js";
+import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
 import { renderTuning } from "./tuning.js";
@@ -57,6 +58,7 @@ function showView(view) {
   activeView = view;
   $("overview-view").hidden = view !== "overview";
   $("detail-view").hidden = view !== "detail";
+  document.body.dataset.view = view;
   $("overview-tab").classList.toggle("active", view === "overview");
   $("detail-tab").classList.toggle("active", view === "detail");
   if (view === "overview") {
@@ -581,6 +583,12 @@ function renderEventsMessage(message, count = "—") {
   list.replaceChildren(make("li", message, "empty-cell"));
   set("event-count", count);
 }
+// Mode, tab or theme changed: the canvases changed size or colours.
+window.addEventListener("rb-redraw", () => {
+  if ($("detail-view").hidden) return;
+  drawChart();
+  renderHeatmap();
+});
 function drawChart() {
   drawTemperatureChart(
     $("temperature-chart"),

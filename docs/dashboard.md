@@ -30,6 +30,7 @@ frontend/
     ├── chart.js      temperature history canvas
     ├── heatmap.js    thermal camera heat map canvas
     ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
+    ├── mode.js       Monitor / Tuning mode, tuning tabs, overview layout, colour theme
     ├── dom.js        small DOM helpers
     └── format.js     value formatting
 ```
@@ -77,6 +78,29 @@ Display severity (`ingest/locations.py`, `classify_display_state`) uses only
 the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
 UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
 BOOT/SELF_TEST show as "controller starting".
+
+## Monitor and Tuning modes
+
+A **Monitor | Tuning** switch in the header (remembered in this browser; open
+`/?mode=tuning` to start in Tuning) changes what the stall page shows. It is
+cosmetic: Monitor hides the tuning tools, it does not stop the API from
+accepting commands.
+
+- **Monitor** (default, the deployment view) fits one laptop screen without
+  scrolling: the Countdown hero with its clock, the three condition tiles
+  (cooking, person, timer, values only), the four readings with their
+  freshness, a compact thermal picture, the temperature history, system status
+  with **Reset shutdown**, and the last five events. Nothing in it can be edited.
+- **Tuning** keeps a slim countdown strip on top and adds tabs: **Rules** (the
+  cooking temperature, person filter and timers, editable), **Radar** (C4002
+  settings and the live radar view), **Thermal** (heat map with the outline and
+  pixel-size controls), **Diagnostics** (readings, history, system status,
+  events, sensor reports, raw telemetry). The header gets an orange underline
+  so it is obvious which mode you are in. The live radar stream is only polled
+  in Tuning.
+
+The overview has a **Tiles | Table** switch and a one-row fleet strip. A
+**Light | Dark | Auto** theme button follows the system setting by default.
 
 ## Countdown card
 

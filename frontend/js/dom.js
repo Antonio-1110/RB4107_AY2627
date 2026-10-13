@@ -21,3 +21,6 @@ export function make(tag, text, className) {
 export function makeBadge(text, style) {
   return make("span", text, `state-badge ${style}`);
 }
+
+// A CSS variable's current value, for canvases (they can't use var()).
+export const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();

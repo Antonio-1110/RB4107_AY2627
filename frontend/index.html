@@ -12,41 +12,43 @@
       <a id="brand-home" class="brand" href="#overview" aria-label="Safety overview"
         ><span class="brand-icon">R</span><span>RB4107 <small>COOKING SAFETY</small></span></a
       >
-      <span class="prototype">MULTI-SITE PROTOTYPE</span>
-    </header>
-    <div id="global-alerts" class="global-alerts" aria-live="off" hidden></div>
-    <main>
-      <div class="heading">
-        <div>
-          <p class="eyebrow">OPERATIONS MONITORING</p>
-          <h1 id="page-title">All-stall safety overview</h1>
-          <p id="page-subtitle" class="muted">
-            Airport terminals, zones and external sites in one view.
-          </p>
-        </div>
-        <nav class="view-tabs" aria-label="Dashboard views">
-          <button id="overview-tab" class="tab active" type="button">All stalls</button
-          ><button id="detail-tab" class="tab" type="button" disabled>Stall detail</button>
-        </nav>
+      <nav class="view-tabs" aria-label="Dashboard views">
+        <button id="overview-tab" class="tab active" type="button">All stalls</button
+        ><button id="detail-tab" class="tab" type="button" disabled>Stall detail</button>
+      </nav>
+      <div class="mode-switch" role="group" aria-label="Dashboard mode">
+        <button type="button" data-mode-button="monitor" aria-pressed="true" title="Deployment view: what the stall shows, nothing to change">Monitor</button
+        ><button type="button" data-mode-button="tuning" aria-pressed="false" title="Adds the tuning tools: rules, radar, thermal, diagnostics">Tuning</button>
       </div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Colour theme: automatic">Auto</button>
       <div class="statusbar" aria-live="polite">
         <span id="server-status" class="pill neutral">Connecting to server</span
         ><span id="worker-status" class="pill neutral">MQTT unknown</span
         ><span id="catalog-status" class="pill neutral">Location catalogue loading</span
         ><span id="last-update" class="last-update">No live reports yet</span>
       </div>
-      <div id="notice" class="notice" role="status" hidden></div>
-      <div class="safety-note">
-        <span class="note-icon">i</span>
-        <p>
-          <strong>Local protection runs on each ESP32-S3.</strong> This dashboard monitors and logs
-          reports. A dashboard alert does not operate or silence the local alarm, relay or gas
-          isolation; the only safety commands it sends are the reset of a latched shutdown and the
-          presence filter timing.
-        </p>
+    </header>
+    <div id="global-alerts" class="global-alerts" aria-live="off" hidden></div>
+    <main>
+      <div class="heading">
+        <h1 id="page-title">All-stall safety overview</h1>
+        <p id="page-subtitle" class="muted">Airport terminals, zones and external sites in one view.</p>
+        <div class="ov-view-switch" role="group" aria-label="Overview layout">
+          <button type="button" data-ov-button="tiles" aria-pressed="true">Tiles</button
+          ><button type="button" data-ov-button="table" aria-pressed="false">Table</button>
+        </div>
       </div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <details class="safety-note">
+        <summary><span class="note-icon">i</span>Local protection runs on each ESP32-S3; this dashboard only monitors.</summary>
+        <p>
+          A dashboard alert does not operate or silence the local alarm, relay or gas isolation;
+          the only safety commands it sends are the reset of a latched shutdown and the presence
+          filter timing.
+        </p>
+      </details>
 
-      <section id="overview-view">
+      <section id="overview-view" data-ov="tiles">
         <section class="summary-grid" aria-label="Fleet summary">
           <article class="summary-card">
             <p>Total stalls</p>
@@ -116,7 +118,7 @@
           >
           <button id="clear-filters" class="secondary-button" type="button">Clear filters</button>
         </section>
-        <section class="card topology-card">
+        <section class="card topology-card" data-ov-card="tiles">
           <div class="section-heading">
             <div>
               <h2>Operational location view</h2>
@@ -130,7 +132,7 @@
             <p class="empty-cell">Waiting for stall data…</p>
           </div>
         </section>
-        <section class="card roster-card">
+        <section class="card roster-card" data-ov-card="table">
           <div class="section-heading">
             <div>
               <h2>All-stall status</h2>
@@ -163,18 +165,20 @@
         <p id="catalog-notice" class="catalog-note"></p>
       </section>
 
-      <section id="detail-view" hidden>
-        <button id="back-overview" class="back-button" type="button">← All stalls</button>
+      <section id="detail-view" data-mode="monitor" data-tab="rules" hidden>
         <article id="detail-alert" class="detail-alert" role="alert" hidden></article>
-        <section class="card location-card">
-          <div>
-            <p class="label">INCIDENT / RESPONSE LOCATION</p>
+        <div class="dv-top">
+          <button id="back-overview" class="back-button" type="button">← All stalls</button>
+          <div class="dv-title">
             <h2 id="detail-stall-name">Unassigned stall</h2>
             <p id="detail-location-line" class="location-line">Location incomplete</p>
             <p id="detail-response-route" class="route-line">No response route configured</p>
           </div>
-          <div class="location-actions">
-            <span id="detail-demo" class="pill demo" hidden>DEMO REFERENCE</span
+          <div class="dv-top-right">
+            <span id="device-status" class="pill neutral">Device unknown</span
+            ><span id="demo-badge" class="pill demo" hidden>SIMULATED DATA</span
+            ><span id="detail-demo" class="pill demo" hidden>DEMO REFERENCE</span
+            ><span id="test-timers-badge" class="pill warn" hidden>FIRMWARE TEST TIMERS</span
             ><a
               id="official-map"
               class="secondary-button"
@@ -184,28 +188,29 @@
               hidden
               >Open official map ↗</a
             >
-          </div>
-        </section>
-        <div class="detail-controls">
-          <label class="station-label"
-            >Cooking station<select id="device-select">
-              <option value="">Waiting for a device…</option>
-            </select></label
-          >
-          <div class="detail-badges">
-            <span id="device-status" class="pill neutral">Device unknown</span
-            ><span id="demo-badge" class="pill demo" hidden>SIMULATED DATA</span
-            ><span id="test-timers-badge" class="pill warn" hidden>FIRMWARE TEST TIMERS</span>
+            <label class="station-label"
+              >Station<select id="device-select">
+                <option value="">Waiting for a device…</option>
+              </select></label
+            >
           </div>
         </div>
-        <section class="card cooking-banner unknown" id="cooking-banner" aria-label="Active cooking">
+        <nav class="dv-tabs" data-show="tuning" aria-label="Tuning sections">
+          <button type="button" data-tab-button="rules">Rules</button>
+          <button type="button" data-tab-button="radar">Radar</button>
+          <button type="button" data-tab-button="thermal">Thermal</button>
+          <button type="button" data-tab-button="diag">Diagnostics</button>
+        </nav>
+        <div class="dv-grid">
+        <section class="card cooking-banner unknown dv-banner" id="cooking-banner" aria-label="Active cooking" data-tab="diag">
           <div>
             <p class="label">ACTIVE COOKING</p>
             <h2 id="cooking-label">Unknown</h2>
           </div>
           <p class="metric-detail" id="cooking-detail">Awaiting report</p>
         </section>
-        <section class="card countdown-card cd-idle" id="countdown-card" aria-label="Countdown and rules">
+
+        <section class="card countdown-card cd-idle dv-hero" id="countdown-card" aria-label="Countdown">
           <div class="countdown-head">
             <div>
               <p class="label">COUNTDOWN</p>
@@ -229,84 +234,85 @@
             <span id="cd-scale-stop">Shutdown —</span>
           </div>
           <div class="cd-flags" id="cd-flags" aria-label="Sensor status"></div>
-          <div class="cd-rules">
-            <section class="cd-rule" aria-labelledby="cd-cooking-title">
-              <h3 id="cd-cooking-title">1 · Cooking</h3>
-              <p class="cd-live" id="cd-cooking-live">—</p>
-              <p class="muted small" id="cd-cooking-rule">
-                The thermal camera decides: cooking starts when the hottest pixel reaches the
-                temperature below and ends under the "over" value.
-              </p>
-              <div class="heatmap-footprint">
-                <label
-                  >Cooking from (°C)
-                  <input id="ct-value" type="number" min="0" max="300" step="0.5" disabled
-                /></label>
-              </div>
-              <div class="reset-actions">
-                <button id="ct-apply" class="primary-button" type="button" disabled>Apply</button>
-                <button id="ct-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig value
-                </button>
-                <p id="ct-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
-            </section>
-            <fieldset id="presence-filter-form" class="cd-rule cd-rule-wide" disabled>
-              <legend class="visually-hidden">Person and timer rules</legend>
-              <div class="cd-rule-columns">
-                <section aria-labelledby="cd-person-title">
-                  <h3 id="cd-person-title">2 · Person</h3>
-                  <p class="cd-live" id="cd-person-live">—</p>
-                  <p class="muted small" id="cd-person-rule">
-                    The S3 decides, not the radars. A radar blip never restarts the absence count;
-                    only a confirmed return does.
-                  </p>
-                  <div class="tuning-grid presence-filter-grid">
-                    <label
-                      >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
-                    /></label>
-                    <label
-                      >Return after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
-                    /></label>
-                    <label
-                      >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
-                    /></label>
-                  </div>
-                </section>
-                <section aria-labelledby="cd-timer-title">
-                  <h3 id="cd-timer-title">3 · Timer</h3>
-                  <p class="cd-live" id="cd-timer-live">—</p>
-                  <p class="muted small" id="cd-timer-rule">
-                    Runs while cooking and nobody is there. The buzzer and shutdown times count from
-                    when the person left.
-                  </p>
-                  <div class="tuning-grid presence-filter-grid">
-                    <label
-                      >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
-                    /></label>
-                    <label
-                      >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
-                    /></label>
-                  </div>
-                </section>
-              </div>
-              <div class="reset-actions">
-                <button id="pf-apply" class="primary-button" type="button" disabled>Apply</button>
-                <button id="pf-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig values
-                </button>
-                <p id="pf-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
-            </fieldset>
-          </div>
-          <p class="muted small">
-            A lost sensor never starts a timer on its own: it shows a flag. If the thermal camera
-            says it is cooking and presence is unknown, presence counts as absent and the timer
-            runs. Changes to the person and timer rules last until the controller reboots; the
-            cooking temperature is saved on the controller.
-          </p>
         </section>
-        <section class="metrics" aria-label="Latest device-reported readings">
+        <fieldset class="dv-cond" id="presence-filter-form" data-tab="rules" disabled>
+          <legend class="visually-hidden">Cooking, person and timer rules</legend>
+          <section class="card cd-rule" aria-labelledby="cd-cooking-title">
+            <h3 id="cd-cooking-title">Cooking</h3>
+            <p class="cd-live" id="cd-cooking-live">—</p>
+            <p class="muted small" id="cd-cooking-rule" data-show="tuning">
+              The thermal camera decides: cooking starts when the hottest pixel reaches the
+              temperature below and ends under the "over" value.
+            </p>
+            <div class="heatmap-footprint" data-show="tuning">
+              <label
+                >Cooking from (°C)
+                <input id="ct-value" type="number" min="0" max="300" step="0.5" disabled
+              /></label>
+            </div>
+            <div class="reset-actions" data-show="tuning">
+              <button id="ct-apply" class="primary-button" type="button" disabled>Apply</button>
+              <button id="ct-defaults" class="secondary-button" type="button" disabled>
+                Menuconfig value
+              </button>
+              <p id="ct-status" class="tuning-status muted">Waiting for the controller.</p>
+            </div>
+          </section>
+          <section class="card cd-rule" aria-labelledby="cd-person-title">
+            <h3 id="cd-person-title">Person</h3>
+            <p class="cd-live" id="cd-person-live">—</p>
+            <p class="muted small" id="cd-person-rule" data-show="tuning">
+              The S3 decides, not the radars. A radar blip never restarts the absence count;
+              only a confirmed return does.
+            </p>
+            <div class="tuning-grid presence-filter-grid cd-fields" data-show="tuning">
+              <label
+                >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
+              /></label>
+              <label
+                >Return after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
+              /></label>
+              <label
+                >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
+              /></label>
+            </div>
+          </section>
+          <section class="card cd-rule" aria-labelledby="cd-timer-title">
+            <h3 id="cd-timer-title">Timer</h3>
+            <p class="cd-live" id="cd-timer-live">—</p>
+            <p class="muted small" id="cd-timer-rule" data-show="tuning">
+              Runs while cooking and nobody is there. The buzzer and shutdown times count from
+              when the person left.
+            </p>
+            <div class="tuning-grid presence-filter-grid cd-fields" data-show="tuning">
+              <label
+                >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
+              /></label>
+              <label
+                >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
+              /></label>
+            </div>
+          </section>
+          <div class="cd-apply" data-show="tuning">
+            <div class="reset-actions">
+              <button id="pf-apply" class="primary-button" type="button" disabled>
+                Apply person and timer rules
+              </button>
+              <button id="pf-defaults" class="secondary-button" type="button" disabled>
+                Menuconfig values
+              </button>
+              <p id="pf-status" class="tuning-status muted">Waiting for the controller.</p>
+            </div>
+            <p class="muted small">
+              A lost sensor never starts a timer on its own: it shows a flag. If the thermal camera
+              says it is cooking and presence is unknown, presence counts as absent and the timer
+              runs. Changes to the person and timer rules last until the controller reboots; the
+              cooking temperature is saved on the controller.
+            </p>
+          </div>
+        </fieldset>
+
+        <section class="metrics dv-mets" data-tab="diag" aria-label="Latest device-reported readings">
           <article class="card metric" id="card-presence">
             <p class="label">HUMAN PRESENCE</p>
             <h2 id="presence">—</h2>
@@ -333,8 +339,7 @@
             <p class="freshness" id="age-alarm">Awaiting report</p>
           </article>
         </section>
-        <section class="middle">
-          <article class="card chart-card">
+        <article class="card chart-card dv-chart" data-tab="diag">
             <div class="section-heading">
               <div>
                 <h2>Temperature history</h2>
@@ -360,7 +365,7 @@
               Server receipt time · waiting for data
             </p>
           </article>
-          <article class="card system-card">
+        <article class="card system-card dv-sys" data-tab="diag">
             <h2>System status</h2>
             <dl>
               <div>
@@ -375,15 +380,15 @@
                 <dt>Unattended timer</dt>
                 <dd id="timer">—</dd>
               </div>
-              <div>
+              <div data-show="tuning">
                 <dt>Warning after</dt>
                 <dd id="warning-setting">—</dd>
               </div>
-              <div>
+              <div data-show="tuning">
                 <dt>Shutdown after</dt>
                 <dd id="shutdown-setting">—</dd>
               </div>
-              <div>
+              <div data-show="tuning">
                 <dt>Device uptime</dt>
                 <dd id="uptime">—</dd>
               </div>
@@ -396,13 +401,12 @@
                 Available only while a shutdown is latched.
               </p>
             </div>
-            <p class="muted small">
+            <p class="muted small" data-show="tuning">
               Firmware-reported values only. The server does not advance the safety timer; the reset
               button asks the controller to release a latched shutdown.
             </p>
           </article>
-        </section>
-        <section class="card heatmap-card" aria-label="Thermal camera heat map">
+        <section class="card heatmap-card dv-heat" data-tab="thermal" aria-label="Thermal camera heat map">
           <div class="section-heading">
             <div>
               <h2>Thermal camera</h2>
@@ -426,7 +430,7 @@
                 <span id="heatmap-scale" class="heatmap-scale"></span>
                 <span id="heatmap-max">—</span>
               </div>
-              <p class="muted small">
+              <p class="muted small" data-show="tuning">
                 Colours are scaled to each picture: lightest = coldest pixel, darkest = hottest. The
                 ring marks the hottest pixel; grey pixels had no valid reading. The safety logic
                 uses the hottest pixel the node reports, never this picture.
@@ -440,7 +444,7 @@
                 <dt>Pixels above it</dt>
                 <dd id="heatmap-count">—</dd>
               </dl>
-              <div class="heatmap-toggles">
+              <div class="heatmap-toggles" data-show="tuning">
                 <label
                   ><input type="checkbox" id="heatmap-show-threshold" checked /> Outline pixels
                   at cooking temperature</label
@@ -450,11 +454,11 @@
                   (dashed box)</label
                 >
               </div>
-              <p class="muted small">
+              <p class="muted small" data-show="tuning">
                 The cooking temperature is set in the Countdown card, under "Cooking".
               </p>
-              <p class="eyebrow">PIXEL SIZE AT A DISTANCE</p>
-              <div class="heatmap-footprint">
+              <p class="eyebrow" data-show="tuning">PIXEL SIZE AT A DISTANCE</p>
+              <div class="heatmap-footprint" data-show="tuning">
                 <label
                   >Lens
                   <select id="heatmap-fov">
@@ -467,12 +471,23 @@
                   <input id="heatmap-distance" type="number" min="0.2" max="5" step="0.1" value="1.5"
                 /></label>
               </div>
-              <p id="heatmap-footprint" class="muted small"></p>
+              <p id="heatmap-footprint" class="muted small" data-show="tuning"></p>
             </div>
           </div>
         </section>
-        <section class="bottom">
-          <article class="card">
+        <article class="card dv-evt" data-tab="diag">
+            <div class="section-heading">
+              <div>
+                <h2>Event log</h2>
+                <p class="muted">Firmware events · last 24 hours</p>
+              </div>
+              <span id="event-count" class="count">0</span>
+            </div>
+            <ul id="events" class="event-list">
+              <li class="empty-cell">No events reported</li>
+            </ul>
+          </article>
+        <article class="card dv-sens" data-show="tuning" data-tab="diag">
             <div class="section-heading">
               <div>
                 <h2>Sensor reports</h2>
@@ -498,20 +513,7 @@
               </table>
             </div>
           </article>
-          <article class="card">
-            <div class="section-heading">
-              <div>
-                <h2>Event log</h2>
-                <p class="muted">Firmware events · last 24 hours</p>
-              </div>
-              <span id="event-count" class="count">0</span>
-            </div>
-            <ul id="events" class="event-list">
-              <li class="empty-cell">No events reported</li>
-            </ul>
-          </article>
-        </section>
-        <section id="tuning-card" class="card tuning-card" aria-label="Radar tuning">
+        <section id="tuning-card" class="card tuning-card dv-radar" data-show="tuning" data-tab="radar" aria-label="Radar tuning">
           <div class="section-heading">
             <div>
               <h2>Radar tuning (C4002)</h2>
@@ -652,10 +654,11 @@
             </div>
           </details>
         </section>
-        <details class="raw-panel">
+        <details class="raw-panel dv-raw" data-show="tuning" data-tab="diag">
           <summary>Latest normalized telemetry / integration details</summary>
           <pre id="raw-data">{}</pre>
         </details>
+        </div>
       </section>
       <footer>
         <span>ESP32-S3 → MQTT → Django → Multi-site dashboard</span
