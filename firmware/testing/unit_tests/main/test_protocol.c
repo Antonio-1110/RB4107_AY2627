@@ -4,6 +4,28 @@
 #include "rb_protocol.h"
 #include "unity.h"
 
+/* The node sends presence the moment valid/detected flips, not only on its period. */
+static void test_presence_change_is_sent_at_once(void)
+{
+    rb_packet_t prev = {.type = RB_MSG_PRESENCE_DATA};
+    prev.body.presence = (presence_reading_t){.valid = true, .presence_detected = false, .timestamp_ms = 1000};
+    rb_packet_t cur = prev;
+
+    TEST_ASSERT_TRUE(rb_data_packet_changed(NULL, &cur)); /* nothing sent yet */
+    cur.body.presence.timestamp_ms = 1050; /* a new reading with the same state: wait for the period */
+    cur.body.presence.distance_m = 3.0f;
+    cur.body.presence.moving_target = true;
+    TEST_ASSERT_FALSE(rb_data_packet_changed(&prev, &cur));
+    cur.body.presence.presence_detected = true; /* someone arrived */
+    TEST_ASSERT_TRUE(rb_data_packet_changed(&prev, &cur));
+    cur.body.presence.presence_detected = false;
+    cur.body.presence.valid = false; /* the reading became invalid */
+    TEST_ASSERT_TRUE(rb_data_packet_changed(&prev, &cur));
+
+    rb_packet_t thermal = {.type = RB_MSG_THERMAL_DATA};
+    TEST_ASSERT_FALSE(rb_data_packet_changed(NULL, &thermal)); /* thermal only goes out on its period */
+}
+
 static void test_presence_data_roundtrip(void)
 {
     rb_packet_t tx = {.type = RB_MSG_PRESENCE_DATA, .role = RB_NODE_ROLE_PRESENCE, .node_id = 2, .sequence = 42,
@@ -251,6 +273,7 @@ static void test_thermal_frame_piece_checks(void)
 void run_protocol_tests(void)
 {
     RUN_TEST(test_presence_data_roundtrip);
+    RUN_TEST(test_presence_change_is_sent_at_once);
     RUN_TEST(test_thermal_data_roundtrip);
     RUN_TEST(test_unknown_and_saturated_values);
     RUN_TEST(test_role_must_match_data);

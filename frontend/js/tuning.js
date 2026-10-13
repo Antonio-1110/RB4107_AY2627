@@ -261,8 +261,9 @@ $("tune-apply").addEventListener("click", () =>
     resolution_cm: Number($("tune-resolution").value),
     motion_sensitivity: $("tune-motion-sens").value,
     presence_sensitivity: $("tune-presence-sens").value,
-    disappear_delay_s: intValue("tune-hold"),
-    lock_time_ds: intValue("tune-lock", 10),
+    // Fixed on the node: the S3 does all the presence debouncing (docs/c4002_tuning.md).
+    disappear_delay_s: 0,
+    lock_time_ds: 2,
     report_period_ds: intValue("tune-period", 10),
   }),
 );

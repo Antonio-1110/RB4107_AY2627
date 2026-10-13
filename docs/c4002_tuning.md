@@ -1,7 +1,7 @@
 # Remote C4002 tuning
 
 You can tune each presence node's C4002 radar from the dashboard's **Radar tuning** card:
-range, gate size, sensitivity, hold and lock time, report period, turning
+range, gate size, sensitivity, report period, turning
 individual distance gates on or off, per-gate thresholds, and environment
 calibration. Above the settings, a live view shows what the radar reports,
 result by result, so the effect of a change shows at once. It's built for
@@ -77,9 +77,21 @@ to 0 on the node to turn the stream off.
 | `range_min_cm`, `range_max_cm` | detection range | 0–1100, min ≤ max |
 | `resolution_cm` | gate size: 80 (15 gates, ~11 m) or 20 (25 gates, ~4.9 m) | 20, 80 |
 | `motion_sensitivity`, `presence_sensitivity` | threshold group | `low` `mid` `high` `custom` |
-| `disappear_delay_s` | how long a target is held after it leaves | 0–65535 |
-| `lock_time_ds` | detection paused after occupied → empty, 0.1 s units | 2–100 |
-| `report_period_ds` | result report period, 0.1 s units | 1–255 |
+| `disappear_delay_s` | how long the radar keeps reporting a target after it leaves | **fixed at 0** |
+| `lock_time_ds` | detection paused after occupied → empty, 0.1 s units | **fixed at 2** (0.2 s, the sensor's minimum) |
+| `report_period_ds` | result report period, 0.1 s units | 1–5 (default 5) |
+
+**Why the two holds are fixed.** The S3 is the only place that decides whether
+someone is present and it does all the debouncing (`absence_debounce_ms`,
+`presence_return_debounce_ms`, `presence_return_gap_ms`, adjustable from the
+dashboard's presence filter). A hold inside the radar is a delay the S3 can't
+see or tune: while the radar holds a target for 1 s, the S3's own 1 s absence
+debounce starts 1 s late, and the lock time makes the radar blind to someone who
+steps back in. So the node reports the raw state quickly, and the dashboard's
+fields for these two are read-only. The node refuses other values
+(`rb_c4002_params_check()`), the MQTT command schema allows only 0 and 2, and
+settings saved in node NVS by older firmware with other values are ignored at
+boot (the node falls back to its defaults).
 | `motion_gates`, `presence_gates` | 25 × 0/1, gate *i* on or off | |
 | `motion_thresholds`, `presence_thresholds` | 25 × 0–99 per gate (higher = less sensitive); sending them sets that sensitivity to `custom` | |
 
@@ -126,7 +138,7 @@ Full schema: `c4002_config` and `c4002_command` in
 
 * `RB_C4002_REMOTE_TUNING` (node, default on): accept commands.
 * `RB_CTRL_C4002_REMOTE_TUNING` (controller, default on): subscribe and relay.
-* `RB_C4002_LOCK_TIME_DS`: new menuconfig default for the lock time.
+* `RB_C4002_REPORT_PERIOD_DS` (node, 1–5, default 5): the menuconfig report period. The disappear delay and lock time are not options.
 * `RB_C4002_LIVE_PERIOD_MS` (node, default 250, 0 = off): the live view stream.
 
 ## Not verified yet

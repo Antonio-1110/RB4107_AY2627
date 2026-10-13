@@ -63,6 +63,8 @@ static void link_task(void *arg)
 {
     uint16_t last_faults = 0xFFFF; /* forces a first SENSOR_FAULT report */
     uint32_t next_data = 0, next_heartbeat = 0, next_log = 0;
+    rb_packet_t last_sent = {0};
+    bool have_sent = false;
     TickType_t wake = xTaskGetTickCount();
 
     for (;;) {
@@ -81,9 +83,17 @@ static void link_task(void *arg)
             ESP_LOGW(TAG, "sensor faults 0x%04x -> 0x%04x", last_faults == 0xFFFF ? 0 : last_faults, faults);
             last_faults = faults;
         }
-        if ((int32_t)(now - next_data) >= 0) {
+        /*
+         * Raw state goes out the moment it changes (the S3 does all the
+         * debouncing); the periodic send is the refresh / keepalive.
+         */
+        const bool changed = rb_data_packet_changed(have_sent ? &last_sent : NULL, &data);
+        if (changed || (int32_t)(now - next_data) >= 0) {
             next_data = now + CONFIG_RB_NODE_DATA_PERIOD_MS;
-            rb_node_link_send(&data);
+            if (rb_node_link_send(&data) == ESP_OK) {
+                last_sent = data;
+                have_sent = true;
+            }
         }
         if ((int32_t)(now - next_heartbeat) >= 0) {
             next_heartbeat = now + CONFIG_RB_NODE_HEARTBEAT_PERIOD_MS;

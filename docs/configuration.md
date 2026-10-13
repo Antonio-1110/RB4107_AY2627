@@ -44,14 +44,12 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_C4002_BAUD` | Baud rate | `115200` |  |  |
 | `CONFIG_RB_C4002_STALE_TIMEOUT_MS` | Reading goes invalid after (ms) without a report | `3000` | 200 – 60000 |  |
 | `CONFIG_RB_C4002_APPLY_SETTINGS` | Push the detection settings below to the sensor at boot | `y` |  |  |
-| `CONFIG_RB_C4002_REPORT_PERIOD_DS` | Report period (0.1 s units) | `5` | 1 – 255 |  |
+| `CONFIG_RB_C4002_REPORT_PERIOD_DS` | Report period (0.1 s units) | `5` | 1 – 5 |  |
 | `CONFIG_RB_C4002_RANGE_MIN_CM` | Detection range minimum (cm) | `0` | 0 – 1100 |  |
 | `CONFIG_RB_C4002_RANGE_MAX_CM` | Detection range maximum (cm) | `500` | 0 – 1100 |  |
 | `RB_C4002_RESOLUTION` (choice) | Distance gate resolution: `CONFIG_RB_C4002_RESOLUTION_80CM` = 80 cm (15 gates, ~11 m); `CONFIG_RB_C4002_RESOLUTION_20CM` = 20 cm (25 gates, ~4.9 m) | `CONFIG_RB_C4002_RESOLUTION_20CM` |  |  |
 | `CONFIG_RB_C4002_MOTION_SENSITIVITY` | Motion sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
 | `CONFIG_RB_C4002_PRESENCE_SENSITIVITY` | Static presence sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
-| `CONFIG_RB_C4002_DISAPPEAR_DELAY_S` | Target disappear delay (s) | `1` | 0 – 65535 |  |
-| `CONFIG_RB_C4002_LOCK_TIME_DS` | Lock time after a target leaves (0.1 s units) | `10` | 2 – 100 |  |
 | `CONFIG_RB_C4002_REMOTE_TUNING` | Accept C4002 settings and calibration from the dashboard | `y` |  |  |
 | `CONFIG_RB_C4002_LIVE_PERIOD_MS` | Send raw C4002 results for the dashboard's live view every (ms), 0 = off | `250` | 0 – 10000 |  |
 | `CONFIG_RB_C4002_ENV_CALIBRATION_AT_BOOT` | Run environment calibration at boot (area must be empty) | `n` |  |  |
@@ -268,7 +266,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | ESP-NOW peer MAC and channel | `RB_NODE_CONTROLLER_MAC`, `RB_ESPNOW_CHANNEL`, `RB_ESPNOW_FOLLOW_CHANNEL` (nodes follow the controller to the Wi-Fi router's channel, see [setup.md](setup.md#broker)) |
 | Node IDs | `RB_NODE_ID` (each node; 1, 2 = presence, 3 = thermal), `RB_CTRL_PRESENCE_NODE_COUNT`, `RB_CTRL_PRESENCE_A_NODE_ID`, `RB_CTRL_PRESENCE_B_NODE_ID`, `RB_CTRL_THERMAL_NODE_ID` (controller) |
 | Sensor timeouts | `RB_C4002_STALE_TIMEOUT_MS`, `RB_MLX_STALE_TIMEOUT_MS`, `RB_CTRL_NODE_STALE_MS`, `RB_CTRL_NODE_OFFLINE_MS` |
-| Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS` (also live from the dashboard, `RB_CTRL_REMOTE_PRESENCE_FILTER`), C4002 sensor-side settings |
+| Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS` (also live from the dashboard, `RB_CTRL_REMOTE_PRESENCE_FILTER`). The S3 is the only place that debounces: the C4002's own disappear delay and lock time are fixed at 0 s and 0.2 s |
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC` (also from the dashboard and saved, `RB_CTRL_REMOTE_COOKING_TEMP`), `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` (display only; the controller keeps it equal to the cooking temperature) |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
 | Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |

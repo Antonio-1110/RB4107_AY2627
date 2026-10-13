@@ -25,13 +25,13 @@ c4002_config_t rb_node_c4002_config(void)
 c4002_settings_t rb_node_c4002_defaults(void)
 {
     c4002_settings_t s = {
-        /* Used when RB_C4002_APPLY_SETTINGS is off: the sensor's own defaults (DFRobot docs). */
+        /* Used when RB_C4002_APPLY_SETTINGS is off: the sensor's own defaults (DFRobot docs), except the holds. */
         .report_period_ds = 5,
         .range_max_cm = 1100,
         .motion_sensitivity = RB_C4002_SENS_MID,
         .presence_sensitivity = RB_C4002_SENS_MID,
-        .disappear_delay_s = 1,
-        .lock_time_ds = 10,
+        .disappear_delay_s = RB_C4002_DISAPPEAR_DELAY_S,
+        .lock_time_ds = RB_C4002_LOCK_TIME_DS,
         .motion_gate_mask = RB_C4002_ALL_GATES,
         .presence_gate_mask = RB_C4002_ALL_GATES,
     };
@@ -46,8 +46,6 @@ c4002_settings_t rb_node_c4002_defaults(void)
 #endif
     s.motion_sensitivity = CONFIG_RB_C4002_MOTION_SENSITIVITY;
     s.presence_sensitivity = CONFIG_RB_C4002_PRESENCE_SENSITIVITY;
-    s.disappear_delay_s = CONFIG_RB_C4002_DISAPPEAR_DELAY_S;
-    s.lock_time_ds = CONFIG_RB_C4002_LOCK_TIME_DS;
 #endif
     return s;
 }

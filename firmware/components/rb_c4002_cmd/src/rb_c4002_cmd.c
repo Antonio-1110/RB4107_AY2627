@@ -273,7 +273,7 @@ static bool apply_kv(const kv_t *kv, rb_c4002_cmd_t *cmd, bool *seen_type, char 
     uint16_t bit = 0;
     bool ok = true;
     if (strcmp(kv->key, "report_period_ds") == 0) {
-        ok = want_int(kv, 1, 255, &v, err, err_len);
+        ok = want_int(kv, 1, RB_C4002_REPORT_PERIOD_MAX_DS, &v, err, err_len);
         p->report_period_ds = (uint8_t)v;
         bit = RB_C4002_F_REPORT_PERIOD;
     } else if (strcmp(kv->key, "range_min_cm") == 0) {
@@ -298,11 +298,11 @@ static bool apply_kv(const kv_t *kv, rb_c4002_cmd_t *cmd, bool *seen_type, char 
         ok = want_sensitivity(kv, &p->presence_sensitivity, err, err_len);
         bit = RB_C4002_F_PRESENCE_SENS;
     } else if (strcmp(kv->key, "disappear_delay_s") == 0) {
-        ok = want_int(kv, 0, 65535, &v, err, err_len);
+        ok = want_int(kv, RB_C4002_DISAPPEAR_DELAY_S, RB_C4002_DISAPPEAR_DELAY_S, &v, err, err_len);
         p->disappear_delay_s = (uint16_t)v;
         bit = RB_C4002_F_DISAPPEAR_DELAY;
     } else if (strcmp(kv->key, "lock_time_ds") == 0) {
-        ok = want_int(kv, 2, 100, &v, err, err_len);
+        ok = want_int(kv, RB_C4002_LOCK_TIME_DS, RB_C4002_LOCK_TIME_DS, &v, err, err_len);
         p->lock_time_ds = (uint8_t)v;
         bit = RB_C4002_F_LOCK_TIME;
     } else if (strcmp(kv->key, "motion_gates") == 0) {

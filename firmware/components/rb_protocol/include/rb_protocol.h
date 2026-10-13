@@ -334,6 +334,14 @@ const char *rb_node_role_name(rb_node_role_t role); /* "presence" / "thermal" / 
  */
 const char *rb_c4002_params_check(const rb_c4002_params_t *params);
 
+/*
+ * True if a data packet differs from the previously sent one in a way the
+ * controller must hear about at once (presence: valid or detected flipped).
+ * Thermal readings change continuously and are only sent on their period.
+ * prev == NULL (nothing sent yet) counts as changed.
+ */
+bool rb_data_packet_changed(const rb_packet_t *prev, const rb_packet_t *cur);
+
 /* Copy the fields selected by field_mask from src into dst (thresholds switch to CUSTOM). */
 void rb_c4002_params_merge(rb_c4002_params_t *dst, const rb_c4002_params_t *src, uint16_t field_mask);
 

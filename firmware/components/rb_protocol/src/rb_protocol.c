@@ -576,8 +576,8 @@ static const char *check_thresholds(const uint8_t *t)
 
 const char *rb_c4002_params_check(const rb_c4002_params_t *p)
 {
-    if (p->report_period_ds == 0) {
-        return "report_period_ds must be 1..255";
+    if (p->report_period_ds == 0 || p->report_period_ds > RB_C4002_REPORT_PERIOD_MAX_DS) {
+        return "report_period_ds must be 1..5";
     }
     if (p->range_max_cm > C4002_MAX_RANGE_CM) {
         return "range_max_cm > 1100";
@@ -597,14 +597,29 @@ const char *rb_c4002_params_check(const rb_c4002_params_t *p)
     if (p->presence_sensitivity == RB_C4002_SENS_CUSTOM && !(p->thresholds_known & RB_C4002_THRESH_PRESENCE)) {
         return "custom presence sensitivity needs presence thresholds";
     }
-    if (p->lock_time_ds < 2 || p->lock_time_ds > 100) {
-        return "lock_time_ds must be 2..100";
+    if (p->disappear_delay_s != RB_C4002_DISAPPEAR_DELAY_S) {
+        return "disappear_delay_s is fixed at 0: the S3 does the debouncing";
+    }
+    if (p->lock_time_ds != RB_C4002_LOCK_TIME_DS) {
+        return "lock_time_ds is fixed at 2: the S3 does the debouncing";
     }
     if ((p->motion_gate_mask | p->presence_gate_mask) & ~RB_C4002_ALL_GATES) {
         return "gate mask has bits above gate 24";
     }
     const char *why = check_thresholds(p->motion_thresholds);
     return why != NULL ? why : check_thresholds(p->presence_thresholds);
+}
+
+bool rb_data_packet_changed(const rb_packet_t *prev, const rb_packet_t *cur)
+{
+    if (cur->type != RB_MSG_PRESENCE_DATA) {
+        return false;
+    }
+    if (prev == NULL || prev->type != RB_MSG_PRESENCE_DATA) {
+        return true;
+    }
+    return prev->body.presence.valid != cur->body.presence.valid ||
+           prev->body.presence.presence_detected != cur->body.presence.presence_detected;
 }
 
 void rb_c4002_params_merge(rb_c4002_params_t *dst, const rb_c4002_params_t *src, uint16_t m)

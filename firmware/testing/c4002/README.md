@@ -71,8 +71,9 @@ Things to try, in order. Record what you observe for each.
    after `target_state` on 32-bit MCUs (the Python driver parses it packed).
    This driver parses it packed. If earlier tests used the Arduino driver,
    their distance and energy values were wrong.
-2. **Hold time.** `RB_C4002_DISAPPEAR_DELAY_S` and the `hold=` countdown in the
-   summary: a long hold looks like someone "still being there".
+2. **Hold time.** The `hold=` countdown in the summary should stay at 0: a long
+   hold looks like someone "still being there". The disappear delay is fixed at
+   0 and the lock time at 0.2 s in the node firmware; the S3 does the debouncing.
 3. **Range.** Reduce `RB_C4002_RANGE_MAX_CM` to the cooking area, so reflections
    from far walls or other rooms drop out.
 4. **Sensitivity.** Lower `RB_C4002_PRESENCE_SENSITIVITY`.

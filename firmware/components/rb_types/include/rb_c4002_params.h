@@ -19,6 +19,16 @@ extern "C" {
 #define RB_C4002_GATES_80CM 15u
 #define RB_C4002_ALL_GATES 0x01FFFFFFu /* bit i = gate i */
 
+/*
+ * The S3 is the only place that debounces presence, so the radar must not add
+ * a hold of its own. Both holds are pinned to the smallest values the sensor
+ * allows (rb_c4002_params_check() rejects anything else), and the report
+ * period may not be slower than the node's own 500 ms data period.
+ */
+#define RB_C4002_DISAPPEAR_DELAY_S 0u     /* keep reporting a target 0 s after it leaves */
+#define RB_C4002_LOCK_TIME_DS 2u          /* the sensor's minimum (0.2 s) */
+#define RB_C4002_REPORT_PERIOD_MAX_DS 5u  /* 0.5 s */
+
 typedef enum {
     RB_C4002_RES_80CM = 0,            /* 15 gates, up to ~11 m */
     RB_C4002_RES_20CM = 1,            /* 25 gates, up to ~4.9 m */
@@ -39,14 +49,14 @@ enum {
 };
 
 typedef struct {
-    uint8_t report_period_ds;         /* 1..255, 0.1 s units */
+    uint8_t report_period_ds;         /* 1..RB_C4002_REPORT_PERIOD_MAX_DS, 0.1 s units */
     uint16_t range_min_cm;            /* 0..1100 */
     uint16_t range_max_cm;            /* range_min_cm..1100 */
     uint8_t resolution;               /* rb_c4002_resolution_t */
     uint8_t motion_sensitivity;       /* rb_c4002_sensitivity_t */
     uint8_t presence_sensitivity;     /* rb_c4002_sensitivity_t */
-    uint16_t disappear_delay_s;       /* target hold time after it disappears */
-    uint8_t lock_time_ds;             /* 2..100: detection paused after occupied -> empty */
+    uint16_t disappear_delay_s;       /* target hold time after it disappears: pinned to RB_C4002_DISAPPEAR_DELAY_S */
+    uint8_t lock_time_ds;             /* detection paused after occupied -> empty: pinned to RB_C4002_LOCK_TIME_DS */
     uint32_t motion_gate_mask;        /* enabled distance gates, bit i = gate i */
     uint32_t presence_gate_mask;
     uint8_t thresholds_known;         /* RB_C4002_THRESH_* */

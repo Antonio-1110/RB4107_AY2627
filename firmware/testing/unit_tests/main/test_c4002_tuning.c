@@ -11,8 +11,8 @@ static rb_c4002_params_t defaults(void)
         .range_max_cm = 1100,
         .motion_sensitivity = RB_C4002_SENS_MID,
         .presence_sensitivity = RB_C4002_SENS_MID,
-        .disappear_delay_s = 1,
-        .lock_time_ds = 10,
+        .disappear_delay_s = 0,
+        .lock_time_ds = 2,
         .motion_gate_mask = RB_C4002_ALL_GATES,
         .presence_gate_mask = RB_C4002_ALL_GATES,
     };
@@ -91,6 +91,18 @@ static void test_params_check(void)
     p = defaults();
     p.lock_time_ds = 1;
     TEST_ASSERT_NOT_NULL(rb_c4002_params_check(&p));
+    /* The radar may not add a hold of its own: the S3 does the debouncing. */
+    p = defaults();
+    p.lock_time_ds = 10;
+    TEST_ASSERT_NOT_NULL(rb_c4002_params_check(&p));
+    p = defaults();
+    p.disappear_delay_s = 1;
+    TEST_ASSERT_NOT_NULL(rb_c4002_params_check(&p));
+    p = defaults();
+    p.report_period_ds = 6;
+    TEST_ASSERT_NOT_NULL(rb_c4002_params_check(&p));
+    p.report_period_ds = 1;
+    TEST_ASSERT_NULL(rb_c4002_params_check(&p));
     p = defaults();
     p.presence_sensitivity = RB_C4002_SENS_CUSTOM; /* no thresholds known yet */
     TEST_ASSERT_NOT_NULL(rb_c4002_params_check(&p));
@@ -111,7 +123,7 @@ static void test_merge_only_masked_fields(void)
     in.motion_thresholds[0] = 42;
     rb_c4002_params_merge(&cur, &in, RB_C4002_F_RANGE_MAX | RB_C4002_F_MOTION_THRESH);
     TEST_ASSERT_EQUAL(300, cur.range_max_cm);
-    TEST_ASSERT_EQUAL(10, cur.lock_time_ds);
+    TEST_ASSERT_EQUAL(2, cur.lock_time_ds);
     TEST_ASSERT_EQUAL(42, cur.motion_thresholds[0]);
     TEST_ASSERT_EQUAL(RB_C4002_SENS_CUSTOM, cur.motion_sensitivity);
     TEST_ASSERT_EQUAL(RB_C4002_SENS_MID, cur.presence_sensitivity);
@@ -126,7 +138,7 @@ static void test_cmd_parse_apply(void)
     TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\": 2, \"type\": \"c4002_command\", \"request_id\": 77,"
                                    " \"controller_id\": \"controller_01\", \"action\": \"apply\","
                                    " \"range_min_cm\": 30, \"range_max_cm\": 300, \"resolution_cm\": 20,"
-                                   " \"presence_sensitivity\": \"low\", \"lock_time_ds\": 20,"
+                                   " \"presence_sensitivity\": \"low\", \"lock_time_ds\": 2,"
                                    " \"presence_gates\": [1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}",
                                    &cmd, err),
                              err);
@@ -141,6 +153,16 @@ static void test_cmd_parse_apply(void)
     TEST_ASSERT_EQUAL(RB_C4002_RES_20CM, cmd.msg.params.resolution);
     TEST_ASSERT_EQUAL(RB_C4002_SENS_LOW, cmd.msg.params.presence_sensitivity);
     TEST_ASSERT_EQUAL_HEX32(0x01FFFF7Fu, cmd.msg.params.presence_gate_mask);
+}
+
+static void test_cmd_rejects_radar_holds(void)
+{
+    rb_c4002_cmd_t cmd;
+    char err[64];
+    TEST_ASSERT_FALSE(parse("{\"type\":\"c4002_command\",\"request_id\":6,\"action\":\"apply\",\"lock_time_ds\":10}", &cmd, err));
+    TEST_ASSERT_FALSE(parse("{\"type\":\"c4002_command\",\"request_id\":6,\"action\":\"apply\",\"disappear_delay_s\":1}", &cmd, err));
+    TEST_ASSERT_FALSE(parse("{\"type\":\"c4002_command\",\"request_id\":6,\"action\":\"apply\",\"report_period_ds\":10}", &cmd, err));
+    TEST_ASSERT_TRUE(parse("{\"type\":\"c4002_command\",\"request_id\":6,\"action\":\"apply\",\"lock_time_ds\":2,\"disappear_delay_s\":0}", &cmd, err));
 }
 
 static void test_cmd_parse_calibrate_defaults(void)
@@ -310,6 +332,7 @@ void run_c4002_tuning_tests(void)
     RUN_TEST(test_params_check);
     RUN_TEST(test_merge_only_masked_fields);
     RUN_TEST(test_cmd_parse_apply);
+    RUN_TEST(test_cmd_rejects_radar_holds);
     RUN_TEST(test_cmd_parse_calibrate_defaults);
     RUN_TEST(test_cmd_parse_rejects);
     RUN_TEST(test_cmd_topic);
