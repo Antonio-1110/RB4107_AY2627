@@ -79,7 +79,8 @@ function phase(values, age, elapsed) {
     mode = values.shutdown_counts_from,
     { warn: warnAt, stop: stopAt } = limits(values),
     filter = values.presence_filter,
-    unattended = runningValue(values.unattended_seconds, age("unattended_seconds"), true, elapsed);
+    // the clock stands still while someone is at the stove (the pause)
+    unattended = runningValue(values.unattended_seconds, age("unattended_seconds"), values.paused !== true, elapsed);
   const out = { style: "cd-idle", title: "Waiting for the controller", detail: "", clock: null, label: "", fill: 0 };
 
   if (!state) return out;
@@ -134,6 +135,14 @@ function phase(values, age, elapsed) {
           : "Cooking and no one confirmed at the stove. A person returning for the \"return after\" time cancels it.";
       out.clock = toWarn;
       out.label = "until the buzzer";
+    }
+    if (values.paused === true) {
+      out.title = `${state === "warning" ? "Warning" : "Unattended"}: paused, someone is at the stove`;
+      out.detail =
+        `The clock stands still while someone is detected (${number(values.pause_used_seconds) ? values.pause_used_seconds.toFixed(0) : "?"} of ` +
+        `${number(values.pause_budget_seconds) ? values.pause_budget_seconds.toFixed(0) : "?"} s of pause used). ` +
+        `Staying ${number(filter && filter.return_seconds) ? filter.return_seconds : "a few"} s cancels the timeline.`;
+      out.label = "paused";
     }
     if (values.presence_unknown === true) out.detail += " Presence sensor unknown, so presence counts as absent.";
     return out;
@@ -197,7 +206,15 @@ function liveLines(values, age, elapsed) {
       : `Cooking: ${cooking === true ? "yes" : cooking === false ? "no" : "not reported"}${phase} · hottest pixel ${hot}${trend}` +
           (number(values.cooking_on_c) ? ` (from ${values.cooking_on_c.toFixed(1)} °C, over below ${number(values.cooking_off_c) ? values.cooking_off_c.toFixed(1) : "—"} °C)` : ""),
   );
-  let person = values.occupied === true ? "present" : values.occupied === false ? "absent" : "unknown";
+  let person =
+    values.occupied === true
+      ? "at the stove"
+      : values.occupied === false
+        ? values.nearby === true
+          ? "nearby, not at the stove"
+          : "absent"
+        : "unknown";
+  if (values.paused === true) person += ` · clock paused (${number(values.pause_used_seconds) ? values.pause_used_seconds.toFixed(0) : "?"} s of ${number(values.pause_budget_seconds) ? values.pause_budget_seconds.toFixed(0) : "?"} s)`;
   const absent = runningValue(values.absent_seconds, age("absent_seconds"), number(values.absent_seconds) && values.absent_seconds > 0, elapsed),
     returning = runningValue(values.returning_seconds, age("returning_seconds"), number(values.returning_seconds) && values.returning_seconds > 0, elapsed);
   if (filter && number(absent) && absent > 0) person += ` · absence counted ${s1(Math.min(absent, filter.absence_seconds))} of ${s1(filter.absence_seconds)}`;
@@ -207,7 +224,7 @@ function liveLines(values, age, elapsed) {
   set(
     "cd-timer-live",
     number(values.unattended_seconds)
-      ? `Timer: ${["unattended", "warning"].includes(values.safety_state) ? `unattended ${s1(runningValue(values.unattended_seconds, age("unattended_seconds"), true, elapsed))}` : "not running"} · buzzer at ${seconds0(limits(values).warn)}, shutdown at ${seconds0(limits(values).stop)}` +
+      ? `Timer: ${["unattended", "warning"].includes(values.safety_state) ? `unattended ${s1(runningValue(values.unattended_seconds, age("unattended_seconds"), values.paused !== true, elapsed))}${values.paused === true ? " (paused)" : ""}` : "not running"} · buzzer at ${seconds0(limits(values).warn)}, shutdown at ${seconds0(limits(values).stop)}` +
           (values.tier && values.tier !== "normal" ? ` (${TIER_LABEL[values.tier]})` : "")
       : "Timer: not reported",
   );

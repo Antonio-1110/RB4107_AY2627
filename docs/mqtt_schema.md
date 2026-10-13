@@ -63,7 +63,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
                        "critical": {"temp_c": 200.0, "rate_c_per_min": 20.0, "rate_min_temp_c": 150.0,
                                     "warning_ms": 30000, "shutdown_ms": 120000}},
              "presence_unknown": false, "thermal_lost": false, "absent_ms": 0, "returning_ms": 0,
-             "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
+             "presence_filter": {"absence_ms": 2000, "return_ms": 5000, "return_gap_ms": 1000,
+                                 "fusion": "all", "pause_budget_cfg_ms": 30000, "pause_budget_pct": 25,
+                                 "attendance_source": "menuconfig",
                                  "source": "menuconfig"},
              "cooking": {"active": true, "phase": "holding", "rate_c_per_min": 0.1, "settle_c": 98.7,
                          "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
@@ -91,6 +93,12 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   The controller publishes `controller/state` immediately whenever presence,
   cooking or one of these flags changes (at most every 200 ms), in addition to
   the periodic message; all four fields are absent from older firmware.
+- `nearby` is somebody near either radar. `presence_state` is *at the stove*: with
+  two radars and `presence_filter.fusion` `all`, PRESENT only when every working
+  radar sees someone. `safety.paused`, `pause_used_ms` and `pause_budget_ms` say
+  whether the unattended clock is stopped for someone at the stove, and how much
+  of the pause budget is used (see
+  [safety_state_machine.md](safety_state_machine.md#who-is-at-the-stove-and-the-pause)).
 - `presence_state` is the two radars combined, exactly as the safety state
   machine used it: `PRESENT` if either radar sees a person, `ABSENT` only if
   both give a valid "absent", `UNKNOWN` otherwise.

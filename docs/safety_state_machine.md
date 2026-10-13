@@ -34,7 +34,7 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 | MONITORING | hottest pixel < `heat_off_temp_c` (hysteresis) | IDLE |
 | MONITORING | absent for `absence_debounce_ms` | UNATTENDED |
 | UNATTENDED | self-test not passed, or `safety_fault` | FAULT |
-| UNATTENDED | present for `presence_return_debounce_ms` (see presence filter) | MONITORING |
+| UNATTENDED | someone at the stove for `presence_return_debounce_ms` (5 s, see "Who is at the stove, and the pause") | MONITORING |
 | UNATTENDED | the pan dropped below the cooking temperature (cooling policy = return-to-idle, the default) | IDLE |
 | UNATTENDED | unattended ≥ `warning_timeout_ms`, unless held (see "Holds") | WARNING |
 | WARNING | self-test not passed, or `safety_fault` | FAULT |
@@ -76,9 +76,10 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
   absence timer starts at the first "absent" and only a *confirmed* return
   stops it, so radar noise can't keep absence from ever being confirmed.
   A return must last `presence_return_debounce_ms`
-  (default 3 s) before it cancels UNATTENDED or WARNING, so a single reading
-  (a hand waved at the radar, someone walking past) leaves the unattended
-  timer running. "Absent" gaps shorter than `presence_return_gap_ms`
+  (default 5 s) before it cancels UNATTENDED or WARNING, so a single reading
+  (a hand waved at the radar, someone walking past) cancels nothing; the
+  clock only pauses meanwhile (see "Who is at the stove, and the pause").
+  "Absent" gaps shorter than `presence_return_gap_ms`
   (default 1 s) don't restart the return count, but the person must still be
   detected when it completes. UNKNOWN presence stops the return count at
   once. Blips more frequent than the gap tolerance for the whole return time
@@ -152,6 +153,43 @@ real cookware; `tools/diagnostics/cooling_sweep.c` and
 
 So the demo needs the profile to be roughly right for the cookware on the stove.
 When unsure, pick the shorter one.
+
+## Who is at the stove, and the pause
+
+False presence is the dangerous mistake: a person walking behind the sensor can
+cancel the timeline and leave the gas on with nobody at the stove. Two rules
+limit it.
+
+**1. Someone only counts as at the stove when every working radar sees them.**
+With two radars, a person seen by one radar only (a rear-lobe echo, someone
+behind the sensor) is *nearby*, not at the stove. A radar that is down is not
+asked, and with no working radar the presence is unknown. The dashboard shows
+both: "at the stove" is what the safety logic uses, "nearby" is either radar
+(the earlier, looser meaning). Setting: `RB_CTRL_PRESENCE_FUSION`, or
+Tuning, Rules, "At the stove when".
+
+**2. A pass pauses the clock; staying cancels the timeline.** While someone is
+at the stove on an unattended timeline (UNATTENDED or WARNING), the clock stands
+still, so only time with nobody there counts. If they stay
+`presence_return_debounce_ms` (5 s), the timeline is cancelled as before. If
+they leave sooner, the clock resumes from where it stopped.
+
+| Situation | Result |
+|---|---|
+| Walker passes in 2 s | clock paused for 2 s, nothing reset |
+| Cook glances at the pot for 4 s | paused for 4 s, nothing reset |
+| Cook stays 5 s or more | timeline cancelled |
+| Walker lingers 5 s or more where every radar sees them | looks like a cook: cancelled |
+
+A pause postpones the buzzer and the shutdown while the pan keeps heating, so it
+has a **budget per timeline**: at most `RB_SAFETY_PAUSE_BUDGET_S` (30 s) in total
+and at most `RB_SAFETY_PAUSE_BUDGET_PCT` (25 %) of the shutdown time in force.
+For oil in the critical tier (120 s shutdown) that is at most 30 s of delay. The
+budget starts over when the timeline is cancelled. 0 turns the pause off. The
+bounded "return hold" below still applies when a transition comes due just as
+someone appears. What is *not* done: telling a walker from a cook by the radar's
+moving or stationary state, or by distance. That needs real recordings first; the
+pause and the 5 s cancel do not depend on it.
 
 ## Temperature tiers: the hotter the pan, the shorter the time
 

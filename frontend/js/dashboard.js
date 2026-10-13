@@ -18,6 +18,7 @@ import { renderPresenceFilter } from "./presence_filter.js";
 import { renderCountdown } from "./countdown.js";
 import { renderCookware } from "./cookware.js";
 import { renderTiers } from "./tiers.js";
+import { renderAttendance } from "./attendance.js";
 import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
@@ -435,7 +436,13 @@ function renderDevice(device) {
   metric(
     "presence",
     "occupied",
-    value.occupied === true ? "Present" : value.occupied === false ? "Absent" : "Unknown",
+    value.occupied === true
+      ? "At the stove"
+      : value.occupied === false
+        ? value.nearby === true
+          ? "Nearby"
+          : "Absent"
+        : "Unknown",
   );
   metric(
     "temperature",
@@ -492,6 +499,7 @@ function renderDevice(device) {
   renderCountdown(device);
   renderCookware(device);
   renderTiers(device);
+  renderAttendance(device);
   renderTuning(device);
   renderDetailAlert(device);
 }

@@ -66,13 +66,13 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 1. **Presence filter and timers** in the Countdown card (rules 2 and 3): five fields in
    seconds, **Apply** and **Menuconfig values**. They call
    `POST /api/devices/<id>/presence_filter/` with
-   `{"absence_ms":1000,"return_ms":3000,"return_gap_ms":1000,"warning_ms":180000,"shutdown_ms":300000}`
+   `{"absence_ms":1000,"return_ms":5000,"return_gap_ms":1000,"warning_ms":180000,"shutdown_ms":300000}`
    or `{"defaults":true}`.
 2. Django publishes on `<prefix>/controller/command`:
 
    ```json
    {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
-    "request_id":8,"action":"presence_filter","absence_ms":1000,"return_ms":3000,"return_gap_ms":1000,
+    "request_id":8,"action":"presence_filter","absence_ms":1000,"return_ms":5000,"return_gap_ms":1000,
     "warning_ms":180000,"shutdown_ms":300000}
    ```
 
@@ -95,6 +95,24 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 
 The same limits as the reset apply: no login, so turn
 `RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
+
+## Attendance: who is at the stove, and the pause budget
+
+The Person rule (Tuning → Rules) also holds the **attendance** settings: whether
+someone counts as at the stove when every working radar sees them or either
+does, and how long a person passing may stop the unattended clock (per timeline,
+in seconds and as a share of the shutdown time in force; 0 = never pause). The
+"Stays this long to cancel" field above it is the 5 s that cancels the timeline.
+**Apply attendance** calls `POST /api/devices/<id>/attendance/` with
+
+```json
+{"pause_budget_s": 30, "pause_budget_pct": 25, "fusion": "all"}
+```
+
+or `{"defaults": true}`. Limits: 0-600 s, 0-100 %, `fusion` `all` or `any`. The
+controller keeps the values in NVS (they survive a reboot) and reports them in
+`safety.presence_filter` (`fusion`, `pause_budget_cfg_ms`, `pause_budget_pct`,
+`attendance_source`). Menuconfig: `RB_CTRL_REMOTE_ATTENDANCE`.
 
 ## Temperature tiers
 

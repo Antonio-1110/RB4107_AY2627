@@ -293,11 +293,40 @@
                 >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
               /></label>
               <label
-                >Return after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
+                >Stays this long to cancel (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
               /></label>
               <label
                 >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
               /></label>
+            </div>
+            <div class="at-block" data-show="tuning">
+              <p class="eyebrow">AT THE STOVE (attendance)</p>
+              <p class="muted small">
+                Someone passing stops the clock while they are detected; staying the time above
+                cancels the timeline. The pause has a budget so a busy aisle cannot stall it.
+              </p>
+              <div class="tuning-grid presence-filter-grid">
+                <label
+                  >Pause budget (s, 0 = never)<input id="at-budget" type="number" min="0" max="600" step="1"
+                /></label>
+                <label
+                  >... at most (% of shutdown)<input id="at-pct" type="number" min="0" max="100" step="1"
+                /></label>
+                <label
+                  >At the stove when
+                  <select id="at-fusion">
+                    <option value="all">every radar sees them</option>
+                    <option value="any">either radar sees them</option>
+                  </select></label
+                >
+              </div>
+              <div class="reset-actions">
+                <button id="at-apply" class="primary-button" type="button" disabled>Apply attendance</button>
+                <button id="at-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig values
+                </button>
+                <p id="at-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
             </div>
           </section>
           <section class="card cd-rule" aria-labelledby="cd-timer-title">
