@@ -97,10 +97,53 @@ static void test_bad_commands_are_rejected(void)
     }
 }
 
+static void test_thermal_threshold_is_parsed(void)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":11,\"action\":\"thermal_threshold\",\"hot_pixel_threshold_dc\":625}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_THERMAL_THRESHOLD, cmd.action);
+    TEST_ASSERT_EQUAL_UINT16(625, cmd.hot_pixel_threshold_dc);
+
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":12,\"action\":\"thermal_threshold_defaults\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_THERMAL_THRESHOLD_DEFAULTS, cmd.action);
+}
+
+static void test_bad_thermal_thresholds_are_rejected(void)
+{
+#define HEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
+    static const char *const bad[] = {
+        /* missing, above the limit, negative, a fraction or a string */
+        HEAD "\"action\":\"thermal_threshold\"}",
+        HEAD "\"action\":\"thermal_threshold\",\"hot_pixel_threshold_dc\":3001}",
+        HEAD "\"action\":\"thermal_threshold\",\"hot_pixel_threshold_dc\":-10}",
+        HEAD "\"action\":\"thermal_threshold\",\"hot_pixel_threshold_dc\":50.5}",
+        HEAD "\"action\":\"thermal_threshold\",\"hot_pixel_threshold_dc\":\"500\"}",
+        /* the threshold with another action */
+        HEAD "\"action\":\"thermal_threshold_defaults\",\"hot_pixel_threshold_dc\":500}",
+        HEAD "\"action\":\"reset\",\"hot_pixel_threshold_dc\":500}",
+    };
+#undef HEAD
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        rb_ctrl_cmd_t cmd;
+        char err[80];
+        TEST_ASSERT_FALSE_MESSAGE(parse(bad[i], &cmd, err), bad[i]);
+        TEST_ASSERT_TRUE(err[0] != '\0');
+    }
+}
+
 void run_ctrl_cmd_tests(void)
 {
     RUN_TEST(test_reset_is_parsed);
     RUN_TEST(test_bad_commands_are_rejected);
     RUN_TEST(test_presence_filter_is_parsed);
     RUN_TEST(test_bad_presence_filters_are_rejected);
+    RUN_TEST(test_thermal_threshold_is_parsed);
+    RUN_TEST(test_bad_thermal_thresholds_are_rejected);
 }

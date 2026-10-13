@@ -16,6 +16,15 @@ esp_err_t node_thermal_start(void);
 void node_thermal_get(thermal_reading_t *out, bool *no_data);
 
 /*
+ * Hot-pixel threshold (degC) used from the next frame on: counted in
+ * pixels_above_threshold and shown on the heat map. Starts at
+ * RB_THERMAL_HOT_PIXEL_THRESHOLD_DC; the dashboard can change it
+ * (node_thermal_remote.h).
+ */
+void node_thermal_set_hot_threshold(float threshold_c);
+float node_thermal_hot_threshold(void);
+
+/*
  * Latest heat-map picture, if it is newer than *number (pass the number from
  * the previous call, 0 the first time). Display only. Always false with
  * RB_THERMAL_HEATMAP off.

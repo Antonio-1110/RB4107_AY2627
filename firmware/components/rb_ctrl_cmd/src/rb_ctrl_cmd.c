@@ -87,6 +87,7 @@ enum {
     SEEN_RETURN = 64,
     SEEN_GAP = 128,
     SEEN_FILTER = SEEN_ABSENCE | SEEN_RETURN | SEEN_GAP,
+    SEEN_HOT = 256,
 };
 
 /* One of the filter values: an integer 0..max milliseconds. */
@@ -162,8 +163,14 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_PRESENCE_FILTER;
                 } else if (is_str && strcmp(str, "presence_filter_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS;
+                } else if (is_str && strcmp(str, "thermal_threshold") == 0) {
+                    out->action = RB_CTRL_ACTION_THERMAL_THRESHOLD;
+                } else if (is_str && strcmp(str, "thermal_threshold_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_THERMAL_THRESHOLD_DEFAULTS;
                 } else {
-                    fail(err, err_len, "action must be reset, presence_filter or presence_filter_defaults");
+                    fail(err, err_len,
+                         "action must be reset, presence_filter, presence_filter_defaults, thermal_threshold or "
+                         "thermal_threshold_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -181,6 +188,13 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                 if (!filter_value(key, is_str, num, RB_CTRL_RETURN_GAP_MAX_MS, &out->return_gap_ms, err, err_len)) {
                     return false;
                 }
+            } else if (strcmp(key, "hot_pixel_threshold_dc") == 0) {
+                bit = SEEN_HOT;
+                if (is_str || num > RB_CTRL_HOT_PIXEL_MAX_DC) {
+                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_HOT_PIXEL_MAX_DC);
+                    return false;
+                }
+                out->hot_pixel_threshold_dc = (uint16_t)num;
             } else {
                 fail(err, err_len, "unknown key '%s'", key);
                 return false;
@@ -208,6 +222,10 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     const unsigned filter = seen & SEEN_FILTER;
     if (out->action == RB_CTRL_ACTION_PRESENCE_FILTER ? filter != SEEN_FILTER : filter != 0) {
         fail(err, err_len, "absence_ms, return_ms and return_gap_ms go with presence_filter only, all three");
+        return false;
+    }
+    if ((out->action == RB_CTRL_ACTION_THERMAL_THRESHOLD) != ((seen & SEEN_HOT) != 0)) {
+        fail(err, err_len, "hot_pixel_threshold_dc goes with thermal_threshold only, and it needs it");
         return false;
     }
     return true;

@@ -7,10 +7,12 @@
  * The controller (firmware/controller) runs the safety state machine on those
  * features. Separately, and for display only, it sends a 1-byte-per-pixel
  * heat-map picture every RB_THERMAL_HEATMAP_PERIOD_MS (THERMAL_FRAME).
+ * The dashboard can change its hot-pixel threshold (THERMAL_CONFIG).
  */
 #include <stdio.h>
 #include "esp_log.h"
 #include "node_thermal.h"
+#include "node_thermal_remote.h"
 #include "rb_config.h"
 #include "rb_log.h"
 #include "rb_node_board.h"
@@ -67,6 +69,7 @@ void app_main(void)
     rb_node_board_start("thermal node (MLX90640)");
 
     /* The thermal task keeps retrying a missing sensor; meanwhile the node reports it as a fault. */
+    node_thermal_remote_load();
     ESP_ERROR_CHECK(node_thermal_start());
     const rb_node_link_config_t link = {
         .role = RB_NODE_ROLE_THERMAL,
@@ -77,4 +80,7 @@ void app_main(void)
 #endif
     };
     ESP_ERROR_CHECK(rb_node_link_start(&link));
+    if (node_thermal_remote_start() != ESP_OK) {
+        ESP_LOGE("THERMAL_CFG", "dashboard threshold not started; the menuconfig or saved value stays");
+    }
 }

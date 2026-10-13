@@ -14,7 +14,7 @@ The system has three nodes, each with one sensor:
 | presence node B | `presence_node` (built with `sdkconfig.node_b`) | 2 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
 | thermal node | `thermal_node` | 3 | thermal | THERMAL_DATA, HEARTBEAT, SENSOR_FAULT, THERMAL_FRAME |
 | valve node (optional, wireless version) | `valve_node` (built with `sdkconfig.wireless`) | 4 | valve | VALVE_STATUS |
-| controller | `controller` (with `RB_CTRL_VALVE_WIRELESS`) | 0 | controller | VALVE_COMMAND |
+| controller | `controller` (with `RB_CTRL_VALVE_WIRELESS`) | 0 | controller | VALVE_COMMAND, C4002_CONFIG, THERMAL_CONFIG |
 
 The controller only sends when the wireless valve node is turned on. Then it
 is the one sender that isn't a node, so its node ID is 0.
@@ -52,7 +52,7 @@ packet.
 |---|---|---|---|
 | 0 | 2 | magic | `0x52 0x42` ("RB") |
 | 2 | 1 | protocol_version | `2` |
-| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE, `10` THERMAL_FRAME |
+| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE, `10` THERMAL_FRAME, `11` THERMAL_CONFIG |
 | 4 | 1 | node_role | `1` presence, `2` thermal, `3` valve, `4` controller |
 | 5 | 4 | node_id | `CONFIG_RB_NODE_ID` of the sender |
 | 9 | 4 | sequence | +1 for every packet the node sends (all types except THERMAL_FRAME, which carries its frame number here) |
@@ -255,10 +255,30 @@ safety packets".
 | 19 | 2 | base | int16, 0.01 °C: temperature of pixel value 0 |
 | 21 | 2 | step | uint16, 0.01 °C per pixel value (≥ 1) |
 | 23 | 4 | timestamp | node ms of the frame |
-| 27 | 2 | hot threshold | int16, 0.01 °C: the node's `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` |
+| 27 | 2 | hot threshold | int16, 0.01 °C: the threshold the node uses now (`RB_THERMAL_HOT_PIXEL_THRESHOLD_DC`, or the dashboard's, see THERMAL_CONFIG) |
 | 29 | 1 | hot-region radius | the node's `RB_THERMAL_HOT_REGION_RADIUS` (pixels) |
 | 30 | 192 | pixels | 1 byte per pixel, row by row, 32 per row |
 | 222 | 2 | CRC | |
+
+## THERMAL_CONFIG (type 11, 28 bytes total)
+
+Controller → thermal node: the hot-pixel threshold set on the dashboard
+([remote_reset.md](remote_reset.md#hot-pixel-threshold)). Only the controller
+role may send it. The node checks that it came from `RB_NODE_CONTROLLER_MAC`
+and names its own node ID, uses the value from the next frame and saves it in
+NVS. There is no answer message: the threshold in use is in every
+THERMAL_FRAME piece (offset 27).
+
+| Offset | Size | Field | Encoding |
+|---|---|---|---|
+| 17 | 4 | target node ID | the thermal node's `RB_NODE_ID` |
+| 21 | 2 | request ID | the dashboard's, for the logs |
+| 23 | 1 | action | `1` set (use and save the threshold), `2` defaults (erase the saved one, back to menuconfig) |
+| 24 | 2 | hot threshold | int16, 0.01 °C (set only; the node accepts -40.00 – 300.00 °C) |
+| 26 | 2 | CRC | |
+
+Added without a version bump, like messages 5 to 10: the presence and valve
+nodes don't need reflashing.
 
 The threshold and radius let the dashboard draw what the node's own hot-pixel
 count and hot-region temperature are based on.
