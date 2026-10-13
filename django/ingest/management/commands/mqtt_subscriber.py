@@ -16,7 +16,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from ingest import handlers
+from ingest import handlers, retention
 from ingest.subscriber import Subscriber
 from ingest.storage import record_rejection, worker_status
 
@@ -63,7 +63,18 @@ class Command(BaseCommand):
     @staticmethod
     def _report(subscriber: Subscriber, stop: threading.Event, interval: int) -> None:
         last_log = time.monotonic()
+        interval_s = settings.RB4107_RETENTION_INTERVAL_S
+        next_prune = time.monotonic() + 60  # first clean-up a minute after start
         while not stop.wait(2):
+            if interval_s > 0 and time.monotonic() >= next_prune:
+                next_prune = time.monotonic() + interval_s
+                close_old_connections()
+                try:
+                    retention.prune()
+                except Exception:
+                    log.exception("retention clean-up failed")
+                finally:
+                    close_old_connections()
             close_old_connections()
             try:
                 worker_status(subscriber.subscribed.is_set() and not subscriber.last_error,

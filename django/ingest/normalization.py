@@ -42,6 +42,17 @@ def _flags(safety):
             "returning_seconds": _seconds(safety.get("returning_ms"))}
 
 
+def _cooking_trend(safety):
+    """Firmware since 2026-10-15 judges from the temperature trend whether heat is going in (cooling pans
+    hold the buzzer and shutdown back), and reports the cookware profile; older firmware doesn't."""
+    cooking = safety.get("cooking") if isinstance(safety.get("cooking"), dict) else {}
+    cookware = safety.get("cookware") if isinstance(safety.get("cookware"), dict) else {}
+    return {"cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),
+            "cooking_settle_c": finite(cooking.get("settle_c")), "hold": safety.get("hold"),
+            "cookware_profile": cookware.get("profile"), "cookware_tau_s": finite(cookware.get("tau_s")),
+            "cookware_source": cookware.get("source")}
+
+
 def thermal_fields(thermal):
     valid = thermal.get("valid") is True
     mapping = {"temperature_c": "max_c", "temperature_avg_c": "mean_c",
@@ -83,6 +94,7 @@ def normalize(message):
             presence_filter=_presence_filter(safety.get("presence_filter")),
             **_cooking(safety.get("cooking")),
             **_flags(safety),
+            **_cooking_trend(safety),
             faults=data["faults"],
             simulation=data.get("simulation") is True,
             protocol_version=data["protocol_version"],

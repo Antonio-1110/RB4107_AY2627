@@ -120,6 +120,30 @@ def build_cooking_temp_command(controller_id: str, body: dict) -> dict:
     return command
 
 
+COOKWARE_PROFILES = ("mixed", "light", "heavy", "liquid")
+
+
+def build_cookware_command(controller_id: str, body: dict) -> dict:
+    """{"cookware": "light"} picks the controller's cookware profile (how fast the pans lose heat),
+    which it saves; {"defaults": true} goes back to the menuconfig profile."""
+    if not isinstance(body, dict):
+        raise CommandError("body must be a JSON object")
+    if body == {"defaults": True}:
+        values, action = {}, "cookware_defaults"
+    else:
+        value = body.get("cookware")
+        if set(body) != {"cookware"} or value not in COOKWARE_PROFILES:
+            raise CommandError(f'send {{"cookware": one of {", ".join(COOKWARE_PROFILES)}}}, or {{"defaults": true}}')
+        values, action = {"cookware": value}, "cookware"
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
 def controller_prefix(controller_id: str) -> str:
     """The configured prefix with a '+' level filled in: with rb4107/+/# every
     controller has its own rb4107/<controller_id> tree, and a command must go

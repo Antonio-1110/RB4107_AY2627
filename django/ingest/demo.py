@@ -12,16 +12,17 @@ import math
 from django.utils import timezone
 
 SCENARIOS = ("monitoring", "unattended", "warning", "shutdown", "idle", "fault_radars",
-             "fault_node_offline", "network_loss")
+             "fault_node_offline", "network_loss", "cooling")
 # Without a scenario (tests, older catalogues) the index picks one, as before.
 BY_INDEX = ("monitoring", "shutdown", "unattended", "warning", "monitoring", "idle", "fault_radars",
             "warning", "monitoring")
 STATE = {"monitoring": "MONITORING", "unattended": "UNATTENDED", "warning": "WARNING",
          "shutdown": "SHUTDOWN", "idle": "IDLE", "fault_radars": "UNATTENDED", "fault_node_offline": "MONITORING",
-         "network_loss": "MONITORING"}
+         "network_loss": "MONITORING", "cooling": "UNATTENDED"}
 TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
 SHUTDOWN_CYCLE_S = 600
+COOLING_CYCLE_S = 420
 
 # network_loss: online, then silent (the dashboard marks it stale), then the
 # broker reports it offline (the controller's MQTT Last Will), then back.
@@ -46,6 +47,10 @@ def _pan_temperature(scenario, index, tick):
     seconds = tick * TICK_S
     if scenario == "idle":
         return COOK_C + math.sin(tick / 9 + index) * 0.5, 0.0
+    if scenario == "cooling":  # burner off, nobody there: the pan cools by itself (tau 3 min)
+        t = seconds % COOLING_CYCLE_S
+        excess = (140 - COOK_C) * math.exp(-t / 180)
+        return COOK_C + excess, -excess / 180 * 60
     if scenario == "shutdown":  # gas cut: cools towards room temperature
         since_cut = seconds % SHUTDOWN_CYCLE_S
         excess = (110 - COOK_C) * math.exp(-since_cut / 240)
@@ -61,6 +66,9 @@ def _timers(scenario, tick):
     # fault_radars: presence unknown while cooking counts as absent, so the same timeline runs
     if scenario in {"unattended", "fault_radars"}:  # left the stove 10-55 s ago (warning at 60 s)
         unattended = 10 + seconds % 46
+        return unattended * 1000, unattended * 1000
+    if scenario == "cooling":  # past the warning time, but held back while the pan only cools
+        unattended = 75 + seconds % COOLING_CYCLE_S
         return unattended * 1000, unattended * 1000
     if scenario == "warning":  # 60-88 s (supply cut at 90 s)
         unattended = 60 + seconds % 29
@@ -109,13 +117,18 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                    "shutdown": state == "SHUTDOWN", "test_timers": False},
         "faults": faults,
     }
+    phase = "off" if scenario in {"idle", "shutdown"} else "cooling" if scenario == "cooling" else "holding"
     if boot_id:
         data["boot_id"] = boot_id
         data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=60000,
                               shutdown_after_ms=90000, shutdown_counts_from="UNATTENDED",
                               presence_filter={"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                                "source": "menuconfig"},
-                              cooking={"active": temp >= 50.0, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
+                              cooking={"active": temp >= 40.0, "phase": phase, "rate_c_per_min": round(rate, 2),
+                                       "settle_c": COOK_C if phase == "cooling" else round(temp, 1),
+                                       "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
+                              cookware={"profile": "light", "tau_s": 300, "source": "menuconfig"},
+                              hold="cooling" if scenario == "cooling" else "none",
                               presence_unknown=presence == "UNKNOWN", thermal_lost=False,
                               absent_ms=0, returning_ms=0)
     return data

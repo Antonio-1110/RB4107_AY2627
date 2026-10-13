@@ -104,6 +104,7 @@
             "shutdown_after_ms": {"type": "integer", "minimum": 0, "description": "configured time before SHUTDOWN, counted from shutdown_counts_from"},
             "shutdown_counts_from": {"enum": ["UNATTENDED", "WARNING"]},
             "test_timers": {"type": "boolean"},
+            "hold": {"enum": ["none", "return", "cooling"], "description": "what holds a due buzzer or shutdown back right now: return = the radar sees someone and the return is being confirmed (bounded); cooling = the pan is only cooling down (at most 4 cookware time constants)"},
             "presence_unknown": {"type": "boolean", "description": "flag: presence data missing/invalid. Not FAULT: with nothing cooking it starts no timer; while cooking, presence counts as absent"},
             "thermal_lost": {"type": "boolean", "description": "flag: thermal data missing/invalid. Flag only: cooking is neither assumed nor cancelled"},
             "absent_ms": {"type": "integer", "minimum": 0, "description": "absence debounce progress: time since the absence began, 0 = not running. A presence blip does not reset it; only a confirmed return does"},
@@ -119,12 +120,25 @@
                 "source": {"enum": ["menuconfig", "dashboard"]}
               }
             },
+            "cookware": {
+              "type": "object",
+              "description": "cookware profile in use: sets the cooling time constant the trend is judged with. source dashboard = picked from the dashboard and saved on the controller",
+              "required": ["profile", "tau_s", "source"],
+              "properties": {
+                "profile": {"enum": ["mixed", "light", "heavy", "liquid"]},
+                "tau_s": {"$ref": "#/$defs/nullable_number"},
+                "source": {"enum": ["menuconfig", "dashboard"]}
+              }
+            },
             "cooking": {
               "type": "object",
               "description": "cooking temperatures in use: IDLE -> MONITORING when the hottest pixel reaches on_c, back to IDLE below off_c. source dashboard = set from the dashboard and saved on the controller",
               "required": ["on_c", "off_c", "source"],
               "properties": {
                 "active": {"type": "boolean", "description": "cooking detected by the thermal camera (the heat detector's state)"},
+                "phase": {"enum": ["off", "checking", "heating", "holding", "cooling"], "description": "from the temperature trend: heating/holding = heat is going in, cooling = heading for the room temperature, checking = not enough data yet (counts as heat going in)"},
+                "rate_c_per_min": {"$ref": "#/$defs/nullable_number", "description": "fitted rate of the hottest pixel over the last two minutes"},
+                "settle_c": {"$ref": "#/$defs/nullable_number", "description": "where the temperature is heading: T + tau * rate"},
                 "on_c": {"$ref": "#/$defs/nullable_number"},
                 "off_c": {"$ref": "#/$defs/nullable_number"},
                 "source": {"enum": ["menuconfig", "dashboard"]}
@@ -343,7 +357,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile (docs/remote_reset.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -353,7 +367,8 @@
         "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
         "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "cooking_temp",
-                            "cooking_temp_defaults"]},
+                            "cooking_temp_defaults", "cookware", "cookware_defaults"]},
+        "cookware": {"enum": ["mixed", "light", "heavy", "liquid"]},
         "absence_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_gap_ms": {"type": "integer", "minimum": 0, "maximum": 5000},
@@ -372,6 +387,11 @@
           "if": {"properties": {"action": {"const": "cooking_temp"}}},
           "then": {"required": ["cooking_temp_dc"]},
           "else": {"not": {"required": ["cooking_temp_dc"]}}
+        },
+        {
+          "if": {"properties": {"action": {"const": "cookware"}}},
+          "then": {"required": ["cookware"]},
+          "else": {"not": {"required": ["cookware"]}}
         }
       ]
     }
