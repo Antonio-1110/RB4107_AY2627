@@ -38,9 +38,66 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #endif
 }
 
+#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
+/* The thermal node's MAC, learned from its packets, so the dashboard threshold can reach it. */
+static portMUX_TYPE s_thermal_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_thermal_node_id;
+static bool s_thermal_has_mac;
+static uint8_t s_thermal_mac[6];
+
+static void learn_thermal_mac(const rb_espnow_rx_t *rx)
+{
+    static const uint8_t no_mac[6] = {0};
+    if (rx->packet.role != RB_NODE_ROLE_THERMAL || rx->packet.node_id != s_thermal_node_id ||
+        memcmp(rx->src_mac, no_mac, 6) == 0) {
+        return;
+    }
+    portENTER_CRITICAL(&s_thermal_lock);
+    memcpy(s_thermal_mac, rx->src_mac, 6);
+    s_thermal_has_mac = true;
+    portEXIT_CRITICAL(&s_thermal_lock);
+}
+
+/* MQTT task: forward the dashboard's hot-pixel threshold to the thermal node. */
+static void send_thermal_threshold(const rb_ctrl_cmd_t *cmd)
+{
+    uint8_t mac[6];
+    portENTER_CRITICAL(&s_thermal_lock);
+    const bool known = s_thermal_has_mac;
+    memcpy(mac, s_thermal_mac, 6);
+    portEXIT_CRITICAL(&s_thermal_lock);
+    if (!known) {
+        ESP_LOGW(TAG, "hot-pixel threshold not sent: nothing heard from the thermal node since boot");
+        return;
+    }
+    rb_packet_t pkt = {.type = RB_MSG_THERMAL_CONFIG, .role = RB_NODE_ROLE_CONTROLLER, .uptime_ms = rb_time_mono_ms()};
+    pkt.body.thermal_config = (rb_thermal_config_msg_t){
+        .target_node_id = s_thermal_node_id,
+        .request_id = cmd->request_id,
+        .action = cmd->action == RB_CTRL_ACTION_THERMAL_THRESHOLD ? RB_THERMAL_ACTION_SET : RB_THERMAL_ACTION_DEFAULTS,
+        .hot_threshold_centi = (int16_t)(cmd->hot_pixel_threshold_dc * 10),
+    };
+    esp_err_t err = rb_espnow_add_peer(mac);
+    if (err == ESP_OK) {
+        err = rb_espnow_send(mac, &pkt);
+    }
+    if (cmd->action == RB_CTRL_ACTION_THERMAL_THRESHOLD) {
+        ESP_LOGW(TAG, "hot-pixel threshold %.1f C from the dashboard (request %u): %s",
+                 cmd->hot_pixel_threshold_dc / 10.0f, (unsigned)cmd->request_id,
+                 err == ESP_OK ? "sent" : esp_err_to_name(err));
+    } else {
+        ESP_LOGW(TAG, "hot-pixel threshold back to default from the dashboard (request %u): %s",
+                 (unsigned)cmd->request_id, err == ESP_OK ? "sent" : esp_err_to_name(err));
+    }
+}
+#endif
+
 static void node_packet(const rb_espnow_rx_t *rx, void *ctx)
 {
     rb_c4002_relay_on_packet(rx);
+#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
+    learn_thermal_mac(rx);
+#endif
 }
 #if CONFIG_RB_CTRL_VALVE_WIRELESS
 static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
@@ -49,9 +106,9 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 }
 #endif
 
-#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
+#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD
 #define RB_CTRL_COMMANDS 1
-/* MQTT task: operator reset and presence filter sent from the dashboard (docs/remote_reset.md). */
+/* MQTT task: operator reset, presence filter and hot-pixel threshold sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
 {
     rb_ctrl_cmd_t cmd;
@@ -93,6 +150,14 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard presence filter refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_THERMAL_THRESHOLD:
+    case RB_CTRL_ACTION_THERMAL_THRESHOLD_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
+        send_thermal_threshold(&cmd);
+#else
+        ESP_LOGW(TAG, "dashboard hot-pixel threshold refused: turned off in menuconfig (or simulated nodes)");
+#endif
+        break;
     }
 }
 
@@ -112,6 +177,9 @@ esp_err_t rb_controller_app_start(void)
     ESP_LOGI(TAG, "RB4107 controller %s starting, boot %s", CONFIG_RB_MQTT_CONTROLLER_ID, rb_time_boot_id());
 
     const rb_controller_config_t cfg = rb_controller_config_from_kconfig();
+#if CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD && !CONFIG_RB_SIM_NODE
+    s_thermal_node_id = cfg.nodes.thermal_node_id;
+#endif
     ESP_RETURN_ON_ERROR(rb_controller_init(&cfg), TAG, "controller queues");
     rb_app_faults_init(&cfg.nodes);
     if (rb_wallclock_init() != ESP_OK) {

@@ -25,6 +25,7 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static thermal_reading_t s_latest;
 static bool s_have_frame;
 static uint32_t s_frame_ms;
+static float s_hot_threshold_c = CONFIG_RB_THERMAL_HOT_PIXEL_THRESHOLD_DC / 10.0f; /* the dashboard can change it */
 
 #if CONFIG_RB_THERMAL_HEATMAP
 /*
@@ -62,7 +63,7 @@ static void thermal_task(void *arg)
     while (rb_node_thermal_start() != ESP_OK) {
         vTaskDelay(pdMS_TO_TICKS(INIT_RETRY_MS));
     }
-    const thermal_features_config_t cfg = rb_node_thermal_features_config();
+    thermal_features_config_t cfg = rb_node_thermal_features_config();
     thermal_rate_tracker_t tracker;
     thermal_rate_reset(&tracker);
     uint32_t failures = 0;
@@ -76,6 +77,7 @@ static void thermal_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(200));
             continue;
         }
+        cfg.hot_pixel_threshold_c = node_thermal_hot_threshold();
         thermal_reading_t r;
         const uint32_t now = now_ms();
         thermal_features_compute(s_frame, now, &cfg, &tracker, &r, NULL);
@@ -112,6 +114,21 @@ void node_thermal_get(thermal_reading_t *out, bool *no_data)
         out->timestamp_ms = now_ms();
     }
     *no_data = stale;
+}
+
+void node_thermal_set_hot_threshold(float threshold_c)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_hot_threshold_c = threshold_c;
+    portEXIT_CRITICAL(&s_lock);
+}
+
+float node_thermal_hot_threshold(void)
+{
+    portENTER_CRITICAL(&s_lock);
+    const float t = s_hot_threshold_c;
+    portEXIT_CRITICAL(&s_lock);
+    return t;
 }
 
 bool node_thermal_get_heatmap(thermal_frame_t *out, uint32_t *number)

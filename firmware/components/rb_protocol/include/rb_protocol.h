@@ -2,8 +2,9 @@
 
 /*
  * RB4107 sensor-node -> controller protocol over ESP-NOW (TODO section 4),
- * plus the controller <-> valve node messages and the C4002 tuning messages
- * between the controller and the presence nodes.
+ * plus the controller <-> valve node messages, the C4002 tuning messages
+ * between the controller and the presence nodes, and the hot-pixel threshold
+ * the controller sends to the thermal node.
  *
  * The C6 sender and the S3 receiver both compile this one file, so they can't
  * drift apart. Packets are serialised field by field in little-endian order;
@@ -51,7 +52,14 @@ typedef enum {
     RB_MSG_C4002_CONFIG_ACK = 8, /* presence node -> controller */
     RB_MSG_C4002_LIVE = 9,       /* presence node -> controller: raw C4002 result, for the dashboard */
     RB_MSG_THERMAL_FRAME = 10,   /* thermal nodes only: one piece of a heat-map picture (display only) */
+    RB_MSG_THERMAL_CONFIG = 11,  /* controller -> thermal node: hot-pixel threshold from the dashboard */
 } rb_msg_type_t;
+
+/* THERMAL_CONFIG actions. */
+typedef enum {
+    RB_THERMAL_ACTION_SET = 1,       /* use hot_threshold_centi and save it */
+    RB_THERMAL_ACTION_DEFAULTS = 2,  /* forget the saved value, back to the menuconfig one */
+} rb_thermal_action_t;
 
 /* VALVE_COMMAND. Any value other than KEEP_OPEN is treated as CLOSE. */
 typedef enum {
@@ -134,6 +142,7 @@ typedef enum {
 #define RB_BODY_C4002_CONFIG_LEN (13u + RB_C4002_PARAMS_LEN)
 #define RB_BODY_C4002_CONFIG_ACK_LEN (7u + RB_C4002_PARAMS_LEN)
 #define RB_BODY_C4002_LIVE_LEN 27u
+#define RB_BODY_THERMAL_CONFIG_LEN 9u
 #define RB_PKT_PRESENCE_DATA_LEN (RB_HEADER_LEN + RB_BODY_PRESENCE_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_THERMAL_DATA_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_DATA_LEN + RB_CRC_LEN)
 #define RB_PKT_HEARTBEAT_LEN (RB_HEADER_LEN + RB_BODY_HEARTBEAT_LEN + RB_CRC_LEN)
@@ -143,6 +152,7 @@ typedef enum {
 #define RB_PKT_C4002_CONFIG_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_CONFIG_ACK_LEN (RB_HEADER_LEN + RB_BODY_C4002_CONFIG_ACK_LEN + RB_CRC_LEN)
 #define RB_PKT_C4002_LIVE_LEN (RB_HEADER_LEN + RB_BODY_C4002_LIVE_LEN + RB_CRC_LEN)
+#define RB_PKT_THERMAL_CONFIG_LEN (RB_HEADER_LEN + RB_BODY_THERMAL_CONFIG_LEN + RB_CRC_LEN)
 
 /*
  * THERMAL_FRAME: the whole 32x24 MLX90640 picture at 1 byte per pixel, split
@@ -167,7 +177,7 @@ _Static_assert(RB_PKT_MAX_LEN >= RB_PKT_PRESENCE_DATA_LEN && RB_PKT_MAX_LEN >= R
                    RB_PKT_MAX_LEN >= RB_PKT_SENSOR_FAULT_LEN && RB_PKT_MAX_LEN >= RB_PKT_THERMAL_DATA_LEN &&
                    RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_LEN && RB_PKT_MAX_LEN >= RB_PKT_C4002_CONFIG_ACK_LEN &&
                    RB_PKT_MAX_LEN >= RB_PKT_C4002_LIVE_LEN && RB_PKT_MAX_LEN >= RB_PKT_VALVE_COMMAND_LEN &&
-                   RB_PKT_MAX_LEN >= RB_PKT_VALVE_STATUS_LEN,
+                   RB_PKT_MAX_LEN >= RB_PKT_VALVE_STATUS_LEN && RB_PKT_MAX_LEN >= RB_PKT_THERMAL_CONFIG_LEN,
                "RB_PKT_MAX_LEN must cover every message");
 
 typedef struct {
@@ -229,6 +239,14 @@ typedef struct {
     rb_c4002_params_t params;  /* the settings now in use */
 } rb_c4002_ack_t;
 
+/* THERMAL_CONFIG: the hot-pixel threshold (pixels_above_threshold, heat-map overlay). */
+typedef struct {
+    uint32_t target_node_id;     /* RB_NODE_ID of the thermal node this is for */
+    uint16_t request_id;         /* the dashboard's, for the logs */
+    uint8_t action;              /* rb_thermal_action_t */
+    int16_t hot_threshold_centi; /* SET: new threshold, 0.01 °C */
+} rb_thermal_config_msg_t;
+
 /* C4002_LIVE: one detection result as the sensor reported it (no filtering). */
 typedef struct {
     uint8_t target_state;          /* 0 none, 1 stationary, 2 moving (the sensor's own verdict) */
@@ -264,6 +282,7 @@ typedef struct {
         rb_c4002_config_msg_t c4002_config;  /* RB_MSG_C4002_CONFIG */
         rb_c4002_ack_t c4002_ack;            /* RB_MSG_C4002_CONFIG_ACK */
         rb_c4002_live_t c4002_live;          /* RB_MSG_C4002_LIVE */
+        rb_thermal_config_msg_t thermal_config; /* RB_MSG_THERMAL_CONFIG */
     } body;
 } rb_packet_t;
 

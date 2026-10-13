@@ -83,6 +83,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_THERMAL_DIAG_DUMP_EVERY` | Dump the raw frame over serial every N frames (0 = never) | `0` | 0 – 10000 |  |
 | `CONFIG_RB_THERMAL_HEATMAP` | Send the heat-map picture to the controller (dashboard) | `y` |  |  |
 | `CONFIG_RB_THERMAL_HEATMAP_PERIOD_MS` | Heat-map picture period (ms) | `3000` | 1000 – 10000 |  |
+| `CONFIG_RB_THERMAL_REMOTE_THRESHOLD` | Accept the hot-pixel threshold from the dashboard | `y` |  |  |
 
 ## Valve node (servo gas valve)
 
@@ -165,6 +166,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_C4002_REMOTE_TUNING` | Relay C4002 tuning commands from the dashboard to the presence nodes | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_RESET` | Accept the operator reset from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER` | Accept presence filter and buzzer/shutdown times from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_THERMAL_THRESHOLD` | Relay the hot-pixel threshold from the dashboard to the thermal node | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |
@@ -267,7 +269,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Node IDs | `RB_NODE_ID` (each node; 1, 2 = presence, 3 = thermal), `RB_CTRL_PRESENCE_NODE_COUNT`, `RB_CTRL_PRESENCE_A_NODE_ID`, `RB_CTRL_PRESENCE_B_NODE_ID`, `RB_CTRL_THERMAL_NODE_ID` (controller) |
 | Sensor timeouts | `RB_C4002_STALE_TIMEOUT_MS`, `RB_MLX_STALE_TIMEOUT_MS`, `RB_CTRL_NODE_STALE_MS`, `RB_CTRL_NODE_OFFLINE_MS` |
 | Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS` (also live from the dashboard, `RB_CTRL_REMOTE_PRESENCE_FILTER`), C4002 sensor-side settings |
-| Temperature thresholds | `RB_SAFETY_HEAT_ON_DC`, `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` |
+| Temperature thresholds | `RB_SAFETY_HEAT_ON_DC`, `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` (display only, also live from the dashboard, `RB_THERMAL_REMOTE_THRESHOLD`) |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
 | Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |
 | Network interface | `RB_NET_TYPE` (Ethernet with Wi-Fi fallback by default), `RB_NET_FALLBACK_S`, `RB_WIFI_SSID`, `RB_WIFI_PASSWORD` |

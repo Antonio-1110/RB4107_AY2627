@@ -1,4 +1,4 @@
-"""Telemetry API, C4002 tuning, reset and presence filter commands, and the dashboard from the repository's frontend/ folder."""
+"""Telemetry API, C4002 tuning, reset, presence filter and thermal threshold commands, and the dashboard from the repository's frontend/ folder."""
 from django.conf import settings
 from django.urls import path, re_path
 from django.views.static import serve
@@ -16,6 +16,7 @@ urlpatterns = [
     path("api/devices/<str:device_id>/nodes/<str:node>/c4002/", views.c4002_command),
     path("api/devices/<str:device_id>/nodes/<str:node>/c4002/live/", views.c4002_live),
     path("api/devices/<str:device_id>/thermal_frame/", views.thermal_frame),
+    path("api/devices/<str:device_id>/thermal_threshold/", views.thermal_threshold),
     # Dashboard files. Fine for the lab prototype; a production server would
     # serve frontend/ directly (e.g. nginx) and proxy /api/ to Django.
     path("", serve, {"path": "index.html", "document_root": settings.FRONTEND_DIR}),

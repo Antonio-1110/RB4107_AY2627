@@ -328,8 +328,12 @@ menu "RB4107 configuration"
                 range -400 3000
                 default 500
                 help
-                    Pixels at or above this count towards pixels_above_threshold.
+                    Pixels at or above this count towards pixels_above_threshold
+                    and are outlined on the dashboard heat map. Display and
+                    telemetry only: the safety logic uses the hot-region
+                    temperature (RB_SAFETY_HEAT_ON_DC), not this count.
                     UNVERIFIED placeholder (50.0 degC): set it from measurements.
+                    The dashboard can override it (RB_THERMAL_REMOTE_THRESHOLD).
 
             config RB_THERMAL_HOT_REGION_RADIUS
                 int "Hot region radius (pixels)"
@@ -384,6 +388,15 @@ menu "RB4107 configuration"
                 help
                     One picture every this many ms. The four pieces of a
                     picture go out 50 ms apart, between the regular packets.
+
+            config RB_THERMAL_REMOTE_THRESHOLD
+                bool "Accept the hot-pixel threshold from the dashboard"
+                default y
+                help
+                    The controller relays the dashboard's threshold over
+                    ESP-NOW (THERMAL_CONFIG). It is saved on the node and wins
+                    over RB_THERMAL_HOT_PIXEL_THRESHOLD_DC until the dashboard
+                    sends "default" or the flash is erased.
 
         endmenu
 
@@ -780,6 +793,16 @@ menu "RB4107 configuration"
                     limits checked here (docs/remote_reset.md). Not saved: the
                     menuconfig values come back on reboot, or when the
                     dashboard sends "presence_filter_defaults".
+
+            config RB_CTRL_REMOTE_THERMAL_THRESHOLD
+                bool "Relay the hot-pixel threshold from the dashboard to the thermal node"
+                default y
+                help
+                    A "thermal_threshold" command on <prefix>/controller/command
+                    is forwarded over ESP-NOW to the thermal node, which saves
+                    it (docs/remote_reset.md). Only the hot-pixel count and the
+                    heat-map outline change: the safety state machine does not
+                    use this threshold.
 
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"

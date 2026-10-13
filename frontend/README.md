@@ -13,12 +13,13 @@ index.html        page layout: overview and stall detail views
 css/dashboard.css styling
 js/config.js      API base URL, poll interval, request timeout
 js/api.js         the API calls: GETs for devices, history, events, thermal_frame, C4002 live;
-                  POSTs for the reset and C4002 commands
+                  POSTs for the reset, presence filter, hot-pixel threshold and C4002 commands
 js/dashboard.js   state, polling and rendering of both views
 js/chart.js       temperature history canvas
 js/heatmap.js     thermal camera heat map canvas
 js/reset.js       "Reset shutdown" button and its status
 js/tuning.js      C4002 radar tuning panel
+js/thermal_threshold.js  hot-pixel threshold control in the thermal camera card
 js/live_radar.js  live radar view of one presence node (gates over the last minute)
 js/dom.js         small DOM helpers
 js/format.js      value formatting
