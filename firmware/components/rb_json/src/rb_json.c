@@ -88,6 +88,8 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_str(w, t->safety.shutdown_counts_from);
     rb_json_key(w, "test_timers");
     rb_json_bool(w, t->safety.test_timers);
+    rb_json_key(w, "hold");
+    rb_json_str(w, t->safety.hold != NULL ? t->safety.hold : "none");
     rb_json_key(w, "presence_unknown");
     rb_json_bool(w, t->safety.presence_unknown);
     rb_json_key(w, "thermal_lost");
@@ -111,12 +113,27 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_obj_begin(w);
     rb_json_key(w, "active");
     rb_json_bool(w, t->safety.cooking_active);
+    rb_json_key(w, "phase");
+    rb_json_str(w, t->safety.cooking_phase != NULL ? t->safety.cooking_phase : "off");
+    rb_json_key(w, "rate_c_per_min");
+    rb_json_num(w, t->safety.trend_rate_c_per_min, 2);
+    rb_json_key(w, "settle_c");
+    rb_json_num(w, t->safety.settle_c, 1);
     rb_json_key(w, "on_c");
     rb_json_num(w, t->safety.cooking_on_c, 1);
     rb_json_key(w, "off_c");
     rb_json_num(w, t->safety.cooking_off_c, 1);
     rb_json_key(w, "source");
     rb_json_str(w, t->safety.cooking_remote ? "dashboard" : "menuconfig");
+    rb_json_obj_end(w);
+    rb_json_key(w, "cookware");
+    rb_json_obj_begin(w);
+    rb_json_key(w, "profile");
+    rb_json_str(w, t->safety.cookware != NULL ? t->safety.cookware : "mixed");
+    rb_json_key(w, "tau_s");
+    rb_json_num(w, t->safety.cookware_tau_s, 0);
+    rb_json_key(w, "source");
+    rb_json_str(w, t->safety.cookware_remote ? "dashboard" : "menuconfig");
     rb_json_obj_end(w);
     rb_json_obj_end(w);
 }

@@ -72,6 +72,42 @@ typedef enum {
     SAFETY_COOLING_RETURN_TO_IDLE,        /* heat gone -> IDLE, timers cancelled */
 } safety_cooling_policy_t;
 
+/*
+ * Cookware profile: how fast the pans and pots at this stall lose heat. It sets
+ * the time constant tau of Newton's cooling (T falls toward the room
+ * temperature as e^(-t/tau)), which the cooking judgment uses to tell a pan
+ * that is just cooling from one that still has heat going in. The values are
+ * engineering estimates from typical mass and heat capacity, not measurements;
+ * docs/safety_state_machine.md ("Cooking judgment") explains them.
+ */
+typedef enum {
+    SAFETY_COOKWARE_MIXED = 0, /* default: anything */
+    SAFETY_COOKWARE_LIGHT,     /* woks, thin aluminium or stainless pans */
+    SAFETY_COOKWARE_HEAVY,     /* cast iron, thick clad pans */
+    SAFETY_COOKWARE_LIQUID,    /* pots of soup, stock, boiling water */
+    SAFETY_COOKWARE_COUNT,
+} safety_cookware_t;
+
+float safety_cookware_tau_s(safety_cookware_t profile);
+const char *safety_cookware_name(safety_cookware_t profile);                /* "mixed", "light", ... */
+bool safety_cookware_from_name(const char *name, safety_cookware_t *out);
+
+/* What the heat is doing, from the trend of the hottest pixel (see safety_cooking_phase()). */
+typedef enum {
+    SAFETY_HEAT_OFF = 0,      /* below the cooking temperature */
+    SAFETY_HEAT_CHECKING,     /* cooking, but not enough trend data yet: counts as heat going in */
+    SAFETY_HEAT_HEATING,      /* heading to a clearly higher temperature */
+    SAFETY_HEAT_HOLDING,      /* steady, or settling somewhere hot: heat is going in (low flame, simmer, boil) */
+    SAFETY_HEAT_COOLING,      /* heading toward the room temperature: no heat going in */
+} safety_heat_phase_t;
+
+/* Why a due warning or shutdown is being held back (telemetry: safety.hold). */
+typedef enum {
+    SAFETY_HOLD_NONE = 0,
+    SAFETY_HOLD_RETURN,       /* the radar sees someone and the return is being confirmed (bounded) */
+    SAFETY_HOLD_COOLING,      /* the pan is cooling down: the timers wait for a plateau or for it to end */
+} safety_hold_t;
+
 /* Buzzer requests. The buzzer driver maps them to patterns. */
 typedef enum {
     SAFETY_BUZZER_OFF = 0,
@@ -118,6 +154,14 @@ typedef struct {
     safety_cooling_policy_t cooling_policy;
     uint32_t fault_shutdown_timeout_ms;     /* time in FAULT before SHUTDOWN; 0 = never */
 
+    /*
+     * Cooking judgment. cookware_tau_s <= 0 turns the trend off: any pan above
+     * the cooking temperature counts as heated (the earlier behaviour).
+     */
+    safety_cookware_t cookware;
+    float cookware_tau_s;                   /* time constant of the cookware, seconds (from the profile) */
+    uint32_t trend_window_ms;               /* regression window for the temperature trend, 0 = 120000 */
+
     safety_timing_hook_t timing_hook;
     void *timing_hook_ctx;
 } safety_config_t;
@@ -135,6 +179,8 @@ struct safety_inputs {
 typedef void (*safety_transition_cb_t)(safety_state_t from, safety_state_t to, const char *reason, uint32_t now_ms,
                                        void *ctx);
 
+#define SAFETY_TREND_MAX 128          /* 2 s samples: room for a window up to 256 s */
+
 typedef struct {
     safety_config_t cfg;
     safety_state_t state;
@@ -142,6 +188,22 @@ typedef struct {
     safety_outputs_t outputs;
 
     bool heat_active;                 /* heat detector state (with hysteresis) */
+
+    /* Trend of the hottest pixel: samples every 2 s, regression over trend_window_ms. */
+    uint32_t trend_t_ms[SAFETY_TREND_MAX];
+    float trend_c[SAFETY_TREND_MAX];
+    uint16_t trend_head;              /* next slot to write */
+    uint16_t trend_count;
+    uint32_t trend_last_ms;
+    float trend_rate_c_per_min;       /* NAN until there is enough data */
+    float settle_c;                   /* T + tau * rate: where it is heading; NAN if unknown */
+    bool cooling;                     /* latched: heading below the cooking temperature, no heat going in */
+    uint32_t cooling_since_ms;
+    safety_heat_phase_t heat_phase;
+    safety_hold_t hold;               /* what is holding a due transition right now */
+    bool held_once;                   /* a transition was held on this timeline: WARNING lasts a minimum time */
+    bool return_hold_active;
+    uint32_t return_hold_since_ms;
     bool presence_unknown;            /* flag: presence data missing/invalid at the last step */
     bool thermal_lost;                /* flag: thermal data missing/invalid at the last step */
 
@@ -192,6 +254,8 @@ uint32_t safety_absent_ms(const safety_sm_t *sm, uint32_t now_ms);
 uint32_t safety_returning_ms(const safety_sm_t *sm, uint32_t now_ms);
 
 const char *safety_state_name(safety_state_t state);
+const char *safety_heat_phase_name(safety_heat_phase_t phase); /* "off" "checking" "heating" "holding" "cooling" */
+const char *safety_hold_name(safety_hold_t hold);              /* "none" "return" "cooling" */
 const char *safety_buzzer_name(safety_buzzer_t buzzer);
 
 #ifdef __cplusplus

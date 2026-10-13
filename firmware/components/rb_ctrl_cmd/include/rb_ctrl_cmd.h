@@ -22,6 +22,10 @@
  *                               controller; needs cooking_temp_dc (0.1 degC,
  *                               0..3000)
  *   "cooking_temp_defaults"     forget the saved value: back to menuconfig
+ *   "cookware"                  pick the cookware profile, saved on the
+ *                               controller; needs cookware: "mixed", "light",
+ *                               "heavy" or "liquid"
+ *   "cookware_defaults"         forget the saved profile: back to menuconfig
  *
  * Flat object, strings and integers only, so a small hand-written parser is
  * enough.
@@ -49,6 +53,8 @@ typedef enum {
     RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS,
     RB_CTRL_ACTION_COOKING_TEMP,
     RB_CTRL_ACTION_COOKING_TEMP_DEFAULTS,
+    RB_CTRL_ACTION_COOKWARE,
+    RB_CTRL_ACTION_COOKWARE_DEFAULTS,
 } rb_ctrl_action_t;
 
 typedef struct {
@@ -63,6 +69,8 @@ typedef struct {
     uint32_t shutdown_ms;
     /* RB_CTRL_ACTION_COOKING_TEMP only. */
     uint16_t cooking_temp_dc;
+    /* RB_CTRL_ACTION_COOKWARE only: "mixed", "light", "heavy" or "liquid". */
+    char cookware[12];
 } rb_ctrl_cmd_t;
 
 /*

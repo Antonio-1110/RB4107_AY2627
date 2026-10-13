@@ -99,6 +99,13 @@ typedef struct {
         float cooking_off_c;          /* cooking over below this one */
         bool cooking_remote;          /* cooking temperature set from the dashboard */
         bool cooking_active;          /* cooking detected by the thermal camera */
+        const char *cooking_phase;    /* "off" "checking" "heating" "holding" "cooling" (the temperature trend) */
+        float trend_rate_c_per_min;   /* NAN = not enough data */
+        float settle_c;               /* where the temperature is heading, NAN = unknown */
+        const char *hold;             /* "none" "return" "cooling": what holds a due buzzer/shutdown back */
+        const char *cookware;         /* cookware profile in use */
+        float cookware_tau_s;
+        bool cookware_remote;         /* profile set from the dashboard */
         bool presence_unknown;        /* flag: presence data missing/invalid */
         bool thermal_lost;            /* flag: thermal data missing/invalid */
         uint32_t absent_ms;           /* absence debounce progress (0 = not running) */

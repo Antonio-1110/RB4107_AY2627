@@ -6,7 +6,7 @@
 
 safety_config_t rb_safety_config_from_kconfig(void)
 {
-    return (safety_config_t){
+    safety_config_t cfg = (safety_config_t){
         .self_test_timeout_ms = CONFIG_RB_SAFETY_SELF_TEST_TIMEOUT_MS,
         .heat_on_temp_c = CONFIG_RB_SAFETY_HEAT_ON_DC / 10.0f,
         .heat_off_temp_c = CONFIG_RB_SAFETY_HEAT_OFF_DC / 10.0f,
@@ -32,7 +32,23 @@ safety_config_t rb_safety_config_from_kconfig(void)
         .cooling_policy = SAFETY_COOLING_KEEP_TIMERS,
 #endif
         .fault_shutdown_timeout_ms = CONFIG_RB_SAFETY_FAULT_SHUTDOWN_S * 1000u,
+#if CONFIG_RB_SAFETY_COOKING_TREND
+#if CONFIG_RB_SAFETY_COOKWARE_LIGHT
+        .cookware = SAFETY_COOKWARE_LIGHT,
+#elif CONFIG_RB_SAFETY_COOKWARE_HEAVY
+        .cookware = SAFETY_COOKWARE_HEAVY,
+#elif CONFIG_RB_SAFETY_COOKWARE_LIQUID
+        .cookware = SAFETY_COOKWARE_LIQUID,
+#else
+        .cookware = SAFETY_COOKWARE_MIXED,
+#endif
+        .cookware_tau_s = 0.0f, /* set from the profile below */
+#endif
         .timing_hook = NULL,
         .timing_hook_ctx = NULL,
     };
+#if CONFIG_RB_SAFETY_COOKING_TREND
+    cfg.cookware_tau_s = safety_cookware_tau_s(cfg.cookware);
+#endif
+    return cfg;
 }

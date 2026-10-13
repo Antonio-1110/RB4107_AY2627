@@ -38,6 +38,8 @@ static bool s_pending_filter_on;
 static rb_presence_filter_t s_pending_filter;
 static bool s_cooking_pending;
 static float s_pending_cooking_on_c; /* NAN = back to the configured value */
+static bool s_cookware_pending;
+static safety_cookware_t s_pending_cookware; /* SAFETY_COOKWARE_COUNT = back to the configured one */
 
 rb_controller_config_t rb_controller_config_from_kconfig(void)
 {
@@ -93,13 +95,15 @@ static void on_transition(safety_state_t from, safety_state_t to, const char *re
 typedef struct {
     rb_tristate_t presence;
     bool presence_unknown, thermal_lost, cooking, absent_timing, present_timing;
+    safety_heat_phase_t phase;
+    safety_hold_t hold;
 } sensor_view_t;
 
 static bool sensor_view_changed(const sensor_view_t *a, const sensor_view_t *b)
 {
     return a->presence != b->presence || a->presence_unknown != b->presence_unknown ||
            a->thermal_lost != b->thermal_lost || a->cooking != b->cooking || a->absent_timing != b->absent_timing ||
-           a->present_timing != b->present_timing;
+           a->present_timing != b->present_timing || a->phase != b->phase || a->hold != b->hold;
 }
 
 static void log_node_events(const sensor_node_state_t *node, node_slot_t slot, uint32_t events)
@@ -171,6 +175,7 @@ static void safety_task(void *arg)
     bool filter_on = false;
     rb_presence_filter_t filter = {0};
     float cooking_on_c = NAN; /* dashboard cooking temperature, NAN = the configured one */
+    safety_cookware_t cookware = SAFETY_COOKWARE_COUNT; /* dashboard cookware profile, COUNT = the configured one */
     sensor_view_t last_view = {0};
     uint32_t last_view_ms = 0;
     bool view_posted = false;
@@ -200,14 +205,22 @@ static void safety_task(void *arg)
         const bool new_cooking = s_cooking_pending;
         s_cooking_pending = false;
         const float pending_cooking_on_c = s_pending_cooking_on_c;
+        const bool new_cookware = s_cookware_pending;
+        s_cookware_pending = false;
+        const safety_cookware_t pending_cookware = s_pending_cookware;
         portEXIT_CRITICAL(&s_req_lock);
-        if (new_config || new_filter || new_cooking) {
+        if (new_config || new_filter || new_cooking || new_cookware) {
             safety_config_t next = new_config ? pending : base;
             const bool next_filter_on = new_filter ? pending_filter_on : filter_on;
             const rb_presence_filter_t next_filter = new_filter ? pending_filter : filter;
             const float next_cooking_on_c = new_cooking ? pending_cooking_on_c : cooking_on_c;
             if (isfinite(next_cooking_on_c)) {
                 apply_cooking_temp(&next, next_cooking_on_c);
+            }
+            const safety_cookware_t next_cookware = new_cookware ? pending_cookware : cookware;
+            if (next_cookware != SAFETY_COOKWARE_COUNT && next.cookware_tau_s > 0.0f) {
+                next.cookware = next_cookware; /* the trend stays off if menuconfig turned it off */
+                next.cookware_tau_s = safety_cookware_tau_s(next_cookware);
             }
             if (next_filter_on) {
                 next.absence_debounce_ms = next_filter.absence_debounce_ms;
@@ -227,6 +240,12 @@ static void safety_task(void *arg)
                 filter_on = next_filter_on;
                 filter = next_filter;
                 cooking_on_c = next_cooking_on_c;
+                cookware = next_cookware;
+                if (new_cookware) {
+                    ESP_LOGW(TAG, "cookware profile (%s): %s, tau %.0f s",
+                             cookware != SAFETY_COOKWARE_COUNT ? "dashboard" : "menuconfig",
+                             safety_cookware_name(next.cookware), (double)next.cookware_tau_s);
+                }
                 if (new_cooking) {
                     ESP_LOGW(TAG, "cooking temperature (%s): cooking from %.1f C, over below %.1f C",
                              isfinite(cooking_on_c) ? "dashboard" : "menuconfig", next.heat_on_temp_c,
@@ -294,6 +313,8 @@ static void safety_task(void *arg)
             .cooking = sm.heat_active,
             .absent_timing = sm.absent_timing,
             .present_timing = sm.present_timing,
+            .phase = sm.heat_phase,
+            .hold = sm.hold,
         };
         if (sensor_view_changed(&view, &last_view) && (!view_posted || (uint32_t)(now - last_view_ms) >= SENSOR_EVENT_MIN_MS)) {
             const rb_event_t evt = {.type = RB_EVT_SENSOR_STATE, .mono_ms = now};
@@ -335,6 +356,13 @@ static void safety_task(void *arg)
             s_snapshot.heat_off_temp_c = sm.cfg.heat_off_temp_c;
             s_snapshot.cooking_temp_remote = isfinite(cooking_on_c);
             s_snapshot.cooking_active = sm.heat_active;
+            s_snapshot.heat_phase = sm.heat_phase;
+            s_snapshot.trend_rate_c_per_min = sm.trend_rate_c_per_min;
+            s_snapshot.settle_c = sm.settle_c;
+            s_snapshot.hold = sm.hold;
+            s_snapshot.cookware = sm.cfg.cookware;
+            s_snapshot.cookware_tau_s = sm.cfg.cookware_tau_s;
+            s_snapshot.cookware_remote = cookware != SAFETY_COOKWARE_COUNT;
             s_snapshot.presence_unknown = sm.presence_unknown;
             s_snapshot.thermal_lost = sm.thermal_lost;
             s_snapshot.absent_ms = safety_absent_ms(&sm, now);
@@ -448,6 +476,16 @@ esp_err_t rb_controller_set_cooking_temp(float on_c)
     portENTER_CRITICAL(&s_req_lock);
     s_pending_cooking_on_c = on_c;
     s_cooking_pending = true;
+    portEXIT_CRITICAL(&s_req_lock);
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_set_cookware(safety_cookware_t profile)
+{
+    ESP_RETURN_ON_FALSE((unsigned)profile <= SAFETY_COOKWARE_COUNT, ESP_ERR_INVALID_ARG, TAG, "unknown cookware profile");
+    portENTER_CRITICAL(&s_req_lock);
+    s_pending_cookware = profile;
+    s_cookware_pending = true;
     portEXIT_CRITICAL(&s_req_lock);
     return ESP_OK;
 }

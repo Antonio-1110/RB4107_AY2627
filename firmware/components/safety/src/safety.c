@@ -16,6 +16,50 @@ static const safety_outputs_t STATE_OUTPUTS[SAFETY_STATE_COUNT] = {
     [SAFETY_FAULT] = {SAFETY_BUZZER_FAULT, false},
 };
 
+/* Time constants of the cookware profiles (see safety.h). Estimates from typical mass and heat capacity. */
+static const float COOKWARE_TAU_S[SAFETY_COOKWARE_COUNT] = {
+    [SAFETY_COOKWARE_MIXED] = 1800.0f, /* 30 min */
+    [SAFETY_COOKWARE_LIGHT] = 300.0f,  /* 5 min  (3-8) */
+    [SAFETY_COOKWARE_HEAVY] = 900.0f,  /* 15 min (10-20) */
+    [SAFETY_COOKWARE_LIQUID] = 2400.0f, /* 40 min (20-60) */
+};
+static const char *const COOKWARE_NAMES[SAFETY_COOKWARE_COUNT] = {"mixed", "light", "heavy", "liquid"};
+
+float safety_cookware_tau_s(safety_cookware_t profile)
+{
+    return (unsigned)profile < SAFETY_COOKWARE_COUNT ? COOKWARE_TAU_S[profile] : COOKWARE_TAU_S[SAFETY_COOKWARE_MIXED];
+}
+
+const char *safety_cookware_name(safety_cookware_t profile)
+{
+    return (unsigned)profile < SAFETY_COOKWARE_COUNT ? COOKWARE_NAMES[profile] : "?";
+}
+
+bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
+{
+    for (int i = 0; name != NULL && i < SAFETY_COOKWARE_COUNT; i++) {
+        if (strcmp(name, COOKWARE_NAMES[i]) == 0) {
+            *out = (safety_cookware_t)i;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Trend of the hottest pixel. */
+#define TREND_SAMPLE_MS 2000u          /* one sample per 2 s */
+#define TREND_GAP_RESET_MS 15000u      /* a longer silence starts the trend over */
+#define TREND_STALE_MS 30000u          /* no sample for this long: the trend is unknown */
+#define TREND_DEFAULT_WINDOW_MS 120000u
+#define TREND_MIN_SPAN_MS 60000u       /* needs at least this much history ... */
+#define TREND_MIN_SAMPLES 12           /* ... and this many samples */
+#define SETTLE_MARGIN_C 3.0f           /* hysteresis on the cooling decision */
+#define RISING_C_PER_MIN 0.5f          /* faster than this is "heating", otherwise "holding" */
+#define COOLING_HOLD_MAX_MS 3600000u   /* a cooling hold never lasts longer than an hour ... */
+#define COOLING_HOLD_TAUS 4.0f         /* ... nor longer than 4 time constants: a pan still hot after that is not just cooling */
+/* After a hold, the buzzer sounds at least this long before the shutdown, even if the shutdown was due long ago. */
+#define WARNING_MIN_AFTER_HOLD_MS 30000u
+
 static bool elapsed(uint32_t now_ms, uint32_t since_ms, uint32_t timeout_ms)
 {
     return (uint32_t)(now_ms - since_ms) >= timeout_ms; /* wrap-safe */
@@ -49,6 +93,155 @@ static void clear_unattended(safety_sm_t *sm)
 {
     sm->unattended_active = false;
     sm->warning_started = false;
+    sm->held_once = false;
+}
+
+/* ---- temperature trend and cooking judgment ---- */
+
+static void trend_clear(safety_sm_t *sm)
+{
+    sm->trend_head = 0;
+    sm->trend_count = 0;
+    sm->trend_last_ms = 0;
+    sm->trend_rate_c_per_min = NAN;
+    sm->settle_c = NAN;
+}
+
+static void trend_push(safety_sm_t *sm, uint32_t now_ms, float temp_c)
+{
+    if (sm->trend_count > 0 && elapsed(now_ms, sm->trend_last_ms, TREND_GAP_RESET_MS)) {
+        trend_clear(sm); /* the camera was away: an old trend says nothing about now */
+    }
+    if (sm->trend_count > 0 && !elapsed(now_ms, sm->trend_last_ms, TREND_SAMPLE_MS)) {
+        return;
+    }
+    sm->trend_t_ms[sm->trend_head] = now_ms;
+    sm->trend_c[sm->trend_head] = temp_c;
+    sm->trend_head = (uint16_t)((sm->trend_head + 1) % SAFETY_TREND_MAX);
+    if (sm->trend_count < SAFETY_TREND_MAX) {
+        sm->trend_count++;
+    }
+    sm->trend_last_ms = now_ms;
+}
+
+/*
+ * Least-squares slope over the last window of samples, and from it where the
+ * temperature is heading: settle = T + tau * slope (Newton cooling, dT/dt =
+ * -(T - T_settle) / tau). A pan that is only cooling settles near the room
+ * temperature; a pan with heat going in settles somewhere hot.
+ */
+static void trend_update(safety_sm_t *sm, uint32_t now_ms)
+{
+    const uint32_t window = sm->cfg.trend_window_ms != 0 ? sm->cfg.trend_window_ms : TREND_DEFAULT_WINDOW_MS;
+    sm->trend_rate_c_per_min = NAN;
+    sm->settle_c = NAN;
+    if (sm->trend_count == 0 || elapsed(now_ms, sm->trend_last_ms, TREND_STALE_MS)) {
+        return;
+    }
+    double n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+    uint32_t oldest_age = 0;
+    for (uint16_t k = 0; k < sm->trend_count; k++) {
+        const uint16_t idx = (uint16_t)((sm->trend_head + SAFETY_TREND_MAX - 1 - k) % SAFETY_TREND_MAX);
+        const uint32_t age = (uint32_t)(now_ms - sm->trend_t_ms[idx]);
+        if (age > window) {
+            break;
+        }
+        const double x = -(double)age / 1000.0;
+        const double y = sm->trend_c[idx];
+        n += 1;
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        sxy += x * y;
+        oldest_age = age;
+    }
+    const double denom = n * sxx - sx * sx;
+    if (n < TREND_MIN_SAMPLES || oldest_age < TREND_MIN_SPAN_MS || denom <= 0.0) {
+        return;
+    }
+    const double slope = (n * sxy - sx * sy) / denom; /* degC per second */
+    const double now_fit = (sy - slope * sx) / n;     /* the fitted temperature right now */
+    sm->trend_rate_c_per_min = (float)(slope * 60.0);
+    if (sm->cfg.cookware_tau_s > 0.0f) {
+        sm->settle_c = (float)(now_fit + (double)sm->cfg.cookware_tau_s * slope);
+    }
+}
+
+/* Cooking judgment: is heat going in? Updates sm->cooling and sm->heat_phase. */
+static void judge_heat(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)
+{
+    if (!sm->heat_active) {
+        trend_clear(sm);
+        sm->cooling = false;
+        sm->heat_phase = SAFETY_HEAT_OFF;
+        return;
+    }
+    if (in->thermal_valid && isfinite(in->cooking_temp_c)) {
+        trend_push(sm, now_ms, in->cooking_temp_c);
+    }
+    trend_update(sm, now_ms);
+    if (sm->cfg.cookware_tau_s <= 0.0f) {
+        sm->cooling = false; /* trend off: heat counts as going in whenever it is hot */
+        sm->heat_phase = SAFETY_HEAT_HOLDING;
+        return;
+    }
+    if (!isfinite(sm->settle_c)) {
+        sm->cooling = false; /* not enough data (or the camera is away): assume heat is going in */
+        sm->heat_phase = SAFETY_HEAT_CHECKING;
+        return;
+    }
+    const float off = sm->cfg.heat_off_temp_c;
+    if (sm->cooling) {
+        if (sm->settle_c >= off + SETTLE_MARGIN_C) {
+            sm->cooling = false;
+        }
+    } else if (sm->settle_c < off - SETTLE_MARGIN_C) {
+        sm->cooling = true;
+        sm->cooling_since_ms = now_ms;
+    }
+    sm->heat_phase = sm->cooling ? SAFETY_HEAT_COOLING
+                                 : (sm->trend_rate_c_per_min > RISING_C_PER_MIN ? SAFETY_HEAT_HEATING
+                                                                                : SAFETY_HEAT_HOLDING);
+}
+
+/*
+ * A due warning or shutdown can be held back, never for long:
+ *  - COOLING: the pan is heading for the room temperature, so there is no heat
+ *    to cut. The timers keep counting, and the transition happens as soon as
+ *    the trend flattens out hot (or the pan drops below the cooking
+ *    temperature, which cancels the timeline). At most 4 time constants of the
+ *    cookware profile (an hour at the most): a pan that is still hot after that
+ *    has heat going in, whatever the trend says.
+ *  - RETURN: the radar sees someone right now and the return is being
+ *    confirmed. At most presence_return_debounce_ms + presence_return_gap_ms,
+ *    then it fires even if nobody is confirmed.
+ */
+static uint32_t cooling_hold_max_ms(const safety_sm_t *sm)
+{
+    const float by_tau_ms = COOLING_HOLD_TAUS * sm->cfg.cookware_tau_s * 1000.0f;
+    return by_tau_ms < (float)COOLING_HOLD_MAX_MS ? (uint32_t)by_tau_ms : COOLING_HOLD_MAX_MS;
+}
+
+static safety_hold_t hold_reason(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now, bool due, bool person_returned)
+{
+    if (!due) {
+        sm->return_hold_active = false;
+        return SAFETY_HOLD_NONE;
+    }
+    if (sm->heat_active && sm->cooling && !elapsed(now, sm->cooling_since_ms, cooling_hold_max_ms(sm))) {
+        return SAFETY_HOLD_COOLING;
+    }
+    const bool pending = in->presence == RB_TRUE && sm->present_timing && !person_returned;
+    if (!pending) {
+        sm->return_hold_active = false;
+        return SAFETY_HOLD_NONE;
+    }
+    if (!sm->return_hold_active) {
+        sm->return_hold_active = true;
+        sm->return_hold_since_ms = now;
+    }
+    const uint32_t cap = sm->cfg.presence_return_debounce_ms + sm->cfg.presence_return_gap_ms;
+    return elapsed(now, sm->return_hold_since_ms, cap) ? SAFETY_HOLD_NONE : SAFETY_HOLD_RETURN;
 }
 
 /* ---- state exit / entry ---- */
@@ -128,6 +321,8 @@ void safety_init(safety_sm_t *sm, const safety_config_t *cfg, safety_transition_
     sm->state_entered_ms = now_ms;
     sm->outputs = STATE_OUTPUTS[SAFETY_BOOT];
     sm->last_reason = "init";
+    sm->trend_rate_c_per_min = NAN;
+    sm->settle_c = NAN;
 }
 
 bool safety_set_config(safety_sm_t *sm, const safety_config_t *cfg)
@@ -208,6 +403,8 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
                                   : sm->warning_started && elapsed(now, sm->warning_start_ms, shutdown_ms);
     const bool cooled_down = !sm->heat_active && cfg->cooling_policy == SAFETY_COOLING_RETURN_TO_IDLE;
 
+    sm->hold = SAFETY_HOLD_NONE;
+
     switch (sm->state) {
     case SAFETY_BOOT:
         transition(sm, SAFETY_SELF_TEST, "boot complete", now);
@@ -267,7 +464,9 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
             transition(sm, SAFETY_IDLE, "heating stopped while unattended", now);
             return true;
         }
-        if (warning_due) {
+        sm->hold = hold_reason(sm, in, now, warning_due, person_returned);
+        sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
+        if (warning_due && sm->hold == SAFETY_HOLD_NONE) {
             transition(sm, SAFETY_WARNING, "unattended timeout", now);
             return true;
         }
@@ -286,7 +485,11 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
             transition(sm, SAFETY_IDLE, "heating stopped during warning", now);
             return true;
         }
-        if (shutdown_due) {
+        sm->hold = hold_reason(sm, in, now, shutdown_due, person_returned);
+        sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
+        /* A timeline that was held does not jump straight to the shutdown: the buzzer sounds first. */
+        if (shutdown_due && sm->hold == SAFETY_HOLD_NONE &&
+            (!sm->held_once || elapsed(now, sm->state_entered_ms, WARNING_MIN_AFTER_HOLD_MS))) {
             transition(sm, SAFETY_SHUTDOWN, "shutdown timeout", now);
             return true;
         }
@@ -347,6 +550,7 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
                                  t >= sm->cfg.heat_off_temp_c;
         sm->heat_active = sm->heat_active ? t >= sm->cfg.heat_off_temp_c : (t >= sm->cfg.heat_on_temp_c || rising_fast);
     }
+    judge_heat(sm, in, now_ms);
     sm->presence_unknown = in->presence == RB_UNKNOWN;
     sm->thermal_lost = !in->thermal_valid;
 
@@ -405,6 +609,18 @@ const char *safety_state_name(safety_state_t state)
         "BOOT", "SELF_TEST", "IDLE", "MONITORING", "UNATTENDED", "WARNING", "SHUTDOWN", "FAULT",
     };
     return (unsigned)state < SAFETY_STATE_COUNT ? names[state] : "?";
+}
+
+const char *safety_heat_phase_name(safety_heat_phase_t phase)
+{
+    static const char *const names[] = {"off", "checking", "heating", "holding", "cooling"};
+    return (unsigned)phase < sizeof(names) / sizeof(names[0]) ? names[phase] : "?";
+}
+
+const char *safety_hold_name(safety_hold_t hold)
+{
+    static const char *const names[] = {"none", "return", "cooling"};
+    return (unsigned)hold < sizeof(names) / sizeof(names[0]) ? names[hold] : "?";
 }
 
 const char *safety_buzzer_name(safety_buzzer_t buzzer)

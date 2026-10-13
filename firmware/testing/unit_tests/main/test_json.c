@@ -6,7 +6,7 @@
 #include "rb_topics.h"
 #include "unity.h"
 
-static char buf[1024];
+static char buf[2048];
 
 static const rb_json_node_t NODES[] = {
     {"node_01", "presence", "ONLINE", true, true},
@@ -42,6 +42,16 @@ static rb_telemetry_t sample(void)
                    .cooking_on_c = 55.5f,
                    .cooking_off_c = 45.5f,
                    .cooking_remote = true,
+                   .cooking_active = true,
+                   .cooking_phase = "cooling",
+                   .trend_rate_c_per_min = -12.34f,
+                   .settle_c = NAN,
+                   .hold = "cooling",
+                   .cookware = "liquid",
+                   .cookware_tau_s = 2400.0f,
+                   .cookware_remote = true,
+                   .presence_unknown = true,
+                   .absent_ms = 400,
                    .loop_count = 3},
         .faults = faults,
         .fault_count = 1,
@@ -68,7 +78,11 @@ static void test_unknown_values_are_null(void)
                                      "\"shutdown_after_ms\":90000,\"shutdown_counts_from\":\"UNATTENDED\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"presence_filter\":{\"absence_ms\":2000,\"return_ms\":3000,"
                                      "\"return_gap_ms\":1000,\"source\":\"menuconfig\"},"
-                                     "\"cooking\":{\"on_c\":55.5,\"off_c\":45.5,\"source\":\"dashboard\"}}"));
+                                     "\"cooking\":{\"active\":true,\"phase\":\"cooling\",\"rate_c_per_min\":-12.34,"
+                                     "\"settle_c\":null,\"on_c\":55.5,\"off_c\":45.5,\"source\":\"dashboard\"},"
+                                     "\"cookware\":{\"profile\":\"liquid\",\"tau_s\":2400,\"source\":\"dashboard\"}}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"hold\":\"cooling\",\"presence_unknown\":true,\"thermal_lost\":false,"
+                                     "\"absent_ms\":400,\"returning_ms\":0,"));
 
     TEST_ASSERT_NOT_EQUAL(0, rb_json_presence(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"detected\":null")); /* invalid presence is not "false" */

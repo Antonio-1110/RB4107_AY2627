@@ -90,6 +90,7 @@ enum {
     SEEN_SHUTDOWN = 512,
     SEEN_FILTER = SEEN_ABSENCE | SEEN_RETURN | SEEN_GAP | SEEN_WARNING | SEEN_SHUTDOWN,
     SEEN_COOKING = 1024,
+    SEEN_COOKWARE = 2048,
 };
 
 /* One of the filter values: an integer min..max milliseconds. */
@@ -170,10 +171,14 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_COOKING_TEMP;
                 } else if (is_str && strcmp(str, "cooking_temp_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_COOKING_TEMP_DEFAULTS;
+                } else if (is_str && strcmp(str, "cookware") == 0) {
+                    out->action = RB_CTRL_ACTION_COOKWARE;
+                } else if (is_str && strcmp(str, "cookware_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_COOKWARE_DEFAULTS;
                 } else {
                     fail(err, err_len,
-                         "action must be reset, presence_filter, presence_filter_defaults, cooking_temp or "
-                         "cooking_temp_defaults");
+                         "action must be reset, presence_filter, presence_filter_defaults, cooking_temp, "
+                         "cooking_temp_defaults, cookware or cookware_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -210,6 +215,14 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->cooking_temp_dc = (uint16_t)num;
+            } else if (strcmp(key, "cookware") == 0) {
+                bit = SEEN_COOKWARE;
+                if (!is_str || (strcmp(str, "mixed") != 0 && strcmp(str, "light") != 0 && strcmp(str, "heavy") != 0 &&
+                                strcmp(str, "liquid") != 0)) {
+                    fail(err, err_len, "cookware must be mixed, light, heavy or liquid");
+                    return false;
+                }
+                snprintf(out->cookware, sizeof(out->cookware), "%s", str);
             } else {
                 fail(err, err_len, "unknown key '%s'", key);
                 return false;
@@ -241,6 +254,10 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     }
     if ((out->action == RB_CTRL_ACTION_COOKING_TEMP) != ((seen & SEEN_COOKING) != 0)) {
         fail(err, err_len, "cooking_temp_dc goes with cooking_temp only, and it needs it");
+        return false;
+    }
+    if ((out->action == RB_CTRL_ACTION_COOKWARE) != ((seen & SEEN_COOKWARE) != 0)) {
+        fail(err, err_len, "cookware goes with the cookware action only, and it needs it");
         return false;
     }
     return true;

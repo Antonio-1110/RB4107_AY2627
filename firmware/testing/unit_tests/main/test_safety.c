@@ -649,6 +649,258 @@ static void test_real_return_after_noise_cancels_timer(void)
     TEST_ASSERT_UINT32_WITHIN(300, 1100, safety_unattended_ms(&h.sm, h.now)); /* counted from the new absence */
 }
 
+/* ---- cooking judgment: cooling pan vs heat going in ---- */
+
+static safety_config_t cookware_config(safety_cookware_t profile)
+{
+    safety_config_t cfg = th_default_config();
+    cfg.cooling_policy = SAFETY_COOLING_RETURN_TO_IDLE;
+    cfg.warning_timeout_ms = 120000;
+    cfg.shutdown_timeout_ms = 240000;
+    cfg.absence_debounce_ms = 2000;
+    cfg.cookware = profile;
+    cfg.cookware_tau_s = safety_cookware_tau_s(profile);
+    return cfg;
+}
+
+typedef float (*curve_fn)(float t_s);
+
+/* The curve's time zero; curve_start() sets it, consecutive run_curve() calls continue the same curve. */
+static uint32_t s_curve_t0;
+static void curve_start(const th_t *h) { s_curve_t0 = h->now; }
+
+/* Drive the hottest pixel along a curve of the time since curve_start(). */
+static void run_curve(th_t *h, uint32_t ms, curve_fn curve)
+{
+    for (uint32_t end = h->now + ms; (int32_t)(end - h->now) > 0;) {
+        h->in.cooking_temp_c = curve((float)(h->now - s_curve_t0) / 1000.0f);
+        th_run(h, TH_STEP_MS);
+    }
+}
+
+static float steady_150(float t) { (void)t; return 150.0f; }
+/* Burner off, light pan (tau 5 min) cooling to a 25 degC room. */
+static float off_light(float t) { return 25.0f + 125.0f * expf(-t / 300.0f); }
+/* Burner off, a pot of soup (tau 40 min). */
+static float off_liquid(float t) { return 25.0f + 125.0f * expf(-t / 2400.0f); }
+/* Burner turned down to low: settles at 90 degC with the pan's tau 5 min. */
+static float low_flame(float t) { return 90.0f + 60.0f * expf(-t / 300.0f); }
+/* Turned on low while still at about 88 degC: rises a little and settles at 90. */
+static float low_from_88(float t) { return 90.0f - 2.0f * expf(-t / 300.0f); }
+/* Boiling: holds 100 degC with a little noise. */
+static float boiling(float t) { return 100.0f + 0.3f * sinf(t * 3.1f); }
+/* The person leaves while the burner is on: a long steady cook, then the pan is left alone. */
+static void cook_then_leave(th_t *h)
+{
+    th_cook(h);
+    curve_start(h);
+    run_curve(h, 150000, steady_150);
+    TH_EXPECT(h, SAFETY_MONITORING);
+    h->in.presence = RB_FALSE;
+    curve_start(h); /* the next curve starts the moment the person leaves */
+}
+
+static void test_cooling_pan_holds_the_timers_then_cancels(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    /* Burner off: the pan cools by itself. The timers must never fire... */
+    for (int minute = 0; minute < 10; minute++) {
+        run_curve(&h, 60000, off_light);
+        TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING && h.sm.state != SAFETY_SHUTDOWN);
+    }
+    /* ...and once it is below the cooking temperature the timeline is cancelled. */
+    h.in.cooking_temp_c = 30.0f;
+    th_run(&h, 5000);
+    TH_EXPECT(&h, SAFETY_IDLE);
+}
+
+static void test_cooling_hold_is_reported(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    bool saw_hold = false;
+    const uint32_t t0 = h.now;
+    while (h.now - t0 < 400000) {
+        h.in.cooking_temp_c = off_light((float)(h.now - t0) / 1000.0f);
+        th_run(&h, TH_STEP_MS);
+        saw_hold = saw_hold || h.sm.hold == SAFETY_HOLD_COOLING;
+    }
+    TEST_ASSERT_TRUE(saw_hold); /* the warning came due while it was cooling */
+    TEST_ASSERT_EQUAL(SAFETY_HEAT_COOLING, h.sm.heat_phase);
+    TEST_ASSERT_TRUE(h.sm.settle_c < 40.0f);
+    TEST_ASSERT_TRUE(h.sm.trend_rate_c_per_min < 0.0f);
+}
+
+static void test_slow_cooling_pot_with_liquid_is_held_too(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIQUID);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    run_curve(&h, 600000, off_liquid); /* 10 min: still hot (about 115 degC) */
+    TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING && h.sm.state != SAFETY_SHUTDOWN);
+    TEST_ASSERT_EQUAL(SAFETY_HEAT_COOLING, h.sm.heat_phase);
+}
+
+static void test_low_flame_is_not_mistaken_for_cooling(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    /* Turned down to low: the temperature falls, but it settles at 90 degC. */
+    run_curve(&h, 130000, low_flame);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_TRUE(h.sm.heat_phase == SAFETY_HEAT_HOLDING || h.sm.heat_phase == SAFETY_HEAT_HEATING);
+    TEST_ASSERT_TRUE(h.sm.settle_c > 70.0f);
+}
+
+static void test_boiling_plateau_counts_as_heat_going_in(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIQUID);
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 150000, boiling);
+    h.in.presence = RB_FALSE;
+    run_curve(&h, 130000, boiling);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_EQUAL(SAFETY_HEAT_HOLDING, h.sm.heat_phase);
+}
+
+static void test_cooling_hold_ends_when_the_trend_flattens_hot(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    run_curve(&h, 200000, off_light); /* held while cooling (about 88 degC at the end) */
+    TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING);
+    /* The burner is turned on low: the pan rises a little and settles at 90 degC. */
+    curve_start(&h);
+    for (int i = 0; i < 200 && h.sm.state == SAFETY_UNATTENDED; i++) { /* the estimate needs about a minute to turn */
+        run_curve(&h, 1000, low_from_88);
+    }
+    TH_EXPECT(&h, SAFETY_WARNING); /* the buzzer first, not a shutdown that was due long ago */
+    TEST_ASSERT_EQUAL(SAFETY_BUZZER_WARNING, h.out.buzzer);
+    run_curve(&h, 20000, low_from_88);
+    TH_EXPECT(&h, SAFETY_WARNING); /* at least 30 s of warning after a hold */
+    run_curve(&h, 20000, low_from_88);
+    TH_EXPECT(&h, SAFETY_SHUTDOWN);
+}
+
+static void test_unknown_trend_counts_as_heat_going_in(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    h.in.thermal_valid = false; /* the camera is gone: no trend, the last cooking state is kept */
+    th_run(&h, cfg.warning_timeout_ms + 5000);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_EQUAL(SAFETY_HEAT_CHECKING, h.sm.heat_phase);
+}
+
+static void test_trend_off_keeps_the_old_behaviour(void)
+{
+    th_t h;
+    safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    cfg.cookware_tau_s = 0.0f; /* trend disabled */
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    run_curve(&h, 200000, off_light); /* cooling, but nobody is looking at the trend */
+    TH_EXPECT(&h, SAFETY_WARNING);
+}
+
+/* ---- a due timer waits while a return is being confirmed (bounded) ---- */
+
+static void test_warning_waits_for_a_return_in_progress(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, cfg.warning_timeout_ms - safety_unattended_ms(&h.sm, h.now) - 1500);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    h.in.presence = RB_TRUE; /* someone steps up just before the buzzer */
+    th_run(&h, 3000);        /* the warning is due in the middle of this */
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_EQUAL(SAFETY_HOLD_RETURN, h.sm.hold);
+    th_run(&h, 600); /* 3.6 s of presence: the return is confirmed */
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_warning_fires_when_the_return_does_not_materialise(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, cfg.warning_timeout_ms - safety_unattended_ms(&h.sm, h.now) - 500);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 1000); /* due while held */
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    h.in.presence = RB_FALSE; /* it was a wave: the held warning comes at once */
+    th_run(&h, 3 * TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_WARNING);
+}
+
+static void test_shutdown_waits_for_a_return_in_progress(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, cfg.shutdown_timeout_ms - safety_unattended_ms(&h.sm, h.now) - 1500);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 2000); /* shutdown due, return half confirmed */
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_EQUAL(SAFETY_HOLD_RETURN, h.sm.hold);
+    th_run(&h, 1500);
+    TH_EXPECT(&h, SAFETY_MONITORING); /* confirmed: no shutdown */
+}
+
+static void test_long_return_holds_the_warning_until_it_is_confirmed(void)
+{
+    th_t h;
+    safety_config_t cfg = return_filter_config();
+    cfg.presence_return_debounce_ms = 30000; /* a return that takes 30 s to confirm */
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, cfg.warning_timeout_ms - safety_unattended_ms(&h.sm, h.now) - 500);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 20000); /* the warning was due 19.5 s ago: held, the return is still being confirmed */
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_EQUAL(SAFETY_HOLD_RETURN, h.sm.hold);
+    th_run(&h, 11000);
+    TH_EXPECT(&h, SAFETY_MONITORING); /* confirmed: the warning never came */
+}
+
+static void test_sparse_blips_do_not_hold_a_due_warning(void)
+{
+    th_t h;
+    const safety_config_t cfg = return_filter_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    leave(&h);
+    th_run(&h, cfg.warning_timeout_ms - safety_unattended_ms(&h.sm, h.now) - 300);
+    for (int i = 0; i < 3; i++) { /* a 200 ms blip every 1.5 s */
+        blip(&h, 200, 1300);
+    }
+    TH_EXPECT(&h, SAFETY_WARNING);
+}
+
 void run_safety_tests(void)
 {
     RUN_TEST(test_boot_selftest_pass_to_idle);
@@ -684,4 +936,17 @@ void run_safety_tests(void)
     RUN_TEST(test_presence_blips_do_not_block_absence);
     RUN_TEST(test_blip_inside_debounce_keeps_absent_since);
     RUN_TEST(test_real_return_after_noise_cancels_timer);
+    RUN_TEST(test_cooling_pan_holds_the_timers_then_cancels);
+    RUN_TEST(test_cooling_hold_is_reported);
+    RUN_TEST(test_slow_cooling_pot_with_liquid_is_held_too);
+    RUN_TEST(test_low_flame_is_not_mistaken_for_cooling);
+    RUN_TEST(test_boiling_plateau_counts_as_heat_going_in);
+    RUN_TEST(test_cooling_hold_ends_when_the_trend_flattens_hot);
+    RUN_TEST(test_unknown_trend_counts_as_heat_going_in);
+    RUN_TEST(test_trend_off_keeps_the_old_behaviour);
+    RUN_TEST(test_warning_waits_for_a_return_in_progress);
+    RUN_TEST(test_warning_fires_when_the_return_does_not_materialise);
+    RUN_TEST(test_shutdown_waits_for_a_return_in_progress);
+    RUN_TEST(test_long_return_holds_the_warning_until_it_is_confirmed);
+    RUN_TEST(test_sparse_blips_do_not_hold_a_due_warning);
 }

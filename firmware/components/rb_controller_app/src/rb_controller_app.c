@@ -41,10 +41,11 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #endif
 }
 
-#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
-/* The dashboard's cooking temperature, saved so it survives a reboot. */
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE
+/* The dashboard's cooking temperature and cookware profile, saved so they survive a reboot. */
 #define NVS_NAMESPACE "rb_safety"
 #define NVS_KEY_COOKING "cook_dc"
+#define NVS_KEY_COOKWARE "cookware"
 
 static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
 {
@@ -56,6 +57,9 @@ static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
     return err == ESP_OK && nvs_open(NVS_NAMESPACE, mode, h) == ESP_OK;
 }
 
+#endif
+
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
 static void cooking_temp_load(void)
 {
     nvs_handle_t h;
@@ -89,6 +93,54 @@ static void cooking_temp_save(bool erase, int16_t dc)
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "cooking temperature not saved (%s): it lasts until the next reboot", esp_err_to_name(err));
     }
+}
+#endif
+
+#if CONFIG_RB_CTRL_REMOTE_COOKWARE
+static void cookware_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return;
+    }
+    uint8_t profile;
+    if (nvs_get_u8(h, NVS_KEY_COOKWARE, &profile) == ESP_OK && profile < SAFETY_COOKWARE_COUNT) {
+        rb_controller_set_cookware((safety_cookware_t)profile);
+        ESP_LOGW(TAG, "cookware profile %s (saved from the dashboard)", safety_cookware_name((safety_cookware_t)profile));
+    }
+    nvs_close(h);
+}
+
+/* erase: forget the saved profile (back to menuconfig at the next boot too). */
+static void cookware_save(bool erase, uint8_t profile)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the cookware profile lasts until the next reboot");
+        return;
+    }
+    esp_err_t err = erase ? nvs_erase_key(h, NVS_KEY_COOKWARE) : nvs_set_u8(h, NVS_KEY_COOKWARE, profile);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        err = ESP_OK;
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "cookware profile not saved (%s): it lasts until the next reboot", esp_err_to_name(err));
+    }
+}
+
+/* MQTT task: the dashboard's cookware profile, or back to menuconfig. */
+static void set_cookware(const rb_ctrl_cmd_t *cmd)
+{
+    safety_cookware_t profile = SAFETY_COOKWARE_COUNT;
+    const bool set = cmd->action == RB_CTRL_ACTION_COOKWARE && safety_cookware_from_name(cmd->cookware, &profile);
+    ESP_LOGW(TAG, "cookware profile %s from the dashboard (request %u)", set ? cmd->cookware : "menuconfig default",
+             (unsigned)cmd->request_id);
+    rb_controller_set_cookware(set ? profile : SAFETY_COOKWARE_COUNT);
+    cookware_save(!set, (uint8_t)profile);
 }
 #endif
 
@@ -174,7 +226,8 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 }
 #endif
 
-#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
+#if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || \
+    CONFIG_RB_CTRL_REMOTE_COOKWARE
 #define RB_CTRL_COMMANDS 1
 /* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
@@ -226,6 +279,14 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard cooking temperature refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_COOKWARE:
+    case RB_CTRL_ACTION_COOKWARE_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_COOKWARE
+        set_cookware(&cmd);
+#else
+        ESP_LOGW(TAG, "dashboard cookware profile refused: turned off in menuconfig");
+#endif
+        break;
     }
 }
 
@@ -268,6 +329,9 @@ esp_err_t rb_controller_app_start(void)
     };
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
     cooking_temp_load(); /* applied at the first safety step */
+#endif
+#if CONFIG_RB_CTRL_REMOTE_COOKWARE
+    cookware_load();
 #endif
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT

@@ -794,6 +794,16 @@ menu "RB4107 configuration"
                     ESP-NOW to the thermal node as its hot-pixel threshold, so
                     the counted and outlined pixels match (docs/remote_reset.md).
 
+            config RB_CTRL_REMOTE_COOKWARE
+                bool "Accept the cookware profile from the dashboard"
+                default y
+                depends on RB_SAFETY_COOKING_TREND
+                help
+                    A "cookware" command on <prefix>/controller/command picks
+                    the cookware profile (mixed, light, heavy, liquid). It is
+                    saved on the controller, so it survives a reboot, until the
+                    dashboard sends "cookware_defaults".
+
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
                 range 4 64
@@ -1222,14 +1232,48 @@ menu "RB4107 configuration"
         endchoice
 
         choice RB_SAFETY_COOLING
-            prompt "Temperature falls while UNATTENDED/WARNING"
-            default RB_SAFETY_COOLING_KEEP_TIMERS
+            prompt "Pan drops below the cooking temperature while UNATTENDED/WARNING"
+            default RB_SAFETY_COOLING_RETURN_TO_IDLE
             help
-                OPEN QUESTION.
+                What happens once the hottest pixel is below "Cooking over
+                below" (the burner is off and the pan has cooled). Before that,
+                a pan that is only cooling holds the buzzer and shutdown back
+                (see the cookware profile below); it never cancels them early.
             config RB_SAFETY_COOLING_KEEP_TIMERS
-                bool "keep the timers running"
+                bool "keep the timers running (old behaviour: shuts a cold stove off)"
             config RB_SAFETY_COOLING_RETURN_TO_IDLE
                 bool "return to IDLE and cancel the timers"
+        endchoice
+
+        config RB_SAFETY_COOKING_TREND
+            bool "Judge from the temperature trend whether heat is going in"
+            default y
+            help
+                The controller fits the last two minutes of hottest-pixel
+                temperatures. A pan that is only cooling (heading for the room
+                temperature) holds the buzzer and shutdown back until it is
+                below the cooking temperature, or its trend flattens out hot
+                (a lowered flame, a simmer, boiling). Off: any pan above the
+                cooking temperature counts as heated, as before
+                (docs/safety_state_machine.md, "Cooking judgment").
+
+        choice RB_SAFETY_COOKWARE
+            prompt "Cookware profile (how fast the pans lose heat)"
+            default RB_SAFETY_COOKWARE_MIXED
+            depends on RB_SAFETY_COOKING_TREND
+            help
+                Sets the cooling time constant the trend is judged with. The
+                dashboard can change it per stall and the controller saves it.
+                When unsure, pick the one with the shorter time constant: a
+                profile that is too slow can take a low flame for a cooling pan.
+            config RB_SAFETY_COOKWARE_MIXED
+                bool "mixed / unknown (30 min)"
+            config RB_SAFETY_COOKWARE_LIGHT
+                bool "light pans: woks, thin aluminium or stainless (5 min)"
+            config RB_SAFETY_COOKWARE_HEAVY
+                bool "heavy pans: cast iron, thick clad (15 min)"
+            config RB_SAFETY_COOKWARE_LIQUID
+                bool "pots with liquid: soup, stock, boiling water (40 min)"
         endchoice
 
         config RB_SAFETY_FAULT_SHUTDOWN_S

@@ -128,6 +128,42 @@ static void test_cooking_temp_is_parsed(void)
     TEST_ASSERT_EQUAL(RB_CTRL_ACTION_COOKING_TEMP_DEFAULTS, cmd.action);
 }
 
+static void test_cookware_is_parsed(void)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":13,\"action\":\"cookware\",\"cookware\":\"liquid\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_COOKWARE, cmd.action);
+    TEST_ASSERT_EQUAL_STRING("liquid", cmd.cookware);
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":14,\"action\":\"cookware_defaults\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_COOKWARE_DEFAULTS, cmd.action);
+}
+
+static void test_bad_cookware_is_rejected(void)
+{
+#define CHEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
+    static const char *const bad[] = {
+        CHEAD "\"action\":\"cookware\"}",                                      /* the profile is missing */
+        CHEAD "\"action\":\"cookware\",\"cookware\":\"steel\"}",                /* unknown profile */
+        CHEAD "\"action\":\"cookware\",\"cookware\":5}",                        /* not a string */
+        CHEAD "\"action\":\"reset\",\"cookware\":\"light\"}",                  /* goes with its action only */
+        CHEAD "\"action\":\"cookware_defaults\",\"cookware\":\"light\"}",
+    };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        rb_ctrl_cmd_t cmd;
+        char err[80];
+        TEST_ASSERT_FALSE_MESSAGE(parse(bad[i], &cmd, err), bad[i]);
+        TEST_ASSERT_TRUE(err[0] != '\0');
+    }
+#undef CHEAD
+}
+
 static void test_bad_cooking_temps_are_rejected(void)
 {
 #define HEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
@@ -159,4 +195,6 @@ void run_ctrl_cmd_tests(void)
     RUN_TEST(test_bad_presence_filters_are_rejected);
     RUN_TEST(test_cooking_temp_is_parsed);
     RUN_TEST(test_bad_cooking_temps_are_rejected);
+    RUN_TEST(test_cookware_is_parsed);
+    RUN_TEST(test_bad_cookware_is_rejected);
 }

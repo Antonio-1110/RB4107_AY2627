@@ -23,7 +23,7 @@ static const char *TAG = "MQTT";
 
 #define TELEMETRY_STACK 6144
 #define TOPIC_LEN 96
-#define PAYLOAD_LEN 1536 /* also fits a heat-map picture: 1024 base64 characters plus ~300 */
+#define PAYLOAD_LEN 2048 /* also fits a heat-map picture: 1024 base64 characters plus ~300 */
 
 static char s_payload[PAYLOAD_LEN];
 static char s_timestamp[32];
@@ -146,6 +146,13 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.cooking_off_c = snap->heat_off_temp_c;
     t->safety.cooking_remote = snap->cooking_temp_remote;
     t->safety.cooking_active = snap->cooking_active;
+    t->safety.cooking_phase = safety_heat_phase_name(snap->heat_phase);
+    t->safety.trend_rate_c_per_min = snap->trend_rate_c_per_min;
+    t->safety.settle_c = snap->settle_c;
+    t->safety.hold = safety_hold_name(snap->hold);
+    t->safety.cookware = safety_cookware_name(snap->cookware);
+    t->safety.cookware_tau_s = snap->cookware_tau_s;
+    t->safety.cookware_remote = snap->cookware_remote;
     t->safety.presence_unknown = snap->presence_unknown;
     t->safety.thermal_lost = snap->thermal_lost;
     t->safety.absent_ms = snap->absent_ms;

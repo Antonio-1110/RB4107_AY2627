@@ -81,6 +81,13 @@ typedef struct {
     float heat_off_temp_c;        /* cooking over below this one */
     bool cooking_temp_remote;     /* cooking temperature set from the dashboard, not menuconfig */
     bool cooking_active;          /* the heat detector's state: cooking, per the thermal camera */
+    safety_heat_phase_t heat_phase;   /* heating / holding / cooling, from the temperature trend */
+    float trend_rate_c_per_min;   /* NAN until there is enough data */
+    float settle_c;               /* where the temperature is heading, NAN if unknown */
+    safety_hold_t hold;           /* what holds a due buzzer or shutdown back right now */
+    safety_cookware_t cookware;   /* cookware profile in use */
+    float cookware_tau_s;
+    bool cookware_remote;         /* profile set from the dashboard, not menuconfig */
     bool presence_unknown;        /* flag: presence data missing/invalid (safety.h) */
     bool thermal_lost;            /* flag: thermal data missing/invalid */
     uint32_t absent_ms;           /* absence debounce progress, 0 = not running */
@@ -197,6 +204,13 @@ esp_err_t rb_controller_set_presence_filter(const rb_presence_filter_t *filter);
  * across reboots is the caller's job.
  */
 esp_err_t rb_controller_set_cooking_temp(float on_c);
+
+/*
+ * Pick the cookware profile (mixed, light, heavy, liquid), or SAFETY_COOKWARE_COUNT for the
+ * menuconfig one. Stays on top of any later rb_controller_set_safety_config() until a reboot.
+ * Applied at the next step. Saving it across reboots is the caller's job.
+ */
+esp_err_t rb_controller_set_cookware(safety_cookware_t profile);
 
 #ifdef __cplusplus
 }
