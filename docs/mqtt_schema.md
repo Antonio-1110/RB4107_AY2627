@@ -56,14 +56,14 @@ Check any capture with `tools/diagnostics/validate_json.py`.
               "rate_c_per_min": 1.7, "pixels_above_threshold": 37},
   "safety": {"state": "UNATTENDED", "state_ms": 16400, "unattended_ms": 18400,
              "buzzer": "OFF", "shutdown": false, "reset_required": false,
-             "warning_after_ms": 60000, "shutdown_after_ms": 90000, "shutdown_counts_from": "UNATTENDED",
+             "warning_after_ms": 180000, "shutdown_after_ms": 300000, "shutdown_counts_from": "UNATTENDED",
              "test_timers": false, "hold": "none",
              "presence_unknown": false, "thermal_lost": false, "absent_ms": 0, "returning_ms": 0,
              "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                  "source": "menuconfig"},
              "cooking": {"active": true, "phase": "holding", "rate_c_per_min": 0.1, "settle_c": 98.7,
                          "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
-             "cookware": {"profile": "mixed", "tau_s": 1800, "source": "menuconfig"}},
+             "cookware": {"profile": "mixed", "tau_s": 600, "source": "menuconfig"}},
   "faults": ["mqtt_disconnected"]
 }
 ```
@@ -134,7 +134,7 @@ always holds the current set.
   "schema_version": 2, "type": "event", "controller_id": "controller_01",
   "timestamp": "2026-09-26T00:01:00+08:00", "uptime_ms": 78400, "sequence": 4128,
   "event": "warning",
-  "safety": {"state": "WARNING", "from_state": "UNATTENDED", "reason": "unattended timeout", "unattended_ms": 60000},
+  "safety": {"state": "WARNING", "from_state": "UNATTENDED", "reason": "unattended timeout", "unattended_ms": 180000},
   "fault": null
 }
 ```

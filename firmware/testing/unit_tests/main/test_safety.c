@@ -760,6 +760,24 @@ static void test_low_flame_is_not_mistaken_for_cooling(void)
     TEST_ASSERT_TRUE(h.sm.settle_c > 70.0f);
 }
 
+/*
+ * A profile slower than the pan can make a lowered flame look like cooling while its warm-up tail is still
+ * relaxing. Within 1.5x of the pan the buzzer is on time; 2x to 8x slower it is late by up to about a minute
+ * (measured: tools/diagnostics/cooling_delay.c), never missed.
+ */
+static void test_wrong_profile_delays_a_lowered_flame_at_most_a_minute(void)
+{
+    const safety_cookware_t slower[] = {SAFETY_COOKWARE_MIXED, SAFETY_COOKWARE_HEAVY, SAFETY_COOKWARE_LIQUID};
+    for (unsigned i = 0; i < sizeof(slower) / sizeof(slower[0]); i++) { /* 2x, 3x and 8x the 5 min pan */
+        th_t h;
+        const safety_config_t cfg = cookware_config(slower[i]);
+        th_start(&h, &cfg, 0);
+        cook_then_leave(&h);
+        run_curve(&h, cfg.warning_timeout_ms + 90000, low_flame);
+        TEST_ASSERT_TRUE_MESSAGE(h.sm.state == SAFETY_WARNING, safety_cookware_name(slower[i]));
+    }
+}
+
 static void test_boiling_plateau_counts_as_heat_going_in(void)
 {
     th_t h;
@@ -940,6 +958,7 @@ void run_safety_tests(void)
     RUN_TEST(test_cooling_hold_is_reported);
     RUN_TEST(test_slow_cooling_pot_with_liquid_is_held_too);
     RUN_TEST(test_low_flame_is_not_mistaken_for_cooling);
+    RUN_TEST(test_wrong_profile_delays_a_lowered_flame_at_most_a_minute);
     RUN_TEST(test_boiling_plateau_counts_as_heat_going_in);
     RUN_TEST(test_cooling_hold_ends_when_the_trend_flattens_hot);
     RUN_TEST(test_unknown_trend_counts_as_heat_going_in);

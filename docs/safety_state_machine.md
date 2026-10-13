@@ -120,24 +120,38 @@ measured cooling constants for cookware, so check them against your own pans:
 
 | Profile | For | τ |
 |---|---|---|
-| mixed / unknown (default) | anything | 30 min |
+| mixed / unknown (default) | ordinary pans, between light and heavy | 10 min |
 | light | woks, thin aluminium or stainless pans | 5 min (3–8) |
 | heavy | cast iron, thick clad pans | 15 min (10–20) |
 | liquid | pots of soup, stock, boiling water | 40 min (20–60; longer with a lid) |
 
 Extremes (searing pans, very large stock pots, deep fryers) are not profiled.
 
-What a wrong profile does (simulated on model cooling curves with 0.3 °C camera
-noise, not measured on real cookware; `tools/diagnostics/cooling_sweep.c`
-reproduces it):
+**The judgment checks itself.** `T + τ × rate` is exact when the profile fits
+the pan: for a pan that is only cooling it stays put near the room temperature.
+If the profile's τ is longer than the pan's, the estimate climbs as a lowered
+flame's warm-up tail relaxes. So "cooling" is only believed while the estimate
+has not risen by more than 8 °C over the last minute (and is dropped if it rises
+by more than 16 °C/min). A profile that fits the pan holds the timers for a
+cooling pan; a profile that does not simply falls back to the normal timers.
+
+What a wrong profile costs, simulated on model cooling curves (not measured on
+real cookware; `tools/diagnostics/cooling_sweep.c` and
+`tools/diagnostics/cooling_delay.c` reproduce it):
 
 - **Profile too short** (e.g. *light* for a heavy pot): a cooling pan is
   recognised late or never, so the buzzer and shutdown run as before. Nuisance,
-  never dangerous. **When unsure, pick the shorter profile.**
-- **Profile too long** (e.g. *liquid* for a light pan): a lowered flame can be
-  taken for cooling while it is still warming up toward its settling
-  temperature. It ends when the trend flattens, and never lasts longer than
-  4 τ (1 h at most): a pan that is still hot after that has heat going in.
+  never dangerous.
+- **Profile too long** (e.g. *liquid* for a light pan), lowered flame, buzzer
+  due at 120 s with a 5 min pan: on time up to a profile 1.5× slower than the
+  pan; for 2× to 8× slower it comes **36–68 s late**, never missed. A hold also
+  never lasts longer than 4 τ (an hour at most), and after it the buzzer sounds
+  for 30 s before any shutdown.
+- **Matched profile**: a pan with the burner off is recognised after about 30-90 s
+  and held until it is cold; the same pan on a lowered flame is not held.
+
+So the demo needs the profile to be roughly right for the cookware on the stove.
+When unsure, pick the shorter one.
 
 ## Holds: a due buzzer or shutdown that waits
 
@@ -155,6 +169,11 @@ was due long ago, so the first thing someone nearby hears is the warning.
 
 The earlier rule "a fault never postpones a due shutdown" still applies in
 FAULT. The return hold is the one bounded exception for presence.
+
+The **buzzer and shutdown defaults are 3 min and 5 min** (`RB_SAFETY_WARNING_TIMEOUT_S`,
+`RB_SAFETY_SHUTDOWN_TIMEOUT_S`; they were 20 s and 40 s). That is long enough for
+the trend to be read (about 1-2 minutes) before the buzzer is due, which is what
+lets the demo show the timers behaving correctly for the situation.
 
 The trend can't be known without a working thermal camera: with the camera
 lost, heat counts as going in and nothing is held for cooling. The trend can be

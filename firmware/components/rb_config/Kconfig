@@ -1196,18 +1196,23 @@ menu "RB4107 configuration"
         config RB_SAFETY_WARNING_TIMEOUT_S
             int "Unattended time before WARNING (s)"
             range 1 3600
-            default 20
+            default 180
             help
-                Short demo value. The dashboard can change it until the next
-                reboot.
+                3 minutes. Long enough for the controller to read the
+                temperature trend (about 1-2 minutes) and tell a pan that is
+                only cooling from one that still has heat going in, so the
+                demo shows the timers behaving correctly for the situation, not
+                just running. The dashboard can change it until the next
+                reboot; the diagnostic console's accelerated test timers are
+                much shorter.
 
         config RB_SAFETY_SHUTDOWN_TIMEOUT_S
             int "Shutdown timeout (s)"
             range 1 3600
-            default 40
+            default 300
             help
-                Meaning depends on "Shutdown timeout counts from" below. Short
-                demo value. The dashboard can change it until the next reboot.
+                5 minutes. Meaning depends on "Shutdown timeout counts from"
+                below. The dashboard can change it until the next reboot.
 
         choice RB_SAFETY_SHUTDOWN_TIMING
             prompt "Shutdown timeout counts from"
@@ -1264,10 +1269,11 @@ menu "RB4107 configuration"
             help
                 Sets the cooling time constant the trend is judged with. The
                 dashboard can change it per stall and the controller saves it.
-                When unsure, pick the one with the shorter time constant: a
-                profile that is too slow can take a low flame for a cooling pan.
+                It should be roughly right for the pans on the stove: a profile
+                much slower than the pan can delay the buzzer for a lowered
+                flame by up to about a minute. When unsure, pick the shorter one.
             config RB_SAFETY_COOKWARE_MIXED
-                bool "mixed / unknown (30 min)"
+                bool "mixed / unknown (10 min)"
             config RB_SAFETY_COOKWARE_LIGHT
                 bool "light pans: woks, thin aluminium or stainless (5 min)"
             config RB_SAFETY_COOKWARE_HEAVY

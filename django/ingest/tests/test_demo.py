@@ -39,8 +39,8 @@ class DemoScenarioTests(SimpleTestCase):
         self.assertEqual(state("idle")["presence_state"], "ABSENT")
         # The timers stay inside their state's window while counting.
         for tick in range(0, 120, 7):
-            self.assertLess(state("unattended", tick)["safety"]["unattended_ms"], 60000)
-            self.assertTrue(60000 <= state("warning", tick)["safety"]["unattended_ms"] < 90000)
+            self.assertLess(state("unattended", tick)["safety"]["unattended_ms"], 180000)
+            self.assertTrue(180000 <= state("warning", tick)["safety"]["unattended_ms"] < 300000)
         # After the supply is cut the stove cools down.
         hot, later = state("shutdown", 0)["thermal"], state("shutdown", 150)["thermal"]
         self.assertGreater(hot["max_c"], later["max_c"])

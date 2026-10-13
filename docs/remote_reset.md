@@ -66,14 +66,14 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 1. **Presence filter and timers** in the Countdown card (rules 2 and 3): five fields in
    seconds, **Apply** and **Menuconfig values**. They call
    `POST /api/devices/<id>/presence_filter/` with
-   `{"absence_ms":1000,"return_ms":3000,"return_gap_ms":1000,"warning_ms":20000,"shutdown_ms":40000}`
+   `{"absence_ms":1000,"return_ms":3000,"return_gap_ms":1000,"warning_ms":180000,"shutdown_ms":300000}`
    or `{"defaults":true}`.
 2. Django publishes on `<prefix>/controller/command`:
 
    ```json
    {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
     "request_id":8,"action":"presence_filter","absence_ms":1000,"return_ms":3000,"return_gap_ms":1000,
-    "warning_ms":20000,"shutdown_ms":40000}
+    "warning_ms":180000,"shutdown_ms":300000}
    ```
 
    or `"action":"presence_filter_defaults"` without the five values. Limits,

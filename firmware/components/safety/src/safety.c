@@ -18,7 +18,7 @@ static const safety_outputs_t STATE_OUTPUTS[SAFETY_STATE_COUNT] = {
 
 /* Time constants of the cookware profiles (see safety.h). Estimates from typical mass and heat capacity. */
 static const float COOKWARE_TAU_S[SAFETY_COOKWARE_COUNT] = {
-    [SAFETY_COOKWARE_MIXED] = 1800.0f, /* 30 min */
+    [SAFETY_COOKWARE_MIXED] = 600.0f,  /* 10 min: fits ordinary pans (5-20 min); pots with liquid need their own profile */
     [SAFETY_COOKWARE_LIGHT] = 300.0f,  /* 5 min  (3-8) */
     [SAFETY_COOKWARE_HEAVY] = 900.0f,  /* 15 min (10-20) */
     [SAFETY_COOKWARE_LIQUID] = 2400.0f, /* 40 min (20-60) */
@@ -54,6 +54,17 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 #define TREND_MIN_SPAN_MS 60000u       /* needs at least this much history ... */
 #define TREND_MIN_SAMPLES 12           /* ... and this many samples */
 #define SETTLE_MARGIN_C 3.0f           /* hysteresis on the cooling decision */
+/*
+ * "Cooling" is only believed when the settling estimate is stable. T + tau * rate is exact
+ * when the profile matches the pan: it stays put at about the room temperature. If the
+ * profile's tau is longer than the pan's real one (a lowered flame whose warm-up tail is
+ * still relaxing, for example), the estimate climbs as the tail fades. Rising faster than
+ * this over a minute means the cooling model does not fit, and heat counts as going in.
+ */
+#define SETTLE_HIST_SAMPLE_MS 5000u
+#define SETTLE_DRIFT_WINDOW_MS 60000u
+#define SETTLE_MAX_DRIFT_C_PER_MIN 8.0f      /* to start believing "cooling" */
+#define SETTLE_EXIT_DRIFT_C_PER_MIN 16.0f    /* to stop believing it (hysteresis: camera noise must not drop a hold) */
 #define RISING_C_PER_MIN 0.5f          /* faster than this is "heating", otherwise "holding" */
 #define COOLING_HOLD_MAX_MS 3600000u   /* a cooling hold never lasts longer than an hour ... */
 #define COOLING_HOLD_TAUS 4.0f         /* ... nor longer than 4 time constants: a pan still hot after that is not just cooling */
@@ -105,6 +116,38 @@ static void trend_clear(safety_sm_t *sm)
     sm->trend_last_ms = 0;
     sm->trend_rate_c_per_min = NAN;
     sm->settle_c = NAN;
+    sm->settle_drift_c_per_min = NAN;
+    sm->settle_count = 0;
+    sm->settle_head = 0;
+    sm->settle_last_ms = 0;
+}
+
+/* Remember the settling estimate every 5 s and work out how much it rose over the last minute. */
+static void settle_track(safety_sm_t *sm, uint32_t now_ms)
+{
+    sm->settle_drift_c_per_min = NAN;
+    if (!isfinite(sm->settle_c)) {
+        sm->settle_count = 0; /* a gap in the trend: start the history over */
+        return;
+    }
+    if (sm->settle_count == 0 || elapsed(now_ms, sm->settle_last_ms, SETTLE_HIST_SAMPLE_MS)) {
+        sm->settle_t_ms[sm->settle_head] = now_ms;
+        sm->settle_hist_c[sm->settle_head] = sm->settle_c;
+        sm->settle_head = (uint8_t)((sm->settle_head + 1) % SAFETY_SETTLE_HIST);
+        if (sm->settle_count < SAFETY_SETTLE_HIST) {
+            sm->settle_count++;
+        }
+        sm->settle_last_ms = now_ms;
+    }
+    /* The newest remembered value that is at least a minute old. */
+    for (uint8_t k = 0; k < sm->settle_count; k++) {
+        const uint8_t idx = (uint8_t)((sm->settle_head + SAFETY_SETTLE_HIST - 1 - k) % SAFETY_SETTLE_HIST);
+        const uint32_t age = (uint32_t)(now_ms - sm->settle_t_ms[idx]);
+        if (age >= SETTLE_DRIFT_WINDOW_MS) {
+            sm->settle_drift_c_per_min = (sm->settle_c - sm->settle_hist_c[idx]) * 60000.0f / (float)age;
+            return;
+        }
+    }
 }
 
 static void trend_push(safety_sm_t *sm, uint32_t now_ms, float temp_c)
@@ -190,13 +233,16 @@ static void judge_heat(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_
         sm->heat_phase = SAFETY_HEAT_CHECKING;
         return;
     }
+    settle_track(sm, now_ms);
     const float off = sm->cfg.heat_off_temp_c;
+    const bool model_fits = !(isfinite(sm->settle_drift_c_per_min) && sm->settle_drift_c_per_min > SETTLE_EXIT_DRIFT_C_PER_MIN);
     if (sm->cooling) {
-        if (sm->settle_c >= off + SETTLE_MARGIN_C) {
-            sm->cooling = false;
+        if (sm->settle_c >= off + SETTLE_MARGIN_C || !model_fits) {
+            sm->cooling = false; /* heading hot after all, or the estimate is climbing: the profile does not fit */
         }
-    } else if (sm->settle_c < off - SETTLE_MARGIN_C) {
-        sm->cooling = true;
+    } else if (sm->settle_c < off - SETTLE_MARGIN_C && isfinite(sm->settle_drift_c_per_min) &&
+               sm->settle_drift_c_per_min <= SETTLE_MAX_DRIFT_C_PER_MIN) {
+        sm->cooling = true; /* below the cooking temperature, and stable: the cooling model fits */
         sm->cooling_since_ms = now_ms;
     }
     sm->heat_phase = sm->cooling ? SAFETY_HEAT_COOLING

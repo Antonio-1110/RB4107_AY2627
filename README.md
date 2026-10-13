@@ -20,10 +20,12 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 1. Each sensor node reads one sensor and sends the readings to the controller
    over ESP-NOW.
 2. The controller combines the two radars and runs the safety state machine:
-   `IDLE → MONITORING → UNATTENDED → WARNING (buzzer, 20 s) → SHUTDOWN (relay, 40 s)`.
+   `IDLE → MONITORING → UNATTENDED → WARNING (buzzer, 3 min) → SHUTDOWN (relay, 5 min)`.
    A shutdown stays latched until someone resets it.
-3. Missing or invalid sensor data is never treated as "safe": it puts the
-   controller in `FAULT`.
+3. Missing or invalid sensor data is never treated as "safe", and it is shown
+   as a flag instead of a fault: with nothing cooking it starts no timer, and
+   while cooking an unknown presence counts as absent. `FAULT` is only for the
+   controller itself (failed self-test or relay output).
 4. The controller also publishes its state over MQTT. Django stores it and
    serves the dashboard. This telemetry path is optional: the controller
    protects the kitchen on its own when the network, broker or laptop is down.

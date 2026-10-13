@@ -37,7 +37,7 @@ measured it; *not checked* means it is an assumption.
 | Topic | Demo | Deployment | Evidence |
 |---|---|---|---|
 | Cooking temperature | 50 °C on, 40 °C off, placeholders | measured on the real cookware and stove ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)); shiny pans read far too cold on infrared | placeholders *checked*; emissivity from [Stella Culinary](https://mobile.stellaculinary.com/node/3643) and [America's Test Kitchen](https://www.americastestkitchen.com/taste_tests/2452-infrared-thermometers) |
-| Cookware time constants | estimates from typical mass and heat capacity | measured cool-down curves for the stall's actual cookware | estimates, *not measured*; simulated sweep in `tools/diagnostics/cooling_sweep.c` |
+| Cookware time constants | estimates from typical mass and heat capacity; the profile must roughly match the pans on the stove | measured cool-down curves for the stall's actual cookware | estimates, *not measured*; simulated in `tools/diagnostics/cooling_sweep.c` and `cooling_delay.c` |
 | Several burners | one trend for the hottest pixel of the whole frame, so one pan can hide another | track each burner separately | design limit, *checked* in `safety.c` |
 | Spikes in the hottest pixel (a hand, steam) | the trend is a plain least-squares fit, so a spike skews it | median filter before the fit | design limit, *checked* |
 | Presence | two radars OR-ed; a false target on either keeps the gas on ([issue #20](https://github.com/Antonio-1110/RB4107_AY2627/issues/20)) | a second, independent presence vote (the thermal camera sees warm bodies), zone and range tuning | radar OR *checked*; thermal vote *not built* |
@@ -72,12 +72,17 @@ default if you want to show the live radar view.
 
 ## Demo notes (things to know when presenting)
 
-- **Accelerated timers and the cooking judgment don't mix.** The temperature
-  trend needs at least 60 seconds of history, so the cooling hold can't engage
-  under test timers with a warning time of a few seconds. Show the cooling hold
-  with the dashboard's demo scenario ("cooling" in `simulate_fleet`) or with real
-  timers and a pan that is really cooling. A lowered flame versus an off burner
-  needs several minutes on real hardware.
+- **The default timers are 3 min to the buzzer and 5 min to the shutdown**
+  (`RB_SAFETY_WARNING_TIMEOUT_S` and `RB_SAFETY_SHUTDOWN_TIMEOUT_S`; they were
+  20 s and 40 s). The cooking judgment needs about 1-2 minutes of temperature
+  history, so the buzzer has to come later than that for the demo to show the
+  timers behaving correctly for the situation. Both can be changed from the
+  dashboard (Tuning, Rules) until the controller reboots.
+- **The diagnostic console's accelerated test timers still don't mix with the
+  cooking judgment**: with a warning time of a few seconds the buzzer fires
+  before the trend can engage. A lowered flame versus an off burner needs
+  several minutes on real hardware; the dashboard's "cooling" demo scenario
+  (`simulate_fleet`) shows the held state without waiting.
 - **After any hold the buzzer sounds for at least 30 s before a shutdown**, so a
   demo of a held timeline ends with a visible warning first.
 - **The cookware profile and the cooking temperature are saved on the

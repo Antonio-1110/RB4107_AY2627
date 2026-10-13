@@ -179,6 +179,7 @@ struct safety_inputs {
 typedef void (*safety_transition_cb_t)(safety_state_t from, safety_state_t to, const char *reason, uint32_t now_ms,
                                        void *ctx);
 
+#define SAFETY_SETTLE_HIST 20         /* one value per 5 s: 100 s of history of the settling estimate */
 #define SAFETY_TREND_MAX 128          /* 2 s samples: room for a window up to 256 s */
 
 typedef struct {
@@ -197,6 +198,12 @@ typedef struct {
     uint32_t trend_last_ms;
     float trend_rate_c_per_min;       /* NAN until there is enough data */
     float settle_c;                   /* T + tau * rate: where it is heading; NAN if unknown */
+    float settle_drift_c_per_min;     /* how much settle_c rose over the last minute; NAN if unknown */
+    uint32_t settle_t_ms[SAFETY_SETTLE_HIST];
+    float settle_hist_c[SAFETY_SETTLE_HIST];
+    uint8_t settle_head;
+    uint8_t settle_count;
+    uint32_t settle_last_ms;
     bool cooling;                     /* latched: heading below the cooking temperature, no heat going in */
     uint32_t cooling_since_ms;
     safety_heat_phase_t heat_phase;

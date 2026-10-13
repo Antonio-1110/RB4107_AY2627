@@ -251,13 +251,13 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS` | Absence must last (ms) before UNATTENDED | `1000` | 0 – 60000 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS` | Presence must last (ms) to cancel UNATTENDED/WARNING | `3000` | 0 – 60000 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS` | Gaps shorter than this (ms) don't restart the presence count | `1000` | 0 – 10000 |  |
-| `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `20` | 1 – 3600 |  |
-| `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `40` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `180` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `300` | 1 – 3600 |  |
 | `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  | ⚠ |
 | `RB_SAFETY_WARNING_EXIT` (choice) | Person returns during WARNING: `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` = return to MONITORING; `CONFIG_RB_SAFETY_WARNING_EXIT_ACK` = stay in WARNING until the person acknowledges (reset input) | `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` |  | ⚠ |
 | `RB_SAFETY_COOLING` (choice) | Pan drops below the cooking temperature while UNATTENDED/WARNING: `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` = keep the timers running (old behaviour); `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` = return to IDLE and cancel the timers | `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` |  |  |
 | `CONFIG_RB_SAFETY_COOKING_TREND` | Judge from the temperature trend whether heat is going in (a cooling pan holds the buzzer and shutdown back) | `y` |  |  |
-| `RB_SAFETY_COOKWARE` (choice) | Cookware profile: mixed (30 min) / light (5 min) / heavy (15 min) / liquid (40 min) | `CONFIG_RB_SAFETY_COOKWARE_MIXED` |  |  |
+| `RB_SAFETY_COOKWARE` (choice) | Cookware profile: mixed (10 min) / light (5 min) / heavy (15 min) / liquid (40 min) | `CONFIG_RB_SAFETY_COOKWARE_MIXED` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_COOKWARE` | Accept the cookware profile from the dashboard | `y` |  |  |
 | `CONFIG_RB_SAFETY_FAULT_SHUTDOWN_S` | Shut down after this long in FAULT (s, 0 = never) | `90` | 0 – 3600 | ⚠ |
 ## Quick index

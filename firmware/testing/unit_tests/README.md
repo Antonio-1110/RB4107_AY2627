@@ -40,8 +40,9 @@ idf.py build flash monitor                              # prints "ALL TESTS PASS
 | MLX90640 becomes unavailable | `test_thermal_lost_flag_only`, `test_thermal_lost_keeps_running_timeline`, `test_thermal_lost_with_person_present_stays_monitoring` |
 | FAULT only for the controller's own faults | `test_fault_only_for_controller_faults`, `test_sensor_faults_do_not_enter_fault_state` |
 | Cooling pan holds the timers, then cancels | `test_cooling_pan_holds_the_timers_then_cancels`, `test_cooling_hold_is_reported`, `test_slow_cooling_pot_with_liquid_is_held_too` |
-| Heat going in is not mistaken for cooling | `test_low_flame_is_not_mistaken_for_cooling`, `test_boiling_plateau_counts_as_heat_going_in`, `test_cooling_hold_ends_when_the_trend_flattens_hot`, `test_unknown_trend_counts_as_heat_going_in`, `test_trend_off_keeps_the_old_behaviour` |
+| Heat going in is not mistaken for cooling | `test_low_flame_is_not_mistaken_for_cooling`, `test_boiling_plateau_counts_as_heat_going_in`, `test_cooling_hold_ends_when_the_trend_flattens_hot`, `test_wrong_profile_delays_a_lowered_flame_at_most_a_minute`, `test_unknown_trend_counts_as_heat_going_in`, `test_trend_off_keeps_the_old_behaviour` |
 | A due timer waits for a return in progress (bounded) | `test_warning_waits_for_a_return_in_progress`, `test_warning_fires_when_the_return_does_not_materialise`, `test_shutdown_waits_for_a_return_in_progress`, `test_long_return_holds_the_warning_until_it_is_confirmed`, `test_sparse_blips_do_not_hold_a_due_warning` |
+| The menuconfig defaults do the right thing for the situation (burner off: no buzzer; burner on low: buzzer and shutdown on time) | `test_kconfig_burner_off_pan_cooling_is_not_warned`, `test_kconfig_burner_on_low_is_warned_and_shut_down` |
 | Cookware profile command | `test_cookware_is_parsed`, `test_bad_cookware_is_rejected` |
 | Radar noise (blips) while absent | `test_presence_blips_do_not_block_absence`, `test_blip_inside_debounce_keeps_absent_since`, `test_real_return_after_noise_cancels_timer` |
 | Node sends presence on change | `test_presence_change_is_sent_at_once` |

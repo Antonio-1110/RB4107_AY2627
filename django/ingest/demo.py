@@ -23,6 +23,8 @@ TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
 SHUTDOWN_CYCLE_S = 600
 COOLING_CYCLE_S = 420
+# The firmware defaults: buzzer 3 min and shutdown 5 min after the person left.
+WARNING_S, SHUTDOWN_AFTER_S = 180, 300
 
 # network_loss: online, then silent (the dashboard marks it stale), then the
 # broker reports it offline (the controller's MQTT Last Will), then back.
@@ -64,18 +66,18 @@ def _timers(scenario, tick):
     """(unattended_ms, state_ms)."""
     seconds = tick * TICK_S
     # fault_radars: presence unknown while cooking counts as absent, so the same timeline runs
-    if scenario in {"unattended", "fault_radars"}:  # left the stove 10-55 s ago (warning at 60 s)
-        unattended = 10 + seconds % 46
+    if scenario in {"unattended", "fault_radars"}:  # left the stove 10 s to just before the buzzer
+        unattended = 10 + seconds % (WARNING_S - 14)
         return unattended * 1000, unattended * 1000
     if scenario == "cooling":  # past the warning time, but held back while the pan only cools
-        unattended = 75 + seconds % COOLING_CYCLE_S
+        unattended = WARNING_S + 15 + seconds % COOLING_CYCLE_S
         return unattended * 1000, unattended * 1000
-    if scenario == "warning":  # 60-88 s (supply cut at 90 s)
-        unattended = 60 + seconds % 29
-        return unattended * 1000, (unattended - 60) * 1000
+    if scenario == "warning":  # buzzer sounding, until just before the supply is cut
+        unattended = WARNING_S + seconds % (SHUTDOWN_AFTER_S - WARNING_S - 2)
+        return unattended * 1000, (unattended - WARNING_S) * 1000
     if scenario == "shutdown":
         since_cut = seconds % SHUTDOWN_CYCLE_S
-        return (90 + since_cut) * 1000, since_cut * 1000
+        return (SHUTDOWN_AFTER_S + since_cut) * 1000, since_cut * 1000
     return 0, 5000 + seconds * 1000
 
 
@@ -120,8 +122,8 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
     phase = "off" if scenario in {"idle", "shutdown"} else "cooling" if scenario == "cooling" else "holding"
     if boot_id:
         data["boot_id"] = boot_id
-        data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=60000,
-                              shutdown_after_ms=90000, shutdown_counts_from="UNATTENDED",
+        data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=WARNING_S * 1000,
+                              shutdown_after_ms=SHUTDOWN_AFTER_S * 1000, shutdown_counts_from="UNATTENDED",
                               presence_filter={"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                                "source": "menuconfig"},
                               cooking={"active": temp >= 40.0, "phase": phase, "rate_c_per_min": round(rate, 2),
