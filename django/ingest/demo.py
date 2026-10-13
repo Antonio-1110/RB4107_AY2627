@@ -26,7 +26,8 @@ COOLING_CYCLE_S = 420
 # The firmware defaults: buzzer 3 min and shutdown 5 min after the person left.
 WARNING_S, SHUTDOWN_AFTER_S = 180, 300
 # The temperature tiers (firmware defaults): hotter pans get shorter times.
-TIERS = {"elevated": {"temp_c": 120.0, "warning_ms": 60000, "shutdown_ms": 150000},
+TIERS = {"source": "menuconfig",
+         "elevated": {"temp_c": 120.0, "warning_ms": 60000, "shutdown_ms": 150000},
          "critical": {"temp_c": 200.0, "rate_c_per_min": 20.0, "rate_min_temp_c": 150.0,
                       "warning_ms": 30000, "shutdown_ms": 120000}}
 HOT_WARNING_S = 30

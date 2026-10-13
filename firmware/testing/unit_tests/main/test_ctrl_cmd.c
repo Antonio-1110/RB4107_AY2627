@@ -164,6 +164,61 @@ static void test_bad_cookware_is_rejected(void)
 #undef CHEAD
 }
 
+#define TIERS_BODY "\"tier1_temp_dc\":1200,\"tier1_warning_ms\":60000,\"tier1_shutdown_ms\":150000," \
+                   "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500," \
+                   "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000"
+
+static void test_tiers_are_parsed(void)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":15,\"action\":\"tiers\"," TIERS_BODY "}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_TIERS, cmd.action);
+    TEST_ASSERT_EQUAL_UINT16(1200, cmd.tier1_temp_dc);
+    TEST_ASSERT_EQUAL_UINT32(60000, cmd.tier1_warning_ms);
+    TEST_ASSERT_EQUAL_UINT32(150000, cmd.tier1_shutdown_ms);
+    TEST_ASSERT_EQUAL_UINT16(2000, cmd.tier2_temp_dc);
+    TEST_ASSERT_EQUAL_UINT16(200, cmd.tier2_rate_dc_per_min);
+    TEST_ASSERT_EQUAL_UINT16(1500, cmd.tier2_rate_min_temp_dc);
+    TEST_ASSERT_EQUAL_UINT32(30000, cmd.tier2_warning_ms);
+    TEST_ASSERT_EQUAL_UINT32(120000, cmd.tier2_shutdown_ms);
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":16,\"action\":\"tiers_defaults\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_TIERS_DEFAULTS, cmd.action);
+}
+
+static void test_bad_tiers_are_rejected(void)
+{
+#define THEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
+    static const char *const bad[] = {
+        THEAD "\"action\":\"tiers\"}",                                                  /* the values are missing */
+        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":1200}",                          /* only one of eight */
+        THEAD "\"action\":\"reset\"," TIERS_BODY "}",                                  /* goes with its action only */
+        THEAD "\"action\":\"tiers_defaults\",\"tier1_temp_dc\":1200}",
+        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":3001,\"tier1_warning_ms\":60000,\"tier1_shutdown_ms\":150000,"
+            "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500,"
+            "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000}",                 /* temperature over the limit */
+        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":1200,\"tier1_warning_ms\":500,\"tier1_shutdown_ms\":150000,"
+            "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500,"
+            "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000}",                 /* under 1 s */
+        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":\"1200\",\"tier1_warning_ms\":60000,\"tier1_shutdown_ms\":150000,"
+            "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500,"
+            "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000}",                 /* a string */
+    };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        rb_ctrl_cmd_t cmd;
+        char err[80];
+        TEST_ASSERT_FALSE_MESSAGE(parse(bad[i], &cmd, err), bad[i]);
+        TEST_ASSERT_TRUE(err[0] != '\0');
+    }
+#undef THEAD
+}
+
 static void test_bad_cooking_temps_are_rejected(void)
 {
 #define HEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
@@ -197,4 +252,6 @@ void run_ctrl_cmd_tests(void)
     RUN_TEST(test_bad_cooking_temps_are_rejected);
     RUN_TEST(test_cookware_is_parsed);
     RUN_TEST(test_bad_cookware_is_rejected);
+    RUN_TEST(test_tiers_are_parsed);
+    RUN_TEST(test_bad_tiers_are_rejected);
 }

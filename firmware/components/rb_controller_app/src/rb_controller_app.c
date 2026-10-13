@@ -41,11 +41,12 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #endif
 }
 
-#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE
-/* The dashboard's cooking temperature and cookware profile, saved so they survive a reboot. */
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS
+/* The dashboard's cooking temperature, cookware profile and temperature tiers, saved so they survive a reboot. */
 #define NVS_NAMESPACE "rb_safety"
 #define NVS_KEY_COOKING "cook_dc"
 #define NVS_KEY_COOKWARE "cookware"
+#define NVS_KEY_TIERS "tiers"
 
 static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
 {
@@ -144,6 +145,82 @@ static void set_cookware(const rb_ctrl_cmd_t *cmd)
 }
 #endif
 
+#if CONFIG_RB_CTRL_REMOTE_TIERS
+typedef struct {
+    uint8_t version; /* 1 */
+    rb_tiers_t tiers;
+} saved_tiers_t;
+
+static void tiers_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return;
+    }
+    saved_tiers_t saved;
+    size_t len = sizeof(saved);
+    if (nvs_get_blob(h, NVS_KEY_TIERS, &saved, &len) == ESP_OK && len == sizeof(saved) && saved.version == 1) {
+        rb_controller_set_tiers(&saved.tiers);
+        ESP_LOGW(TAG, "temperature tiers saved from the dashboard: from %.0f C %lu/%lu s, from %.0f C %lu/%lu s",
+                 (double)saved.tiers.tier1_temp_c, (unsigned long)(saved.tiers.tier1_warning_ms / 1000),
+                 (unsigned long)(saved.tiers.tier1_shutdown_ms / 1000), (double)saved.tiers.tier2_temp_c,
+                 (unsigned long)(saved.tiers.tier2_warning_ms / 1000), (unsigned long)(saved.tiers.tier2_shutdown_ms / 1000));
+    }
+    nvs_close(h);
+}
+
+/* tiers == NULL: forget the saved tiers (back to menuconfig at the next boot too). */
+static void tiers_save(const rb_tiers_t *tiers)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the temperature tiers last until the next reboot");
+        return;
+    }
+    esp_err_t err;
+    if (tiers == NULL) {
+        err = nvs_erase_key(h, NVS_KEY_TIERS);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    } else {
+        const saved_tiers_t saved = {.version = 1, .tiers = *tiers};
+        err = nvs_set_blob(h, NVS_KEY_TIERS, &saved, sizeof(saved));
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "temperature tiers not saved (%s): they last until the next reboot", esp_err_to_name(err));
+    }
+}
+
+/* MQTT task: the dashboard's temperature tiers, or back to menuconfig. */
+static void set_tiers(const rb_ctrl_cmd_t *cmd)
+{
+    if (cmd->action == RB_CTRL_ACTION_TIERS_DEFAULTS) {
+        ESP_LOGW(TAG, "temperature tiers: menuconfig values (request %u)", (unsigned)cmd->request_id);
+        rb_controller_set_tiers(NULL);
+        tiers_save(NULL);
+        return;
+    }
+    const rb_tiers_t tiers = {
+        .tier1_temp_c = cmd->tier1_temp_dc / 10.0f,
+        .tier1_warning_ms = cmd->tier1_warning_ms,
+        .tier1_shutdown_ms = cmd->tier1_shutdown_ms,
+        .tier2_temp_c = cmd->tier2_temp_dc / 10.0f,
+        .tier2_rate_c_per_min = cmd->tier2_rate_dc_per_min / 10.0f,
+        .tier2_rate_min_temp_c = cmd->tier2_rate_min_temp_dc / 10.0f,
+        .tier2_warning_ms = cmd->tier2_warning_ms,
+        .tier2_shutdown_ms = cmd->tier2_shutdown_ms,
+    };
+    ESP_LOGW(TAG, "temperature tiers from the dashboard (request %u)", (unsigned)cmd->request_id);
+    rb_controller_set_tiers(&tiers); /* the safety task refuses inconsistent values and keeps the ones in use */
+    tiers_save(&tiers);
+}
+#endif
+
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP && !CONFIG_RB_SIM_NODE
 /* The thermal node's MAC, learned from its packets, so the cooking temperature can reach it. */
 static portMUX_TYPE s_thermal_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -227,7 +304,7 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 #endif
 
 #if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || \
-    CONFIG_RB_CTRL_REMOTE_COOKWARE
+    CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS
 #define RB_CTRL_COMMANDS 1
 /* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
@@ -287,6 +364,14 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard cookware profile refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_TIERS:
+    case RB_CTRL_ACTION_TIERS_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_TIERS
+        set_tiers(&cmd);
+#else
+        ESP_LOGW(TAG, "dashboard temperature tiers refused: turned off in menuconfig");
+#endif
+        break;
     }
 }
 
@@ -332,6 +417,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 #if CONFIG_RB_CTRL_REMOTE_COOKWARE
     cookware_load();
+#endif
+#if CONFIG_RB_CTRL_REMOTE_TIERS
+    tiers_load();
 #endif
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT

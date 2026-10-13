@@ -91,6 +91,16 @@ enum {
     SEEN_FILTER = SEEN_ABSENCE | SEEN_RETURN | SEEN_GAP | SEEN_WARNING | SEEN_SHUTDOWN,
     SEEN_COOKING = 1024,
     SEEN_COOKWARE = 2048,
+    SEEN_T1_TEMP = 1 << 12,
+    SEEN_T1_WARN = 1 << 13,
+    SEEN_T1_STOP = 1 << 14,
+    SEEN_T2_TEMP = 1 << 15,
+    SEEN_T2_RATE = 1 << 16,
+    SEEN_T2_RATE_MIN = 1 << 17,
+    SEEN_T2_WARN = 1 << 18,
+    SEEN_T2_STOP = 1 << 19,
+    SEEN_TIERS = SEEN_T1_TEMP | SEEN_T1_WARN | SEEN_T1_STOP | SEEN_T2_TEMP | SEEN_T2_RATE | SEEN_T2_RATE_MIN | SEEN_T2_WARN |
+                 SEEN_T2_STOP,
 };
 
 /* One of the filter values: an integer min..max milliseconds. */
@@ -175,10 +185,14 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_COOKWARE;
                 } else if (is_str && strcmp(str, "cookware_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_COOKWARE_DEFAULTS;
+                } else if (is_str && strcmp(str, "tiers") == 0) {
+                    out->action = RB_CTRL_ACTION_TIERS;
+                } else if (is_str && strcmp(str, "tiers_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_TIERS_DEFAULTS;
                 } else {
                     fail(err, err_len,
                          "action must be reset, presence_filter, presence_filter_defaults, cooking_temp, "
-                         "cooking_temp_defaults, cookware or cookware_defaults");
+                         "cooking_temp_defaults, cookware, cookware_defaults, tiers or tiers_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -215,6 +229,48 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->cooking_temp_dc = (uint16_t)num;
+            } else if (strcmp(key, "tier1_temp_dc") == 0 || strcmp(key, "tier2_temp_dc") == 0 ||
+                       strcmp(key, "tier2_rate_min_temp_dc") == 0) {
+                const bool one = key[4] == '1';
+                bit = one ? SEEN_T1_TEMP : (strcmp(key, "tier2_temp_dc") == 0 ? SEEN_T2_TEMP : SEEN_T2_RATE_MIN);
+                if (is_str || num > RB_CTRL_COOKING_TEMP_MAX_DC) {
+                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_COOKING_TEMP_MAX_DC);
+                    return false;
+                }
+                if (one) {
+                    out->tier1_temp_dc = (uint16_t)num;
+                } else if (bit == SEEN_T2_TEMP) {
+                    out->tier2_temp_dc = (uint16_t)num;
+                } else {
+                    out->tier2_rate_min_temp_dc = (uint16_t)num;
+                }
+            } else if (strcmp(key, "tier2_rate_dc_per_min") == 0) {
+                bit = SEEN_T2_RATE;
+                if (is_str || num > RB_CTRL_TIER_RATE_MAX_DC_PER_MIN) {
+                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_TIER_RATE_MAX_DC_PER_MIN);
+                    return false;
+                }
+                out->tier2_rate_dc_per_min = (uint16_t)num;
+            } else if (strcmp(key, "tier1_warning_ms") == 0) {
+                bit = SEEN_T1_WARN;
+                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier1_warning_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "tier1_shutdown_ms") == 0) {
+                bit = SEEN_T1_STOP;
+                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier1_shutdown_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "tier2_warning_ms") == 0) {
+                bit = SEEN_T2_WARN;
+                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier2_warning_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "tier2_shutdown_ms") == 0) {
+                bit = SEEN_T2_STOP;
+                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier2_shutdown_ms, err, err_len)) {
+                    return false;
+                }
             } else if (strcmp(key, "cookware") == 0) {
                 bit = SEEN_COOKWARE;
                 if (!is_str || (strcmp(str, "mixed") != 0 && strcmp(str, "light") != 0 && strcmp(str, "heavy") != 0 &&
@@ -258,6 +314,10 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     }
     if ((out->action == RB_CTRL_ACTION_COOKWARE) != ((seen & SEEN_COOKWARE) != 0)) {
         fail(err, err_len, "cookware goes with the cookware action only, and it needs it");
+        return false;
+    }
+    if (out->action == RB_CTRL_ACTION_TIERS ? (seen & SEEN_TIERS) != SEEN_TIERS : (seen & SEEN_TIERS) != 0) {
+        fail(err, err_len, "tiers needs all eight tier values, other actions none");
         return false;
     }
     return true;

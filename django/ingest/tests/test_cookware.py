@@ -95,3 +95,74 @@ class CookingTrendTelemetryTest(TestCase):
         self.assertIsNone(fields["hold"])
         self.assertIsNone(fields["tier"])
         self.assertIsNone(fields["cookware_profile"])
+
+
+class TiersCommandTest(TestCase):
+    URL = "/api/devices/controller_01/tiers/"
+    GOOD = {"elevated": {"temp_c": 120, "warning_s": 60, "shutdown_s": 150},
+            "critical": {"temp_c": 200, "rate_c_per_min": 20, "rate_min_temp_c": 150, "warning_s": 30, "shutdown_s": 120}}
+
+    def setUp(self):
+        worker_status(True)
+        handle(parse("rb4107/controller/state",
+                     json.dumps(demo_telemetry("controller_01", boot_id="3f9a01c2")).encode()))
+
+    def post(self, body):
+        return self.client.post(self.URL, json.dumps(body), content_type="application/json")
+
+    @mock.patch("ingest.commands.publish")
+    def test_tiers_are_published_in_firmware_units(self, publish):
+        response = self.post(self.GOOD)
+        self.assertEqual(response.status_code, 202, response.content)
+        topic, command = publish.call_args.args
+        self.assertEqual(topic, "rb4107/controller/command")
+        self.assertEqual(command["action"], "tiers")
+        self.assertEqual((command["tier1_temp_dc"], command["tier1_warning_ms"], command["tier1_shutdown_ms"]), (1200, 60000, 150000))
+        self.assertEqual((command["tier2_temp_dc"], command["tier2_rate_dc_per_min"], command["tier2_rate_min_temp_dc"]), (2000, 200, 1500))
+        self.assertEqual((command["tier2_warning_ms"], command["tier2_shutdown_ms"]), (30000, 120000))
+        validation.check_command(command)
+
+    @mock.patch("ingest.commands.publish")
+    def test_a_tier_can_be_switched_off_with_a_zero_temperature(self, publish):
+        body = json.loads(json.dumps(self.GOOD))
+        body["critical"]["temp_c"] = 0
+        body["critical"]["rate_c_per_min"] = 0
+        self.assertEqual(self.post(body).status_code, 202)
+        self.assertEqual(publish.call_args.args[1]["tier2_temp_dc"], 0)
+
+    @mock.patch("ingest.commands.publish")
+    def test_defaults(self, publish):
+        self.assertEqual(self.post({"defaults": True}).status_code, 202)
+        command = publish.call_args.args[1]
+        self.assertEqual(command["action"], "tiers_defaults")
+        self.assertNotIn("tier1_temp_dc", command)
+        validation.check_command(command)
+
+    @mock.patch("ingest.commands.publish")
+    def test_bad_values_are_refused(self, publish):
+        def changed(group, key, value):
+            body = json.loads(json.dumps(self.GOOD))
+            body[group][key] = value
+            return body
+        bad = [{}, {"defaults": False}, [1], {"elevated": self.GOOD["elevated"]},
+               changed("elevated", "temp_c", -1), changed("elevated", "temp_c", 301),
+               changed("critical", "warning_s", 0), changed("critical", "shutdown_s", 3601),
+               changed("critical", "rate_c_per_min", 1001), changed("elevated", "warning_s", "60"),
+               changed("critical", "temp_c", True), changed("critical", "temp_c", 100),  # critical below elevated
+               {**self.GOOD, "extra": 1}]
+        for body in bad:
+            with self.subTest(body=body):
+                self.assertEqual(self.post(body).status_code, 400)
+        publish.assert_not_called()
+
+    def test_the_schema_refuses_tier_values_on_another_action(self):
+        command = {"schema_version": 2, "type": "controller_command", "controller_id": "c", "request_id": 1,
+                   "action": "reset", "tier1_temp_dc": 1200}
+        with self.assertRaises(validation.InvalidMessage):
+            validation.check_command(command)
+
+    def test_the_source_reaches_latest(self):
+        handle(parse("rb4107/controller/state",
+                     json.dumps(demo_telemetry("controller_01", boot_id="b00t", scenario="hot_pan")).encode()))
+        values = self.client.get("/api/devices/controller_01/latest/").json()["values"]
+        self.assertEqual(values["tiers_source"], "menuconfig")

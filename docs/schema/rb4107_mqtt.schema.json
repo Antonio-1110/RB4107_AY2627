@@ -116,6 +116,7 @@
                   "description": "the tier settings: elevated from temp_c; critical from temp_c, or rising at least rate_c_per_min above rate_min_temp_c. Times count like the base times. A tier with temp_c <= 0 is off",
                   "required": ["elevated", "critical"],
                   "properties": {
+                    "source": {"enum": ["menuconfig", "dashboard"], "description": "dashboard = set from the dashboard and saved on the controller"},
                     "elevated": {"type": "object", "required": ["temp_c", "warning_ms", "shutdown_ms"],
                                  "properties": {"temp_c": {"$ref": "#/$defs/nullable_number"}, "warning_ms": {"type": "integer", "minimum": 0}, "shutdown_ms": {"type": "integer", "minimum": 0}}},
                     "critical": {"type": "object", "required": ["temp_c", "warning_ms", "shutdown_ms"],
@@ -376,7 +377,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers (docs/remote_reset.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -386,8 +387,16 @@
         "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
         "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "cooking_temp",
-                            "cooking_temp_defaults", "cookware", "cookware_defaults"]},
+                            "cooking_temp_defaults", "cookware", "cookware_defaults", "tiers", "tiers_defaults"]},
         "cookware": {"enum": ["mixed", "light", "heavy", "liquid"]},
+        "tier1_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "tier1_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier1_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier2_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "tier2_rate_dc_per_min": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "tier2_rate_min_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "tier2_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier2_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "absence_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_gap_ms": {"type": "integer", "minimum": 0, "maximum": 5000},
@@ -406,6 +415,14 @@
           "if": {"properties": {"action": {"const": "cooking_temp"}}},
           "then": {"required": ["cooking_temp_dc"]},
           "else": {"not": {"required": ["cooking_temp_dc"]}}
+        },
+        {
+          "if": {"properties": {"action": {"const": "tiers"}}},
+          "then": {"required": ["tier1_temp_dc", "tier1_warning_ms", "tier1_shutdown_ms", "tier2_temp_dc", "tier2_rate_dc_per_min",
+                                "tier2_rate_min_temp_dc", "tier2_warning_ms", "tier2_shutdown_ms"]},
+          "else": {"not": {"anyOf": [{"required": ["tier1_temp_dc"]}, {"required": ["tier1_warning_ms"]}, {"required": ["tier1_shutdown_ms"]},
+                                     {"required": ["tier2_temp_dc"]}, {"required": ["tier2_rate_dc_per_min"]}, {"required": ["tier2_rate_min_temp_dc"]},
+                                     {"required": ["tier2_warning_ms"]}, {"required": ["tier2_shutdown_ms"]}]}}
         },
         {
           "if": {"properties": {"action": {"const": "cookware"}}},

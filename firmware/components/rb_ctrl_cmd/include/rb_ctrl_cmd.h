@@ -26,6 +26,13 @@
  *                               controller; needs cookware: "mixed", "light",
  *                               "heavy" or "liquid"
  *   "cookware_defaults"         forget the saved profile: back to menuconfig
+ *   "tiers"                     set the temperature tiers (docs/safety_state_machine.md),
+ *                               saved on the controller; needs all eight values:
+ *                               tier1_temp_dc, tier1_warning_ms, tier1_shutdown_ms,
+ *                               tier2_temp_dc, tier2_rate_dc_per_min,
+ *                               tier2_rate_min_temp_dc, tier2_warning_ms,
+ *                               tier2_shutdown_ms (0.1 degC, 0.1 degC/min, ms)
+ *   "tiers_defaults"            forget the saved tiers: back to menuconfig
  *
  * Flat object, strings and integers only, so a small hand-written parser is
  * enough.
@@ -46,6 +53,8 @@ extern "C" {
 #define RB_CTRL_TIMEOUT_MAX_MS 3600000
 /* Dashboard limit for "cooking_temp": 0..300.0 degC, as RB_SAFETY_HEAT_ON_DC. */
 #define RB_CTRL_COOKING_TEMP_MAX_DC 3000
+/* Dashboard limit for the tier rate: 0..1000.0 degC/min. */
+#define RB_CTRL_TIER_RATE_MAX_DC_PER_MIN 10000
 
 typedef enum {
     RB_CTRL_ACTION_RESET = 1,
@@ -55,6 +64,8 @@ typedef enum {
     RB_CTRL_ACTION_COOKING_TEMP_DEFAULTS,
     RB_CTRL_ACTION_COOKWARE,
     RB_CTRL_ACTION_COOKWARE_DEFAULTS,
+    RB_CTRL_ACTION_TIERS,
+    RB_CTRL_ACTION_TIERS_DEFAULTS,
 } rb_ctrl_action_t;
 
 typedef struct {
@@ -71,6 +82,15 @@ typedef struct {
     uint16_t cooking_temp_dc;
     /* RB_CTRL_ACTION_COOKWARE only: "mixed", "light", "heavy" or "liquid". */
     char cookware[12];
+    /* RB_CTRL_ACTION_TIERS only. Temperatures in 0.1 degC (0 = that tier off), rate in 0.1 degC/min. */
+    uint16_t tier1_temp_dc;
+    uint32_t tier1_warning_ms;
+    uint32_t tier1_shutdown_ms;
+    uint16_t tier2_temp_dc;
+    uint16_t tier2_rate_dc_per_min;
+    uint16_t tier2_rate_min_temp_dc;
+    uint32_t tier2_warning_ms;
+    uint32_t tier2_shutdown_ms;
 } rb_ctrl_cmd_t;
 
 /*

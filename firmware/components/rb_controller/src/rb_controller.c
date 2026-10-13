@@ -38,6 +38,9 @@ static bool s_pending_filter_on;
 static rb_presence_filter_t s_pending_filter;
 static bool s_cooking_pending;
 static float s_pending_cooking_on_c; /* NAN = back to the configured value */
+static bool s_tiers_pending;
+static bool s_pending_tiers_on;
+static rb_tiers_t s_pending_tiers;
 static bool s_cookware_pending;
 static safety_cookware_t s_pending_cookware; /* SAFETY_COOKWARE_COUNT = back to the configured one */
 
@@ -177,6 +180,8 @@ static void safety_task(void *arg)
     rb_presence_filter_t filter = {0};
     float cooking_on_c = NAN; /* dashboard cooking temperature, NAN = the configured one */
     safety_cookware_t cookware = SAFETY_COOKWARE_COUNT; /* dashboard cookware profile, COUNT = the configured one */
+    bool tiers_on = false; /* dashboard temperature tiers in force */
+    rb_tiers_t tiers = {0};
     sensor_view_t last_view = {0};
     uint32_t last_view_ms = 0;
     bool view_posted = false;
@@ -209,14 +214,30 @@ static void safety_task(void *arg)
         const bool new_cookware = s_cookware_pending;
         s_cookware_pending = false;
         const safety_cookware_t pending_cookware = s_pending_cookware;
+        const bool new_tiers = s_tiers_pending;
+        s_tiers_pending = false;
+        const bool pending_tiers_on = s_pending_tiers_on;
+        const rb_tiers_t pending_tiers = s_pending_tiers;
         portEXIT_CRITICAL(&s_req_lock);
-        if (new_config || new_filter || new_cooking || new_cookware) {
+        if (new_config || new_filter || new_cooking || new_cookware || new_tiers) {
             safety_config_t next = new_config ? pending : base;
             const bool next_filter_on = new_filter ? pending_filter_on : filter_on;
             const rb_presence_filter_t next_filter = new_filter ? pending_filter : filter;
             const float next_cooking_on_c = new_cooking ? pending_cooking_on_c : cooking_on_c;
             if (isfinite(next_cooking_on_c)) {
                 apply_cooking_temp(&next, next_cooking_on_c);
+            }
+            const bool next_tiers_on = new_tiers ? pending_tiers_on : tiers_on;
+            const rb_tiers_t next_tiers = new_tiers ? pending_tiers : tiers;
+            if (next_tiers_on) {
+                next.tier1_temp_c = next_tiers.tier1_temp_c;
+                next.tier1_warning_ms = next_tiers.tier1_warning_ms;
+                next.tier1_shutdown_ms = next_tiers.tier1_shutdown_ms;
+                next.tier2_temp_c = next_tiers.tier2_temp_c;
+                next.tier2_rate_c_per_min = next_tiers.tier2_rate_c_per_min;
+                next.tier2_rate_min_temp_c = next_tiers.tier2_rate_min_temp_c;
+                next.tier2_warning_ms = next_tiers.tier2_warning_ms;
+                next.tier2_shutdown_ms = next_tiers.tier2_shutdown_ms;
             }
             const safety_cookware_t next_cookware = new_cookware ? pending_cookware : cookware;
             if (next_cookware != SAFETY_COOKWARE_COUNT && next.cookware_tau_s > 0.0f) {
@@ -242,6 +263,15 @@ static void safety_task(void *arg)
                 filter = next_filter;
                 cooking_on_c = next_cooking_on_c;
                 cookware = next_cookware;
+                tiers_on = next_tiers_on;
+                tiers = next_tiers;
+                if (new_tiers) {
+                    ESP_LOGW(TAG, "temperature tiers (%s): from %.0f C %lu/%lu s, from %.0f C %lu/%lu s",
+                             tiers_on ? "dashboard" : "menuconfig", (double)next.tier1_temp_c,
+                             (unsigned long)(next.tier1_warning_ms / 1000), (unsigned long)(next.tier1_shutdown_ms / 1000),
+                             (double)next.tier2_temp_c, (unsigned long)(next.tier2_warning_ms / 1000),
+                             (unsigned long)(next.tier2_shutdown_ms / 1000));
+                }
                 if (new_cookware) {
                     ESP_LOGW(TAG, "cookware profile (%s): %s, tau %.0f s",
                              cookware != SAFETY_COOKWARE_COUNT ? "dashboard" : "menuconfig",
@@ -366,6 +396,7 @@ static void safety_task(void *arg)
             s_snapshot.eff_warning_ms = sm.eff_warning_ms;
             s_snapshot.eff_shutdown_ms = sm.eff_shutdown_ms;
             s_snapshot.tiers = sm.cfg;
+            s_snapshot.tiers_remote = tiers_on;
             s_snapshot.cookware = sm.cfg.cookware;
             s_snapshot.cookware_tau_s = sm.cfg.cookware_tau_s;
             s_snapshot.cookware_remote = cookware != SAFETY_COOKWARE_COUNT;
@@ -492,6 +523,18 @@ esp_err_t rb_controller_set_cookware(safety_cookware_t profile)
     portENTER_CRITICAL(&s_req_lock);
     s_pending_cookware = profile;
     s_cookware_pending = true;
+    portEXIT_CRITICAL(&s_req_lock);
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_set_tiers(const rb_tiers_t *tiers)
+{
+    portENTER_CRITICAL(&s_req_lock);
+    s_pending_tiers_on = tiers != NULL;
+    if (tiers != NULL) {
+        s_pending_tiers = *tiers;
+    }
+    s_tiers_pending = true;
     portEXIT_CRITICAL(&s_req_lock);
     return ESP_OK;
 }

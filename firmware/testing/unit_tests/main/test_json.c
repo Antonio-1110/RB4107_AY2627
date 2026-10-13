@@ -58,6 +58,7 @@ static rb_telemetry_t sample(void)
                    .tier2_rate_min_temp_c = 150.0f,
                    .tier2_warning_ms = 30000,
                    .tier2_shutdown_ms = 120000,
+                   .tiers_remote = true,
                    .cookware = "liquid",
                    .cookware_tau_s = 2400.0f,
                    .cookware_remote = true,
@@ -96,7 +97,7 @@ static void test_unknown_values_are_null(void)
                                      "\"effective_shutdown_ms\":120000,\"tiers\":{\"elevated\":{\"temp_c\":120.0,"
                                      "\"warning_ms\":60000,\"shutdown_ms\":150000},\"critical\":{\"temp_c\":200.0,"
                                      "\"rate_c_per_min\":20.0,\"rate_min_temp_c\":150.0,\"warning_ms\":30000,"
-                                     "\"shutdown_ms\":120000}},\"presence_unknown\":true,\"thermal_lost\":false,"
+                                     "\"shutdown_ms\":120000},\"source\":\"dashboard\"},\"presence_unknown\":true,\"thermal_lost\":false,"
                                      "\"absent_ms\":400,\"returning_ms\":0,"));
 
     TEST_ASSERT_NOT_EQUAL(0, rb_json_presence(&t, buf, sizeof(buf)));

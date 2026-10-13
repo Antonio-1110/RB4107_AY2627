@@ -89,6 +89,7 @@ typedef struct {
     uint32_t eff_warning_ms;      /* the buzzer and shutdown times in force (base, tier and hook applied) */
     uint32_t eff_shutdown_ms;
     safety_config_t tiers;        /* only the tier fields are read: tier1_*, tier2_* */
+    bool tiers_remote;            /* tiers set from the dashboard, not menuconfig */
     safety_cookware_t cookware;   /* cookware profile in use */
     float cookware_tau_s;
     bool cookware_remote;         /* profile set from the dashboard, not menuconfig */
@@ -215,6 +216,26 @@ esp_err_t rb_controller_set_cooking_temp(float on_c);
  * Applied at the next step. Saving it across reboots is the caller's job.
  */
 esp_err_t rb_controller_set_cookware(safety_cookware_t profile);
+
+/* The temperature tiers of safety_config_t, as the dashboard sets them. */
+typedef struct {
+    float tier1_temp_c;
+    uint32_t tier1_warning_ms;
+    uint32_t tier1_shutdown_ms;
+    float tier2_temp_c;
+    float tier2_rate_c_per_min;
+    float tier2_rate_min_temp_c;
+    uint32_t tier2_warning_ms;
+    uint32_t tier2_shutdown_ms;
+} rb_tiers_t;
+
+/*
+ * Replace the temperature tiers, or NULL for the menuconfig ones. Stays on top of any later
+ * rb_controller_set_safety_config() until a reboot or a call with NULL. Applied at the next step; values
+ * safety_config_valid() refuses (a shutdown not after its warning, CRITICAL below ELEVATED) are logged and
+ * ignored. Saving it across reboots is the caller's job.
+ */
+esp_err_t rb_controller_set_tiers(const rb_tiers_t *tiers);
 
 #ifdef __cplusplus
 }

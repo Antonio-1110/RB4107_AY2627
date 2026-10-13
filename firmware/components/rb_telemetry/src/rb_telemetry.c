@@ -161,6 +161,7 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.tier2_rate_min_temp_c = snap->tiers.tier2_rate_min_temp_c;
     t->safety.tier2_warning_ms = snap->tiers.tier2_warning_ms;
     t->safety.tier2_shutdown_ms = snap->tiers.tier2_shutdown_ms;
+    t->safety.tiers_remote = snap->tiers_remote;
     t->safety.cookware = safety_cookware_name(snap->cookware);
     t->safety.cookware_tau_s = snap->cookware_tau_s;
     t->safety.cookware_remote = snap->cookware_remote;

@@ -110,6 +110,7 @@ typedef struct {
         uint32_t tier1_warning_ms, tier1_shutdown_ms;
         float tier2_temp_c, tier2_rate_c_per_min, tier2_rate_min_temp_c;
         uint32_t tier2_warning_ms, tier2_shutdown_ms;
+        bool tiers_remote;            /* tier settings set from the dashboard */
         const char *cookware;         /* cookware profile in use */
         float cookware_tau_s;
         bool cookware_remote;         /* profile set from the dashboard */

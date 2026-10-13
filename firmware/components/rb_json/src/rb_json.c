@@ -123,6 +123,8 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
         rb_json_key(w, "shutdown_ms");
         rb_json_int(w, t->safety.tier2_shutdown_ms);
         rb_json_obj_end(w);
+        rb_json_key(w, "source");
+        rb_json_str(w, t->safety.tiers_remote ? "dashboard" : "menuconfig");
         rb_json_obj_end(w);
     }
     rb_json_key(w, "presence_unknown");

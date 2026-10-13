@@ -804,6 +804,18 @@ menu "RB4107 configuration"
                     saved on the controller, so it survives a reboot, until the
                     dashboard sends "cookware_defaults".
 
+            config RB_CTRL_REMOTE_TIERS
+                bool "Accept the temperature tiers from the dashboard"
+                default y
+                depends on RB_SAFETY_TEMP_TIERS
+                help
+                    A "tiers" command on <prefix>/controller/command replaces
+                    the RB_SAFETY_TIER* values (the buzzer and shutdown times
+                    for hotter pans). Saved on the controller, so it survives a
+                    reboot, until the dashboard sends "tiers_defaults". The
+                    controller refuses inconsistent values (a shutdown not
+                    after its warning, CRITICAL below ELEVATED).
+
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
                 range 4 64

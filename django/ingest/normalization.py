@@ -42,6 +42,10 @@ def _flags(safety):
             "returning_seconds": _seconds(safety.get("returning_ms"))}
 
 
+def tiers_source(tiers):
+    return tiers.get("source") if isinstance(tiers, dict) else None
+
+
 def _cooking_trend(safety):
     """Firmware since 2026-10-15 judges from the temperature trend whether heat is going in (cooling pans
     hold the buzzer and shutdown back), and reports the cookware profile; older firmware doesn't."""
@@ -55,7 +59,7 @@ def _cooking_trend(safety):
                     "rate_min_temp_c": finite(t.get("rate_min_temp_c")),
                     "warning_seconds": _seconds(t.get("warning_ms")), "shutdown_seconds": _seconds(t.get("shutdown_ms"))}
         tiers = {"elevated": tier("elevated"), "critical": tier("critical")}
-    return {"tier": safety.get("tier"), "effective_warning_seconds": _seconds(safety.get("effective_warning_ms")),
+    return {"tiers_source": tiers_source(safety.get("tiers")), "tier": safety.get("tier"), "effective_warning_seconds": _seconds(safety.get("effective_warning_ms")),
             "effective_shutdown_seconds": _seconds(safety.get("effective_shutdown_ms")), "tiers": tiers,
             "cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),
             "cooking_settle_c": finite(cooking.get("settle_c")), "hold": safety.get("hold"),
