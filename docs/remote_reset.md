@@ -63,7 +63,7 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS`,
 `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`) apply at boot.
 
-1. **Presence filter and timers** in the System status card: five fields in
+1. **Presence filter and timers** in the Countdown card (rules 2 and 3): five fields in
    seconds, **Apply** and **Menuconfig values**. They call
    `POST /api/devices/<id>/presence_filter/` with
    `{"absence_ms":1000,"return_ms":3000,"return_gap_ms":1000,"warning_ms":20000,"shutdown_ms":40000}`
@@ -106,7 +106,7 @@ value is `RB_SAFETY_HEAT_ON_DC` (50.0 °C). This is the only cooking threshold:
 the dashboard outlines the pixels at or above it, and the cooking badge comes
 from the controller's state.
 
-1. **Cooking temperature** in the Thermal camera card: a field in °C,
+1. **Cooking temperature** in the Countdown card (rule 1): a field in °C,
    **Apply** and **Menuconfig value**. They call
    `POST /api/devices/<id>/cooking_temp/` with `{"cooking_temp_c":62.5}`
    (0 – 300 °C, sent in 0.1 °C steps) or `{"defaults":true}`.

@@ -62,6 +62,11 @@ Every packet ends with a 2-byte CRC.
 
 ## PRESENCE_DATA (type 1, 26 bytes total)
 
+Sent at once when `valid` or `presence detected` changes (the node checks every
+50 ms), and every `RB_NODE_DATA_PERIOD_MS` (default 500 ms) as a refresh. The
+reading is the radar's raw state: the radar holds nothing back (disappear delay
+0, lock time 0.2 s) and the controller does all the debouncing.
+
 | Offset | Size | Field | Encoding |
 |---|---|---|---|
 | 17 | 1 | flags | bit0 valid, bit1 presence detected, bit2 moving, bit3 stationary |

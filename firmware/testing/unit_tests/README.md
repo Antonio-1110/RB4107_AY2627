@@ -36,8 +36,12 @@ idf.py build flash monitor                              # prints "ALL TESTS PASS
 | Person returns during UNATTENDED | `test_unattended_to_monitoring_person_returns` |
 | Person returns during WARNING | `test_person_returns_during_warning` (both policies) |
 | Temperature drops during the unattended period | `test_temperature_drops_during_unattended` (both policies) |
-| C4002 becomes unavailable | `test_c4002_unavailable_is_not_absence`, `test_c4002_recovers`, `test_sensor_loss_never_delays_shutdown`, `test_invalid_reading_from_live_node` |
-| MLX90640 becomes unavailable | `test_mlx_unavailable`, `test_fault_clears_with_person_absent_keeps_timeline` |
+| C4002 becomes unavailable | `test_presence_unknown_no_heat_flag_only`, `test_presence_unknown_while_cooking_runs_timeline`, `test_presence_unknown_then_confirmed_return_cancels`, `test_presence_unknown_keeps_running_timeline`, `test_invalid_reading_from_live_node` |
+| MLX90640 becomes unavailable | `test_thermal_lost_flag_only`, `test_thermal_lost_keeps_running_timeline`, `test_thermal_lost_with_person_present_stays_monitoring` |
+| FAULT only for the controller's own faults | `test_fault_only_for_controller_faults`, `test_sensor_faults_do_not_enter_fault_state` |
+| Radar noise (blips) while absent | `test_presence_blips_do_not_block_absence`, `test_blip_inside_debounce_keeps_absent_since`, `test_real_return_after_noise_cancels_timer` |
+| Node sends presence on change | `test_presence_change_is_sent_at_once` |
+| Radar holds fixed at 0 / 0.2 s | `test_params_check`, `test_cmd_rejects_radar_holds` |
 | Sensor node disappears / returns | `test_health_online_stale_offline_and_recovery`, `test_radar_disappears_and_returns` (node health → state machine) |
 | Two radars combined (strict) | `test_presence_fuse_truth_table` (either sees a person → PRESENT; ABSENT only if both valid and empty; otherwise UNKNOWN), `test_node_set_routes_and_combines`, `test_either_radar_keeps_attended`, `test_node_set_single_radar` |
 | Misconfigured node | `test_wrong_role_is_dropped`, `test_role_must_match_data`, `test_node_set_config_validation` |

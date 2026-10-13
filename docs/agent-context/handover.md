@@ -53,8 +53,8 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
 - One node per sensor. `presence_node` is one firmware flashed on two boards;
   node B is built with `sdkconfig.node_b` in its own build folder.
 - Radars combined strictly: PRESENT if either sees a person; ABSENT only if
-  both are valid and say absent; anything else is UNKNOWN → FAULT.
-- The S3 decides; nodes only send readings (edge decisions: issue #24).
+  both are valid and say absent; anything else is UNKNOWN (a flag; counts as absent only while cooking, never FAULT).
+- The S3 decides and does all the presence debouncing; nodes only send raw readings, on every change plus every 500 ms. The C4002 disappear delay / lock time are fixed at 0 / 0.2 s.
 - Missing data is never "safe": UNKNOWN / invalid / JSON `null`.
 - ESP-NOW protocol v2 and MQTT schema v2. Django only accepts schema v2.
 - Unconfirmed hardware values stay configurable and are flagged

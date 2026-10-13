@@ -24,7 +24,7 @@ static void test_kconfig_warning_and_shutdown_timing(void)
                                                 : cfg.warning_timeout_ms + cfg.shutdown_timeout_ms;
     th_t h;
     th_start(&h, &cfg, 0);
-    h.in.hot_region_temp_c = cfg.heat_on_temp_c + 20.0f;
+    h.in.cooking_temp_c = cfg.heat_on_temp_c + 20.0f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_MONITORING);
 
@@ -46,7 +46,7 @@ static void test_kconfig_wave_keeps_unattended(void)
     const safety_config_t cfg = rb_safety_config_from_kconfig();
     th_t h;
     th_start(&h, &cfg, 0);
-    h.in.hot_region_temp_c = cfg.heat_on_temp_c + 20.0f;
+    h.in.cooking_temp_c = cfg.heat_on_temp_c + 20.0f;
     th_run(&h, TH_STEP_MS);
     h.in.presence = RB_FALSE;
     th_run(&h, cfg.absence_debounce_ms + 10000);

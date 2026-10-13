@@ -8,7 +8,7 @@ How the controller firmware (`firmware/controller`, wired by
 1. Safety logic runs locally on the ESP32-S3. The C6 nodes only read and send.
 2. MQTT, Django and the network are never needed for a shutdown.
 3. No blocking waits in the safety path: every timer is `now - start >= timeout`.
-4. Missing sensor data is never a safe reading: it is `UNKNOWN`, which means FAULT.
+4. Missing sensor data is never a safe reading: it is `UNKNOWN` / invalid and raises a flag. While something is cooking, unknown presence counts as absent; see [safety_state_machine.md](safety_state_machine.md#lost-sensors-flags-not-fault).
 5. Drivers are separate from the state machine, which is plain C and unit-tested on a PC.
 6. Every tunable is in one Kconfig; both protocols (ESP-NOW, MQTT) are versioned.
 
@@ -93,13 +93,14 @@ value (`presence_fuse`):
 | PRESENT | anything | PRESENT |
 | anything | PRESENT | PRESENT |
 | ABSENT | ABSENT | ABSENT |
-| any other combination (one UNKNOWN, none PRESENT) | | UNKNOWN → FAULT |
+| any other combination (one UNKNOWN, none PRESENT) | | UNKNOWN (flag; counts as absent while cooking) |
 
 So a person seen by either radar keeps the kitchen "attended", and "nobody
 there" needs both radars working and agreeing. On top of that, every node
-going offline or reporting an invalid sensor is its own SAFETY fault, so
-losing any one of the three nodes puts the controller in FAULT (buzzer fault
-pattern, SHUTDOWN after `RB_SAFETY_FAULT_SHUTDOWN_S`).
+going offline or reporting an invalid sensor is its own SAFETY-class fault in
+the fault list and raises the `presence_unknown` / `thermal_lost` flags. It no
+longer puts the controller in FAULT: only the controller's own faults (failed
+self-test, relay output) do, and those shut down after `RB_SAFETY_FAULT_SHUTDOWN_S`.
 
 ## Faults
 

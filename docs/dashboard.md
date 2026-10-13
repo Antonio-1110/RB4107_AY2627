@@ -29,6 +29,7 @@ frontend/
     ├── dashboard.js  state, polling and rendering of both views
     ├── chart.js      temperature history canvas
     ├── heatmap.js    thermal camera heat map canvas
+    ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
     ├── dom.js        small DOM helpers
     └── format.js     value formatting
 ```
@@ -52,7 +53,10 @@ frontend/
 | `uptime_ms` | `uptime_seconds` | Unit conversion |
 | `nodes[]` and sensor topics | `sensors[node_id]` | Distinct C4002/MLX90640 diagnostics for each controller |
 | `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
-| `safety.presence_filter` | `presence_filter` (`absence_seconds`, `return_seconds`, `return_gap_seconds`, `source`) | Presence filter in use, shown and changed in the System status card ([remote_reset.md](remote_reset.md#presence-filter-and-timers)); `null` from older firmware |
+| `safety.presence_filter` | `presence_filter` (`absence_seconds`, `return_seconds`, `return_gap_seconds`, `source`) | Presence filter in use, shown and changed in the Countdown card ([remote_reset.md](remote_reset.md#presence-filter-and-timers)); `null` from older firmware |
+| `safety.presence_unknown`, `safety.thermal_lost` | `presence_unknown`, `thermal_lost` (`null` from older firmware) | The sensor flags: shown as badges in the Countdown card, never turned into a fault by the backend |
+| `safety.cooking.active` | `cooking_active` | The heat detector's state, as the controller sees it |
+| `safety.absent_ms`, `safety.returning_ms`, `safety.state_ms` | `absent_seconds`, `returning_seconds`, `state_seconds` | Progress of the absence / return debounce and time in the current state. The Countdown card advances its clock from them between reports and freezes it ("last known") when the controller goes quiet; the backend never advances a timer |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
 | `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state. The card outlines the pixels at or above the controller's cooking temperature (`safety.cooking.on_c`, the node's hot-pixel threshold with older firmware), lets you change that temperature ([remote_reset.md](remote_reset.md#cooking-temperature)), boxes its hot region, and works out the pixel size at a chosen distance for either lens (55° or 110°) |
@@ -74,6 +78,26 @@ the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
 UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
 BOOT/SELF_TEST show as "controller starting".
 
+## Countdown card
+
+The biggest card on the stall page. It shows where the safety timeline is and
+why, using only what the controller reports:
+
+- **Phase and clock**: "Cooking: confirming that nobody is there" (the absence
+  debounce), "Unattended: timer running" (seconds until the buzzer),
+  "Warning" (seconds until shutdown), "Shutdown", "Idle". A bar shows the
+  unattended time against the warning and shutdown marks.
+- **Sensor chips**: each node as `OK`, `SENSOR PROBLEM` (node reachable, sensor
+  bad: wiring) or `OFFLINE` (no packets: power, Wi-Fi), plus the
+  *presence sensor unknown* and *thermal sensor lost* flags.
+- **The three rules** with their live value and adjustable setting:
+  1. *Cooking*: the cooking temperature (saved on the controller).
+  2. *Person*: absent after / return after / ignore gaps up to.
+  3. *Timer*: buzzer after / shut down after.
+  Changes to 2 and 3 last until the controller reboots
+  ([remote_reset.md](remote_reset.md)). The state itself is decided by the
+  safety logic on the S3; the dashboard only displays it and sends settings.
+
 ## Active cooking
 
 Every controller and stall shows whether its stove is in use (`cooking` in
@@ -81,7 +105,7 @@ Every controller and stall shows whether its stove is in use (`cooking` in
 on the stall tiles and roster, a banner on the stall page, and a *Cooking now*
 count. It is display only. The firmware makes the decision: cooking starts
 when the thermal camera's hottest pixel reaches the cooking temperature
-(`RB_SAFETY_HEAT_ON_DC`, placeholder 50 °C, settable from the Thermal camera
+(`RB_SAFETY_HEAT_ON_DC`, placeholder 50 °C, settable from the Countdown
 card; or a fast rise) and ends below the "over" value (10 °C lower by
 default). The controller reports both in `safety.cooking`, and the badge text
 uses them; the thresholds are still being tuned ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)).

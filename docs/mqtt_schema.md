@@ -58,13 +58,22 @@ Check any capture with `tools/diagnostics/validate_json.py`.
              "buzzer": "OFF", "shutdown": false, "reset_required": false,
              "warning_after_ms": 60000, "shutdown_after_ms": 90000, "shutdown_counts_from": "UNATTENDED",
              "test_timers": false,
+             "presence_unknown": false, "thermal_lost": false, "absent_ms": 0, "returning_ms": 0,
              "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                  "source": "menuconfig"},
-             "cooking": {"on_c": 50.0, "off_c": 40.0, "source": "menuconfig"}},
+             "cooking": {"active": true, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"}},
   "faults": ["mqtt_disconnected"]
 }
 ```
 
+- `presence_unknown` and `thermal_lost` are the sensor flags (a lost sensor
+  does not put the controller in `FAULT`; see
+  [safety_state_machine.md](safety_state_machine.md#lost-sensors-flags-not-fault)).
+  `cooking.active` is the heat detector's state. `absent_ms` / `returning_ms`
+  are the progress of the absence and return debounce (0 = not running).
+  The controller publishes `controller/state` immediately whenever presence,
+  cooking or one of these flags changes (at most every 200 ms), in addition to
+  the periodic message; all four fields are absent from older firmware.
 - `presence_state` is the two radars combined, exactly as the safety state
   machine used it: `PRESENT` if either radar sees a person, `ABSENT` only if
   both give a valid "absent", `UNKNOWN` otherwise.

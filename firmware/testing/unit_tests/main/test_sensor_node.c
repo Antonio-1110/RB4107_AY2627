@@ -31,7 +31,7 @@ static rb_packet_t thermal_packet(uint32_t seq, uint32_t uptime, float hot_c)
 {
     rb_packet_t p = {.type = RB_MSG_THERMAL_DATA, .role = RB_NODE_ROLE_THERMAL, .node_id = NODE_T, .sequence = seq,
                      .uptime_ms = uptime};
-    p.body.thermal = (thermal_reading_t){.valid = true, .hot_region_temp_c = hot_c};
+    p.body.thermal = (thermal_reading_t){.valid = true, .max_temp_c = hot_c, .hot_region_temp_c = hot_c};
     return p;
 }
 
@@ -325,7 +325,7 @@ static void feed(th_t *h, nodes_t *n)
     node_set_inputs(&n->set, &in);
     h->in.presence = in.presence;
     h->in.thermal_valid = in.thermal_valid;
-    h->in.hot_region_temp_c = in.hot_region_temp_c;
+    h->in.cooking_temp_c = in.max_temp_c; /* the hottest pixel decides cooking */
 }
 
 static void test_radar_disappears_and_returns(void)
@@ -346,7 +346,7 @@ static void test_radar_disappears_and_returns(void)
 
     /* The person leaves while radar A goes silent: B's "absent" alone is not enough to call it
        absent, so presence is UNKNOWN. The hob is hot, so UNKNOWN counts as absent and the timeline runs. */
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 60; i++) { /* 6 s: A goes stale after 2 s, then the 2 s absence debounce */
         nodes_send(&n, h.now, false, true, false, 120.0f);
         feed(&h, &n);
         th_run(&h, TH_STEP_MS);
