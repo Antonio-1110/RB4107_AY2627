@@ -97,6 +97,7 @@ typedef struct {
     uint8_t pause_budget_pct;
     bool fusion_all;              /* someone is at the stove when every working radar sees them */
     bool attendance_remote;       /* fusion and pause budget set from the dashboard */
+    bool radar_rules_remote;      /* radar state/distance rules set from the dashboard */
     safety_cookware_t cookware;   /* cookware profile in use */
     float cookware_tau_s;
     bool cookware_remote;         /* profile set from the dashboard, not menuconfig */
@@ -237,6 +238,18 @@ typedef struct {
  * across reboots is the caller's job.
  */
 esp_err_t rb_controller_set_attendance(const rb_attendance_t *attendance);
+
+/* The radar state and distance rules (sensor_node.h), as the dashboard sets them. */
+typedef struct {
+    radar_rules_mode_t mode;
+    radar_rules_config_t rules;
+} rb_radar_rules_t;
+
+/*
+ * Replace the radar rules, or NULL for the menuconfig ones. Applied at the next step. Saving it across
+ * reboots is the caller's job.
+ */
+esp_err_t rb_controller_set_radar_rules(const rb_radar_rules_t *rules);
 
 /* The temperature tiers of safety_config_t, as the dashboard sets them. */
 typedef struct {

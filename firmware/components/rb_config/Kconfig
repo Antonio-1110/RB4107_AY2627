@@ -796,6 +796,15 @@ menu "RB4107 configuration"
                     on the controller, so it survives a reboot, until the
                     dashboard sends "attendance_defaults".
 
+            config RB_CTRL_REMOTE_RADAR_RULES
+                bool "Accept the radar state and distance rules from the dashboard"
+                default y
+                help
+                    A "radar_rules" command on <prefix>/controller/command sets
+                    the mode (off, observe, enforce) and the episode numbers.
+                    Saved on the controller, so it survives a reboot, until the
+                    dashboard sends "radar_rules_defaults".
+
             config RB_CTRL_PRESENCE_NODE_COUNT
                 int "Number of presence nodes (C4002 radars)"
                 range 1 2

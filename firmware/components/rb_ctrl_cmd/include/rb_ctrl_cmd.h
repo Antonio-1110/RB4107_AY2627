@@ -38,6 +38,11 @@
  *                               pause_budget_pct (0..100) and presence_fusion ("all" every
  *                               working radar sees them, "any" either does)
  *   "attendance_defaults"       forget the saved values: back to menuconfig
+ *   "radar_rules"               set the radar state and distance rules, saved on the controller;
+ *                               needs radar_mode ("off", "observe", "enforce"),
+ *                               radar_quiet_gap_ms, radar_dwell_ms, radar_stationary_min_ms,
+ *                               radar_settle_window_ms, radar_settle_span_cm, radar_zone_max_cm
+ *   "radar_rules_defaults"      forget the saved rules: back to menuconfig
  *
  * Flat object, strings and integers only, so a small hand-written parser is
  * enough.
@@ -73,6 +78,8 @@ typedef enum {
     RB_CTRL_ACTION_TIERS_DEFAULTS,
     RB_CTRL_ACTION_ATTENDANCE,
     RB_CTRL_ACTION_ATTENDANCE_DEFAULTS,
+    RB_CTRL_ACTION_RADAR_RULES,
+    RB_CTRL_ACTION_RADAR_RULES_DEFAULTS,
 } rb_ctrl_action_t;
 
 typedef struct {
@@ -102,6 +109,14 @@ typedef struct {
     uint32_t pause_budget_ms;
     uint8_t pause_budget_pct;
     bool fusion_all;
+    /* RB_CTRL_ACTION_RADAR_RULES only: radar_mode "off" / "observe" / "enforce", times in ms, distances in cm. */
+    char radar_mode[10];
+    uint32_t radar_quiet_gap_ms;
+    uint32_t radar_dwell_ms;
+    uint32_t radar_stationary_min_ms;
+    uint32_t radar_settle_window_ms;
+    uint16_t radar_settle_span_cm;
+    uint16_t radar_zone_max_cm;
 } rb_ctrl_cmd_t;
 
 /*

@@ -41,6 +41,9 @@ static float s_pending_cooking_on_c; /* NAN = back to the configured value */
 static bool s_attendance_pending;
 static bool s_pending_attendance_on;
 static rb_attendance_t s_pending_attendance;
+static bool s_radar_pending;
+static bool s_pending_radar_on;
+static rb_radar_rules_t s_pending_radar;
 static bool s_tiers_pending;
 static bool s_pending_tiers_on;
 static rb_tiers_t s_pending_tiers;
@@ -201,6 +204,7 @@ static void safety_task(void *arg)
     safety_cookware_t cookware = SAFETY_COOKWARE_COUNT; /* dashboard cookware profile, COUNT = the configured one */
     bool attendance_on = false; /* dashboard fusion and pause budget in force */
     rb_attendance_t attendance = {0};
+    bool radar_on = false; /* dashboard radar rules in force */
     bool tiers_on = false; /* dashboard temperature tiers in force */
     rb_tiers_t tiers = {0};
     sensor_view_t last_view = {0};
@@ -243,7 +247,19 @@ static void safety_task(void *arg)
         s_attendance_pending = false;
         const bool pending_attendance_on = s_pending_attendance_on;
         const rb_attendance_t pending_attendance = s_pending_attendance;
+        const bool new_radar = s_radar_pending;
+        s_radar_pending = false;
+        const bool pending_radar_on = s_pending_radar_on;
+        const rb_radar_rules_t pending_radar = s_pending_radar;
         portEXIT_CRITICAL(&s_req_lock);
+        if (new_radar) {
+            radar_on = pending_radar_on;
+            nodes.rules_mode = radar_on ? pending_radar.mode : s_cfg.nodes.rules_mode;
+            nodes.rules = radar_on ? pending_radar.rules : s_cfg.nodes.rules;
+            ESP_LOGW(TAG, "radar rules (%s): %s, dwell %lu ms, still %lu ms, span %u cm", radar_on ? "dashboard" : "menuconfig",
+                     radar_rules_mode_name(nodes.rules_mode), (unsigned long)nodes.rules.dwell_ms,
+                     (unsigned long)nodes.rules.stationary_min_ms, (unsigned)nodes.rules.settle_span_cm);
+        }
         if (new_config || new_filter || new_cooking || new_cookware || new_tiers || new_attendance) {
             safety_config_t next = new_config ? pending : base;
             const bool next_filter_on = new_filter ? pending_filter_on : filter_on;
@@ -443,6 +459,7 @@ static void safety_task(void *arg)
             s_snapshot.pause_budget_pct = sm.cfg.pause_budget_pct;
             s_snapshot.fusion_all = nodes.require_all;
             s_snapshot.attendance_remote = attendance_on;
+            s_snapshot.radar_rules_remote = radar_on;
             s_snapshot.cookware = sm.cfg.cookware;
             s_snapshot.cookware_tau_s = sm.cfg.cookware_tau_s;
             s_snapshot.cookware_remote = cookware != SAFETY_COOKWARE_COUNT;
@@ -581,6 +598,18 @@ esp_err_t rb_controller_set_attendance(const rb_attendance_t *attendance)
         s_pending_attendance = *attendance;
     }
     s_attendance_pending = true;
+    portEXIT_CRITICAL(&s_req_lock);
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_set_radar_rules(const rb_radar_rules_t *rules)
+{
+    portENTER_CRITICAL(&s_req_lock);
+    s_pending_radar_on = rules != NULL;
+    if (rules != NULL) {
+        s_pending_radar = *rules;
+    }
+    s_radar_pending = true;
     portEXIT_CRITICAL(&s_req_lock);
     return ESP_OK;
 }

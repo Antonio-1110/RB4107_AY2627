@@ -62,6 +62,8 @@ export const sendTiers = (deviceId, body) => post(`${device(deviceId)}/tiers/`, 
 // Who counts as at the stove (fusion "all" radars or "any") and how long a pass may stop the clock, saved on the
 // controller: {pause_budget_s, pause_budget_pct, fusion} or {defaults: true}. The answer is
 // values.presence_filter.fusion / pause_budget_seconds / attendance_source in the next telemetry.
+// Radar state and distance rules; the answer is values.radar_rules in the next telemetry.
+export const sendRadarRules = (deviceId, body) => post(`${device(deviceId)}/radar-rules/`, body);
 export const sendAttendance = (deviceId, body) => post(`${device(deviceId)}/attendance/`, body);
 
 // Remote C4002 tuning. The node's answer

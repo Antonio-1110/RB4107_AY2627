@@ -132,6 +132,12 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
         rb_json_obj_begin(w);
         rb_json_key(w, "mode");
         rb_json_str(w, t->safety.radar_rules);
+        rb_json_key(w, "quiet_gap_ms");
+        rb_json_int(w, t->safety.radar_quiet_gap_ms);
+        rb_json_key(w, "settle_window_ms");
+        rb_json_int(w, t->safety.radar_settle_window_ms);
+        rb_json_key(w, "source");
+        rb_json_str(w, t->safety.radar_rules_remote ? "dashboard" : "menuconfig");
         rb_json_key(w, "dwell_ms");
         rb_json_int(w, t->safety.radar_dwell_ms);
         rb_json_key(w, "stationary_min_ms");

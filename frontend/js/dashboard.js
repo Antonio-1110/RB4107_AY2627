@@ -19,6 +19,7 @@ import { renderCountdown } from "./countdown.js";
 import { renderCookware } from "./cookware.js";
 import { renderTiers } from "./tiers.js";
 import { renderAttendance } from "./attendance.js";
+import { renderRadarRules } from "./radar_rules.js";
 import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
@@ -500,6 +501,7 @@ function renderDevice(device) {
   renderCookware(device);
   renderTiers(device);
   renderAttendance(device);
+  renderRadarRules(device);
   renderTuning(device);
   renderDetailAlert(device);
 }

@@ -117,7 +117,8 @@ typedef struct {
         uint32_t tier2_warning_ms, tier2_shutdown_ms;
         bool tiers_remote;            /* tier settings set from the dashboard */
         const char *radar_rules;      /* "off" "observe" "enforce" (placeholder rules) */
-        uint32_t radar_dwell_ms, radar_stationary_min_ms;
+        uint32_t radar_quiet_gap_ms, radar_dwell_ms, radar_stationary_min_ms, radar_settle_window_ms;
+        bool radar_rules_remote;
         uint16_t radar_settle_span_cm, radar_zone_max_cm;
         bool paused;                  /* the clock is stopped: someone is at the stove */
         uint32_t pause_used_ms;

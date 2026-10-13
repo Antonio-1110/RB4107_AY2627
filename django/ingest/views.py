@@ -266,6 +266,25 @@ def attendance(request, device_id):
     return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
 
 
+@csrf_exempt  # lab prototype: the API has no login (docs/remote_reset.md)
+@require_POST
+def radar_rules(request, device_id):
+    """Set the radar state and distance rules (off / observe / enforce and the episode numbers), which the
+    controller saves. The answer is radar_rules in /latest/."""
+    device = get_object_or_404(Device, device_id=device_id)
+    try:
+        body = json.loads(request.body or b"{}")
+        command = commands.build_radar_rules_command(device.device_id, body)
+    except (ValueError, commands.CommandError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    topic = commands.controller_command_topic(device.device_id)
+    try:
+        commands.publish(topic, command)
+    except commands.BrokerUnavailable as error:
+        return JsonResponse({"error": str(error)}, status=503)
+    return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
+
+
 LIVE_WINDOW_SECONDS = 60
 LIVE_MAX_SAMPLES = 400
 

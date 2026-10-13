@@ -42,13 +42,14 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 }
 
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || \
-    CONFIG_RB_CTRL_REMOTE_ATTENDANCE
+    CONFIG_RB_CTRL_REMOTE_ATTENDANCE || CONFIG_RB_CTRL_REMOTE_RADAR_RULES
 /* The dashboard's cooking temperature, cookware profile and temperature tiers, saved so they survive a reboot. */
 #define NVS_NAMESPACE "rb_safety"
 #define NVS_KEY_COOKING "cook_dc"
 #define NVS_KEY_COOKWARE "cookware"
 #define NVS_KEY_TIERS "tiers"
 #define NVS_KEY_ATTENDANCE "attend"
+#define NVS_KEY_RADAR "radar"
 
 static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
 {
@@ -273,6 +274,80 @@ static void attendance_save(const rb_attendance_t *attendance)
     }
 }
 
+#if CONFIG_RB_CTRL_REMOTE_RADAR_RULES
+typedef struct {
+    uint8_t version; /* 1 */
+    rb_radar_rules_t rules;
+} saved_radar_t;
+
+static void radar_rules_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return;
+    }
+    saved_radar_t saved;
+    size_t len = sizeof(saved);
+    if (nvs_get_blob(h, NVS_KEY_RADAR, &saved, &len) == ESP_OK && len == sizeof(saved) && saved.version == 1) {
+        rb_controller_set_radar_rules(&saved.rules);
+        ESP_LOGW(TAG, "radar rules saved from the dashboard: %s", radar_rules_mode_name(saved.rules.mode));
+    }
+    nvs_close(h);
+}
+
+/* rules == NULL: forget the saved values (back to menuconfig at the next boot too). */
+static void radar_rules_save(const rb_radar_rules_t *rules)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the radar rules last until the next reboot");
+        return;
+    }
+    esp_err_t err;
+    if (rules == NULL) {
+        err = nvs_erase_key(h, NVS_KEY_RADAR);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    } else {
+        const saved_radar_t saved = {.version = 1, .rules = *rules};
+        err = nvs_set_blob(h, NVS_KEY_RADAR, &saved, sizeof(saved));
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "radar rules not saved (%s): they last until the next reboot", esp_err_to_name(err));
+    }
+}
+
+/* MQTT task: the dashboard's radar rules, or back to menuconfig. */
+static void set_radar_rules(const rb_ctrl_cmd_t *cmd)
+{
+    if (cmd->action == RB_CTRL_ACTION_RADAR_RULES_DEFAULTS) {
+        ESP_LOGW(TAG, "radar rules: menuconfig values (request %u)", (unsigned)cmd->request_id);
+        rb_controller_set_radar_rules(NULL);
+        radar_rules_save(NULL);
+        return;
+    }
+    rb_radar_rules_t rules = {
+        .mode = strcmp(cmd->radar_mode, "enforce") == 0   ? RADAR_RULES_ENFORCE
+                : strcmp(cmd->radar_mode, "observe") == 0 ? RADAR_RULES_OBSERVE
+                                                          : RADAR_RULES_OFF,
+        .rules = {.quiet_gap_ms = cmd->radar_quiet_gap_ms,
+                  .dwell_ms = cmd->radar_dwell_ms,
+                  .stationary_min_ms = cmd->radar_stationary_min_ms,
+                  .settle_window_ms = cmd->radar_settle_window_ms,
+                  .settle_span_cm = cmd->radar_settle_span_cm,
+                  .zone_max_cm = cmd->radar_zone_max_cm},
+    };
+    ESP_LOGW(TAG, "radar rules from the dashboard (request %u)", (unsigned)cmd->request_id);
+    rb_controller_set_radar_rules(&rules);
+    radar_rules_save(&rules);
+}
+#endif
+
 /* MQTT task: the dashboard's fusion and pause budget, or back to menuconfig. */
 static void set_attendance(const rb_ctrl_cmd_t *cmd)
 {
@@ -376,7 +451,8 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 #endif
 
 #if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || \
-    CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || CONFIG_RB_CTRL_REMOTE_ATTENDANCE
+    CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || CONFIG_RB_CTRL_REMOTE_ATTENDANCE || \
+    CONFIG_RB_CTRL_REMOTE_RADAR_RULES
 #define RB_CTRL_COMMANDS 1
 /* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
@@ -452,6 +528,14 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard attendance settings refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_RADAR_RULES:
+    case RB_CTRL_ACTION_RADAR_RULES_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_RADAR_RULES
+        set_radar_rules(&cmd);
+#else
+        ESP_LOGW(TAG, "dashboard radar rules refused: turned off in menuconfig");
+#endif
+        break;
     }
 }
 
@@ -503,6 +587,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 #if CONFIG_RB_CTRL_REMOTE_ATTENDANCE
     attendance_load();
+#endif
+#if CONFIG_RB_CTRL_REMOTE_RADAR_RULES
+    radar_rules_load();
 #endif
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT

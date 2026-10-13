@@ -91,7 +91,7 @@ static void test_radar_rule_fields(void)
     TEST_ASSERT_NOT_EQUAL(0, rb_json_telemetry(&t, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"verdict\":\"dwelling\",\"episode_ms\":6200,\"stationary_ms\":4100,\"span_cm\":35"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"verdict\":\"passing\",\"episode_ms\":900"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"radar_rules\":{\"mode\":\"observe\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"radar_rules\":{\"mode\":\"observe\",\"quiet_gap_ms\":0,\"settle_window_ms\":0,\"source\":\"menuconfig\""));
     /* With the rules off, none of it is sent. */
     t = sample();
     TEST_ASSERT_NOT_EQUAL(0, rb_json_telemetry(&t, buf, sizeof(buf)));

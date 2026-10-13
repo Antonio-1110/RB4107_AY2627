@@ -103,6 +103,14 @@ enum {
     SEEN_PAUSE_PCT = 1 << 21,
     SEEN_FUSION = 1 << 22,
     SEEN_ATTENDANCE = SEEN_PAUSE_MS | SEEN_PAUSE_PCT | SEEN_FUSION,
+    SEEN_R_MODE = 1 << 23,
+    SEEN_R_GAP = 1 << 24,
+    SEEN_R_DWELL = 1 << 25,
+    SEEN_R_STILL = 1 << 26,
+    SEEN_R_WINDOW = 1 << 27,
+    SEEN_R_SPAN = 1 << 28,
+    SEEN_R_ZONE = 1 << 29,
+    SEEN_RADAR = SEEN_R_MODE | SEEN_R_GAP | SEEN_R_DWELL | SEEN_R_STILL | SEEN_R_WINDOW | SEEN_R_SPAN | SEEN_R_ZONE,
     SEEN_TIERS = SEEN_T1_TEMP | SEEN_T1_WARN | SEEN_T1_STOP | SEEN_T2_TEMP | SEEN_T2_RATE | SEEN_T2_RATE_MIN | SEEN_T2_WARN |
                  SEEN_T2_STOP,
 };
@@ -193,6 +201,10 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_ATTENDANCE;
                 } else if (is_str && strcmp(str, "attendance_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_ATTENDANCE_DEFAULTS;
+                } else if (is_str && strcmp(str, "radar_rules") == 0) {
+                    out->action = RB_CTRL_ACTION_RADAR_RULES;
+                } else if (is_str && strcmp(str, "radar_rules_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_RADAR_RULES_DEFAULTS;
                 } else if (is_str && strcmp(str, "tiers") == 0) {
                     out->action = RB_CTRL_ACTION_TIERS;
                 } else if (is_str && strcmp(str, "tiers_defaults") == 0) {
@@ -200,8 +212,8 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                 } else {
                     fail(err, err_len,
                          "action must be reset, presence_filter, presence_filter_defaults, cooking_temp, "
-                         "cooking_temp_defaults, cookware, cookware_defaults, tiers, tiers_defaults, attendance or "
-                         "attendance_defaults");
+                         "cooking_temp_defaults, cookware, cookware_defaults, tiers, tiers_defaults, attendance, "
+                         "attendance_defaults, radar_rules or radar_rules_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -279,6 +291,47 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->fusion_all = strcmp(str, "all") == 0;
+            } else if (strcmp(key, "radar_mode") == 0) {
+                bit = SEEN_R_MODE;
+                if (!is_str || (strcmp(str, "off") != 0 && strcmp(str, "observe") != 0 && strcmp(str, "enforce") != 0)) {
+                    fail(err, err_len, "radar_mode must be off, observe or enforce");
+                    return false;
+                }
+                snprintf(out->radar_mode, sizeof(out->radar_mode), "%s", str);
+            } else if (strcmp(key, "radar_quiet_gap_ms") == 0) {
+                bit = SEEN_R_GAP;
+                if (!filter_value(key, is_str, num, 0, 10000, &out->radar_quiet_gap_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "radar_dwell_ms") == 0) {
+                bit = SEEN_R_DWELL;
+                if (!filter_value(key, is_str, num, 0, 60000, &out->radar_dwell_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "radar_stationary_min_ms") == 0) {
+                bit = SEEN_R_STILL;
+                if (!filter_value(key, is_str, num, 0, 60000, &out->radar_stationary_min_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "radar_settle_window_ms") == 0) {
+                bit = SEEN_R_WINDOW;
+                if (!filter_value(key, is_str, num, 500, 60000, &out->radar_settle_window_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "radar_settle_span_cm") == 0) {
+                bit = SEEN_R_SPAN;
+                if (is_str || num < 0 || num > 1000) {
+                    fail(err, err_len, "%s must be an integer 0..1000", key);
+                    return false;
+                }
+                out->radar_settle_span_cm = (uint16_t)num;
+            } else if (strcmp(key, "radar_zone_max_cm") == 0) {
+                bit = SEEN_R_ZONE;
+                if (is_str || num < 0 || num > 1200) {
+                    fail(err, err_len, "%s must be an integer 0..1200", key);
+                    return false;
+                }
+                out->radar_zone_max_cm = (uint16_t)num;
             } else if (strcmp(key, "tier1_warning_ms") == 0) {
                 bit = SEEN_T1_WARN;
                 if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier1_warning_ms, err, err_len)) {
@@ -346,6 +399,11 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     }
     if (out->action == RB_CTRL_ACTION_TIERS ? (seen & SEEN_TIERS) != SEEN_TIERS : (seen & SEEN_TIERS) != 0) {
         fail(err, err_len, "tiers needs all eight tier values, other actions none");
+        return false;
+    }
+    if (out->action == RB_CTRL_ACTION_RADAR_RULES ? (seen & SEEN_RADAR) != SEEN_RADAR : (seen & SEEN_RADAR) != 0) {
+        fail(err, err_len, "radar_rules needs radar_mode, radar_quiet_gap_ms, radar_dwell_ms, radar_stationary_min_ms, "
+                           "radar_settle_window_ms, radar_settle_span_cm and radar_zone_max_cm, other actions none");
         return false;
     }
     if (out->action == RB_CTRL_ACTION_ATTENDANCE ? (seen & SEEN_ATTENDANCE) != SEEN_ATTENDANCE

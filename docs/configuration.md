@@ -254,6 +254,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_CTRL_PRESENCE_FUSION` (choice) | Someone counts as at the stove when every working radar sees them (`..._ALL`) or either does (`..._ANY`) | `CONFIG_RB_CTRL_PRESENCE_FUSION_ALL` |  |  |
 | `RB_CTRL_RADAR_RULES` (choice) | Radar state/distance rules: off, observe (shown only), enforce (a passing target is not "at the stove") | `CONFIG_RB_CTRL_RADAR_RULES_OBSERVE` |  | ⚠ |
 | `CONFIG_RB_CTRL_RADAR_QUIET_GAP_MS` / `_DWELL_MS` / `_STATIONARY_MIN_MS` / `_SETTLE_WINDOW_MS` / `_SETTLE_SPAN_CM` / `_ZONE_MAX_CM` | Episode gap tolerance, dwell time, stationary time, settle window, allowed distance span, zone limit (0 = no limit) | `1500` / `4000` / `1500` / `4000` / `60` / `0` |  | ⚠ |
+| `CONFIG_RB_CTRL_REMOTE_RADAR_RULES` | Accept the radar rules (mode and numbers) from the dashboard (saved on the controller) | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_ATTENDANCE` | Accept the fusion and the pause budget from the dashboard (saved on the controller) | `y` |  |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS` | Gaps shorter than this (ms) don't restart the presence count | `1000` | 0 – 10000 |  |
 | `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `180` | 1 – 3600 |  |

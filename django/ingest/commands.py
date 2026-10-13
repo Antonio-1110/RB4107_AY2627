@@ -150,6 +150,39 @@ def build_attendance_command(controller_id: str, body: dict) -> dict:
     return command
 
 
+RADAR_FIELDS = {"quiet_gap_s": ("radar_quiet_gap_ms", 0, 10), "dwell_s": ("radar_dwell_ms", 0, 60),
+                "stationary_min_s": ("radar_stationary_min_ms", 0, 60), "settle_window_s": ("radar_settle_window_ms", 0.5, 60)}
+RADAR_CM = {"settle_span_cm": ("radar_settle_span_cm", 1000), "zone_max_cm": ("radar_zone_max_cm", 1200)}
+
+
+def build_radar_rules_command(controller_id: str, body: dict) -> dict:
+    """{"mode": "off"|"observe"|"enforce", "quiet_gap_s", "dwell_s", "stationary_min_s", "settle_window_s",
+    "settle_span_cm", "zone_max_cm"} sets the radar state and distance rules (a placeholder; docs/safety_state_machine.md),
+    which the controller saves. {"defaults": true} goes back to the menuconfig values."""
+    if not isinstance(body, dict):
+        raise CommandError("body must be a JSON object")
+    if body == {"defaults": True}:
+        values, action = {}, "radar_rules_defaults"
+    else:
+        if set(body) != {"mode", *RADAR_FIELDS, *RADAR_CM}:
+            raise CommandError('send {"mode", ' + ", ".join(f'"{k}"' for k in (*RADAR_FIELDS, *RADAR_CM)) + '}, or {"defaults": true}')
+        if body["mode"] not in ("off", "observe", "enforce"):
+            raise CommandError('mode must be "off", "observe" or "enforce"')
+        values = {"radar_mode": body["mode"]}
+        for key, (name, low, high) in RADAR_FIELDS.items():
+            values[name] = round(_number(body, key, low, high, key) * 1000)
+        for key, (name, high) in RADAR_CM.items():
+            values[name] = round(_number(body, key, 0, high, key))
+        action = "radar_rules"
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
 TIER_TEMP_MAX_C = 300.0
 TIER_RATE_MAX_C_PER_MIN = 1000.0
 TIER_TIME_MIN_S, TIER_TIME_MAX_S = 1, 3600

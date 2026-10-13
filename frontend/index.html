@@ -329,6 +329,49 @@
                 <p id="at-status" class="tuning-status muted">Waiting for the controller.</p>
               </div>
             </div>
+            <div class="at-block" data-show="tuning">
+              <p class="eyebrow">RADAR STATE AND DISTANCE (placeholder rules)</p>
+              <p class="muted small">
+                Tells someone passing from someone dwelling at the stove by how long the radar keeps a target,
+                how much of it is stationary and how far its distance wanders. Observe only shows the verdict;
+                enforce makes a passing target not count as at the stove.
+              </p>
+              <div class="tuning-grid presence-filter-grid">
+                <label
+                  >Mode
+                  <select id="rr-mode">
+                    <option value="off">off</option>
+                    <option value="observe">observe (show only)</option>
+                    <option value="enforce">enforce</option>
+                  </select></label
+                >
+                <label
+                  >Gap that ends an episode (s)<input id="rr-gap" type="number" min="0" max="10" step="0.5"
+                /></label>
+                <label
+                  >Dwelling after (s)<input id="rr-dwell" type="number" min="0" max="60" step="0.5"
+                /></label>
+                <label
+                  >... of it stationary (s)<input id="rr-still" type="number" min="0" max="60" step="0.5"
+                /></label>
+                <label
+                  >Distance settled over (s)<input id="rr-window" type="number" min="0.5" max="60" step="0.5"
+                /></label>
+                <label
+                  >... within (cm)<input id="rr-span" type="number" min="0" max="1000" step="5"
+                /></label>
+                <label
+                  >Cook zone up to (cm, 0 = any)<input id="rr-zone" type="number" min="0" max="1200" step="10"
+                /></label>
+              </div>
+              <div class="reset-actions">
+                <button id="rr-apply" class="primary-button" type="button" disabled>Apply radar rules</button>
+                <button id="rr-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig values
+                </button>
+                <p id="rr-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
+            </div>
           </section>
           <section class="card cd-rule" aria-labelledby="cd-timer-title">
             <h3 id="cd-timer-title">Timer</h3>

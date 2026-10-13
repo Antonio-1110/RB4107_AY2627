@@ -266,6 +266,51 @@ static void test_bad_attendance_is_rejected(void)
 #undef AHEAD
 }
 
+#define RHEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":21,"
+#define RVALUES "\"radar_quiet_gap_ms\":1500,\"radar_dwell_ms\":4000,\"radar_stationary_min_ms\":1500," \
+                "\"radar_settle_window_ms\":4000,\"radar_settle_span_cm\":60,\"radar_zone_max_cm\":0"
+
+static void test_radar_rules_are_parsed(void)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    TEST_ASSERT_TRUE_MESSAGE(parse(RHEAD "\"action\":\"radar_rules\",\"radar_mode\":\"enforce\"," RVALUES "}", &cmd, err), err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_RADAR_RULES, cmd.action);
+    TEST_ASSERT_EQUAL_STRING("enforce", cmd.radar_mode);
+    TEST_ASSERT_EQUAL_UINT32(1500, cmd.radar_quiet_gap_ms);
+    TEST_ASSERT_EQUAL_UINT32(4000, cmd.radar_dwell_ms);
+    TEST_ASSERT_EQUAL_UINT32(1500, cmd.radar_stationary_min_ms);
+    TEST_ASSERT_EQUAL_UINT32(4000, cmd.radar_settle_window_ms);
+    TEST_ASSERT_EQUAL_UINT16(60, cmd.radar_settle_span_cm);
+    TEST_ASSERT_EQUAL_UINT16(0, cmd.radar_zone_max_cm);
+    TEST_ASSERT_TRUE_MESSAGE(parse(RHEAD "\"action\":\"radar_rules_defaults\"}", &cmd, err), err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_RADAR_RULES_DEFAULTS, cmd.action);
+}
+
+static void test_bad_radar_rules_are_rejected(void)
+{
+    static const char *const bad[] = {
+        RHEAD "\"action\":\"radar_rules\"}",
+        RHEAD "\"action\":\"radar_rules\"," RVALUES "}",                                    /* mode missing */
+        RHEAD "\"action\":\"radar_rules\",\"radar_mode\":\"loud\"," RVALUES "}",
+        RHEAD "\"action\":\"radar_rules\",\"radar_mode\":\"observe\",\"radar_dwell_ms\":4000}",
+        RHEAD "\"action\":\"radar_rules\",\"radar_mode\":\"observe\",\"radar_quiet_gap_ms\":10001,"
+              "\"radar_dwell_ms\":4000,\"radar_stationary_min_ms\":1500,\"radar_settle_window_ms\":4000,"
+              "\"radar_settle_span_cm\":60,\"radar_zone_max_cm\":0}",
+        RHEAD "\"action\":\"radar_rules\",\"radar_mode\":\"observe\",\"radar_quiet_gap_ms\":1500,"
+              "\"radar_dwell_ms\":4000,\"radar_stationary_min_ms\":1500,\"radar_settle_window_ms\":4000,"
+              "\"radar_settle_span_cm\":1001,\"radar_zone_max_cm\":0}",
+        RHEAD "\"action\":\"reset\",\"radar_mode\":\"off\"}",
+        RHEAD "\"action\":\"radar_rules_defaults\",\"radar_dwell_ms\":1}",
+    };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        rb_ctrl_cmd_t cmd;
+        char err[80];
+        TEST_ASSERT_FALSE_MESSAGE(parse(bad[i], &cmd, err), bad[i]);
+        TEST_ASSERT_TRUE(err[0] != '\0');
+    }
+}
+
 static void test_bad_cooking_temps_are_rejected(void)
 {
 #define HEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
@@ -303,4 +348,6 @@ void run_ctrl_cmd_tests(void)
     RUN_TEST(test_bad_tiers_are_rejected);
     RUN_TEST(test_attendance_is_parsed);
     RUN_TEST(test_bad_attendance_is_rejected);
+    RUN_TEST(test_radar_rules_are_parsed);
+    RUN_TEST(test_bad_radar_rules_are_rejected);
 }

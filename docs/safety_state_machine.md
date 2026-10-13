@@ -109,7 +109,7 @@ Modes (`RB_CTRL_RADAR_RULES`): **off**; **observe** (default: verdicts are
 computed and shown on the dashboard but change nothing); **enforce** (a radar
 that sees someone but only *passing* does not count as "at the stove" in the
 attendance fusion, so a walker behind the stove neither pauses nor cancels
-the clock). Every number is a placeholder, not tuned on real walks or cooks;
+the clock). Mode and numbers can be changed from the dashboard (Tuning > Rules > Person), saved on the controller. Every number is a placeholder, not tuned on real walks or cooks;
 see [demo_vs_deployment.md](demo_vs_deployment.md).
 
 ## Cooking judgment: is heat still going in?

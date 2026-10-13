@@ -36,7 +36,9 @@ def _radar_rules(safety):
     rules = safety.get("radar_rules") if isinstance(safety.get("radar_rules"), dict) else None
     if not rules:
         return None
-    return {"mode": rules["mode"], "dwell_seconds": _seconds(rules.get("dwell_ms")),
+    return {"mode": rules["mode"], "quiet_gap_seconds": _seconds(rules.get("quiet_gap_ms")),
+            "settle_window_seconds": _seconds(rules.get("settle_window_ms")), "source": rules.get("source"),
+            "dwell_seconds": _seconds(rules.get("dwell_ms")),
             "stationary_min_seconds": _seconds(rules.get("stationary_min_ms")),
             "settle_span_cm": rules.get("settle_span_cm"), "zone_max_cm": rules.get("zone_max_cm")}
 

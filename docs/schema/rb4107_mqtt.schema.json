@@ -136,6 +136,9 @@
               "required": ["mode"],
               "properties": {
                 "mode": {"enum": ["off", "observe", "enforce"]},
+                "quiet_gap_ms": {"type": "integer", "minimum": 0},
+                "settle_window_ms": {"type": "integer", "minimum": 0},
+                "source": {"enum": ["menuconfig", "dashboard"]},
                 "dwell_ms": {"type": "integer", "minimum": 0},
                 "stationary_min_ms": {"type": "integer", "minimum": 0},
                 "settle_span_cm": {"type": "integer", "minimum": 0},
@@ -401,7 +404,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values (docs/remote_reset.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -411,7 +414,14 @@
         "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
         "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "cooking_temp",
-                            "cooking_temp_defaults", "cookware", "cookware_defaults", "tiers", "tiers_defaults", "attendance", "attendance_defaults"]},
+                            "cooking_temp_defaults", "cookware", "cookware_defaults", "tiers", "tiers_defaults", "attendance", "attendance_defaults", "radar_rules", "radar_rules_defaults"]},
+        "radar_mode": {"enum": ["off", "observe", "enforce"]},
+        "radar_quiet_gap_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "radar_dwell_ms": {"type": "integer", "minimum": 0, "maximum": 60000},
+        "radar_stationary_min_ms": {"type": "integer", "minimum": 0, "maximum": 60000},
+        "radar_settle_window_ms": {"type": "integer", "minimum": 500, "maximum": 60000},
+        "radar_settle_span_cm": {"type": "integer", "minimum": 0, "maximum": 1000},
+        "radar_zone_max_cm": {"type": "integer", "minimum": 0, "maximum": 1200},
         "pause_budget_ms": {"type": "integer", "minimum": 0, "maximum": 600000},
         "pause_budget_pct": {"type": "integer", "minimum": 0, "maximum": 100},
         "presence_fusion": {"enum": ["all", "any"]},
@@ -447,6 +457,12 @@
           "if": {"properties": {"action": {"const": "attendance"}}},
           "then": {"required": ["pause_budget_ms", "pause_budget_pct", "presence_fusion"]},
           "else": {"not": {"anyOf": [{"required": ["pause_budget_ms"]}, {"required": ["pause_budget_pct"]}, {"required": ["presence_fusion"]}]}}
+        },
+        {
+          "if": {"properties": {"action": {"const": "radar_rules"}}},
+          "then": {"required": ["radar_mode", "radar_quiet_gap_ms", "radar_dwell_ms", "radar_stationary_min_ms", "radar_settle_window_ms", "radar_settle_span_cm", "radar_zone_max_cm"]},
+          "else": {"not": {"anyOf": [{"required": ["radar_mode"]}, {"required": ["radar_quiet_gap_ms"]}, {"required": ["radar_dwell_ms"]}, {"required": ["radar_stationary_min_ms"]},
+                                     {"required": ["radar_settle_window_ms"]}, {"required": ["radar_settle_span_cm"]}, {"required": ["radar_zone_max_cm"]}]}}
         },
         {
           "if": {"properties": {"action": {"const": "tiers"}}},

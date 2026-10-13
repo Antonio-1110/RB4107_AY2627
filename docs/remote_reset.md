@@ -114,6 +114,22 @@ controller keeps the values in NVS (they survive a reboot) and reports them in
 `safety.presence_filter` (`fusion`, `pause_budget_cfg_ms`, `pause_budget_pct`,
 `attendance_source`). Menuconfig: `RB_CTRL_REMOTE_ATTENDANCE`.
 
+## Radar state and distance rules
+
+Below the attendance settings. **Apply radar rules** calls
+`POST /api/devices/<id>/radar-rules/` with
+
+```json
+{"mode": "observe", "quiet_gap_s": 1.5, "dwell_s": 4, "stationary_min_s": 1.5,
+ "settle_window_s": 4, "settle_span_cm": 60, "zone_max_cm": 0}
+```
+
+or `{"defaults": true}`. `mode` is `off`, `observe` or `enforce` (see
+[the rules](safety_state_machine.md#radar-state-and-distance-rules-placeholder));
+limits 0-10 s, 0-60 s, 0-60 s, 0.5-60 s, 0-1000 cm, 0-1200 cm. The controller
+keeps the values in NVS and reports them in `safety.radar_rules` (with
+`source`). Menuconfig: `RB_CTRL_REMOTE_RADAR_RULES`.
+
 ## Temperature tiers
 
 The Timer rule (Tuning → Rules) also holds the **temperature tiers**: from which

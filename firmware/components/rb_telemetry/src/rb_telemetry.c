@@ -174,6 +174,9 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.tiers_remote = snap->tiers_remote;
     if (snap->nodes.rules_mode != RADAR_RULES_OFF) {
         t->safety.radar_rules = radar_rules_mode_name(snap->nodes.rules_mode);
+        t->safety.radar_quiet_gap_ms = snap->nodes.rules.quiet_gap_ms;
+        t->safety.radar_settle_window_ms = snap->nodes.rules.settle_window_ms;
+        t->safety.radar_rules_remote = snap->radar_rules_remote;
         t->safety.radar_dwell_ms = snap->nodes.rules.dwell_ms;
         t->safety.radar_stationary_min_ms = snap->nodes.rules.stationary_min_ms;
         t->safety.radar_settle_span_cm = snap->nodes.rules.settle_span_cm;

@@ -168,6 +168,53 @@ class TiersCommandTest(TestCase):
         self.assertEqual(values["tiers_source"], "menuconfig")
 
 
+class RadarRulesCommandTest(TestCase):
+    URL = "/api/devices/controller_01/radar-rules/"
+    GOOD = {"mode": "enforce", "quiet_gap_s": 1.5, "dwell_s": 4, "stationary_min_s": 1.5, "settle_window_s": 4,
+            "settle_span_cm": 60, "zone_max_cm": 0}
+
+    def setUp(self):
+        worker_status(True)
+        handle(parse("rb4107/controller/state",
+                     json.dumps(demo_telemetry("controller_01", boot_id="3f9a01c2")).encode()))
+
+    def post(self, body):
+        return self.client.post(self.URL, json.dumps(body), content_type="application/json")
+
+    @mock.patch("ingest.commands.publish")
+    def test_published_in_firmware_units(self, publish):
+        self.assertEqual(self.post(self.GOOD).status_code, 202)
+        command = publish.call_args.args[1]
+        self.assertEqual(command["action"], "radar_rules")
+        self.assertEqual((command["radar_mode"], command["radar_quiet_gap_ms"], command["radar_dwell_ms"],
+                          command["radar_stationary_min_ms"], command["radar_settle_window_ms"],
+                          command["radar_settle_span_cm"], command["radar_zone_max_cm"]),
+                         ("enforce", 1500, 4000, 1500, 4000, 60, 0))
+        validation.check_command(command)
+
+    @mock.patch("ingest.commands.publish")
+    def test_defaults(self, publish):
+        self.assertEqual(self.post({"defaults": True}).status_code, 202)
+        command = publish.call_args.args[1]
+        self.assertEqual(command["action"], "radar_rules_defaults")
+        validation.check_command(command)
+
+    @mock.patch("ingest.commands.publish")
+    def test_bad_values_are_refused(self, publish):
+        bad = [{}, [1], {"defaults": False}, {**self.GOOD, "mode": "loud"}, {**self.GOOD, "dwell_s": -1},
+               {**self.GOOD, "dwell_s": 61}, {**self.GOOD, "settle_window_s": 0.1}, {**self.GOOD, "settle_span_cm": 1001},
+               {**self.GOOD, "zone_max_cm": "5"}, {**self.GOOD, "extra": 1}, {"mode": "off"}]
+        for body in bad:
+            with self.subTest(body=body):
+                self.assertEqual(self.post(body).status_code, 400)
+        publish.assert_not_called()
+
+    def test_telemetry_reports_the_rules(self):
+        values = self.client.get("/api/devices/controller_01/latest/").json()["values"]
+        self.assertEqual(values["radar_rules"]["source"], "menuconfig")
+        self.assertEqual(values["radar_rules"]["quiet_gap_seconds"], 1.5)
+
+
 class AttendanceCommandTest(TestCase):
     URL = "/api/devices/controller_01/attendance/"
     GOOD = {"pause_budget_s": 30, "pause_budget_pct": 25, "fusion": "all"}
