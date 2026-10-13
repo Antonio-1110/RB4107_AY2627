@@ -57,7 +57,11 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "safety": {"state": "UNATTENDED", "state_ms": 16400, "unattended_ms": 18400,
              "buzzer": "OFF", "shutdown": false, "reset_required": false,
              "warning_after_ms": 180000, "shutdown_after_ms": 300000, "shutdown_counts_from": "UNATTENDED",
-             "test_timers": false, "hold": "none",
+             "test_timers": false, "hold": "none", "tier": "normal",
+             "effective_warning_ms": 180000, "effective_shutdown_ms": 300000,
+             "tiers": {"elevated": {"temp_c": 120.0, "warning_ms": 60000, "shutdown_ms": 150000},
+                       "critical": {"temp_c": 200.0, "rate_c_per_min": 20.0, "rate_min_temp_c": 150.0,
+                                    "warning_ms": 30000, "shutdown_ms": 120000}},
              "presence_unknown": false, "thermal_lost": false, "absent_ms": 0, "returning_ms": 0,
              "presence_filter": {"absence_ms": 2000, "return_ms": 3000, "return_gap_ms": 1000,
                                  "source": "menuconfig"},
@@ -73,6 +77,11 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   [safety_state_machine.md](safety_state_machine.md#lost-sensors-flags-not-fault)).
   `cooking.active` is the heat detector's state. `absent_ms` / `returning_ms`
   are the progress of the absence and return debounce (0 = not running).
+  `tier` is the temperature tier in force (`normal`, `elevated`, `critical`);
+  `effective_warning_ms` / `effective_shutdown_ms` are the buzzer and shutdown
+  times in force now, never longer than the base `warning_after_ms` /
+  `shutdown_after_ms`, and `tiers` holds the tier settings (`null` if tiers are
+  off). See [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time).
   `cooking.phase` is the judgment from the temperature trend (`off`, `checking`,
   `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min` and where the
   temperature is heading (`settle_c`); `cookware` is the profile that sets the

@@ -153,6 +153,49 @@ real cookware; `tools/diagnostics/cooling_sweep.c` and
 So the demo needs the profile to be roughly right for the cookware on the stove.
 When unsure, pick the shorter one.
 
+## Temperature tiers: the hotter the pan, the shorter the time
+
+One flat time can't fit both a simmering pot and oil heading for its smoke
+point. NIST heated corn oil on an electric coil from cold and measured the time
+to auto-ignition as `460 s + 3.9 s per gram of oil` (50-150 g: 11 to 17
+minutes); the last stage, from smoking to ignition, lasted only 30-60 seconds,
+and ignition came at a pan-bottom temperature of 392 °C
+([NIST TN 2133](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2133.pdf)).
+Gas burners were not tested there and heat faster, and a pan that is already hot
+when the cook leaves has far less than that left. So the buzzer and shutdown
+times depend on how hot the pan is:
+
+| Tier | Hottest pixel | Buzzer | Shutdown |
+|---|---|---|---|
+| normal | below 120 °C (a simmer, boiling water) | 180 s (the base time) | 300 s (the base time) |
+| elevated | 120 °C and up (sauté, shallow frying) | 60 s | 150 s |
+| critical | 200 °C and up, or rising 20 °C/min or faster above 150 °C | 30 s | 120 s |
+
+All of these are **placeholders** (Kconfig, `RB_SAFETY_TIER*`) until they are
+tuned on real camera readings of hot oil. The camera reads shiny pans far too
+cold and tops out near 300 °C, so a pan may be hotter than the tier shows.
+
+How it behaves:
+
+- **Tiers only shorten.** The time in force is the smaller of the base time and
+  the tier's, so a stall that sets short base times for a demo keeps them.
+- **A tier takes over after its temperature has held for 4 s** (a reflection
+  must not shorten the timers) and **gives way only 10 °C below its threshold,
+  after 20 s**. A lost camera keeps the tier it had.
+- **The clock follows the limits in force.** If the pan gets hotter while
+  nobody is there, the limits get shorter at once: a person away for 100 s over
+  a simmer whose pan then heats to 230 °C gets the buzzer within seconds. The
+  buzzer still sounds at least **10 s before the shutdown** in that case.
+- **Shutdown after cooling can be recognised.** The shutdown time of the hot
+  tiers is later than the 1-2 minutes the cooling judgment needs. A hot pan whose
+  burner was just switched off therefore gets a **buzzer** at the tier's time
+  (cooling can't be recognised that early) but **not a shutdown**: the gas of a
+  burner that is already off is not cut. With the defaults, 220 °C with the
+  burner off buzzes at 30 s and then cools to idle; the same pan with the burner
+  turned down to 120 °C is shut down at 120 s. Both are tests.
+- **Cooking judgment and tiers are separate.** A pan only cooling holds due
+  transitions (see "Holds"); the tier decides when they are due.
+
 ## Holds: a due buzzer or shutdown that waits
 
 A warning or shutdown that comes due can be held back, for two reasons, each

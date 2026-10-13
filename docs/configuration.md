@@ -256,6 +256,10 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  | ⚠ |
 | `RB_SAFETY_WARNING_EXIT` (choice) | Person returns during WARNING: `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` = return to MONITORING; `CONFIG_RB_SAFETY_WARNING_EXIT_ACK` = stay in WARNING until the person acknowledges (reset input) | `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` |  | ⚠ |
 | `RB_SAFETY_COOLING` (choice) | Pan drops below the cooking temperature while UNATTENDED/WARNING: `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` = keep the timers running (old behaviour); `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` = return to IDLE and cancel the timers | `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` |  |  |
+| `CONFIG_RB_SAFETY_TEMP_TIERS` | Shorter buzzer and shutdown times for hotter pans | `y` |  |  |
+| `CONFIG_RB_SAFETY_TIER1_TEMP_DC` / `_WARNING_S` / `_SHUTDOWN_S` | ELEVATED: from this hottest-pixel temperature (0.1 °C), buzzer and shutdown times (s) | `1200` / `60` / `150` | 0 – 3000 / 1 – 3600 / 1 – 3600 | placeholders |
+| `CONFIG_RB_SAFETY_TIER2_TEMP_DC` / `_WARNING_S` / `_SHUTDOWN_S` | CRITICAL: from this temperature (0.1 °C), buzzer and shutdown times (s) | `2000` / `30` / `120` | 0 – 3000 / 1 – 3600 / 1 – 3600 | placeholders |
+| `CONFIG_RB_SAFETY_TIER2_RATE_DC_PER_MIN` / `_RATE_MIN_TEMP_DC` | CRITICAL also when rising at least this fast (0.1 °C/min, 0 = off) above this temperature (0.1 °C) | `200` / `1500` | 0 – 10000 / 0 – 3000 | placeholders |
 | `CONFIG_RB_SAFETY_COOKING_TREND` | Judge from the temperature trend whether heat is going in (a cooling pan holds the buzzer and shutdown back) | `y` |  |  |
 | `RB_SAFETY_COOKWARE` (choice) | Cookware profile: mixed (10 min) / light (5 min) / heavy (15 min) / liquid (40 min) | `CONFIG_RB_SAFETY_COOKWARE_MIXED` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_COOKWARE` | Accept the cookware profile from the dashboard | `y` |  |  |
