@@ -99,6 +99,10 @@ enum {
     SEEN_T2_RATE_MIN = 1 << 17,
     SEEN_T2_WARN = 1 << 18,
     SEEN_T2_STOP = 1 << 19,
+    SEEN_PAUSE_MS = 1 << 20,
+    SEEN_PAUSE_PCT = 1 << 21,
+    SEEN_FUSION = 1 << 22,
+    SEEN_ATTENDANCE = SEEN_PAUSE_MS | SEEN_PAUSE_PCT | SEEN_FUSION,
     SEEN_TIERS = SEEN_T1_TEMP | SEEN_T1_WARN | SEEN_T1_STOP | SEEN_T2_TEMP | SEEN_T2_RATE | SEEN_T2_RATE_MIN | SEEN_T2_WARN |
                  SEEN_T2_STOP,
 };
@@ -185,6 +189,10 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_COOKWARE;
                 } else if (is_str && strcmp(str, "cookware_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_COOKWARE_DEFAULTS;
+                } else if (is_str && strcmp(str, "attendance") == 0) {
+                    out->action = RB_CTRL_ACTION_ATTENDANCE;
+                } else if (is_str && strcmp(str, "attendance_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_ATTENDANCE_DEFAULTS;
                 } else if (is_str && strcmp(str, "tiers") == 0) {
                     out->action = RB_CTRL_ACTION_TIERS;
                 } else if (is_str && strcmp(str, "tiers_defaults") == 0) {
@@ -192,7 +200,8 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                 } else {
                     fail(err, err_len,
                          "action must be reset, presence_filter, presence_filter_defaults, cooking_temp, "
-                         "cooking_temp_defaults, cookware, cookware_defaults, tiers or tiers_defaults");
+                         "cooking_temp_defaults, cookware, cookware_defaults, tiers, tiers_defaults, attendance or "
+                         "attendance_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -251,6 +260,25 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->tier2_rate_dc_per_min = (uint16_t)num;
+            } else if (strcmp(key, "pause_budget_ms") == 0) {
+                bit = SEEN_PAUSE_MS;
+                if (!filter_value(key, is_str, num, 0, 600000, &out->pause_budget_ms, err, err_len)) {
+                    return false;
+                }
+            } else if (strcmp(key, "pause_budget_pct") == 0) {
+                bit = SEEN_PAUSE_PCT;
+                if (is_str || num > 100) {
+                    fail(err, err_len, "%s must be an integer 0..100", key);
+                    return false;
+                }
+                out->pause_budget_pct = (uint8_t)num;
+            } else if (strcmp(key, "presence_fusion") == 0) {
+                bit = SEEN_FUSION;
+                if (!is_str || (strcmp(str, "all") != 0 && strcmp(str, "any") != 0)) {
+                    fail(err, err_len, "presence_fusion must be all or any");
+                    return false;
+                }
+                out->fusion_all = strcmp(str, "all") == 0;
             } else if (strcmp(key, "tier1_warning_ms") == 0) {
                 bit = SEEN_T1_WARN;
                 if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier1_warning_ms, err, err_len)) {
@@ -318,6 +346,11 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     }
     if (out->action == RB_CTRL_ACTION_TIERS ? (seen & SEEN_TIERS) != SEEN_TIERS : (seen & SEEN_TIERS) != 0) {
         fail(err, err_len, "tiers needs all eight tier values, other actions none");
+        return false;
+    }
+    if (out->action == RB_CTRL_ACTION_ATTENDANCE ? (seen & SEEN_ATTENDANCE) != SEEN_ATTENDANCE
+                                                  : (seen & SEEN_ATTENDANCE) != 0) {
+        fail(err, err_len, "attendance needs pause_budget_ms, pause_budget_pct and presence_fusion, other actions none");
         return false;
     }
     return true;

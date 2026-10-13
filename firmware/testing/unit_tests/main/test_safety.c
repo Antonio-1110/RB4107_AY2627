@@ -1106,6 +1106,130 @@ static void test_tier_config_is_checked(void)
     TEST_ASSERT_TRUE(safety_config_valid(&cfg));
 }
 
+/* ---- pause: someone passing stops the clock, only a stay of 5 s cancels ---- */
+
+static safety_config_t pause_config(void)
+{
+    safety_config_t cfg = th_default_config();
+    cfg.absence_debounce_ms = 1000;
+    cfg.presence_return_debounce_ms = 5000;
+    cfg.presence_return_gap_ms = 1000;
+    cfg.warning_timeout_ms = 180000;
+    cfg.shutdown_timeout_ms = 300000;
+    cfg.pause_budget_ms = 30000;
+    cfg.pause_budget_pct = 25;
+    return cfg;
+}
+
+static void leave_for(th_t *h, uint32_t ms)
+{
+    th_cook(h);
+    h->in.presence = RB_FALSE;
+    th_run(h, 1000 + TH_STEP_MS);
+    TH_EXPECT(h, SAFETY_UNATTENDED);
+    th_run(h, ms);
+}
+
+static void test_a_short_pass_stops_the_clock_and_resets_nothing(void)
+{
+    th_t h;
+    const safety_config_t cfg = pause_config();
+    th_start(&h, &cfg, 0);
+    leave_for(&h, 40000);
+    const uint32_t before = safety_unattended_ms(&h.sm, h.now);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 3000); /* someone passes, 3 s */
+    TEST_ASSERT_TRUE(h.sm.paused);
+    TEST_ASSERT_UINT32_WITHIN(2 * TH_STEP_MS, before, safety_unattended_ms(&h.sm, h.now)); /* the clock stood still */
+    h.in.presence = RB_FALSE;
+    th_run(&h, 10000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_FALSE(h.sm.paused);
+    TEST_ASSERT_UINT32_WITHIN(2 * TH_STEP_MS, before + 10000, safety_unattended_ms(&h.sm, h.now)); /* and runs on */
+}
+
+static void test_five_seconds_of_presence_cancel_the_timeline(void)
+{
+    th_t h;
+    const safety_config_t cfg = pause_config();
+    th_start(&h, &cfg, 0);
+    leave_for(&h, 40000);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 4500);
+    TH_EXPECT(&h, SAFETY_UNATTENDED); /* still only a pause */
+    th_run(&h, 1000);
+    TH_EXPECT(&h, SAFETY_MONITORING); /* 5 s: someone is at the stove, the timeline is cancelled */
+    TEST_ASSERT_EQUAL_UINT32(0, safety_unattended_ms(&h.sm, h.now));
+    TEST_ASSERT_EQUAL_UINT32(0, h.sm.pause_used_ms);
+}
+
+static void test_the_pause_budget_limits_the_delay(void)
+{
+    th_t h;
+    safety_config_t cfg = pause_config();
+    cfg.pause_budget_ms = 10000;
+    th_start(&h, &cfg, 0);
+    leave_for(&h, 20000);
+    const uint32_t before = safety_unattended_ms(&h.sm, h.now);
+    for (int i = 0; i < 20; i++) { /* a busy aisle: 3 s of someone, 2 s of nobody, again and again */
+        h.in.presence = RB_TRUE;
+        th_run(&h, 3000);
+        h.in.presence = RB_FALSE;
+        th_run(&h, 2000);
+    }
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_EQUAL_UINT32(10000, h.sm.pause_used_ms);
+    /* 100 s went by, of which at most 10 s did not count. */
+    TEST_ASSERT_UINT32_WITHIN(3 * TH_STEP_MS, before + 100000 - 10000, safety_unattended_ms(&h.sm, h.now));
+}
+
+static void test_the_budget_is_a_share_of_the_shutdown_time(void)
+{
+    th_t h;
+    safety_config_t cfg = pause_config();
+    cfg.pause_budget_ms = 600000;
+    cfg.pause_budget_pct = 25;
+    cfg.shutdown_timeout_ms = 120000; /* 25 % of this is 30 s */
+    cfg.warning_timeout_ms = 60000;
+    th_start(&h, &cfg, 0);
+    leave_for(&h, 10000);
+    TEST_ASSERT_EQUAL_UINT32(30000, safety_pause_budget_ms(&h.sm));
+}
+
+static void test_no_budget_means_no_pause(void)
+{
+    th_t h;
+    safety_config_t cfg = pause_config();
+    cfg.pause_budget_ms = 0;
+    th_start(&h, &cfg, 0);
+    leave_for(&h, 40000);
+    const uint32_t before = safety_unattended_ms(&h.sm, h.now);
+    h.in.presence = RB_TRUE;
+    th_run(&h, 3000);
+    TEST_ASSERT_FALSE(h.sm.paused);
+    TEST_ASSERT_UINT32_WITHIN(2 * TH_STEP_MS, before + 3000, safety_unattended_ms(&h.sm, h.now));
+}
+
+static void test_the_pause_postpones_the_shutdown_by_what_it_paused(void)
+{
+    th_t h;
+    const safety_config_t cfg = pause_config();
+    th_start(&h, &cfg, 0);
+    leave_for(&h, 181000);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    const uint32_t start_before = h.sm.unattended_start_ms;
+    h.in.presence = RB_TRUE;
+    th_run(&h, 4000); /* passes during the warning */
+    h.in.presence = RB_FALSE;
+    th_run(&h, 2 * TH_STEP_MS);
+    TEST_ASSERT_UINT32_WITHIN(2 * TH_STEP_MS, 4000, h.sm.unattended_start_ms - start_before); /* moved by what it paused */
+    const uint32_t left = cfg.shutdown_timeout_ms - safety_unattended_ms(&h.sm, h.now);
+    th_run(&h, left - 5 * TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    th_run(&h, 10 * TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_SHUTDOWN);
+}
+
 void run_safety_tests(void)
 {
     RUN_TEST(test_boot_selftest_pass_to_idle);
@@ -1165,4 +1289,10 @@ void run_safety_tests(void)
     RUN_TEST(test_a_tier_gives_way_only_well_below_its_temperature);
     RUN_TEST(test_a_lost_camera_keeps_the_tier);
     RUN_TEST(test_tier_config_is_checked);
+    RUN_TEST(test_a_short_pass_stops_the_clock_and_resets_nothing);
+    RUN_TEST(test_five_seconds_of_presence_cancel_the_timeline);
+    RUN_TEST(test_the_pause_budget_limits_the_delay);
+    RUN_TEST(test_the_budget_is_a_share_of_the_shutdown_time);
+    RUN_TEST(test_no_budget_means_no_pause);
+    RUN_TEST(test_the_pause_postpones_the_shutdown_by_what_it_paused);
 }

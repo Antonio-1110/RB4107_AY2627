@@ -137,12 +137,18 @@ typedef struct {
     uint32_t presence_node_ids[NODE_SET_MAX_PRESENCE];
     uint8_t presence_node_count;  /* 1 (bench, one radar) or 2 */
     uint32_t thermal_node_id;
+    /*
+     * true: someone only counts as at the stove when every working radar sees them (see
+     * presence_fuse_all()); false: either radar is enough (presence_fuse()).
+     */
+    bool require_all;
 } node_set_config_t;
 
 typedef struct {
     sensor_node_state_t nodes[NODE_SLOT_COUNT];
     bool enabled[NODE_SLOT_COUNT];
     uint32_t unknown_node;        /* packets from a node ID that isn't configured */
+    bool require_all;             /* the fusion in use; the owner may change it at run time */
 } node_set_t;
 
 /*
@@ -151,7 +157,8 @@ typedef struct {
  * "no presence" or "cold".
  */
 typedef struct {
-    rb_tristate_t presence;                           /* combined, see presence_fuse() */
+    rb_tristate_t presence;                           /* at the stove: presence_fuse_all() or presence_fuse() */
+    rb_tristate_t presence_any;                       /* somebody near either radar: presence_fuse() */
     rb_tristate_t presence_each[NODE_SET_MAX_PRESENCE];
     bool thermal_valid;
     float hot_region_temp_c;      /* NAN unless thermal_valid */
@@ -186,6 +193,15 @@ void node_set_inputs(const node_set_t *set, node_inputs_t *out);
  * Missing data never turns into ABSENT.
  */
 rb_tristate_t presence_fuse(const rb_tristate_t *readings, size_t count);
+
+/*
+ * Strict "everybody agrees" combination, for "someone is at the stove":
+ *   - PRESENT only if every radar that works sees a person (a radar that is down is not asked);
+ *   - ABSENT if any working radar gives a valid "absent";
+ *   - UNKNOWN only if no radar works.
+ * A person seen by one radar only (a rear-lobe echo, someone behind the sensor) is not at the stove.
+ */
+rb_tristate_t presence_fuse_all(const rb_tristate_t *readings, size_t count);
 
 const char *node_slot_name(node_slot_t slot);   /* "presence_a", "presence_b", "thermal" */
 const char *node_seq_result_name(node_seq_result_t result);

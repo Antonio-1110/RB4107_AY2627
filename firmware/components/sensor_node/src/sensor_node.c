@@ -192,6 +192,7 @@ void node_set_init(node_set_t *set, const node_set_config_t *cfg)
     }
     sensor_node_init(&set->nodes[NODE_SLOT_THERMAL], cfg->thermal_node_id, RB_NODE_ROLE_THERMAL);
     set->enabled[NODE_SLOT_THERMAL] = true;
+    set->require_all = cfg->require_all;
 }
 
 node_seq_result_t node_set_on_packet(node_set_t *set, const rb_packet_t *pkt, uint32_t now_ms, node_slot_t *slot_out)
@@ -231,6 +232,18 @@ rb_tristate_t presence_fuse(const rb_tristate_t *readings, size_t count)
     return all_absent ? RB_FALSE : RB_UNKNOWN;
 }
 
+rb_tristate_t presence_fuse_all(const rb_tristate_t *readings, size_t count)
+{
+    size_t working = 0;
+    for (size_t i = 0; i < count; i++) {
+        if (readings[i] == RB_FALSE) {
+            return RB_FALSE;
+        }
+        working += readings[i] == RB_TRUE;
+    }
+    return working > 0 ? RB_TRUE : RB_UNKNOWN;
+}
+
 void node_set_inputs(const node_set_t *set, node_inputs_t *out)
 {
     memset(out, 0, sizeof(*out));
@@ -243,7 +256,8 @@ void node_set_inputs(const node_set_t *set, node_inputs_t *out)
         }
     }
     /* Enabled presence slots are always the first n. */
-    out->presence = presence_fuse(out->presence_each, n);
+    out->presence_any = presence_fuse(out->presence_each, n);
+    out->presence = set->require_all ? presence_fuse_all(out->presence_each, n) : out->presence_any;
 
     const sensor_node_state_t *th = &set->nodes[NODE_SLOT_THERMAL];
     const thermal_reading_t *t = &th->thermal;

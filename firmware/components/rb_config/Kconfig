@@ -714,6 +714,30 @@ menu "RB4107 configuration"
 
         menu "Sensor node link"
 
+            choice RB_CTRL_PRESENCE_FUSION
+                prompt "Someone counts as at the stove when ..."
+                default RB_CTRL_PRESENCE_FUSION_ALL
+                help
+                    Which radars have to see them. With two radars, a person
+                    seen by one radar only is a rear-lobe echo or someone
+                    behind the sensor, and a false "present" keeps the gas on.
+                    A radar that is down is not asked. The dashboard can change
+                    it (saved on the controller).
+                config RB_CTRL_PRESENCE_FUSION_ALL
+                    bool "every working radar sees them"
+                config RB_CTRL_PRESENCE_FUSION_ANY
+                    bool "either radar sees them (the earlier behaviour)"
+            endchoice
+
+            config RB_CTRL_REMOTE_ATTENDANCE
+                bool "Accept the fusion and the pause budget from the dashboard"
+                default y
+                help
+                    An "attendance" command on <prefix>/controller/command sets
+                    the fusion (all radars or either) and the pause budget. Saved
+                    on the controller, so it survives a reboot, until the
+                    dashboard sends "attendance_defaults".
+
             config RB_CTRL_PRESENCE_NODE_COUNT
                 int "Number of presence nodes (C4002 radars)"
                 range 1 2
@@ -1186,14 +1210,34 @@ menu "RB4107 configuration"
         config RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS
             int "Presence must last (ms) to cancel UNATTENDED/WARNING"
             range 0 60000
-            default 3000
+            default 5000
             help
-                A single radar reading (a hand waved at the sensor, someone
-                walking past) must not cancel the unattended timers. A wave
-                shows as about 1.5-2 s of presence (the C4002's disappear
-                delay keeps it), so keep this above that. A real return takes
-                this much longer to silence the warning. 0 = the first reading
-                counts. The dashboard can change it until the next reboot.
+                Someone has to stay this long, seen as present, to cancel the
+                unattended timers: a person passing (a wave, a walker behind
+                the sensor) is shorter. Until then the clock is paused while
+                someone is detected (see the pause budget below), so a pass
+                delays the timers by its length but resets nothing. A real
+                return takes this much longer to silence the warning. 0 = the
+                first reading counts. The dashboard can change it until the
+                next reboot.
+
+        config RB_SAFETY_PAUSE_BUDGET_S
+            int "Pause budget per timeline (s, 0 = never pause)"
+            range 0 600
+            default 30
+            help
+                While someone is detected on an unattended timeline the clock
+                stands still, so only time with nobody there counts. A pause
+                postpones the buzzer and the shutdown while the pan keeps
+                heating, so it has a budget: this many seconds in total per
+                timeline, and at most the percentage below of the shutdown
+                time in force. The budget starts over when the timeline is
+                cancelled.
+
+        config RB_SAFETY_PAUSE_BUDGET_PCT
+            int "... and at most this share of the shutdown time (%)"
+            range 0 100
+            default 25
 
         config RB_SAFETY_PRESENCE_RETURN_GAP_MS
             int "Gaps shorter than this (ms) don't restart the presence count"

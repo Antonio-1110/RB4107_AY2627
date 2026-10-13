@@ -32,6 +32,8 @@ safety_config_t rb_safety_config_from_kconfig(void)
         .cooling_policy = SAFETY_COOLING_KEEP_TIMERS,
 #endif
         .fault_shutdown_timeout_ms = CONFIG_RB_SAFETY_FAULT_SHUTDOWN_S * 1000u,
+        .pause_budget_ms = CONFIG_RB_SAFETY_PAUSE_BUDGET_S * 1000u,
+        .pause_budget_pct = CONFIG_RB_SAFETY_PAUSE_BUDGET_PCT,
 #if CONFIG_RB_SAFETY_TEMP_TIERS
         .tier1_temp_c = CONFIG_RB_SAFETY_TIER1_TEMP_DC / 10.0f,
         .tier1_warning_ms = CONFIG_RB_SAFETY_TIER1_WARNING_S * 1000u,

@@ -33,6 +33,11 @@
  *                               tier2_rate_min_temp_dc, tier2_warning_ms,
  *                               tier2_shutdown_ms (0.1 degC, 0.1 degC/min, ms)
  *   "tiers_defaults"            forget the saved tiers: back to menuconfig
+ *   "attendance"                set who counts as at the stove and the pause budget, saved
+ *                               on the controller; needs pause_budget_ms (0..600000),
+ *                               pause_budget_pct (0..100) and presence_fusion ("all" every
+ *                               working radar sees them, "any" either does)
+ *   "attendance_defaults"       forget the saved values: back to menuconfig
  *
  * Flat object, strings and integers only, so a small hand-written parser is
  * enough.
@@ -66,6 +71,8 @@ typedef enum {
     RB_CTRL_ACTION_COOKWARE_DEFAULTS,
     RB_CTRL_ACTION_TIERS,
     RB_CTRL_ACTION_TIERS_DEFAULTS,
+    RB_CTRL_ACTION_ATTENDANCE,
+    RB_CTRL_ACTION_ATTENDANCE_DEFAULTS,
 } rb_ctrl_action_t;
 
 typedef struct {
@@ -91,6 +98,10 @@ typedef struct {
     uint16_t tier2_rate_min_temp_dc;
     uint32_t tier2_warning_ms;
     uint32_t tier2_shutdown_ms;
+    /* RB_CTRL_ACTION_ATTENDANCE only. */
+    uint32_t pause_budget_ms;
+    uint8_t pause_budget_pct;
+    bool fusion_all;
 } rb_ctrl_cmd_t;
 
 /*

@@ -100,6 +100,9 @@ bool safety_config_valid(const safety_config_t *cfg)
     if (!isfinite(cfg->heat_on_rate_c_per_min) || cfg->heat_on_rate_c_per_min < 0.0f) {
         return false;
     }
+    if (cfg->pause_budget_pct > 100) {
+        return false;
+    }
     if (!isfinite(cfg->tier1_temp_c) || !isfinite(cfg->tier2_temp_c) || !isfinite(cfg->tier2_rate_c_per_min) ||
         !isfinite(cfg->tier2_rate_min_temp_c) || cfg->tier2_rate_c_per_min < 0.0f) {
         return false;
@@ -127,6 +130,8 @@ static void clear_unattended(safety_sm_t *sm)
     sm->warning_started = false;
     sm->held_once = false;
     sm->late_warning = false;
+    sm->pause_used_ms = 0;
+    sm->paused = false;
 }
 
 /* ---- temperature trend and cooking judgment ---- */
@@ -382,6 +387,51 @@ static void apply_tier(const safety_sm_t *sm, uint32_t *warning_ms, uint32_t *sh
     if (tier_shutdown < *shutdown_ms) {
         *shutdown_ms = tier_shutdown;
     }
+}
+
+/* ---- pause: only time with nobody at the stove counts ---- */
+
+uint32_t safety_pause_budget_ms(const safety_sm_t *sm)
+{
+    uint32_t budget = sm->cfg.pause_budget_ms;
+    if (sm->cfg.pause_budget_pct > 0 && sm->cfg.pause_budget_pct < 100) {
+        const uint32_t shutdown_ms = sm->eff_shutdown_ms != 0 ? sm->eff_shutdown_ms : sm->cfg.shutdown_timeout_ms;
+        const uint32_t by_pct = (uint32_t)(((uint64_t)shutdown_ms * sm->cfg.pause_budget_pct) / 100u);
+        if (by_pct < budget) {
+            budget = by_pct;
+        }
+    }
+    return budget;
+}
+
+static void pause_clock(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)
+{
+    uint32_t dt = sm->have_last_step ? (uint32_t)(now_ms - sm->last_step_ms) : 0;
+    if (dt > 1000u) {
+        dt = 1000u; /* after a stall, don't pause for the whole stall */
+    }
+    sm->last_step_ms = now_ms;
+    sm->have_last_step = true;
+    sm->paused = false;
+    if ((sm->state != SAFETY_UNATTENDED && sm->state != SAFETY_WARNING) || !sm->unattended_active) {
+        return;
+    }
+    if (in->presence != RB_TRUE) {
+        return;
+    }
+    const uint32_t budget = safety_pause_budget_ms(sm);
+    if (sm->pause_used_ms >= budget) {
+        return;
+    }
+    if (dt > budget - sm->pause_used_ms) {
+        dt = budget - sm->pause_used_ms;
+    }
+    sm->unattended_start_ms += dt; /* the elapsed time stands still */
+    if (sm->warning_started) {
+        sm->warning_start_ms += dt;
+    }
+    sm->pause_used_ms += dt;
+    sm->paused = true;
 }
 
 /* ---- state exit / entry ---- */
@@ -696,6 +746,7 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
     }
     judge_heat(sm, in, now_ms);
     update_tier(sm, in, now_ms);
+    pause_clock(sm, in, now_ms);
     sm->presence_unknown = in->presence == RB_UNKNOWN;
     sm->thermal_lost = !in->thermal_valid;
 

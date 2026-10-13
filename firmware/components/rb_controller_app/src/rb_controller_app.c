@@ -41,12 +41,14 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #endif
 }
 
-#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS
+#if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || \
+    CONFIG_RB_CTRL_REMOTE_ATTENDANCE
 /* The dashboard's cooking temperature, cookware profile and temperature tiers, saved so they survive a reboot. */
 #define NVS_NAMESPACE "rb_safety"
 #define NVS_KEY_COOKING "cook_dc"
 #define NVS_KEY_COOKWARE "cookware"
 #define NVS_KEY_TIERS "tiers"
+#define NVS_KEY_ATTENDANCE "attend"
 
 static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
 {
@@ -221,6 +223,76 @@ static void set_tiers(const rb_ctrl_cmd_t *cmd)
 }
 #endif
 
+#if CONFIG_RB_CTRL_REMOTE_ATTENDANCE
+typedef struct {
+    uint8_t version; /* 1 */
+    rb_attendance_t attendance;
+} saved_attendance_t;
+
+static void attendance_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return;
+    }
+    saved_attendance_t saved;
+    size_t len = sizeof(saved);
+    if (nvs_get_blob(h, NVS_KEY_ATTENDANCE, &saved, &len) == ESP_OK && len == sizeof(saved) && saved.version == 1) {
+        rb_controller_set_attendance(&saved.attendance);
+        ESP_LOGW(TAG, "attendance saved from the dashboard: %s radars, pause budget %lu s / %u %%",
+                 saved.attendance.fusion_all ? "all" : "either of the",
+                 (unsigned long)(saved.attendance.pause_budget_ms / 1000), (unsigned)saved.attendance.pause_budget_pct);
+    }
+    nvs_close(h);
+}
+
+/* attendance == NULL: forget the saved values (back to menuconfig at the next boot too). */
+static void attendance_save(const rb_attendance_t *attendance)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the attendance settings last until the next reboot");
+        return;
+    }
+    esp_err_t err;
+    if (attendance == NULL) {
+        err = nvs_erase_key(h, NVS_KEY_ATTENDANCE);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    } else {
+        const saved_attendance_t saved = {.version = 1, .attendance = *attendance};
+        err = nvs_set_blob(h, NVS_KEY_ATTENDANCE, &saved, sizeof(saved));
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "attendance settings not saved (%s): they last until the next reboot", esp_err_to_name(err));
+    }
+}
+
+/* MQTT task: the dashboard's fusion and pause budget, or back to menuconfig. */
+static void set_attendance(const rb_ctrl_cmd_t *cmd)
+{
+    if (cmd->action == RB_CTRL_ACTION_ATTENDANCE_DEFAULTS) {
+        ESP_LOGW(TAG, "attendance: menuconfig values (request %u)", (unsigned)cmd->request_id);
+        rb_controller_set_attendance(NULL);
+        attendance_save(NULL);
+        return;
+    }
+    const rb_attendance_t attendance = {
+        .pause_budget_ms = cmd->pause_budget_ms,
+        .pause_budget_pct = cmd->pause_budget_pct,
+        .fusion_all = cmd->fusion_all,
+    };
+    ESP_LOGW(TAG, "attendance from the dashboard (request %u)", (unsigned)cmd->request_id);
+    rb_controller_set_attendance(&attendance);
+    attendance_save(&attendance);
+}
+#endif
+
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP && !CONFIG_RB_SIM_NODE
 /* The thermal node's MAC, learned from its packets, so the cooking temperature can reach it. */
 static portMUX_TYPE s_thermal_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -304,7 +376,7 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 #endif
 
 #if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || \
-    CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS
+    CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || CONFIG_RB_CTRL_REMOTE_ATTENDANCE
 #define RB_CTRL_COMMANDS 1
 /* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
@@ -372,6 +444,14 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard temperature tiers refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_ATTENDANCE:
+    case RB_CTRL_ACTION_ATTENDANCE_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_ATTENDANCE
+        set_attendance(&cmd);
+#else
+        ESP_LOGW(TAG, "dashboard attendance settings refused: turned off in menuconfig");
+#endif
+        break;
     }
 }
 
@@ -420,6 +500,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 #if CONFIG_RB_CTRL_REMOTE_TIERS
     tiers_load();
+#endif
+#if CONFIG_RB_CTRL_REMOTE_ATTENDANCE
+    attendance_load();
 #endif
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT

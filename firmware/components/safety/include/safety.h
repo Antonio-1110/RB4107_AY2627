@@ -191,6 +191,15 @@ typedef struct {
     uint32_t tier2_warning_ms;
     uint32_t tier2_shutdown_ms;
 
+    /*
+     * Pause: while someone is at the stove (presence TRUE) on an unattended timeline, the clock stops, so only
+     * time with nobody there counts. A pause postpones the response, so it has a budget per timeline: at most
+     * pause_budget_ms, and at most pause_budget_pct percent of the shutdown time in force. 0 = no pause.
+     * Someone who stays presence_return_debounce_ms cancels the timeline instead.
+     */
+    uint32_t pause_budget_ms;
+    uint8_t pause_budget_pct;
+
     safety_timing_hook_t timing_hook;
     void *timing_hook_ctx;
 } safety_config_t;
@@ -239,6 +248,11 @@ typedef struct {
     safety_hold_t hold;               /* what is holding a due transition right now */
     bool held_once;                   /* a transition was held on this timeline: WARNING lasts a minimum time */
     bool late_warning;                /* the shutdown was already due when the warning came (a tier got shorter) */
+
+    bool paused;                      /* the clock is stopped because someone is at the stove */
+    uint32_t pause_used_ms;           /* time paused on this timeline */
+    uint32_t last_step_ms;
+    bool have_last_step;
 
     safety_tier_t tier;               /* temperature tier in force */
     safety_tier_t tier_pending;       /* a different tier that has to persist before it takes over */
@@ -295,6 +309,9 @@ uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms);
 /* Debounce progress for the dashboard: time since the absence began / since presence began (0 if not running). */
 uint32_t safety_absent_ms(const safety_sm_t *sm, uint32_t now_ms);
 uint32_t safety_returning_ms(const safety_sm_t *sm, uint32_t now_ms);
+
+/* The pause budget in force on this timeline, in ms (0 = no pause). */
+uint32_t safety_pause_budget_ms(const safety_sm_t *sm);
 
 const char *safety_state_name(safety_state_t state);
 const char *safety_heat_phase_name(safety_heat_phase_t phase); /* "off" "checking" "heating" "holding" "cooling" */

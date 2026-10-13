@@ -99,6 +99,7 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->protocol_version = RB_PROTOCOL_VERSION;
     t->espnow_channel = rb_wifi_get_channel();
     t->presence_state = rb_tristate_presence_name(snap->inputs.presence);
+    t->nearby = rb_tristate_presence_name(snap->inputs.presence_any);
 
     size_t count = 0;
     for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
@@ -162,6 +163,13 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.tier2_warning_ms = snap->tiers.tier2_warning_ms;
     t->safety.tier2_shutdown_ms = snap->tiers.tier2_shutdown_ms;
     t->safety.tiers_remote = snap->tiers_remote;
+    t->safety.paused = snap->paused;
+    t->safety.pause_used_ms = snap->pause_used_ms;
+    t->safety.pause_budget_ms = snap->pause_budget_ms;
+    t->safety.pause_budget_cfg_ms = snap->pause_budget_cfg_ms;
+    t->safety.pause_budget_pct = snap->pause_budget_pct;
+    t->safety.fusion_all = snap->fusion_all;
+    t->safety.attendance_remote = snap->attendance_remote;
     t->safety.cookware = safety_cookware_name(snap->cookware);
     t->safety.cookware_tau_s = snap->cookware_tau_s;
     t->safety.cookware_remote = snap->cookware_remote;

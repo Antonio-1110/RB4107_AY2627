@@ -90,6 +90,13 @@ typedef struct {
     uint32_t eff_shutdown_ms;
     safety_config_t tiers;        /* only the tier fields are read: tier1_*, tier2_* */
     bool tiers_remote;            /* tiers set from the dashboard, not menuconfig */
+    bool paused;                  /* the clock is stopped: someone is at the stove (pause budget) */
+    uint32_t pause_used_ms;
+    uint32_t pause_budget_ms;     /* in force on this timeline, ms */
+    uint32_t pause_budget_cfg_ms; /* the configured budget */
+    uint8_t pause_budget_pct;
+    bool fusion_all;              /* someone is at the stove when every working radar sees them */
+    bool attendance_remote;       /* fusion and pause budget set from the dashboard */
     safety_cookware_t cookware;   /* cookware profile in use */
     float cookware_tau_s;
     bool cookware_remote;         /* profile set from the dashboard, not menuconfig */
@@ -216,6 +223,20 @@ esp_err_t rb_controller_set_cooking_temp(float on_c);
  * Applied at the next step. Saving it across reboots is the caller's job.
  */
 esp_err_t rb_controller_set_cookware(safety_cookware_t profile);
+
+/* Who counts as at the stove, and how long a pass may stop the clock. */
+typedef struct {
+    uint32_t pause_budget_ms;
+    uint8_t pause_budget_pct;
+    bool fusion_all;
+} rb_attendance_t;
+
+/*
+ * Replace the fusion and the pause budget, or NULL for the menuconfig ones. Stays on top of any later
+ * rb_controller_set_safety_config() until a reboot or a call with NULL. Applied at the next step. Saving it
+ * across reboots is the caller's job.
+ */
+esp_err_t rb_controller_set_attendance(const rb_attendance_t *attendance);
 
 /* The temperature tiers of safety_config_t, as the dashboard sets them. */
 typedef struct {

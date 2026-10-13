@@ -47,7 +47,8 @@ typedef struct {
     uint8_t espnow_channel;       /* radio channel ESP-NOW is on now (0 = unknown) */
 
     /* controller/state: the combined view. */
-    const char *presence_state;   /* PRESENT / ABSENT / UNKNOWN, as the state machine used it */
+    const char *presence_state;   /* PRESENT / ABSENT / UNKNOWN, as the state machine used it (at the stove) */
+    const char *nearby;           /* PRESENT / ABSENT / UNKNOWN: somebody near either radar */
     const rb_json_node_t *nodes;
     size_t node_count;
 
@@ -111,6 +112,13 @@ typedef struct {
         float tier2_temp_c, tier2_rate_c_per_min, tier2_rate_min_temp_c;
         uint32_t tier2_warning_ms, tier2_shutdown_ms;
         bool tiers_remote;            /* tier settings set from the dashboard */
+        bool paused;                  /* the clock is stopped: someone is at the stove */
+        uint32_t pause_used_ms;
+        uint32_t pause_budget_ms;     /* in force on this timeline */
+        uint32_t pause_budget_cfg_ms;
+        uint8_t pause_budget_pct;
+        bool fusion_all;
+        bool attendance_remote;
         const char *cookware;         /* cookware profile in use */
         float cookware_tau_s;
         bool cookware_remote;         /* profile set from the dashboard */

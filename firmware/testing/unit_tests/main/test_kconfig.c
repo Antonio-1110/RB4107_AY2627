@@ -120,7 +120,7 @@ static void test_kconfig_hot_oil_with_the_burner_off_gets_a_buzzer_but_no_shutdo
     TEST_ASSERT_TRUE(o.idle_s > 0);
 }
 
-/* A hand waved at the radar (about 2 s of presence) must not cancel the unattended timers. */
+/* A hand waved at the radar (about 2 s of presence) must not cancel the unattended timers; it only stops the clock for those 2 s. */
 static void test_kconfig_wave_keeps_unattended(void)
 {
     const safety_config_t cfg = rb_safety_config_from_kconfig();
@@ -137,7 +137,7 @@ static void test_kconfig_wave_keeps_unattended(void)
     h.in.presence = RB_FALSE;
     th_run(&h, 2000);
     TH_EXPECT(&h, SAFETY_UNATTENDED);
-    TEST_ASSERT_UINT32_WITHIN(TH_STEP_MS, before + 4000, safety_unattended_ms(&h.sm, h.now));
+    TEST_ASSERT_UINT32_WITHIN(3 * TH_STEP_MS, before + 2000, safety_unattended_ms(&h.sm, h.now)); /* 2 s paused, 2 s counted */
 }
 
 void run_kconfig_tests(void)

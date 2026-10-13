@@ -219,6 +219,53 @@ static void test_bad_tiers_are_rejected(void)
 #undef THEAD
 }
 
+static void test_attendance_is_parsed(void)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":17,\"action\":\"attendance\",\"pause_budget_ms\":30000,"
+                                   "\"pause_budget_pct\":25,\"presence_fusion\":\"all\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_ATTENDANCE, cmd.action);
+    TEST_ASSERT_EQUAL_UINT32(30000, cmd.pause_budget_ms);
+    TEST_ASSERT_EQUAL_UINT8(25, cmd.pause_budget_pct);
+    TEST_ASSERT_TRUE(cmd.fusion_all);
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":18,\"action\":\"attendance\",\"pause_budget_ms\":0,"
+                                   "\"pause_budget_pct\":0,\"presence_fusion\":\"any\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_FALSE(cmd.fusion_all);
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":19,\"action\":\"attendance_defaults\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_ATTENDANCE_DEFAULTS, cmd.action);
+}
+
+static void test_bad_attendance_is_rejected(void)
+{
+#define AHEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
+    static const char *const bad[] = {
+        AHEAD "\"action\":\"attendance\"}",
+        AHEAD "\"action\":\"attendance\",\"pause_budget_ms\":30000,\"pause_budget_pct\":25}",   /* fusion missing */
+        AHEAD "\"action\":\"attendance\",\"pause_budget_ms\":30000,\"pause_budget_pct\":101,\"presence_fusion\":\"all\"}",
+        AHEAD "\"action\":\"attendance\",\"pause_budget_ms\":600001,\"pause_budget_pct\":25,\"presence_fusion\":\"all\"}",
+        AHEAD "\"action\":\"attendance\",\"pause_budget_ms\":30000,\"pause_budget_pct\":25,\"presence_fusion\":\"most\"}",
+        AHEAD "\"action\":\"reset\",\"presence_fusion\":\"all\"}",
+        AHEAD "\"action\":\"attendance_defaults\",\"pause_budget_ms\":0}",
+    };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        rb_ctrl_cmd_t cmd;
+        char err[80];
+        TEST_ASSERT_FALSE_MESSAGE(parse(bad[i], &cmd, err), bad[i]);
+        TEST_ASSERT_TRUE(err[0] != '\0');
+    }
+#undef AHEAD
+}
+
 static void test_bad_cooking_temps_are_rejected(void)
 {
 #define HEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
@@ -254,4 +301,6 @@ void run_ctrl_cmd_tests(void)
     RUN_TEST(test_bad_cookware_is_rejected);
     RUN_TEST(test_tiers_are_parsed);
     RUN_TEST(test_bad_tiers_are_rejected);
+    RUN_TEST(test_attendance_is_parsed);
+    RUN_TEST(test_bad_attendance_is_rejected);
 }

@@ -390,6 +390,55 @@ static void test_either_radar_keeps_attended(void)
     TH_EXPECT(&h, SAFETY_MONITORING);
 }
 
+static void test_presence_fuse_all_truth_table(void)
+{
+    const rb_tristate_t U = RB_UNKNOWN, F = RB_FALSE, T = RB_TRUE;
+    const rb_tristate_t tt[] = {T, T}, tf[] = {T, F}, ft[] = {F, T}, ff[] = {F, F}, tu[] = {T, U}, ut[] = {U, T},
+                        fu[] = {F, U}, uu[] = {U, U};
+    TEST_ASSERT_EQUAL(RB_TRUE, presence_fuse_all(tt, 2));   /* both see someone */
+    TEST_ASSERT_EQUAL(RB_FALSE, presence_fuse_all(tf, 2));  /* only one sees someone: not at the stove */
+    TEST_ASSERT_EQUAL(RB_FALSE, presence_fuse_all(ft, 2));
+    TEST_ASSERT_EQUAL(RB_FALSE, presence_fuse_all(ff, 2));
+    TEST_ASSERT_EQUAL(RB_TRUE, presence_fuse_all(tu, 2));   /* the other radar is down: asked of the one that works */
+    TEST_ASSERT_EQUAL(RB_TRUE, presence_fuse_all(ut, 2));
+    TEST_ASSERT_EQUAL(RB_FALSE, presence_fuse_all(fu, 2));
+    TEST_ASSERT_EQUAL(RB_UNKNOWN, presence_fuse_all(uu, 2)); /* no radar works */
+    TEST_ASSERT_EQUAL(RB_TRUE, presence_fuse_all(tt, 1));   /* one radar configured */
+    TEST_ASSERT_EQUAL(RB_UNKNOWN, presence_fuse_all(tt, 0));
+}
+
+static void test_node_set_require_all_and_nearby(void)
+{
+    nodes_t n = {0};
+    node_set_config_t cfg = NODES;
+    cfg.require_all = true;
+    node_set_init(&n.set, &cfg);
+    uint32_t ev[NODE_SLOT_COUNT];
+    rb_packet_t a = presence_packet(NODE_A, 1, 1000, true), b = presence_packet(NODE_B, 1, 1000, false);
+    rb_packet_t t = thermal_packet(1, 1000, 30.0f);
+    node_set_on_packet(&n.set, &a, 1000, NULL);
+    node_set_on_packet(&n.set, &b, 1000, NULL);
+    node_set_on_packet(&n.set, &t, 1000, NULL);
+    node_set_evaluate(&n.set, &HEALTH, 1000, ev);
+    node_inputs_t in;
+    node_set_inputs(&n.set, &in);
+    TEST_ASSERT_EQUAL(RB_FALSE, in.presence);     /* radar A sees someone, B does not: not at the stove */
+    TEST_ASSERT_EQUAL(RB_TRUE, in.presence_any);  /* but somebody is near */
+    b = presence_packet(NODE_B, 2, 1500, true);
+    node_set_on_packet(&n.set, &b, 1500, NULL);
+    node_set_evaluate(&n.set, &HEALTH, 1500, ev);
+    node_set_inputs(&n.set, &in);
+    TEST_ASSERT_EQUAL(RB_TRUE, in.presence);
+    n.set.require_all = false; /* the owner may switch the fusion at run time */
+    a = presence_packet(NODE_A, 2, 2000, true);
+    b = presence_packet(NODE_B, 3, 2000, false);
+    node_set_on_packet(&n.set, &a, 2000, NULL);
+    node_set_on_packet(&n.set, &b, 2000, NULL);
+    node_set_evaluate(&n.set, &HEALTH, 2000, ev);
+    node_set_inputs(&n.set, &in);
+    TEST_ASSERT_EQUAL(RB_TRUE, in.presence);
+}
+
 void run_sensor_node_tests(void)
 {
     RUN_TEST(test_sequence_tracking);
@@ -404,4 +453,6 @@ void run_sensor_node_tests(void)
     RUN_TEST(test_node_set_single_radar);
     RUN_TEST(test_radar_disappears_and_returns);
     RUN_TEST(test_either_radar_keeps_attended);
+    RUN_TEST(test_presence_fuse_all_truth_table);
+    RUN_TEST(test_node_set_require_all_and_nearby);
 }

@@ -127,6 +127,12 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
         rb_json_str(w, t->safety.tiers_remote ? "dashboard" : "menuconfig");
         rb_json_obj_end(w);
     }
+    rb_json_key(w, "paused");
+    rb_json_bool(w, t->safety.paused);
+    rb_json_key(w, "pause_used_ms");
+    rb_json_int(w, t->safety.pause_used_ms);
+    rb_json_key(w, "pause_budget_ms");
+    rb_json_int(w, t->safety.pause_budget_ms);
     rb_json_key(w, "presence_unknown");
     rb_json_bool(w, t->safety.presence_unknown);
     rb_json_key(w, "thermal_lost");
@@ -143,6 +149,14 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_int(w, t->safety.return_ms);
     rb_json_key(w, "return_gap_ms");
     rb_json_int(w, t->safety.return_gap_ms);
+    rb_json_key(w, "fusion");
+    rb_json_str(w, t->safety.fusion_all ? "all" : "any");
+    rb_json_key(w, "pause_budget_cfg_ms");
+    rb_json_int(w, t->safety.pause_budget_cfg_ms);
+    rb_json_key(w, "pause_budget_pct");
+    rb_json_int(w, t->safety.pause_budget_pct);
+    rb_json_key(w, "attendance_source");
+    rb_json_str(w, t->safety.attendance_remote ? "dashboard" : "menuconfig");
     rb_json_key(w, "source");
     rb_json_str(w, t->safety.filter_remote ? "dashboard" : "menuconfig");
     rb_json_obj_end(w);
@@ -235,6 +249,8 @@ size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len)
     t->espnow_channel != 0 ? rb_json_int(&w, t->espnow_channel) : rb_json_null(&w);
     rb_json_key(&w, "presence_state");
     rb_json_str(&w, t->presence_state);
+    rb_json_key(&w, "nearby");
+    rb_json_str(&w, t->nearby != NULL ? t->nearby : t->presence_state);
     nodes_arr(&w, t);
     thermal_obj(&w, t);
     safety_obj(&w, t);
