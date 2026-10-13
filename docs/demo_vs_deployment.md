@@ -32,6 +32,13 @@ measured it; *not checked* means it is an assumption.
 | Wireless valve | closes on its own timeout if the controller stops sending | same, tested with real valves | *checked*: `rb_valve_link.h`; hardware *not checked* |
 | Certification | none | a certified valve and a documented fail-closed design, reviewed by whoever signs off on the safety case | *not checked* (standards not looked up) |
 
+## How long is too long? (unattended time limits)
+
+| Topic | Demo | Deployment | Evidence |
+|---|---|---|---|
+| Time from leaving to buzzer and shutdown | one flat 3 min / 5 min for every temperature (chosen so the cooking judgment has time to read the trend, not from a hazard analysis) | limits that depend on how hot the pan is and how fast it is heating: seconds for oil heading for its smoke point, minutes for a simmering pot | NIST TN 2133 (electric coil, corn oil, 9.7-26 cm pans, from cold): time to auto-ignition = 460 s + 3.9 s per gram of oil (50-150 g: 11 to 17 min); the last stage, smoking to ignition, lasts only 30-60 s; pan bottom 330 °C = start of the transition, 392 °C = ignition ([report](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2133.pdf)). Gas burners were not tested there and heat faster; a pan already hot when the cook leaves has far less than 11 min left |
+| Cooking temperature | 50 °C on, 40 °C off: detects "someone is cooking", not a hazard | separate hazard tiers above it (smoke point about 190-270 °C by oil, flash about 300-330 °C, auto-ignition about 390 °C); the camera reads shiny pans far too cold and tops out at 300 °C | placeholders *checked*; oil figures from [Culinary Lore](https://culinarylore.com/food-science:kitchen-fire-safety-when-does-cooking-oil-catch-fire) and NIST |
+
 ## Sensing and the cooking judgment
 
 | Topic | Demo | Deployment | Evidence |
