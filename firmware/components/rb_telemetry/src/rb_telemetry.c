@@ -241,6 +241,13 @@ static void publish_event(const rb_event_t *evt)
         publish(RB_TOPIC_CONTROLLER_FAULTS, 0, rb_json_faults(&t, s_payload, sizeof(s_payload)), -1);
         break;
     }
+    case RB_EVT_SENSOR_STATE:
+        /* Presence, cooking or a sensor flag changed: the dashboard shouldn't wait for the periodic message. */
+        if (have_snap) {
+            t.hdr = header(evt->mono_ms);
+            publish(RB_TOPIC_CONTROLLER_STATE, 0, rb_json_telemetry(&t, s_payload, sizeof(s_payload)), -1);
+        }
+        break;
     case RB_EVT_NODE:
         if ((unsigned)evt->node.slot >= NODE_SLOT_COUNT || !have_snap) {
             break;

@@ -15,6 +15,8 @@
 static const char *TAG = "SAFETY";
 
 #define SAFETY_TASK_STACK 6144
+/* Radar noise can flip the presence many times a second: tell telemetry at most this often. */
+#define SENSOR_EVENT_MIN_MS 200
 
 static rb_controller_config_t s_cfg;
 static rb_controller_hooks_t s_hooks;
@@ -87,6 +89,19 @@ static void on_transition(safety_state_t from, safety_state_t to, const char *re
     rb_controller_post_event(&evt);
 }
 
+/* What the dashboard shows immediately, without waiting for the periodic telemetry. */
+typedef struct {
+    rb_tristate_t presence;
+    bool presence_unknown, thermal_lost, cooking, absent_timing, present_timing;
+} sensor_view_t;
+
+static bool sensor_view_changed(const sensor_view_t *a, const sensor_view_t *b)
+{
+    return a->presence != b->presence || a->presence_unknown != b->presence_unknown ||
+           a->thermal_lost != b->thermal_lost || a->cooking != b->cooking || a->absent_timing != b->absent_timing ||
+           a->present_timing != b->present_timing;
+}
+
 static void log_node_events(const sensor_node_state_t *node, node_slot_t slot, uint32_t events)
 {
     static const char *const NAMES[] = {"ONLINE", "STALE", "OFFLINE", "sensor reading restored",
@@ -156,6 +171,9 @@ static void safety_task(void *arg)
     bool filter_on = false;
     rb_presence_filter_t filter = {0};
     float cooking_on_c = NAN; /* dashboard cooking temperature, NAN = the configured one */
+    sensor_view_t last_view = {0};
+    uint32_t last_view_ms = 0;
+    bool view_posted = false;
 
     for (;;) {
         /* Sensor data wakes the task immediately; otherwise it runs once per tick. */
@@ -269,6 +287,21 @@ static void safety_task(void *arg)
             s_hooks.override_inputs(&in, s_hooks.ctx);
         }
         const safety_outputs_t *out = safety_step(&sm, &in, now);
+        const sensor_view_t view = {
+            .presence = in.presence,
+            .presence_unknown = sm.presence_unknown,
+            .thermal_lost = sm.thermal_lost,
+            .cooking = sm.heat_active,
+            .absent_timing = sm.absent_timing,
+            .present_timing = sm.present_timing,
+        };
+        if (sensor_view_changed(&view, &last_view) && (!view_posted || (uint32_t)(now - last_view_ms) >= SENSOR_EVENT_MIN_MS)) {
+            const rb_event_t evt = {.type = RB_EVT_SENSOR_STATE, .mono_ms = now};
+            rb_controller_post_event(&evt);
+            last_view = view;
+            last_view_ms = now;
+            view_posted = true;
+        }
         if (s_hooks.apply_outputs != NULL) {
             s_hooks.apply_outputs(out, s_hooks.ctx);
         }

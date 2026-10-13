@@ -31,6 +31,7 @@ typedef enum {
     RB_EVT_STATE_CHANGE = 0,  /* safety transition */
     RB_EVT_NODE,              /* sensor-node health events (node_event_t bits) */
     RB_EVT_FAULT,             /* fault raised/cleared (fault manager, section 16) */
+    RB_EVT_SENSOR_STATE,      /* presence / cooking / sensor flags / debounce timers changed: publish now */
 } rb_event_type_t;
 
 typedef struct {
