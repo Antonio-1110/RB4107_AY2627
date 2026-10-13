@@ -9,6 +9,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "rb_config.h"
+#include "rb_node_id.h"
 
 static const char *TAG = "NODE";
 
@@ -37,7 +38,7 @@ static void log_board_info(const char *what)
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     const esp_reset_reason_t reason = esp_reset_reason();
-    ESP_LOGI(TAG, "RB4107 %s, node ID %d (ESP32-C6 rev v%d.%d, IDF %s)", what, CONFIG_RB_NODE_ID,
+    ESP_LOGI(TAG, "RB4107 %s, node ID %lu (ESP32-C6 rev v%d.%d, IDF %s)", what, (unsigned long)rb_node_id(),
              chip.revision / 100, chip.revision % 100, esp_get_idf_version());
     ESP_LOGI(TAG, "Wi-Fi STA MAC " MACSTR " (ESP-NOW source address)", MAC2STR(mac));
     if (reason == ESP_RST_BROWNOUT || reason == ESP_RST_PANIC || reason == ESP_RST_INT_WDT ||

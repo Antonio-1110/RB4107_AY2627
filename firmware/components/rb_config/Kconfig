@@ -69,6 +69,16 @@ menu "RB4107 configuration"
                 link" menu. Defaults: presence node A = 1, presence node B = 2,
                 thermal node = 3 (set by each project's sdkconfig files).
 
+        config RB_NODE_ID_BY_MAC
+            string "Node ID by MAC address (overrides Sensor node ID)"
+            default ""
+            help
+                Lets one build serve several boards: at boot the node looks up
+                its own Wi-Fi STA MAC here and uses the ID listed for it, e.g.
+                "AA:BB:CC:DD:EE:01=1, AA:BB:CC:DD:EE:02=2" for presence nodes A
+                and B. A board whose MAC isn't listed (or an empty or malformed
+                list) uses "Sensor node ID". Each node prints its MAC at boot.
+
         config RB_NODE_STATUS_LED_GPIO
             int "Status LED GPIO (-1 = none)"
             range -1 30

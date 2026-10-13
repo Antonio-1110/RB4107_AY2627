@@ -11,6 +11,7 @@
 #include "freertos/task.h"
 #include "rb_config.h"
 #include "rb_espnow.h"
+#include "rb_node_id.h"
 #include "rb_node_link.h"
 #include "rb_node_sensors.h"
 #include "rb_protocol.h"
@@ -154,7 +155,7 @@ static void handle_command(const rb_espnow_rx_t *rx)
                  MAC2STR(rx->src_mac));
         return;
     }
-    if (cmd->target_node_id != (uint32_t)CONFIG_RB_NODE_ID) {
+    if (cmd->target_node_id != rb_node_id()) {
         ESP_LOGW(TAG, "ignored request %u for node %lu", cmd->request_id, (unsigned long)cmd->target_node_id);
         return;
     }

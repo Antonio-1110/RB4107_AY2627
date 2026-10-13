@@ -28,7 +28,7 @@ three system firmwares:
 | Board | Flash | Node ID |
 |---|---|---|
 | ESP32-C6 + C4002, presence node A | **[`presence_node`](presence_node)** | 1 |
-| ESP32-C6 + C4002, presence node B | **[`presence_node`](presence_node)**, built with `sdkconfig.node_b` | 2 |
+| ESP32-C6 + C4002, presence node B | **[`presence_node`](presence_node)**, built with `sdkconfig.node_b`, or the same build with `RB_NODE_ID_BY_MAC` | 2 |
 | ESP32-C6 + MLX90640, thermal node | **[`thermal_node`](thermal_node)** | 3 |
 | ESP32-S3 controller | **[`controller`](controller)** (includes the diagnostic console and critical-failure monitor) | – |
 | Any ESP32 + servo, gas valve node (optional) | **[`valve_node`](valve_node)**, wired, or wireless with `sdkconfig.wireless` | 4 |
