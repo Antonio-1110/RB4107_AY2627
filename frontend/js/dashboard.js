@@ -17,6 +17,7 @@ import { human, locationLine, number, seconds, when } from "./format.js";
 import { renderPresenceFilter } from "./presence_filter.js";
 import { renderCountdown } from "./countdown.js";
 import { renderCookware } from "./cookware.js";
+import { renderTiers } from "./tiers.js";
 import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
@@ -490,6 +491,7 @@ function renderDevice(device) {
   renderCookingTemp(device);
   renderCountdown(device);
   renderCookware(device);
+  renderTiers(device);
   renderTuning(device);
   renderDetailAlert(device);
 }

@@ -308,7 +308,7 @@
               when the person left. The hotter the pan, the shorter the times (below); the times
               set here are the base ones for a simmer.
             </p>
-            <p class="muted small" id="cd-timer-tiers" data-show="tuning"></p>
+            <p class="eyebrow" data-show="tuning">BASE TIMES (a simmer)</p>
             <div class="tuning-grid presence-filter-grid cd-fields" data-show="tuning">
               <label
                 >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
@@ -316,6 +316,47 @@
               <label
                 >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
               /></label>
+            </div>
+            <p class="muted small" id="cd-timer-tiers" data-show="tuning"></p>
+            <div class="tr-block" data-show="tuning">
+              <p class="eyebrow">TEMPERATURE TIERS (hottest pixel)</p>
+              <div class="tuning-grid presence-filter-grid">
+                <label
+                  >Elevated from (°C)<input id="tr-e-temp" type="number" min="0" max="300" step="1"
+                /></label>
+                <label
+                  >Buzzer after (s)<input id="tr-e-warn" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >Shut down after (s)<input id="tr-e-stop" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >Critical from (°C)<input id="tr-c-temp" type="number" min="0" max="300" step="1"
+                /></label>
+                <label
+                  >Buzzer after (s)<input id="tr-c-warn" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >Shut down after (s)<input id="tr-c-stop" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >... or rising (°C/min)<input id="tr-c-rate" type="number" min="0" max="1000" step="1"
+                /></label>
+                <label
+                  >... above (°C)<input id="tr-c-ratemin" type="number" min="0" max="300" step="1"
+                /></label>
+              </div>
+              <p class="muted small">
+                A temperature of 0 turns a tier off. A tier only ever shortens the base times. Saved
+                on the controller.
+              </p>
+              <div class="reset-actions">
+                <button id="tr-apply" class="primary-button" type="button" disabled>Apply tiers</button>
+                <button id="tr-defaults" class="secondary-button" type="button" disabled>
+                  Menuconfig tiers
+                </button>
+                <p id="tr-status" class="tuning-status muted">Waiting for the controller.</p>
+              </div>
             </div>
           </section>
           <div class="cd-apply" data-show="tuning">

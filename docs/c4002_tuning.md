@@ -99,6 +99,56 @@ Arrays always have 25 entries. With 80 cm gates only the first 15 are used.
 `custom` is only accepted once the node knows thresholds for that type, from a
 calibration, from **Read from sensor**, or from sending them.
 
+## Detections behind or beside the sensor
+
+The radar reports **distance** (and energy, gates, direction of motion), never an
+angle, so software cannot tell "in front" from "behind". What the settings can
+do is act on distance:
+
+- **Range** (`range_min_cm`, `range_max_cm`): set the maximum just beyond where
+  the cook stands. Anyone farther away, in front or behind, is ignored. This is
+  the strongest software lever, but it only helps if the people behind the
+  sensor are farther away than the cook.
+- **Gates** (`motion_gates`, `presence_gates`) and per-gate thresholds: switch
+  off the distance bands where a passer-by or a fan shows up, or raise their
+  thresholds. A band that holds both the cook and the passer-by can't be
+  separated this way.
+- **Sensitivity** lower: fewer weak echoes, also fewer real ones.
+
+The rest is mechanical, and it is the part software can't replace. What I could
+verify, and what I could not (searches done 2026-10-14, nothing measured here):
+
+- Retailer listings give the C4002 (DFRobot SEN0691) a **120° × 120° detection angle**
+  ([Mouser](https://www.mouser.in/en/new/dfrobot/dfrobot-sen0691-mmwave-human-presence-sensor/)).
+  I found no datasheet that says how the angle is defined or what the pattern
+  looks like to the sides and behind, so **the rear sensitivity is unknown until
+  it is measured**.
+- 24 GHz radar passes through glass, wood and thin partitions but **not through
+  thick metal** (a 24 GHz presence-module datasheet:
+  [MM5D91-00](https://cdn.sparkfun.com/assets/d/2/1/0/0/MM5D91-00_datasheet.pdf)),
+  and a physical lip or shield can intercept off-axis energy (a millimetre-wave
+  radar patent, [EP1118872](https://data.epo.org/publication-server/rest/v1.2/patents/EP1118872NWA3/document.html)).
+  So metal behind and beside the sensor can reduce rear detections.
+- Not verified, general engineering: metal also **reflects**. A bare metal box
+  can send energy off the walls and hood and create new false targets, a metal
+  wall within about a quarter wavelength (about 3 mm at 24 GHz) of the antenna can
+  detune it, and the front must stay open (nothing metal, thick or wet in front
+  of the radar). Radar-absorbing foam lining the back and sides is the usual
+  remedy. Test the actual housing.
+
+How to measure it with what is already here (Tuning → Radar, live view):
+
+1. Mount the radar where it will go, with the housing.
+2. Stand where the cook stands, then walk along the aisle behind the radar at
+   1, 2 and 3 m, and past its sides. Watch which gates fire and how strong the
+   energy is.
+3. If the rear walker shows up at distances the cook doesn't use, set the range
+   maximum below them. If not, change the mounting direction, add the metal back
+   and absorber, and repeat.
+4. The dashboard's presence is the OR of two radars: one radar's rear false
+   target keeps the gas on. A second, independent presence signal (the thermal
+   camera sees warm bodies) is not built; see [demo_vs_deployment.md](demo_vs_deployment.md).
+
 ## Actions
 
 | `action` | What the node does |

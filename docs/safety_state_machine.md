@@ -171,8 +171,10 @@ times depend on how hot the pan is:
 | elevated | 120 °C and up (sauté, shallow frying) | 60 s | 150 s |
 | critical | 200 °C and up, or rising 20 °C/min or faster above 150 °C | 30 s | 120 s |
 
-All of these are **placeholders** (Kconfig, `RB_SAFETY_TIER*`) until they are
-tuned on real camera readings of hot oil. The camera reads shiny pans far too
+All of these are **placeholders** until they are tuned on real camera readings
+of hot oil. They are menuconfig values (`RB_SAFETY_TIER*`) and can be changed
+from the dashboard (Tuning, Rules; saved on the controller, see
+[remote_reset.md](remote_reset.md#temperature-tiers)). The camera reads shiny pans far too
 cold and tops out near 300 °C, so a pan may be hotter than the tier shows.
 
 How it behaves:

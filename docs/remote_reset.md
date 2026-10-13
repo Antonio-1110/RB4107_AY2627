@@ -96,6 +96,28 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 The same limits as the reset apply: no login, so turn
 `RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
 
+## Temperature tiers
+
+The Timer rule (Tuning → Rules) also holds the **temperature tiers**: from which
+hottest-pixel temperature the buzzer and shutdown come sooner, and how soon (see
+[safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time)).
+Eight fields: for *elevated* the temperature and the two times, for *critical*
+the temperature, the "or rising this fast, above this temperature" rule and the
+two times. **Apply tiers** calls `POST /api/devices/<id>/tiers/` with
+
+```json
+{"elevated": {"temp_c": 120, "warning_s": 60, "shutdown_s": 150},
+ "critical": {"temp_c": 200, "rate_c_per_min": 20, "rate_min_temp_c": 150, "warning_s": 30, "shutdown_s": 120}}
+```
+
+or `{"defaults": true}` for the menuconfig values. A temperature of 0 turns a
+tier off. Limits: temperatures 0-300 °C, times 1-3600 s, rate 0-1000 °C/min.
+The controller keeps the values in NVS (they survive a reboot), refuses an
+inconsistent set (a shutdown not after its warning, critical starting below
+elevated) and keeps the ones in use, and reports the result as `safety.tiers`
+with `source` `dashboard` or `menuconfig`. Menuconfig: `RB_CTRL_REMOTE_TIERS`.
+A tier never gives more time than the base times.
+
 ## Cookware profile
 
 The Cooking rule (Tuning → Rules) also has a **cookware profile**: mixed, light,
