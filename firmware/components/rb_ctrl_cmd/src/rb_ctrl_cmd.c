@@ -297,7 +297,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     fail(err, err_len, "radar_mode must be off, observe or enforce");
                     return false;
                 }
-                snprintf(out->radar_mode, sizeof(out->radar_mode), "%s", str);
+                strlcpy(out->radar_mode, str, sizeof(out->radar_mode)); /* one of the values checked above: fits */
             } else if (strcmp(key, "radar_quiet_gap_ms") == 0) {
                 bit = SEEN_R_GAP;
                 if (!filter_value(key, is_str, num, 0, 10000, &out->radar_quiet_gap_ms, err, err_len)) {
@@ -359,7 +359,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     fail(err, err_len, "cookware must be mixed, light, heavy or liquid");
                     return false;
                 }
-                snprintf(out->cookware, sizeof(out->cookware), "%s", str);
+                strlcpy(out->cookware, str, sizeof(out->cookware)); /* one of the values checked above: fits */
             } else {
                 fail(err, err_len, "unknown key '%s'", key);
                 return false;

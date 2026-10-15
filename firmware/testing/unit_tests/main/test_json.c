@@ -9,9 +9,9 @@
 static char buf[3072];
 
 static const rb_json_node_t NODES[] = {
-    {"node_01", "presence", "ONLINE", true, true},
-    {"node_02", "presence", "OFFLINE", false, true},   /* invalid: "detected" must be null */
-    {"node_03", "thermal", "ONLINE", true, false},     /* thermal: never has "detected" */
+    {"node_01", "presence", "ONLINE", true, true, NULL, 0, 0, 0},
+    {"node_02", "presence", "OFFLINE", false, true, NULL, 0, 0, 0},   /* invalid: "detected" must be null */
+    {"node_03", "thermal", "ONLINE", true, false, NULL, 0, 0, 0},     /* thermal: never has "detected" */
 };
 
 static rb_telemetry_t sample(void)
