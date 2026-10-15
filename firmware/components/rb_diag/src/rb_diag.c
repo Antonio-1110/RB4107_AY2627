@@ -319,6 +319,7 @@ esp_err_t rb_diag_start(void)
     esp_console_repl_config_t repl_cfg = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     repl_cfg.prompt = "rb4107>";
     repl_cfg.task_priority = 2; /* below the safety task, always */
+    repl_cfg.task_stack_size = 8192; /* commands keep a ~1.4 KB snapshot plus a long printf */
 #if defined(CONFIG_ESP_CONSOLE_UART_DEFAULT) || defined(CONFIG_ESP_CONSOLE_UART_CUSTOM)
     const esp_console_dev_uart_config_t hw = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw, &repl_cfg, &repl));

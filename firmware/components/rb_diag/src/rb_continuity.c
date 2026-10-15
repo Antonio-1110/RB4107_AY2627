@@ -31,17 +31,19 @@ static void monitor_task(void *arg)
 {
     outage_t o = {0};
     uint32_t last_report = 0;
-    rb_snapshot_t prev = {0};
+    /* Only these two from the previous sample: a whole snapshot is ~1.4 KB. */
+    uint32_t prev_loops = 0;
+    safety_state_t prev_state = SAFETY_BOOT;
+    static rb_snapshot_t s; /* one monitor task: static keeps it off the 4 KB stack */
 
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(SAMPLE_MS));
         const uint32_t now = rb_time_mono_ms();
-        rb_snapshot_t s;
         rb_controller_get_snapshot(&s);
         const bool mqtt_up = rb_mqtt_state() == RB_MQTT_CONNECTED;
         const uint32_t gap = now - s.last_loop_ms;
 
-        if (!mqtt_up && !o.active && prev.loop_count != 0) {
+        if (!mqtt_up && !o.active && prev_loops != 0) {
             o = (outage_t){.active = true, .start_ms = now, .start_loops = s.loop_count,
                            .start_transitions = s.transitions};
             ESP_LOGW(TAG, "MQTT DOWN: monitoring the safety path (state %s)", safety_state_name(s.state));
@@ -49,7 +51,7 @@ static void monitor_task(void *arg)
         if (o.active) {
             o.max_gap_ms = gap > o.max_gap_ms ? gap : o.max_gap_ms;
             o.fault_reported |= fault_is_active(FAULT_MQTT_DOWN);
-            o.state_before_reconnect = prev.state;
+            o.state_before_reconnect = prev_state;
             if (rb_time_elapsed(now, last_report, REPORT_MS)) {
                 last_report = now;
                 const uint32_t secs = (now - o.start_ms) / 1000;
@@ -74,7 +76,8 @@ static void monitor_task(void *arg)
                 o.active = false;
             }
         }
-        prev = s;
+        prev_loops = s.loop_count;
+        prev_state = s.state;
     }
 }
 
