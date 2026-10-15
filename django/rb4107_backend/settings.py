@@ -26,7 +26,37 @@ DEBUG = env("DJANGO_DEBUG", "1") == "1"
 # The defaults are the demo setup, so no django/.env is needed: this MacBook
 # by its fixed lab IP and its mDNS name (also the controller's broker).
 ALLOWED_HOSTS = [h for h in env("DJANGO_ALLOWED_HOSTS",
-                                "localhost,127.0.0.1,192.168.1.50,AntoniodeMacBook-Air.local").split(",") if h]
+                                "localhost,127.0.0.1,192.168.1.50,192.168.1.73,AntoniodeMacBook-Air.local").split(",") if h]
+
+
+def _own_hosts() -> set[str]:
+    """This machine's current name and LAN IPv4 addresses, so other people can
+    open the dashboard by whatever address the router handed out today."""
+    import socket
+    hosts = set()
+    name = socket.gethostname()
+    if name:
+        hosts.add(name)
+        hosts.add(name if name.endswith(".local") else name + ".local")
+        try:
+            hosts.update(info[4][0] for info in socket.getaddrinfo(name, None, socket.AF_INET))
+        except OSError:
+            pass
+    # The address of the interface that routes off-box (no packet is sent).
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 9))
+            hosts.add(s.getsockname()[0])
+    except OSError:
+        pass
+    hosts.discard("0.0.0.0")
+    return hosts
+
+
+# Also accept the addresses this Mac has right now (on by default; set
+# RB4107_ALLOW_OWN_HOSTS=0 to use exactly DJANGO_ALLOWED_HOSTS).
+if "*" not in ALLOWED_HOSTS and env("RB4107_ALLOW_OWN_HOSTS", "1") == "1":
+    ALLOWED_HOSTS += sorted(_own_hosts() - set(ALLOWED_HOSTS))
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

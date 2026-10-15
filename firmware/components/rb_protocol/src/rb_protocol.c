@@ -597,11 +597,8 @@ const char *rb_c4002_params_check(const rb_c4002_params_t *p)
     if (p->presence_sensitivity == RB_C4002_SENS_CUSTOM && !(p->thresholds_known & RB_C4002_THRESH_PRESENCE)) {
         return "custom presence sensitivity needs presence thresholds";
     }
-    if (p->disappear_delay_s != RB_C4002_DISAPPEAR_DELAY_S) {
-        return "disappear_delay_s is fixed at 0: the S3 does the debouncing";
-    }
-    if (p->lock_time_ds != RB_C4002_LOCK_TIME_DS) {
-        return "lock_time_ds is fixed at 2: the S3 does the debouncing";
+    if (p->lock_time_ds < 2 || p->lock_time_ds > 100) {
+        return "lock_time_ds must be 2..100";
     }
     if ((p->motion_gate_mask | p->presence_gate_mask) & ~RB_C4002_ALL_GATES) {
         return "gate mask has bits above gate 24";

@@ -145,7 +145,9 @@ controllers share the broker without overwriting each other.
 
 Other machines on the same network open `http://192.168.1.50:8000/`. The
 lab router gives the MacBook that fixed IP, and it is also in
-`DJANGO_ALLOWED_HOSTS`. The controller finds the broker by the MacBook's mDNS
+`DJANGO_ALLOWED_HOSTS` (with 192.168.1.73). Whatever IP and name the Mac
+has when the server starts are accepted too, so on another network others use
+the address `run_dev.sh` prints (`RB4107_ALLOW_OWN_HOSTS=0` turns that off). The controller finds the broker by the MacBook's mDNS
 name (`RB_BROKER_HOST="AntoniodeMacBook-Air.local"` in
 `firmware/controller/sdkconfig.defaults`), which works on any network, and
 alternates with that IP (`RB_BROKER_FALLBACK_HOST`) after each failed attempt;

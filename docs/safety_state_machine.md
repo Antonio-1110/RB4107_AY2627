@@ -69,8 +69,9 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
   controller's own faults (self-test, relay output).
 - After an operator reset from SHUTDOWN all timing starts over.
 - **The S3 does all the presence debouncing.** The radars report their raw
-  state at once (the node sends on every change, see below) and hold nothing
-  back: the C4002's disappear delay and lock time are fixed at 0 s and 0.2 s.
+  state at once (the node sends on every change, see below) and hold little
+  back: the C4002's disappear delay and lock time are settable, default 1 s each
+  (a small hold can help the radar keep a still person; see c4002_tuning.md).
 - Presence filter: absence must last `absence_debounce_ms` (default 1 s)
   before UNATTENDED. **A presence blip does not restart that count**: the
   absence timer starts at the first "absent" and only a *confirmed* return

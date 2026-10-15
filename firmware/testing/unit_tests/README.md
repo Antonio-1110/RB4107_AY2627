@@ -49,7 +49,7 @@ idf.py build flash monitor                              # prints "ALL TESTS PASS
 | Cookware profile, temperature tiers and attendance commands | `test_cookware_is_parsed`, `test_bad_cookware_is_rejected`, `test_tiers_are_parsed`, `test_bad_tiers_are_rejected`, `test_attendance_is_parsed`, `test_bad_attendance_is_rejected` |
 | Radar noise (blips) while absent | `test_presence_blips_do_not_block_absence`, `test_blip_inside_debounce_keeps_absent_since`, `test_real_return_after_noise_cancels_timer` |
 | Node sends presence on change | `test_presence_change_is_sent_at_once` |
-| Radar holds fixed at 0 / 0.2 s | `test_params_check`, `test_cmd_rejects_radar_holds` |
+| Radar holds (disappear delay, lock time) settable | `test_params_check`, `test_cmd_radar_holds` |
 | Sensor node disappears / returns | `test_health_online_stale_offline_and_recovery`, `test_radar_disappears_and_returns` (node health → state machine) |
 | Two radars combined (strict) | `test_presence_fuse_truth_table` (either sees a person → PRESENT; ABSENT only if both valid and empty; otherwise UNKNOWN), `test_node_set_routes_and_combines`, `test_either_radar_keeps_attended`, `test_node_set_single_radar` |
 | Misconfigured node | `test_wrong_role_is_dropped`, `test_role_must_match_data`, `test_node_set_config_validation` |

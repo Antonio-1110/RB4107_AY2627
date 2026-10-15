@@ -169,11 +169,6 @@ menu "RB4107 configuration"
                 range 1 5
                 default 5
                 depends on RB_C4002_APPLY_SETTINGS
-                help
-                    The disappear delay and lock time are not options: they
-                    are fixed at 0 s and 0.2 s (RB_C4002_DISAPPEAR_DELAY_S,
-                    RB_C4002_LOCK_TIME_DS) because the S3 does all the
-                    presence debouncing.
 
             config RB_C4002_RANGE_MIN_CM
                 int "Detection range minimum (cm)"
@@ -215,6 +210,26 @@ menu "RB4107 configuration"
                 help
                     Lower this if the sensor reports static presence when
                     nobody is there.
+
+            config RB_C4002_DISAPPEAR_DELAY_S
+                int "Target disappear delay (s)"
+                range 0 65535
+                default 1
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    How long the sensor keeps reporting a target after it has
+                    gone. The S3 does the presence debouncing, so keep it
+                    small: it only adds to the time absence takes to show.
+                    A hold of 0 may make a still person flicker to "none".
+
+            config RB_C4002_LOCK_TIME_DS
+                int "Lock time after a target leaves (0.1 s units)"
+                range 2 100
+                default 10
+                depends on RB_C4002_APPLY_SETTINGS
+                help
+                    When the area goes from occupied to empty, the sensor
+                    ignores targets for this long (sensor default 1 s).
 
             config RB_C4002_REMOTE_TUNING
                 bool "Accept C4002 settings and calibration from the dashboard"

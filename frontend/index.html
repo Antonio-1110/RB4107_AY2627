@@ -711,20 +711,22 @@
               </select></label
             >
             <label
-              >Hold after target leaves (s), fixed<input
+              >Hold after target leaves (s)<input
                 id="tune-hold"
                 type="number"
-                value="0"
-                readonly
-                title="Fixed at 0: the S3 does all the presence debouncing"
+                min="0"
+                max="60"
+                step="1"
+                title="How long the radar keeps a target after it leaves. Small values: the S3 does the presence debouncing"
             /></label>
             <label
-              >Lock time (s), fixed<input
+              >Lock time (s)<input
                 id="tune-lock"
                 type="number"
-                value="0.2"
-                readonly
-                title="Fixed at the sensor minimum: the S3 does all the presence debouncing"
+                min="0.2"
+                max="10"
+                step="0.1"
+                title="Detection is paused this long after occupied turns empty (the sensor's minimum is 0.2)"
             /></label>
             <label
               >Report period (s)<input

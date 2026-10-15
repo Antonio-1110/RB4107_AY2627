@@ -77,21 +77,22 @@ to 0 on the node to turn the stream off.
 | `range_min_cm`, `range_max_cm` | detection range | 0–1100, min ≤ max |
 | `resolution_cm` | gate size: 80 (15 gates, ~11 m) or 20 (25 gates, ~4.9 m) | 20, 80 |
 | `motion_sensitivity`, `presence_sensitivity` | threshold group | `low` `mid` `high` `custom` |
-| `disappear_delay_s` | how long the radar keeps reporting a target after it leaves | **fixed at 0** |
-| `lock_time_ds` | detection paused after occupied → empty, 0.1 s units | **fixed at 2** (0.2 s, the sensor's minimum) |
+| `disappear_delay_s` | how long the radar keeps reporting a target after it leaves | 0–65535 s (default 1; try 0–2) |
+| `lock_time_ds` | detection paused after occupied → empty, 0.1 s units | 2–100 (default 10 = 1 s; the sensor's minimum is 0.2 s) |
 | `report_period_ds` | result report period, 0.1 s units | 1–5 (default 5) |
 
-**Why the two holds are fixed.** The S3 is the only place that decides whether
+**About the two holds.** The S3 is the only place that decides whether
 someone is present and it does all the debouncing (`absence_debounce_ms`,
 `presence_return_debounce_ms`, `presence_return_gap_ms`, adjustable from the
 dashboard's presence filter). A hold inside the radar is a delay the S3 can't
-see or tune: while the radar holds a target for 1 s, the S3's own 1 s absence
-debounce starts 1 s late, and the lock time makes the radar blind to someone who
-steps back in. So the node reports the raw state quickly, and the dashboard's
-fields for these two are read-only. The node refuses other values
-(`rb_c4002_params_check()`), the MQTT command schema allows only 0 and 2, and
-settings saved in node NVS by older firmware with other values are ignored at
-boot (the node falls back to its defaults).
+see: while the radar holds a target for 1 s, the S3's own 1 s absence debounce
+starts 1 s late, and the lock time makes the radar blind to someone who steps
+back in. Both are settable again because a hold of 0 may make a **still person**
+flicker to "none" (the radar may need a moment to confirm a stationary target;
+not confirmed for the C4002). Keep them small: against 180 s / 300 s timers a
+1-2 s hold costs about 1 %. To test: raise the hold on one node (0, 1, 2 s),
+stand still at the stove and watch for orange cells in the live view.
+
 | `motion_gates`, `presence_gates` | 25 × 0/1, gate *i* on or off | |
 | `motion_thresholds`, `presence_thresholds` | 25 × 0–99 per gate (higher = less sensitive); sending them sets that sensitivity to `custom` | |
 
