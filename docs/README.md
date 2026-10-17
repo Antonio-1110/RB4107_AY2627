@@ -6,7 +6,8 @@ Start with **[setup.md](setup.md)** to build, flash and run the system.
 |---|---|
 | [setup.md](setup.md) | how to build, flash, configure and run everything, and how to test |
 | [architecture.md](architecture.md) | how the controller firmware is organised: tasks, faults, MQTT publishing |
-| [safety_state_machine.md](safety_state_machine.md) | exactly when the controller warns and shuts down |
+| [safety_rules.md](safety_rules.md) | every rule the controller follows, one line each, and what it does |
+| [safety_state_machine.md](safety_state_machine.md) | why the rules are what they are: the state machine, trend, tiers and holds explained |
 | [protocol.md](protocol.md) | the ESP-NOW packets between the nodes and the controller |
 | [mqtt_topics.md](mqtt_topics.md) | which MQTT topics the controller publishes |
 | [c4002_tuning.md](c4002_tuning.md) | tuning and calibrating the radars from the dashboard |

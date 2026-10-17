@@ -2,6 +2,7 @@
 
 Implementation: [`firmware/components/safety`](../firmware/components/safety).
 Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
+One-line list of every rule and its default: [safety_rules.md](safety_rules.md).
 
 ```text
  BOOT ─→ SELF_TEST ─→ IDLE ─→ MONITORING ─→ UNATTENDED ─→ WARNING ─→ SHUTDOWN
@@ -15,7 +16,7 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 
 | Input | Source | Unknown/invalid handling |
 |---|---|---|
-| `presence` (tri-state) | the two C4002 presence nodes via ESP-NOW, combined strictly (`node_set_inputs`, `presence_fuse`): PRESENT if either radar sees a person, ABSENT only if both validly say absent | `RB_UNKNOWN` raises the **presence unknown** flag, never FAULT. With nothing cooking it starts no timer; while cooking it counts as absent (see "Lost sensors"). It is never read as "present". |
+| `presence` (tri-state) | the two C4002 presence nodes via ESP-NOW, combined strictly (`node_set_inputs`, `presence_fuse_all`): ABSENT if any working radar says absent, PRESENT only if every working radar sees the person (see "Who is at the stove, and the pause") | `RB_UNKNOWN` raises the **presence unknown** flag, never FAULT. With nothing cooking it starts no timer; while cooking it counts as absent (see "Lost sensors"). It is never read as "present". |
 | `thermal_valid`, `cooking_temp_c` | MLX90640 features from the thermal node via ESP-NOW; `cooking_temp_c` is the hottest pixel (`max_temp_c`), the same number the dashboard shows and outlines | invalid raises the **thermal lost** flag, never FAULT. The last cooking state is kept: a timeline already running carries on, and no cooking is invented. |
 | `self_test` | controller self-test (outputs working) | must read PASS after SELF_TEST; FAIL, timeout or not-yet-passed → FAULT, latched until it passes |
 | `reset_request` | operator reset: dashboard button, console `reset` ([remote_reset.md](remote_reset.md)) | leaves SHUTDOWN; acknowledges WARNING in *exit-on-ack* mode |

@@ -100,8 +100,7 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   of the pause budget is used (see
   [safety_state_machine.md](safety_state_machine.md#who-is-at-the-stove-and-the-pause)).
 - `presence_state` is the two radars combined, exactly as the safety state
-  machine used it: `PRESENT` if either radar sees a person, `ABSENT` only if
-  both give a valid "absent", `UNKNOWN` otherwise.
+  machine used it (see [safety_rules.md](safety_rules.md), A2-A5).
 - `nodes` lists every configured sensor node. `detected` is only set for a
   presence node with a valid reading; it is `null` for the thermal node and
   for any node that is invalid, STALE or OFFLINE.
