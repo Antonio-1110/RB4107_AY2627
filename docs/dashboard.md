@@ -31,6 +31,8 @@ frontend/
     ├── heatmap.js    thermal camera heat map canvas
     ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
     ├── mode.js       Monitor / Tuning mode, tuning tabs, overview layout, colour theme
+    ├── safety_logic.js        Safety logic card: current state, next rules, last rule fired
+    ├── safety_rules_data.js   the controller's rules table, generated (tools/safety_rules.py gen)
     ├── dom.js        small DOM helpers
     └── format.js     value formatting
 ```
@@ -92,9 +94,13 @@ accepting commands.
   scrolling: the Countdown hero with its clock, the three condition tiles
   (cooking, person, timer, values only), the four readings with their
   freshness, a compact thermal picture, the temperature history, system status
-  with **Reset shutdown**, and the last five events. Nothing in it can be edited.
+  with **Reset shutdown**, the last five events, and a **Safety logic** strip:
+  the state the controller reports and the rules that can fire next. Nothing in
+  it can be edited.
 - **Tuning** keeps a slim countdown strip on top and adds tabs: **Rules** (the
-  cooking temperature, person filter and timers, editable), **Radar** (C4002
+  cooking temperature, person filter and timers, editable), **Logic** (every
+  safety rule from the controller's rules table, with the current state's rules,
+  any hold and the last rule that fired highlighted), **Radar** (C4002
   settings and the live radar view), **Thermal** (heat map with the outline and
   pixel-size controls), **Diagnostics** (readings, history, system status,
   events, sensor reports, raw telemetry). The header gets an orange underline
@@ -103,6 +109,17 @@ accepting commands.
 
 The overview has a **Tiles | Table** switch and a one-row fleet strip. A
 **Light | Dark | Auto** theme button follows the system setting by default.
+
+## Safety logic card
+
+`safety_rules_data.js` is generated from
+`firmware/components/safety/src/safety_rules.def`, the table the controller's
+state machine runs, so the card can't drift from the firmware;
+`tools/safety_rules.py check` fails if it is stale. Bold values are the
+menuconfig defaults (the Countdown card shows the times in force). The current
+state comes from `safety.state`, a hold from `safety.hold`, and the last rule
+that fired is matched from the newest event's `safety.reason` and
+`from_state`.
 
 ## Countdown card
 

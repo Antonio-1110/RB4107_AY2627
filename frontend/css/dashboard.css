@@ -1642,7 +1642,8 @@ body[data-view="detail"] .heading {
 #detail-view[data-mode="tuning"][data-tab="rules"] [data-tab]:not([data-tab="rules"]),
 #detail-view[data-mode="tuning"][data-tab="radar"] [data-tab]:not([data-tab="radar"]),
 #detail-view[data-mode="tuning"][data-tab="thermal"] [data-tab]:not([data-tab="thermal"]),
-#detail-view[data-mode="tuning"][data-tab="diag"] [data-tab]:not([data-tab="diag"]) {
+#detail-view[data-mode="tuning"][data-tab="diag"] [data-tab]:not([data-tab="diag"]),
+#detail-view[data-mode="tuning"][data-tab="logic"] [data-tab]:not([data-tab="logic"]) {
   display: none !important;
 }
 
@@ -1706,6 +1707,7 @@ body[data-view="detail"] .heading {
 }
 #countdown-card { grid-area: hero; }
 .dv-cond { grid-area: cond; }
+.dv-logic { grid-area: logic; }
 .dv-heat { grid-area: heat; }
 .dv-mets { grid-area: mets; }
 .dv-chart { grid-area: chart; }
@@ -1719,6 +1721,7 @@ body[data-view="detail"] .heading {
   grid-template-areas:
     "hero hero hero hero hero hero hero hero hero heat heat heat"
     "cond cond cond cond cond cond cond cond cond heat heat heat"
+    "logic logic logic logic logic logic logic logic logic heat heat heat"
     "mets mets mets mets mets mets mets mets mets heat heat heat"
     "chart chart chart chart chart sys sys sys evt evt evt evt";
 }
@@ -1727,6 +1730,9 @@ body[data-view="detail"] .heading {
 }
 #detail-view[data-mode="tuning"][data-tab="rules"] .dv-grid {
   grid-template-areas: "hero hero hero hero hero hero hero hero hero hero hero hero" "cond cond cond cond cond cond cond cond cond cond cond cond";
+}
+#detail-view[data-mode="tuning"][data-tab="logic"] .dv-grid {
+  grid-template-areas: "hero hero hero hero hero hero hero hero hero hero hero hero" "logic logic logic logic logic logic logic logic logic logic logic logic";
 }
 #detail-view[data-mode="tuning"][data-tab="radar"] .dv-grid {
   grid-template-areas: "hero hero hero hero hero hero hero hero hero hero hero hero" "radar radar radar radar radar radar radar radar radar radar radar radar";
@@ -1814,6 +1820,117 @@ body[data-view="detail"] .heading {
 .cd-fields .tuning-grid,
 .cd-fields.tuning-grid {
   margin-top: 8px;
+}
+
+/* safety logic: the controller's rules table, current state highlighted */
+.dv-logic {
+  margin: 0;
+}
+#detail-view[data-mode="monitor"] .dv-logic {
+  padding: 12px 14px;
+}
+#detail-view[data-mode="monitor"] .dv-logic .section-heading p {
+  display: none;
+}
+.logic-heading {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.logic-now p {
+  margin: 4px 0;
+}
+.logic-now-line {
+  font-weight: 650;
+}
+.logic-state.st-warning,
+.logic-state.st-unattended {
+  background: var(--tint-warn);
+  color: var(--on-warn);
+}
+.logic-state.st-shutdown,
+.logic-state.st-fault {
+  background: var(--tint-red);
+  color: var(--on-red);
+}
+.logic-state.st-monitoring,
+.logic-state.st-idle {
+  background: var(--tint-good);
+  color: var(--green);
+}
+.logic-hold {
+  color: var(--purple);
+  font-weight: 650;
+}
+.logic-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.logic-rule,
+.logic-signal {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.logic-list li:first-child {
+  border-top: 0;
+}
+.logic-id {
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.logic-to {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.logic-to.to-warning {
+  color: var(--amber);
+}
+.logic-to.to-shutdown,
+.logic-to.to-fault {
+  color: var(--red);
+}
+.logic-full .logic-rule.current,
+.logic-signal.current,
+.logic-outputs tr.current td {
+  background: var(--tint-info);
+}
+.logic-rule.fired {
+  box-shadow: inset 3px 0 0 var(--orange);
+}
+.logic-rule.fired .logic-id:after {
+  content: " last";
+  font-size: 10px;
+  color: var(--orange);
+}
+.logic-group {
+  padding: 10px 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.logic-outputs {
+  width: 100%;
+  font-size: 13px;
+}
+.logic-section summary {
+  cursor: pointer;
+  padding: 6px 0;
+  font-weight: 650;
+}
+.logic-code {
+  font-size: 11px;
+  color: var(--muted);
 }
 
 /* the four readings: one slim row */

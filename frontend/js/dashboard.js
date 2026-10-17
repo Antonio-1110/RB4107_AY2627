@@ -24,6 +24,7 @@ import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
 import { renderTuning } from "./tuning.js";
+import { renderSafetyLogic, setSafetyEvents } from "./safety_logic.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
 let selectedStall = "",
@@ -503,6 +504,7 @@ function renderDevice(device) {
   renderAttendance(device);
   renderRadarRules(device);
   renderTuning(device);
+  renderSafetyLogic(device);
   renderDetailAlert(device);
 }
 function renderDetail() {
@@ -710,6 +712,7 @@ async function refreshDetailData(force = false) {
     points = historyData.points;
     drawChart();
     renderEvents(eventData.events, eventData.truncated);
+    setSafetyEvents(eventData.events);
     lastHistoryAt = Date.now();
     set(
       "chart-caption",

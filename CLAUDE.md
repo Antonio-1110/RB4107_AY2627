@@ -7,14 +7,16 @@ Read [`docs/agent-context/handover.md`](docs/agent-context/handover.md) first.
 The controller's safety logic is a table:
 [`firmware/components/safety/src/safety_rules.def`](firmware/components/safety/src/safety_rules.def).
 The state machine in `safety.c` runs its transitions straight from that table,
-and [`docs/safety_rules.md`](docs/safety_rules.md) is generated from it. Don't
-read the codebase to describe the rules, and never edit `safety_rules.md` by
-hand.
+and [`docs/safety_rules.md`](docs/safety_rules.md) and the dashboard's copy
+(`frontend/js/safety_rules_data.js`) are generated from it. Don't
+read the codebase to describe the rules, and never edit either generated file
+by hand.
 
 Every task, before you finish (and before opening or updating a PR):
 
 1. Run `python3 tools/safety_rules.py check`. It must pass. It fails when:
-   - the doc is out of date (run `python3 tools/safety_rules.py gen`);
+   - the doc or the dashboard copy is out of date (run
+     `python3 tools/safety_rules.py gen`);
    - the table names a guard, action or function that doesn't exist;
    - a function the table names (or `evaluate()`, `transition()`,
      `on_enter()`, `on_exit()`) changed on your branch but the table didn't.

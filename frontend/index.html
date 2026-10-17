@@ -197,6 +197,7 @@
         </div>
         <nav class="dv-tabs" data-show="tuning" aria-label="Tuning sections">
           <button type="button" data-tab-button="rules">Rules</button>
+          <button type="button" data-tab-button="logic">Logic</button>
           <button type="button" data-tab-button="radar">Radar</button>
           <button type="button" data-tab-button="thermal">Thermal</button>
           <button type="button" data-tab-button="diag">Diagnostics</button>
@@ -450,6 +451,38 @@
             </p>
           </div>
         </fieldset>
+
+        <section class="card dv-logic" id="logic-card" data-tab="logic" aria-labelledby="logic-title">
+          <div class="section-heading">
+            <div>
+              <h2 id="logic-title">Safety logic</h2>
+              <p class="muted small">
+                From the same rules table the controller runs. Bold values are the menuconfig
+                defaults; the countdown shows the times in force.
+              </p>
+            </div>
+          </div>
+          <div id="logic-now" class="logic-now"></div>
+          <h3 class="logic-heading">What can happen next</h3>
+          <ol id="logic-next" class="logic-list"></ol>
+          <div class="logic-full" data-show="tuning">
+            <h3 class="logic-heading">All transitions, checked in this order</h3>
+            <ol id="logic-transitions" class="logic-list"></ol>
+            <h3 class="logic-heading">Outputs per state</h3>
+            <table class="logic-outputs">
+              <thead>
+                <tr>
+                  <th>State</th>
+                  <th>Buzzer</th>
+                  <th>Shutdown output</th>
+                </tr>
+              </thead>
+              <tbody id="logic-outputs"></tbody>
+            </table>
+            <h3 class="logic-heading">Inputs, cooking, timers and holds</h3>
+            <div id="logic-signals"></div>
+          </div>
+        </section>
 
         <section class="metrics dv-mets" data-tab="diag" aria-label="Latest device-reported readings">
           <article class="card metric" id="card-presence">
