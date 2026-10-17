@@ -175,7 +175,8 @@ typedef struct {
      */
     safety_cookware_t cookware;
     float cookware_tau_s;                   /* time constant of the cookware, seconds (from the profile) */
-    uint32_t trend_window_ms;               /* regression window for the temperature trend, 0 = 120000 */
+    uint32_t trend_window_ms;               /* regression window for the temperature trend, 0 = 120000; at most
+                                               SAFETY_TREND_MAX samples of 2 s */
 
     /*
      * Temperature tiers. A tier is off while its temperature is <= 0. Times are measured like the
@@ -199,6 +200,24 @@ typedef struct {
      */
     uint32_t pause_budget_ms;
     uint8_t pause_budget_pct;
+
+    /*
+     * Fine tuning of the tiers, the trend and the holds. 0 = the built-in value (the #defines at the
+     * top of safety.c), so a config that leaves them out behaves as before. The dashboard can set them
+     * (firmware/components/rb_controller/include/rb_params.def).
+     */
+    uint32_t tier_up_persist_ms;            /* a hotter tier takes over after holding this long */
+    uint32_t tier_down_persist_ms;          /* a cooler one only after this long ... */
+    float tier_hyst_c;                      /* ... and this far below its threshold */
+    uint32_t late_warning_min_ms;           /* buzzer before a shutdown that was already due */
+    uint32_t trend_min_span_ms;             /* the trend needs this much history ... */
+    uint16_t trend_min_samples;             /* ... and this many samples (at most SAFETY_TREND_MAX) */
+    float settle_margin_c;                  /* hysteresis on the cooling decision */
+    float settle_max_drift_c_per_min;       /* the prediction may climb this fast to start believing "cooling" */
+    float settle_exit_drift_c_per_min;      /* ... and this fast before it stops believing it */
+    uint32_t cooling_hold_max_ms;           /* a cooling hold never lasts longer than this ... */
+    float cooling_hold_taus;                /* ... nor longer than this many time constants */
+    uint32_t warning_min_after_hold_ms;     /* buzzer before the shutdown after any hold */
 
     safety_timing_hook_t timing_hook;
     void *timing_hook_ctx;
@@ -282,6 +301,9 @@ typedef struct {
     safety_transition_cb_t on_transition;
     void *cb_ctx;
 } safety_sm_t;
+
+/* Fill the fine-tuning fields left 0 with their built-in values, so they can be read back and shown. */
+void safety_config_fill_defaults(safety_config_t *cfg);
 
 /* Returns false (and fixes nothing) if the configuration is inconsistent. */
 bool safety_config_valid(const safety_config_t *cfg);

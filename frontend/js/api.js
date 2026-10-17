@@ -65,6 +65,9 @@ export const sendTiers = (deviceId, body) => post(`${device(deviceId)}/tiers/`, 
 // Radar state and distance rules; the answer is values.radar_rules in the next telemetry.
 export const sendRadarRules = (deviceId, body) => post(`${device(deviceId)}/radar-rules/`, body);
 export const sendAttendance = (deviceId, body) => post(`${device(deviceId)}/attendance/`, body);
+// Every other safety setting (rb_params.def), saved on the controller: {<key>: integer, ...} with every key, in the
+// table's units, or {defaults: true}. The answer is values.params / params_source in the next telemetry.
+export const sendParams = (deviceId, body) => post(`${device(deviceId)}/params/`, body);
 
 // Remote C4002 tuning. The node's answer
 // arrives later in the device's values (sensors.<node>.c4002).

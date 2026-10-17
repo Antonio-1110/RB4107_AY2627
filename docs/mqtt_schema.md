@@ -69,7 +69,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
                                  "source": "menuconfig"},
              "cooking": {"active": true, "phase": "holding", "rate_c_per_min": 0.1, "settle_c": 98.7,
                          "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
-             "cookware": {"profile": "mixed", "tau_s": 600, "source": "menuconfig"}},
+             "cookware": {"profile": "mixed", "tau_s": 600, "source": "menuconfig"},
+             "params": {"shutdown_timing": 0, "cooling_policy": 1, "fault_shutdown_ms": 90000, "...": 0},
+             "params_source": "menuconfig"},
   "faults": ["mqtt_disconnected"]
 }
 ```
@@ -93,6 +95,10 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   The controller publishes `controller/state` immediately whenever presence,
   cooking or one of these flags changes (at most every 200 ms), in addition to
   the periodic message; all four fields are absent from older firmware.
+- `params` is every other safety setting in force, keyed and in the units of
+  [`rb_params.def`](../firmware/components/rb_params/include/rb_params.def) (the
+  dashboard's Other settings; see [remote_reset.md](remote_reset.md#other-safety-settings)),
+  with `params_source` `dashboard` or `menuconfig`. Absent from older firmware.
 - `nearby` is somebody near either radar. `presence_state` is *at the stove*: with
   two radars and `presence_filter.fusion` `all`, PRESENT only when every working
   radar sees someone. `safety.paused`, `pause_used_ms` and `pause_budget_ms` say

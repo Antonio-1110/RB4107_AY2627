@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import secrets
+from functools import lru_cache
+from pathlib import Path
 
 import paho.mqtt.publish as mqtt_publish
 from django.conf import settings
@@ -226,6 +228,47 @@ def build_tiers_command(controller_id: str, body: dict) -> dict:
         action = "tiers"
         if values["tier1_temp_dc"] > 0 and values["tier2_temp_dc"] > 0 and values["tier2_temp_dc"] < values["tier1_temp_dc"]:
             raise CommandError("critical must not start below elevated")
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
+@lru_cache(maxsize=1)
+def safety_params() -> tuple[dict, ...]:
+    """The controller's other safety settings, generated from firmware/components/rb_params/include/rb_params.def
+    by tools/safety_rules.py: key, kind, min, max, default (wire units), label, options."""
+    return tuple(json.loads((Path(__file__).with_name("safety_params.json")).read_text())["params"])
+
+
+def build_params_command(controller_id: str, body: dict) -> dict:
+    """{"<key>": integer, ...} with every key of safety_params.json sets the controller's other safety settings
+    (policies, fault/node/valve timings, the tier, trend and hold tuning), which it saves; {"defaults": true}
+    goes back to the menuconfig and built-in values. Values are in the units of rb_params.def (ms, 0.1 °C, ...).
+    The controller also refuses combinations that don't fit together."""
+    if not isinstance(body, dict):
+        raise CommandError("body must be a JSON object")
+    params = safety_params()
+    if body == {"defaults": True}:
+        values, action = {}, "params_defaults"
+    else:
+        keys = [p["key"] for p in params]
+        missing, extra = sorted(set(keys) - set(body)), sorted(set(body) - set(keys))
+        if missing or extra:
+            raise CommandError("send every setting, or {defaults: true}" + (f"; missing: {', '.join(missing)}" if missing else "")
+                               + (f"; unknown: {', '.join(extra)}" if extra else ""))
+        values = {}
+        for p in params:
+            value = body[p["key"]]
+            if isinstance(value, bool) or not isinstance(value, int) or not p["min"] <= value <= p["max"]:
+                raise CommandError(f"{p['label']} ({p['key']}) must be a whole number from {p['min']} to {p['max']}")
+            values[p["key"]] = value
+        if values["node_stale_ms"] >= values["node_offline_ms"]:
+            raise CommandError("a sensor node must go STALE before it goes OFFLINE")
+        action = "params"
     command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
                "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
     try:

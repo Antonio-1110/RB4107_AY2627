@@ -34,6 +34,9 @@ bool rb_valve_link_on_packet(const rb_packet_t *pkt, uint32_t rx_ms);
 /* Latest VALVE_STATUS. Returns false if none has arrived yet. */
 bool rb_valve_link_get_status(rb_valve_status_t *out, uint32_t *age_ms);
 
+/* How often KEEP_OPEN is repeated while safe (RB_CTRL_VALVE_KEEPALIVE_MS until changed). Any task. */
+void rb_valve_link_set_keepalive_ms(uint32_t period_ms);
+
 #ifdef __cplusplus
 }
 #endif

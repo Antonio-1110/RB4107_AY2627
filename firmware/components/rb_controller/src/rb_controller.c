@@ -49,6 +49,9 @@ static bool s_pending_tiers_on;
 static rb_tiers_t s_pending_tiers;
 static bool s_cookware_pending;
 static safety_cookware_t s_pending_cookware; /* SAFETY_COOKWARE_COUNT = back to the configured one */
+static bool s_params_pending;
+static bool s_pending_params_on;
+static rb_params_t s_pending_params;
 
 rb_controller_config_t rb_controller_config_from_kconfig(void)
 {
@@ -81,6 +84,8 @@ rb_controller_config_t rb_controller_config_from_kconfig(void)
                       .zone_max_cm = CONFIG_RB_CTRL_RADAR_ZONE_MAX_CM},
 #endif
         },
+        .valve_keepalive_ms = CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS,
+        .verify_period_ms = CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS,
         .rx_queue_len = CONFIG_RB_CTRL_RX_QUEUE_LEN,
         .event_queue_len = CONFIG_RB_CTRL_EVENT_QUEUE_LEN,
         .tick_ms = CONFIG_RB_CTRL_SAFETY_TICK_MS,
@@ -207,6 +212,13 @@ static void safety_task(void *arg)
     bool radar_on = false; /* dashboard radar rules in force */
     bool tiers_on = false; /* dashboard temperature tiers in force */
     rb_tiers_t tiers = {0};
+    bool params_on = false; /* dashboard settings of rb_params.def in force */
+    rb_params_t params = {0};
+    rb_params_target_t target = {.safety = sm.cfg, .health = s_cfg.health,
+                                 .valve_keepalive_ms = s_cfg.valve_keepalive_ms,
+                                 .verify_period_ms = s_cfg.verify_period_ms};
+    rb_params_t params_now; /* what is in force, for telemetry */
+    rb_params_read(&target, &params_now);
     sensor_view_t last_view = {0};
     uint32_t last_view_ms = 0;
     bool view_posted = false;
@@ -251,6 +263,10 @@ static void safety_task(void *arg)
         s_radar_pending = false;
         const bool pending_radar_on = s_pending_radar_on;
         const rb_radar_rules_t pending_radar = s_pending_radar;
+        const bool new_params = s_params_pending;
+        s_params_pending = false;
+        const bool pending_params_on = s_pending_params_on;
+        const rb_params_t pending_params = s_pending_params;
         portEXIT_CRITICAL(&s_req_lock);
         if (new_radar) {
             radar_on = pending_radar_on;
@@ -260,8 +276,18 @@ static void safety_task(void *arg)
                      radar_rules_mode_name(nodes.rules_mode), (unsigned long)nodes.rules.dwell_ms,
                      (unsigned long)nodes.rules.stationary_min_ms, (unsigned)nodes.rules.settle_span_cm);
         }
-        if (new_config || new_filter || new_cooking || new_cookware || new_tiers || new_attendance) {
+        if (new_config || new_filter || new_cooking || new_cookware || new_tiers || new_attendance || new_params) {
             safety_config_t next = new_config ? pending : base;
+            /* First the other settings, so the cards below (cooking temperature, cookware) build on them. */
+            const bool next_params_on = new_params ? pending_params_on : params_on;
+            const rb_params_t next_params = new_params ? pending_params : params;
+            rb_params_target_t next_target = {.safety = next, .health = s_cfg.health,
+                                              .valve_keepalive_ms = s_cfg.valve_keepalive_ms,
+                                              .verify_period_ms = s_cfg.verify_period_ms};
+            if (next_params_on) {
+                rb_params_write(&next_params, &next_target);
+                next = next_target.safety;
+            }
             const bool next_filter_on = new_filter ? pending_filter_on : filter_on;
             const rb_presence_filter_t next_filter = new_filter ? pending_filter : filter;
             const float next_cooking_on_c = new_cooking ? pending_cooking_on_c : cooking_on_c;
@@ -298,7 +324,25 @@ static void safety_task(void *arg)
                 next.warning_timeout_ms = next_filter.warning_timeout_ms;
                 next.shutdown_timeout_ms = next_filter.shutdown_timeout_ms;
             }
-            if (safety_set_config(&sm, &next)) {
+            if ((!next_params_on || rb_params_target_valid(&next_target)) && safety_set_config(&sm, &next)) {
+                params_on = next_params_on;
+                params = next_params;
+                const bool outside_changed = next_target.valve_keepalive_ms != target.valve_keepalive_ms ||
+                                             next_target.verify_period_ms != target.verify_period_ms;
+                target = next_target;
+                target.safety = sm.cfg;
+                rb_params_read(&target, &params_now);
+                if (outside_changed && s_hooks.params_applied != NULL) {
+                    s_hooks.params_applied(&target, s_hooks.ctx);
+                }
+                if (new_params) {
+                    ESP_LOGW(TAG, "other safety settings (%s): shutdown from %s, cooling %s, trend %s, fault shutdown %lu s",
+                             params_on ? "dashboard" : "menuconfig",
+                             sm.cfg.shutdown_timing == SAFETY_SHUTDOWN_AFTER_WARNING_START ? "WARNING" : "UNATTENDED",
+                             sm.cfg.cooling_policy == SAFETY_COOLING_RETURN_TO_IDLE ? "-> IDLE" : "keeps the timers",
+                             sm.cfg.cookware_tau_s > 0.0f ? "on" : "off",
+                             (unsigned long)(sm.cfg.fault_shutdown_timeout_ms / 1000));
+                }
                 if (new_config) {
                     base = pending;
                     test_timers = pending_test;
@@ -358,7 +402,7 @@ static void safety_task(void *arg)
 
         /* Sensor-node health, one node at a time. */
         uint32_t events[NODE_SLOT_COUNT];
-        node_set_evaluate(&nodes, &s_cfg.health, now, events);
+        node_set_evaluate(&nodes, &target.health, now, events);
         for (int slot = 0; slot < NODE_SLOT_COUNT; slot++) {
             if (events[slot] == 0) {
                 continue;
@@ -467,6 +511,8 @@ static void safety_task(void *arg)
             s_snapshot.thermal_lost = sm.thermal_lost;
             s_snapshot.absent_ms = safety_absent_ms(&sm, now);
             s_snapshot.returning_ms = safety_returning_ms(&sm, now);
+            s_snapshot.params = params_now;
+            s_snapshot.params_remote = params_on;
             xSemaphoreGive(s_snapshot_lock);
         }
     }
@@ -634,6 +680,19 @@ esp_err_t rb_controller_set_presence_filter(const rb_presence_filter_t *filter)
         s_pending_filter = *filter;
     }
     s_filter_pending = true;
+    portEXIT_CRITICAL(&s_req_lock);
+    return ESP_OK;
+}
+
+esp_err_t rb_controller_set_params(const rb_params_t *params)
+{
+    ESP_RETURN_ON_FALSE(params == NULL || rb_params_in_range(params), ESP_ERR_INVALID_ARG, TAG, "setting out of range");
+    portENTER_CRITICAL(&s_req_lock);
+    s_pending_params_on = params != NULL;
+    if (params != NULL) {
+        s_pending_params = *params;
+    }
+    s_params_pending = true;
     portEXIT_CRITICAL(&s_req_lock);
     return ESP_OK;
 }

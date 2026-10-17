@@ -7,6 +7,7 @@
  * back to catch hardware faults.
  */
 #include <stdbool.h>
+#include <stdint.h>
 #include "esp_err.h"
 #include "safety.h"
 
@@ -22,6 +23,9 @@ void rb_outputs_apply(const safety_outputs_t *outputs);
 
 /* True if the relay failed to initialise, write, or verify: a safety-relevant fault. */
 bool rb_outputs_fault(void);
+
+/* How often the shutdown output is read back (RB_SHUTDOWN_VERIFY_PERIOD_MS until changed). Safety task only. */
+void rb_outputs_set_verify_period_ms(uint32_t period_ms);
 
 #ifdef __cplusplus
 }

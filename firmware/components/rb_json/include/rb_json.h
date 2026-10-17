@@ -134,6 +134,10 @@ typedef struct {
         bool thermal_lost;            /* flag: thermal data missing/invalid */
         uint32_t absent_ms;           /* absence debounce progress (0 = not running) */
         uint32_t returning_ms;        /* return debounce progress (0 = not running) */
+        const char *const *param_keys;   /* the other safety settings (rb_params.def), param_count of them; */
+        const uint32_t *param_values;    /* NULL = not reported */
+        uint8_t param_count;
+        bool params_remote;           /* set from the dashboard */
         uint32_t loop_count;
     } safety;
 

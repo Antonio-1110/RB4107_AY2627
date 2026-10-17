@@ -43,6 +43,11 @@
  *                               radar_quiet_gap_ms, radar_dwell_ms, radar_stationary_min_ms,
  *                               radar_settle_window_ms, radar_settle_span_cm, radar_zone_max_cm
  *   "radar_rules_defaults"      forget the saved rules: back to menuconfig
+ *   "params"                    set the other safety settings (rb_params.def: policies, fault and
+ *                               node timings, the tier, trend and hold fine tuning), saved on the
+ *                               controller; needs every key of rb_params.def, each an integer in
+ *                               its range
+ *   "params_defaults"           forget the saved settings: back to menuconfig and the built-in values
  *
  * Flat object, strings and integers only, so a small hand-written parser is
  * enough.
@@ -50,6 +55,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "rb_params.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,6 +86,8 @@ typedef enum {
     RB_CTRL_ACTION_ATTENDANCE_DEFAULTS,
     RB_CTRL_ACTION_RADAR_RULES,
     RB_CTRL_ACTION_RADAR_RULES_DEFAULTS,
+    RB_CTRL_ACTION_PARAMS,
+    RB_CTRL_ACTION_PARAMS_DEFAULTS,
 } rb_ctrl_action_t;
 
 typedef struct {
@@ -117,6 +125,8 @@ typedef struct {
     uint32_t radar_settle_window_ms;
     uint16_t radar_settle_span_cm;
     uint16_t radar_zone_max_cm;
+    /* RB_CTRL_ACTION_PARAMS only: every setting of rb_params.def, range-checked. */
+    rb_params_t params;
 } rb_ctrl_cmd_t;
 
 /*

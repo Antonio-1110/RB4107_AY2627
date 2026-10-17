@@ -165,6 +165,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_REMOTE_RESET` | Accept the operator reset from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER` | Accept presence filter and buzzer/shutdown times from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_COOKING_TEMP` | Accept the cooking temperature from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_PARAMS` | Accept the other safety settings from the dashboard (policies, fault/node/valve timings, tier, trend and hold tuning; saved on the controller) | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |

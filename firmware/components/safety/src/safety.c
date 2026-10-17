@@ -78,10 +78,31 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 #define COOLING_HOLD_TAUS 4.0f         /* ... nor longer than 4 time constants: a pan still hot after that is not just cooling */
 /* After a hold, the buzzer sounds at least this long before the shutdown, even if the shutdown was due long ago. */
 #define WARNING_MIN_AFTER_HOLD_MS 30000u /* buzzer before the shutdown after any hold */
+/* The config's value for a tunable above, or the built-in one when it is left 0. */
+#define TUNED(field, builtin) (sm->cfg.field > 0 ? sm->cfg.field : (builtin))
 
 static bool elapsed(uint32_t now_ms, uint32_t since_ms, uint32_t timeout_ms)
 {
     return (uint32_t)(now_ms - since_ms) >= timeout_ms; /* wrap-safe */
+}
+
+void safety_config_fill_defaults(safety_config_t *cfg)
+{
+#define FILL(field, builtin) cfg->field = cfg->field > 0 ? cfg->field : (builtin)
+    FILL(tier_up_persist_ms, TIER_UP_PERSIST_MS);
+    FILL(tier_down_persist_ms, TIER_DOWN_PERSIST_MS);
+    FILL(tier_hyst_c, TIER_HYST_C);
+    FILL(late_warning_min_ms, LATE_WARNING_MIN_MS);
+    FILL(trend_window_ms, TREND_DEFAULT_WINDOW_MS);
+    FILL(trend_min_span_ms, TREND_MIN_SPAN_MS);
+    FILL(trend_min_samples, TREND_MIN_SAMPLES);
+    FILL(settle_margin_c, SETTLE_MARGIN_C);
+    FILL(settle_max_drift_c_per_min, SETTLE_MAX_DRIFT_C_PER_MIN);
+    FILL(settle_exit_drift_c_per_min, SETTLE_EXIT_DRIFT_C_PER_MIN);
+    FILL(cooling_hold_max_ms, COOLING_HOLD_MAX_MS);
+    FILL(cooling_hold_taus, COOLING_HOLD_TAUS);
+    FILL(warning_min_after_hold_ms, WARNING_MIN_AFTER_HOLD_MS);
+#undef FILL
 }
 
 bool safety_config_valid(const safety_config_t *cfg)
@@ -100,6 +121,15 @@ bool safety_config_valid(const safety_config_t *cfg)
         return false;
     }
     if (cfg->pause_budget_pct > 100) {
+        return false;
+    }
+    if (cfg->trend_window_ms > SAFETY_TREND_MAX * TREND_SAMPLE_MS || cfg->trend_min_samples > SAFETY_TREND_MAX) {
+        return false; /* more history than the trend buffer holds */
+    }
+    if (!isfinite(cfg->tier_hyst_c) || !isfinite(cfg->settle_margin_c) || !isfinite(cfg->settle_max_drift_c_per_min) ||
+        !isfinite(cfg->settle_exit_drift_c_per_min) || !isfinite(cfg->cooling_hold_taus) || cfg->tier_hyst_c < 0.0f ||
+        cfg->settle_margin_c < 0.0f || cfg->settle_max_drift_c_per_min < 0.0f || cfg->settle_exit_drift_c_per_min < 0.0f ||
+        cfg->cooling_hold_taus < 0.0f) {
         return false;
     }
     if (!isfinite(cfg->tier1_temp_c) || !isfinite(cfg->tier2_temp_c) || !isfinite(cfg->tier2_rate_c_per_min) ||
@@ -201,7 +231,7 @@ static void trend_push(safety_sm_t *sm, uint32_t now_ms, float temp_c)
  */
 static void trend_update(safety_sm_t *sm, uint32_t now_ms)
 {
-    const uint32_t window = sm->cfg.trend_window_ms != 0 ? sm->cfg.trend_window_ms : TREND_DEFAULT_WINDOW_MS;
+    const uint32_t window = TUNED(trend_window_ms, TREND_DEFAULT_WINDOW_MS);
     sm->trend_rate_c_per_min = NAN;
     sm->settle_c = NAN;
     if (sm->trend_count == 0 || elapsed(now_ms, sm->trend_last_ms, TREND_STALE_MS)) {
@@ -227,7 +257,8 @@ static void trend_update(safety_sm_t *sm, uint32_t now_ms)
         oldest_age = age;
     }
     const double denom = sw * sxx - sx * sx;
-    if (n < TREND_MIN_SAMPLES || oldest_age < TREND_MIN_SPAN_MS || denom <= 0.0) {
+    if (n < TUNED(trend_min_samples, TREND_MIN_SAMPLES) || oldest_age < TUNED(trend_min_span_ms, TREND_MIN_SPAN_MS) ||
+        denom <= 0.0) {
         return;
     }
     const double slope = (sw * sxy - sx * sy) / denom; /* degC per second */
@@ -263,13 +294,13 @@ static void judge_heat(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_
     }
     settle_track(sm, now_ms);
     const float off = sm->cfg.heat_off_temp_c;
-    const bool model_fits = !(isfinite(sm->settle_drift_c_per_min) && sm->settle_drift_c_per_min > SETTLE_EXIT_DRIFT_C_PER_MIN);
+    const bool model_fits = !(isfinite(sm->settle_drift_c_per_min) && sm->settle_drift_c_per_min > TUNED(settle_exit_drift_c_per_min, SETTLE_EXIT_DRIFT_C_PER_MIN));
     if (sm->cooling) {
-        if (sm->settle_c >= off + SETTLE_MARGIN_C || !model_fits) {
+        if (sm->settle_c >= off + TUNED(settle_margin_c, SETTLE_MARGIN_C) || !model_fits) {
             sm->cooling = false; /* heading hot after all, or the estimate is climbing: the profile does not fit */
         }
-    } else if (sm->settle_c < off - SETTLE_MARGIN_C && isfinite(sm->settle_drift_c_per_min) &&
-               sm->settle_drift_c_per_min <= SETTLE_MAX_DRIFT_C_PER_MIN) {
+    } else if (sm->settle_c < off - TUNED(settle_margin_c, SETTLE_MARGIN_C) && isfinite(sm->settle_drift_c_per_min) &&
+               sm->settle_drift_c_per_min <= TUNED(settle_max_drift_c_per_min, SETTLE_MAX_DRIFT_C_PER_MIN)) {
         sm->cooling = true; /* below the cooking temperature, and stable: the cooling model fits */
         sm->cooling_since_ms = now_ms;
     }
@@ -292,8 +323,9 @@ static void judge_heat(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_
  */
 static uint32_t cooling_hold_max_ms(const safety_sm_t *sm)
 {
-    const float by_tau_ms = COOLING_HOLD_TAUS * sm->cfg.cookware_tau_s * 1000.0f;
-    return by_tau_ms < (float)COOLING_HOLD_MAX_MS ? (uint32_t)by_tau_ms : COOLING_HOLD_MAX_MS;
+    const float by_tau_ms = TUNED(cooling_hold_taus, COOLING_HOLD_TAUS) * sm->cfg.cookware_tau_s * 1000.0f;
+    const uint32_t max_ms = TUNED(cooling_hold_max_ms, COOLING_HOLD_MAX_MS);
+    return by_tau_ms < (float)max_ms ? (uint32_t)by_tau_ms : max_ms;
 }
 
 static safety_hold_t hold_reason(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now, bool due, bool person_returned)
@@ -344,15 +376,15 @@ static void update_tier(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now
         return; /* camera away: keep the tier we had (hot oil does not become safe because the camera stopped) */
     }
     const float t = in->cooking_temp_c, rate = sm->trend_rate_c_per_min;
-    const safety_tier_t up = tier_for(&sm->cfg, t, rate, 0.0f), down = tier_for(&sm->cfg, t, rate, TIER_HYST_C);
+    const safety_tier_t up = tier_for(&sm->cfg, t, rate, 0.0f), down = tier_for(&sm->cfg, t, rate, TUNED(tier_hyst_c, TIER_HYST_C));
     safety_tier_t target = sm->tier;
     uint32_t persist = 0;
     if (up > sm->tier) {
         target = up;
-        persist = TIER_UP_PERSIST_MS;
+        persist = TUNED(tier_up_persist_ms, TIER_UP_PERSIST_MS);
     } else if (down < sm->tier) {
         target = down;
-        persist = TIER_DOWN_PERSIST_MS;
+        persist = TUNED(tier_down_persist_ms, TIER_DOWN_PERSIST_MS);
     }
     if (target == sm->tier) {
         sm->tier_pending = sm->tier;
@@ -660,7 +692,9 @@ static bool g_shutdown_unheld(safety_sm_t *sm, const safety_inputs_t *in, const 
 {
     update_hold(sm, in, e, now, e->shutdown_due);
     /* A timeline that was held, or whose limits got shorter, does not jump straight to the shutdown: the buzzer sounds first. */
-    const uint32_t dwell_ms = sm->held_once ? WARNING_MIN_AFTER_HOLD_MS : (sm->late_warning ? LATE_WARNING_MIN_MS : 0);
+    const uint32_t dwell_ms = sm->held_once     ? TUNED(warning_min_after_hold_ms, WARNING_MIN_AFTER_HOLD_MS)
+                              : sm->late_warning ? TUNED(late_warning_min_ms, LATE_WARNING_MIN_MS)
+                                                 : 0;
     return e->shutdown_due && sm->hold == SAFETY_HOLD_NONE && elapsed(now, sm->state_entered_ms, dwell_ms);
 }
 

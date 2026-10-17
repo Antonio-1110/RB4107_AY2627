@@ -62,5 +62,6 @@ safety_config_t rb_safety_config_from_kconfig(void)
 #if CONFIG_RB_SAFETY_COOKING_TREND
     cfg.cookware_tau_s = safety_cookware_tau_s(cfg.cookware);
 #endif
+    safety_config_fill_defaults(&cfg); /* the built-in fine tuning, so it can be reported and changed */
     return cfg;
 }

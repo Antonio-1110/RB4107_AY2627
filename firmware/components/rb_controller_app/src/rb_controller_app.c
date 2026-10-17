@@ -42,7 +42,7 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 }
 
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || \
-    CONFIG_RB_CTRL_REMOTE_ATTENDANCE || CONFIG_RB_CTRL_REMOTE_RADAR_RULES
+    CONFIG_RB_CTRL_REMOTE_ATTENDANCE || CONFIG_RB_CTRL_REMOTE_RADAR_RULES || CONFIG_RB_CTRL_REMOTE_PARAMS
 /* The dashboard's cooking temperature, cookware profile and temperature tiers, saved so they survive a reboot. */
 #define NVS_NAMESPACE "rb_safety"
 #define NVS_KEY_COOKING "cook_dc"
@@ -50,6 +50,7 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #define NVS_KEY_TIERS "tiers"
 #define NVS_KEY_ATTENDANCE "attend"
 #define NVS_KEY_RADAR "radar"
+#define NVS_KEY_PARAMS "params"
 
 static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
 {
@@ -368,6 +369,84 @@ static void set_attendance(const rb_ctrl_cmd_t *cmd)
 }
 #endif
 
+#if CONFIG_RB_CTRL_REMOTE_PARAMS
+typedef struct {
+    uint8_t version; /* 1 */
+    uint32_t layout; /* rb_params_layout_hash() of the firmware that saved it */
+    rb_params_t params;
+} saved_params_t;
+
+static void params_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return;
+    }
+    saved_params_t saved;
+    size_t len = sizeof(saved);
+    if (nvs_get_blob(h, NVS_KEY_PARAMS, &saved, &len) == ESP_OK) {
+        if (len == sizeof(saved) && saved.version == 1 && saved.layout == rb_params_layout_hash() &&
+            rb_params_in_range(&saved.params)) {
+            rb_controller_set_params(&saved.params);
+            ESP_LOGW(TAG, "other safety settings saved from the dashboard");
+        } else {
+            ESP_LOGW(TAG, "saved safety settings are from other firmware: menuconfig values until the dashboard sends new ones");
+        }
+    }
+    nvs_close(h);
+}
+
+/* params == NULL: forget the saved values (back to menuconfig at the next boot too). */
+static void params_save(const rb_params_t *params)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the safety settings last until the next reboot");
+        return;
+    }
+    esp_err_t err;
+    if (params == NULL) {
+        err = nvs_erase_key(h, NVS_KEY_PARAMS);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    } else {
+        const saved_params_t saved = {.version = 1, .layout = rb_params_layout_hash(), .params = *params};
+        err = nvs_set_blob(h, NVS_KEY_PARAMS, &saved, sizeof(saved));
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "safety settings not saved (%s): they last until the next reboot", esp_err_to_name(err));
+    }
+}
+
+/* MQTT task: the dashboard's other safety settings, or back to menuconfig. */
+static void set_params(const rb_ctrl_cmd_t *cmd)
+{
+    if (cmd->action == RB_CTRL_ACTION_PARAMS_DEFAULTS) {
+        ESP_LOGW(TAG, "other safety settings: menuconfig values (request %u)", (unsigned)cmd->request_id);
+        rb_controller_set_params(NULL);
+        params_save(NULL);
+        return;
+    }
+    ESP_LOGW(TAG, "other safety settings from the dashboard (request %u)", (unsigned)cmd->request_id);
+    rb_controller_set_params(&cmd->params); /* the safety task refuses inconsistent values and keeps the ones in use */
+    params_save(&cmd->params);
+}
+#endif
+
+/* Safety task: the settings of rb_params.def that live outside it. */
+static void params_applied(const rb_params_target_t *target, void *ctx)
+{
+    rb_outputs_set_verify_period_ms(target->verify_period_ms);
+#if CONFIG_RB_CTRL_VALVE_WIRELESS
+    rb_valve_link_set_keepalive_ms(target->valve_keepalive_ms);
+#endif
+}
+
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP && !CONFIG_RB_SIM_NODE
 /* The thermal node's MAC, learned from its packets, so the cooking temperature can reach it. */
 static portMUX_TYPE s_thermal_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -452,7 +531,7 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 
 #if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || \
     CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || CONFIG_RB_CTRL_REMOTE_ATTENDANCE || \
-    CONFIG_RB_CTRL_REMOTE_RADAR_RULES
+    CONFIG_RB_CTRL_REMOTE_RADAR_RULES || CONFIG_RB_CTRL_REMOTE_PARAMS
 #define RB_CTRL_COMMANDS 1
 /* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
@@ -536,6 +615,14 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard radar rules refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_PARAMS:
+    case RB_CTRL_ACTION_PARAMS_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_PARAMS
+        set_params(&cmd);
+#else
+        ESP_LOGW(TAG, "dashboard safety settings refused: turned off in menuconfig");
+#endif
+        break;
     }
 }
 
@@ -575,6 +662,7 @@ esp_err_t rb_controller_app_start(void)
 #if CONFIG_RB_CTRL_VALVE_WIRELESS
         .valve_packet = valve_packet,
 #endif
+        .params_applied = params_applied,
     };
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
     cooking_temp_load(); /* applied at the first safety step */
@@ -590,6 +678,9 @@ esp_err_t rb_controller_app_start(void)
 #endif
 #if CONFIG_RB_CTRL_REMOTE_RADAR_RULES
     radar_rules_load();
+#endif
+#if CONFIG_RB_CTRL_REMOTE_PARAMS
+    params_load();
 #endif
     ESP_RETURN_ON_ERROR(rb_controller_start(&cfg, &hooks), TAG, "safety task");
 #if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT
