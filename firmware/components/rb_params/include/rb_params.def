@@ -1,0 +1,96 @@
+/*
+ * The controller's other safety settings, which the dashboard can change: every number and choice
+ * in the safety rules table (safety_rules.def) that has no card of its own on the dashboard.
+ * One row per setting:
+ *
+ *   RB_PARAM(key, kind, min, max, source, options, label, get, set)
+ *
+ *   key      the name in the "params" command and in telemetry safety.params
+ *   kind     the unit of the value on the wire (always an unsigned integer):
+ *              MS milliseconds, DC 0.1 degC, DC_PER_MIN 0.1 degC/min, TENTHS 0.1,
+ *              COUNT a plain number, BOOL 0/1, CHOICE an index into options
+ *   min, max the range the dashboard and the controller accept
+ *   source   where the menuconfig/built-in value comes from: the Kconfig option or safety.c constant the
+ *            rules table names, so the dashboard can show the live value in the rules text
+ *   options  CHOICE: the Kconfig choice members in enum order; BOOL: "off|on"; otherwise ""
+ *   label    shown on the dashboard
+ *   get      the value in force, from t (const rb_params_target_t *)
+ *   set      apply v (uint32_t, already range-checked) to t (rb_params_target_t *)
+ *
+ * tools/safety_rules.py reads this table: it writes the dashboard's and Django's copy
+ * (frontend/js/safety_rules_data.js, django/ingest/safety_params.json) and the schema entries, and
+ * `check` fails if a setting in the rules table can't be changed from the dashboard.
+ */
+
+/* Policies */
+RB_PARAM(shutdown_timing, CHOICE, 0, 1, RB_SAFETY_SHUTDOWN_TIMING,
+         "RB_SAFETY_SHUTDOWN_FROM_UNATTENDED|RB_SAFETY_SHUTDOWN_FROM_WARNING", "Shutdown time counts from",
+         t->safety.shutdown_timing, t->safety.shutdown_timing = (safety_shutdown_timing_t)v)
+RB_PARAM(warning_exit, CHOICE, 0, 1, RB_SAFETY_WARNING_EXIT,
+         "RB_SAFETY_WARNING_EXIT_PRESENCE|RB_SAFETY_WARNING_EXIT_ACK", "Someone comes back during WARNING",
+         t->safety.warning_exit, t->safety.warning_exit = (safety_warning_exit_t)v)
+RB_PARAM(cooling_policy, CHOICE, 0, 1, RB_SAFETY_COOLING,
+         "RB_SAFETY_COOLING_KEEP_TIMERS|RB_SAFETY_COOLING_RETURN_TO_IDLE", "The pan cools down while unattended",
+         t->safety.cooling_policy, t->safety.cooling_policy = (safety_cooling_policy_t)v)
+RB_PARAM(cooking_trend, BOOL, 0, 1, RB_SAFETY_COOKING_TREND, "off|on", "Judge from the temperature trend",
+         t->safety.cookware_tau_s > 0.0f,
+         t->safety.cookware_tau_s = v ? safety_cookware_tau_s(t->safety.cookware) : 0.0f)
+
+/* Cooking on or off */
+RB_PARAM(heat_on_rate_dc_per_min, DC_PER_MIN, 0, 10000, RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN, "",
+         "Also cooking when rising this fast, 0 = off",
+         (uint32_t)lroundf(t->safety.heat_on_rate_c_per_min * 10.0f), t->safety.heat_on_rate_c_per_min = v / 10.0f)
+RB_PARAM(heat_off_gap_dc, DC, 0, 1000, RB_SAFETY_HEAT_ON_DC - RB_SAFETY_HEAT_OFF_DC, "",
+         "Cooking is over this far below the cooking temperature",
+         (uint32_t)lroundf((t->safety.heat_on_temp_c - t->safety.heat_off_temp_c) * 10.0f),
+         t->safety.heat_off_temp_c = fmaxf(t->safety.heat_on_temp_c - v / 10.0f, 0.0f))
+
+/* Faults and self-test */
+RB_PARAM(fault_shutdown_ms, MS, 0, 3600000, RB_SAFETY_FAULT_SHUTDOWN_S, "", "FAULT shuts down after, 0 = never",
+         t->safety.fault_shutdown_timeout_ms, t->safety.fault_shutdown_timeout_ms = v)
+RB_PARAM(self_test_timeout_ms, MS, 1000, 120000, RB_SAFETY_SELF_TEST_TIMEOUT_MS, "",
+         "Self-test result needed within, at boot",
+         t->safety.self_test_timeout_ms, t->safety.self_test_timeout_ms = v)
+RB_PARAM(verify_period_ms, MS, 100, 60000, RB_SHUTDOWN_VERIFY_PERIOD_MS, "", "Read back the shutdown output every",
+         t->verify_period_ms, t->verify_period_ms = v)
+RB_PARAM(node_stale_ms, MS, 200, 60000, RB_CTRL_NODE_STALE_MS, "", "A sensor node is STALE after silence of",
+         t->health.stale_timeout_ms, t->health.stale_timeout_ms = v)
+RB_PARAM(node_offline_ms, MS, 500, 600000, RB_CTRL_NODE_OFFLINE_MS, "", "A sensor node is OFFLINE after silence of",
+         t->health.offline_timeout_ms, t->health.offline_timeout_ms = v)
+RB_PARAM(valve_keepalive_ms, MS, 100, 2500, RB_CTRL_VALVE_KEEPALIVE_MS, "",
+         "Wireless valve KEEP_OPEN every, under the valve's 3 s",
+         t->valve_keepalive_ms, t->valve_keepalive_ms = v)
+
+/* Temperature tiers */
+RB_PARAM(tier_up_persist_ms, MS, 100, 60000, TIER_UP_PERSIST_MS, "", "A hotter tier takes over after holding",
+         t->safety.tier_up_persist_ms, t->safety.tier_up_persist_ms = v)
+RB_PARAM(tier_down_persist_ms, MS, 100, 600000, TIER_DOWN_PERSIST_MS, "", "A cooler tier takes over after holding",
+         t->safety.tier_down_persist_ms, t->safety.tier_down_persist_ms = v)
+RB_PARAM(tier_hyst_dc, DC, 1, 500, TIER_HYST_C, "", "A cooler tier also needs the pan this far below its threshold",
+         (uint32_t)lroundf(t->safety.tier_hyst_c * 10.0f), t->safety.tier_hyst_c = v / 10.0f)
+RB_PARAM(late_warning_min_ms, MS, 1000, 300000, LATE_WARNING_MIN_MS, "",
+         "Buzzer before a shutdown that was already due",
+         t->safety.late_warning_min_ms, t->safety.late_warning_min_ms = v)
+
+/* Temperature trend and the cooling hold */
+RB_PARAM(trend_window_ms, MS, 10000, 250000, TREND_DEFAULT_WINDOW_MS, "", "Trend window",
+         t->safety.trend_window_ms, t->safety.trend_window_ms = v)
+RB_PARAM(trend_min_span_ms, MS, 10000, 250000, TREND_MIN_SPAN_MS, "", "Trend needs at least this much history",
+         t->safety.trend_min_span_ms, t->safety.trend_min_span_ms = v)
+RB_PARAM(trend_min_samples, COUNT, 3, 128, TREND_MIN_SAMPLES, "", "Trend needs at least this many samples (one per 2 s)",
+         t->safety.trend_min_samples, t->safety.trend_min_samples = (uint16_t)v)
+RB_PARAM(settle_margin_dc, DC, 1, 500, SETTLE_MARGIN_C, "", "Cooling margin around the off temperature",
+         (uint32_t)lroundf(t->safety.settle_margin_c * 10.0f), t->safety.settle_margin_c = v / 10.0f)
+RB_PARAM(settle_max_drift_dc_per_min, DC_PER_MIN, 1, 1000, SETTLE_MAX_DRIFT_C_PER_MIN, "",
+         "Prediction may climb this fast to start a cooling hold",
+         (uint32_t)lroundf(t->safety.settle_max_drift_c_per_min * 10.0f), t->safety.settle_max_drift_c_per_min = v / 10.0f)
+RB_PARAM(settle_exit_drift_dc_per_min, DC_PER_MIN, 1, 1000, SETTLE_EXIT_DRIFT_C_PER_MIN, "",
+         "A cooling hold ends when the prediction climbs faster than",
+         (uint32_t)lroundf(t->safety.settle_exit_drift_c_per_min * 10.0f), t->safety.settle_exit_drift_c_per_min = v / 10.0f)
+RB_PARAM(cooling_hold_max_ms, MS, 60000, 14400000, COOLING_HOLD_MAX_MS, "", "A cooling hold lasts at most",
+         t->safety.cooling_hold_max_ms, t->safety.cooling_hold_max_ms = v)
+RB_PARAM(cooling_hold_taus_x10, TENTHS, 1, 200, COOLING_HOLD_TAUS, "", "A cooling hold lasts at most this many time constants",
+         (uint32_t)lroundf(t->safety.cooling_hold_taus * 10.0f), t->safety.cooling_hold_taus = v / 10.0f)
+RB_PARAM(warning_min_after_hold_ms, MS, 1000, 600000, WARNING_MIN_AFTER_HOLD_MS, "",
+         "Buzzer before the shutdown after any hold",
+         t->safety.warning_min_after_hold_ms, t->safety.warning_min_after_hold_ms = v)

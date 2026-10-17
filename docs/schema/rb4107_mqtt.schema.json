@@ -190,7 +190,13 @@
                 "off_c": {"$ref": "#/$defs/nullable_number"},
                 "source": {"enum": ["menuconfig", "dashboard"]}
               }
-            }
+            },
+            "params": {
+              "type": "object",
+              "description": "every other safety setting in force, by the keys of the controller_command params action (firmware/components/rb_params/include/rb_params.def), in the same units",
+              "additionalProperties": {"type": "integer", "minimum": 0}
+            },
+            "params_source": {"enum": ["menuconfig", "dashboard"], "description": "dashboard = params set from the dashboard and saved on the controller"}
           }
         },
         "faults": {"type": "array", "items": {"type": "string"}}
@@ -404,7 +410,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values; params = set every other safety setting (the keys marked params: below, all of them, from firmware/components/rb_params/include/rb_params.def), saved on the controller; params_defaults = back to the menuconfig and built-in values (docs/remote_reset.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -414,7 +420,8 @@
         "controller_id": {"type": "string", "minLength": 1, "maxLength": 39},
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
         "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "cooking_temp",
-                            "cooking_temp_defaults", "cookware", "cookware_defaults", "tiers", "tiers_defaults", "attendance", "attendance_defaults", "radar_rules", "radar_rules_defaults"]},
+                            "cooking_temp_defaults", "cookware", "cookware_defaults", "tiers", "tiers_defaults", "attendance", "attendance_defaults", "radar_rules", "radar_rules_defaults",
+                            "params", "params_defaults"]},
         "radar_mode": {"enum": ["off", "observe", "enforce"]},
         "radar_quiet_gap_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "radar_dwell_ms": {"type": "integer", "minimum": 0, "maximum": 60000},
@@ -439,7 +446,32 @@
         "return_gap_ms": {"type": "integer", "minimum": 0, "maximum": 5000},
         "warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
-        "cooking_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000}
+        "cooking_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "shutdown_timing": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Shutdown time counts from (0 = start of UNATTENDED (total unattended time), 1 = start of WARNING)"},
+        "warning_exit": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Someone comes back during WARNING (0 = return to MONITORING, 1 = stay in WARNING until the person acknowledges (reset input))"},
+        "cooling_policy": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: The pan cools down while unattended (0 = keep the timers running (old behaviour: shuts a cold stove off), 1 = return to IDLE and cancel the timers)"},
+        "cooking_trend": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Judge from the temperature trend (0 = off, 1 = on)"},
+        "heat_on_rate_dc_per_min": {"type": "integer", "minimum": 0, "maximum": 10000, "description": "params: Also cooking when rising this fast, 0 = off (dc per min)"},
+        "heat_off_gap_dc": {"type": "integer", "minimum": 0, "maximum": 1000, "description": "params: Cooking is over this far below the cooking temperature (dc)"},
+        "fault_shutdown_ms": {"type": "integer", "minimum": 0, "maximum": 3600000, "description": "params: FAULT shuts down after, 0 = never (ms)"},
+        "self_test_timeout_ms": {"type": "integer", "minimum": 1000, "maximum": 120000, "description": "params: Self-test result needed within, at boot (ms)"},
+        "verify_period_ms": {"type": "integer", "minimum": 100, "maximum": 60000, "description": "params: Read back the shutdown output every (ms)"},
+        "node_stale_ms": {"type": "integer", "minimum": 200, "maximum": 60000, "description": "params: A sensor node is STALE after silence of (ms)"},
+        "node_offline_ms": {"type": "integer", "minimum": 500, "maximum": 600000, "description": "params: A sensor node is OFFLINE after silence of (ms)"},
+        "valve_keepalive_ms": {"type": "integer", "minimum": 100, "maximum": 2500, "description": "params: Wireless valve KEEP_OPEN every, under the valve's 3 s (ms)"},
+        "tier_up_persist_ms": {"type": "integer", "minimum": 100, "maximum": 60000, "description": "params: A hotter tier takes over after holding (ms)"},
+        "tier_down_persist_ms": {"type": "integer", "minimum": 100, "maximum": 600000, "description": "params: A cooler tier takes over after holding (ms)"},
+        "tier_hyst_dc": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: A cooler tier also needs the pan this far below its threshold (dc)"},
+        "late_warning_min_ms": {"type": "integer", "minimum": 1000, "maximum": 300000, "description": "params: Buzzer before a shutdown that was already due (ms)"},
+        "trend_window_ms": {"type": "integer", "minimum": 10000, "maximum": 250000, "description": "params: Trend window (ms)"},
+        "trend_min_span_ms": {"type": "integer", "minimum": 10000, "maximum": 250000, "description": "params: Trend needs at least this much history (ms)"},
+        "trend_min_samples": {"type": "integer", "minimum": 3, "maximum": 128, "description": "params: Trend needs at least this many samples (one per 2 s) (count)"},
+        "settle_margin_dc": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: Cooling margin around the off temperature (dc)"},
+        "settle_max_drift_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: Prediction may climb this fast to start a cooling hold (dc per min)"},
+        "settle_exit_drift_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: A cooling hold ends when the prediction climbs faster than (dc per min)"},
+        "cooling_hold_max_ms": {"type": "integer", "minimum": 60000, "maximum": 14400000, "description": "params: A cooling hold lasts at most (ms)"},
+        "cooling_hold_taus_x10": {"type": "integer", "minimum": 1, "maximum": 200, "description": "params: A cooling hold lasts at most this many time constants (tenths)"},
+        "warning_min_after_hold_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "description": "params: Buzzer before the shutdown after any hold (ms)"}
       },
       "allOf": [
         {

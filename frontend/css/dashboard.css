@@ -1684,6 +1684,10 @@ body[data-view="detail"] .heading {
   gap: 4px;
   margin: 0 0 10px;
   border-bottom: 1px solid var(--line);
+  overflow-x: auto; /* five tabs don't fit a phone: the bar scrolls, not the page */
+}
+.dv-tabs button {
+  flex: none;
 }
 .dv-tabs button {
   border: 0;
@@ -2070,4 +2074,14 @@ body[data-view="detail"] .safety-note {
 .logic-val.default {
   color: var(--muted, #6b7280);
   font-weight: 600;
+}
+
+/* Other settings (Tuning > Logic): one grid per group of rb_params.def */
+#pr-block {
+  margin-bottom: 18px;
+}
+.params-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  align-items: end; /* inputs line up when a label wraps */
+  margin-bottom: 10px;
 }

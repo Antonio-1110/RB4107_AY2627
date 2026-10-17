@@ -8,6 +8,7 @@
 import RULES from "./safety_rules_data.js";
 import { $, make } from "./dom.js";
 import { when } from "./format.js";
+import { PARAMS, paramText } from "./params.js";
 
 const HOLD_RULE = { cooling: "D2", return: "D3" };
 const HOLD_TEXT = {
@@ -18,9 +19,10 @@ const HOLD_TEXT = {
 let device = null,
   events = [];
 
-// The generated text marks each setting as {{NAME|menuconfig default}}. LIVE maps the
-// ones the controller reports to its telemetry value; tune: true marks the ones the
-// dashboard's Tuning cards can change. Anything else shows its menuconfig default.
+// The generated text marks each setting as {{NAME|menuconfig default}}. LIVE maps the ones the
+// Rules tab's cards change to their telemetry value (tune: true; tools/safety_rules.py check reads
+// these names); every other one is a setting of rb_params.def, reported in values.params and changed
+// under Other settings. Anything not reported shows its menuconfig default.
 const num = (v) => typeof v === "number" && Number.isFinite(v);
 const trim = (v) => String(Math.round(v * 10) / 10);
 const secs = (v) => (num(v) ? `${trim(v)} s` : null);
@@ -35,7 +37,6 @@ const RADAR_MODE = {
   enforce: "enforce: a radar that only sees someone passing does not count as at the stove",
 };
 const COOKWARE = { mixed: "mixed / unknown", light: "light pans", heavy: "heavy pans", liquid: "pots with liquid" };
-const COUNTS_FROM = { UNATTENDED: "start of UNATTENDED (total unattended time)", WARNING: "start of WARNING" };
 
 const pf = (key) => (v) => secs(from(v, "presence_filter", key));
 const tier = (t, key, fmt) => (v) => fmt(from(v, "tiers", t, key));
@@ -54,7 +55,6 @@ const LIVE = {
   RB_CTRL_PRESENCE_FUSION: { tune: true, get: (v) => FUSION[from(v, "presence_filter", "fusion")] || null },
   RB_SAFETY_WARNING_TIMEOUT_S: { tune: true, get: (v) => secs(v.warning_after_seconds) },
   RB_SAFETY_SHUTDOWN_TIMEOUT_S: { tune: true, get: (v) => secs(v.shutdown_after_seconds) },
-  RB_SAFETY_SHUTDOWN_TIMING: { tune: false, get: (v) => COUNTS_FROM[v.shutdown_counts_from] || null },
   RB_SAFETY_COOKWARE: {
     tune: true,
     get: (v) =>
@@ -79,6 +79,15 @@ const LIVE = {
     get: (v) => (num(from(v, "radar_rules", "settle_span_cm")) ? `${v.radar_rules.settle_span_cm} cm` : null),
   },
 };
+
+// Settings of rb_params.def, by the name the rules text uses.
+for (const p of PARAMS) {
+  if (!LIVE[p.source])
+    LIVE[p.source] = {
+      tune: true,
+      get: (v) => (v.params && typeof v.params[p.key] === "number" ? paramText(p, v.params[p.key]) : null),
+    };
+}
 
 function value(name, fallback) {
   const unquoted = fallback.replace(/^"(.*)"$/, "$1");

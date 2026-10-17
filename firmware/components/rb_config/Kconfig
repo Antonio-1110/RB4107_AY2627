@@ -922,6 +922,21 @@ menu "RB4107 configuration"
                     controller refuses inconsistent values (a shutdown not
                     after its warning, CRITICAL below ELEVATED).
 
+            config RB_CTRL_REMOTE_PARAMS
+                bool "Accept the other safety settings from the dashboard"
+                default y
+                help
+                    A "params" command on <prefix>/controller/command replaces
+                    every other number and choice in the safety rules
+                    (firmware/components/rb_params/include/rb_params.def): where
+                    the shutdown counts from, the cooling and warning-exit
+                    policies, the trend on or off, the heat-on rate, the off gap,
+                    the fault shutdown, self-test, node and valve timings, and the
+                    fine tuning of the tiers, the trend and the holds. Saved on
+                    the controller, so it survives a reboot, until the dashboard
+                    sends "params_defaults". The controller refuses inconsistent
+                    values and keeps the ones in use.
+
             config RB_CTRL_RX_QUEUE_LEN
                 int "ESP-NOW receive queue length"
                 range 4 64

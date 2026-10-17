@@ -3,5 +3,5 @@
 # lower-priority tasks.
 idf_component_register(SRCS "src/rb_controller.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES safety sensor_node rb_espnow rb_protocol freertos
+                       REQUIRES safety sensor_node rb_params rb_espnow rb_protocol freertos
                        PRIV_REQUIRES rb_config rb_safety_config rb_time rb_log)

@@ -12,11 +12,21 @@ and [`docs/safety_rules.md`](docs/safety_rules.md) and the dashboard's copy
 read the codebase to describe the rules, and never edit either generated file
 by hand.
 
+Every number and choice in the rules can be changed from the dashboard: the
+Rules tab's cards cover some, and every other one is a row of
+[`firmware/components/rb_params/include/rb_params.def`](firmware/components/rb_params/include/rb_params.def)
+(the "params" command, the Logic tab's Other settings card). The same script
+generates `django/ingest/safety_params.json` and the params keys of the MQTT
+schema from it.
+
 Every task, before you finish (and before opening or updating a PR):
 
 1. Run `python3 tools/safety_rules.py check`. It must pass. It fails when:
-   - the doc or the dashboard copy is out of date (run
-     `python3 tools/safety_rules.py gen`);
+   - the doc, the dashboard copy, `safety_params.json` or the schema's params
+     keys are out of date (run `python3 tools/safety_rules.py gen`);
+   - a setting the rules text names (`{NAME}`) can't be changed from the
+     dashboard: add a row to `rb_params.def` (or a card and its `LIVE` entry
+     in `frontend/js/safety_logic.js`);
    - the table names a guard, action or function that doesn't exist;
    - a function the table names (or `evaluate()`, `transition()`,
      `on_enter()`, `on_exit()`) changed on your branch but the table didn't.

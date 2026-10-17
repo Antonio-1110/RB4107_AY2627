@@ -160,4 +160,4 @@ SAFETY_SIGNAL(X1, "rb_valve_link/src/rb_valve_link.c", link_task,
     "Valve CLOSE; otherwise KEEP_OPEN every {RB_CTRL_VALVE_KEEPALIVE_MS}")
 SAFETY_SIGNAL(X2, "rb_controller/src/rb_controller.c", safety_task,
     "MQTT, Django, the laptop or the network is down",
-    "No effect on any rule: the safety task never waits on them")
+    "No effect on any rule: the safety task never waits on them, and the settings the dashboard gave it stay in force (saved on the controller)")

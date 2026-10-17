@@ -82,7 +82,9 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
 The state machine runs from `firmware/components/safety/src/safety_rules.def`,
 and [`docs/safety_rules.md`](../safety_rules.md) is generated from it
 (`tools/safety_rules.py`). Change behaviour in the table, regenerate, and run
-the check before finishing; see [`CLAUDE.md`](../../CLAUDE.md).
+the check before finishing; see [`CLAUDE.md`](../../CLAUDE.md). Every setting the
+rules name is tunable from the dashboard; the ones without a card of their own
+are in `firmware/components/rb_params/include/rb_params.def`.
 
 ## How the user likes to work
 

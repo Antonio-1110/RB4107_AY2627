@@ -32,6 +32,7 @@ frontend/
     ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
     ├── mode.js       Monitor / Tuning mode, tuning tabs, overview layout, colour theme
     ├── safety_logic.js        Safety logic card: current state, next rules, last rule fired
+    ├── params.js              Other settings (Tuning > Logic): every setting in rb_params.def
     ├── safety_rules_data.js   the controller's rules table, generated (tools/safety_rules.py gen)
     ├── dom.js        small DOM helpers
     └── format.js     value formatting
@@ -117,8 +118,10 @@ The overview has a **Tiles | Table** switch and a one-row fleet strip. A
 state machine runs, so the card can't drift from the firmware;
 `tools/safety_rules.py check` fails if it is stale. Each setting in the text
 (`{{NAME|default}}`) shows the value the controller reports (map in `LIVE` in
-`safety_logic.js`), falling back to the menuconfig default in grey; settings a
-Tuning card can change are underlined. The current
+`safety_logic.js`, plus every setting of `rb_params.def` from `safety.params`),
+falling back to the menuconfig default in grey. In Tuning, the card's **Other
+settings** block (`params.js`) edits every setting the Rules tab's cards don't
+cover, built from the same generated table. The current
 state comes from `safety.state`, a hold from `safety.hold`, and the last rule
 that fired is matched from the newest event's `safety.reason` and
 `from_state`.

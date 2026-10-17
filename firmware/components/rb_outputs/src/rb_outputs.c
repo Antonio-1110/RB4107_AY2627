@@ -12,6 +12,7 @@ static const char *TAG = "OUTPUT";
 static bool s_relay_ok;
 static bool s_relay_fault;
 static uint32_t s_last_verify_ms;
+static uint32_t s_verify_period_ms = CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS; /* written and read in the safety task */
 
 static buzzer_pattern_t pattern_for(safety_buzzer_t request)
 {
@@ -61,7 +62,7 @@ void rb_outputs_apply(const safety_outputs_t *outputs)
     }
     esp_err_t err = outputs->shutdown ? shutdown_activate() : shutdown_release();
     const uint32_t now = rb_time_mono_ms();
-    if (err == ESP_OK && rb_time_elapsed(now, s_last_verify_ms, CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS)) {
+    if (err == ESP_OK && rb_time_elapsed(now, s_last_verify_ms, s_verify_period_ms)) {
         s_last_verify_ms = now;
         err = shutdown_verify();
     }
@@ -78,4 +79,9 @@ void rb_outputs_apply(const safety_outputs_t *outputs)
 bool rb_outputs_fault(void)
 {
     return s_relay_fault;
+}
+
+void rb_outputs_set_verify_period_ms(uint32_t period_ms)
+{
+    s_verify_period_ms = period_ms > 0 ? period_ms : CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS;
 }

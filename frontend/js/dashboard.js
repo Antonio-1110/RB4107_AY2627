@@ -18,6 +18,7 @@ import { renderPresenceFilter } from "./presence_filter.js";
 import { renderCountdown } from "./countdown.js";
 import { renderCookware } from "./cookware.js";
 import { renderTiers } from "./tiers.js";
+import { renderParams } from "./params.js";
 import { renderAttendance } from "./attendance.js";
 import { renderRadarRules } from "./radar_rules.js";
 import "./mode.js";
@@ -501,6 +502,7 @@ function renderDevice(device) {
   renderCountdown(device);
   renderCookware(device);
   renderTiers(device);
+  renderParams(device);
   renderAttendance(device);
   renderRadarRules(device);
   renderTuning(device);

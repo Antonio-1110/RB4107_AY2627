@@ -26,6 +26,7 @@ static uint32_t s_fed_ms;
 static bool s_have_status;
 static rb_valve_status_t s_status;
 static uint32_t s_status_ms;
+static uint32_t s_keepalive_ms = CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS;
 
 void rb_valve_link_set_shutdown(bool shutdown)
 {
@@ -106,11 +107,12 @@ static void link_task(void *arg)
         const bool shutdown = s_shutdown;
         const bool have_status = s_have_status;
         const uint32_t status_age = now - s_status_ms;
+        const uint32_t keepalive_ms = s_keepalive_ms;
         portEXIT_CRITICAL(&s_lock);
 
         /* No word from the safety task: nobody is vouching that it is safe. */
         const bool close = shutdown || !fed;
-        if (first || close != sent_close || rb_time_elapsed(now, last_send, CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS)) {
+        if (first || close != sent_close || rb_time_elapsed(now, last_send, keepalive_ms)) {
             if (first || close != sent_close) {
                 if (close) {
                     ESP_LOGW(TAG, "commanding valve CLOSE (%s)", shutdown ? "shutdown" : "safety task not reporting");
@@ -141,4 +143,11 @@ esp_err_t rb_valve_link_start(void)
     return xTaskCreate(link_task, "valve_link", LINK_TASK_STACK, NULL, LINK_TASK_PRIO, NULL) == pdPASS
                ? ESP_OK
                : ESP_ERR_NO_MEM;
+}
+
+void rb_valve_link_set_keepalive_ms(uint32_t period_ms)
+{
+    portENTER_CRITICAL(&s_lock);
+    s_keepalive_ms = period_ms > 0 ? period_ms : CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS;
+    portEXIT_CRITICAL(&s_lock);
 }

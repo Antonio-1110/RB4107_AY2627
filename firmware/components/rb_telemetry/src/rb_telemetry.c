@@ -23,7 +23,7 @@ static const char *TAG = "MQTT";
 
 #define TELEMETRY_STACK 6144
 #define TOPIC_LEN 96
-#define PAYLOAD_LEN 3072 /* also fits a heat-map picture: 1024 base64 characters plus ~300 */
+#define PAYLOAD_LEN 4096 /* the state with every setting (~2.7 KB with three nodes), or a heat-map picture (1024 base64 characters plus ~300) */
 
 static char s_payload[PAYLOAD_LEN];
 static char s_timestamp[32];
@@ -172,6 +172,14 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.tier2_warning_ms = snap->tiers.tier2_warning_ms;
     t->safety.tier2_shutdown_ms = snap->tiers.tier2_shutdown_ms;
     t->safety.tiers_remote = snap->tiers_remote;
+    static const char *param_keys[RB_PARAM_COUNT];
+    for (int i = 0; i < RB_PARAM_COUNT; i++) {
+        param_keys[i] = RB_PARAMS[i].key;
+    }
+    t->safety.param_keys = param_keys;
+    t->safety.param_values = snap->params.v;
+    t->safety.param_count = RB_PARAM_COUNT;
+    t->safety.params_remote = snap->params_remote;
     if (snap->nodes.rules_mode != RADAR_RULES_OFF) {
         t->safety.radar_rules = radar_rules_mode_name(snap->nodes.rules_mode);
         t->safety.radar_quiet_gap_ms = snap->nodes.rules.quiet_gap_ms;
