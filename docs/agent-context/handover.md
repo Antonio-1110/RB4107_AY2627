@@ -52,8 +52,11 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
 
 - One node per sensor. `presence_node` is one firmware flashed on two boards;
   node B is built with `sdkconfig.node_b` in its own build folder.
-- Radars combined strictly: PRESENT if either sees a person; ABSENT only if
-  both are valid and say absent; anything else is UNKNOWN (a flag; counts as absent only while cooking, never FAULT).
+- Radars combined strictly for "at the stove": ABSENT if any working radar
+  says absent, PRESENT only if every working radar sees the person, UNKNOWN
+  with no working radar (a flag; counts as absent only while cooking, never
+  FAULT). "Either radar" is a menuconfig/dashboard option
+  (`RB_CTRL_PRESENCE_FUSION`).
 - The S3 decides and does all the presence debouncing; nodes only send raw readings, on every change plus every 500 ms. The C4002 disappear delay / lock time are fixed at 0 / 0.2 s.
 - Missing data is never "safe": UNKNOWN / invalid / JSON `null`.
 - ESP-NOW protocol v2 and MQTT schema v2. Django only accepts schema v2.
@@ -73,6 +76,13 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
 - DFRobot's Arduino C4002 example repeats the last reading when no new frame
   arrives. The ESP-IDF driver here doesn't; see `firmware/testing/c4002/README.md`.
 - Flash over UART, not JTAG.
+
+## Safety rules are a table
+
+The state machine runs from `firmware/components/safety/src/safety_rules.def`,
+and [`docs/safety_rules.md`](../safety_rules.md) is generated from it
+(`tools/safety_rules.py`). Change behaviour in the table, regenerate, and run
+the check before finishing; see [`CLAUDE.md`](../../CLAUDE.md).
 
 ## How the user likes to work
 

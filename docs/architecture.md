@@ -86,17 +86,20 @@ ONLINE, the data is fresh and the sensor says it is valid. Otherwise that
 radar's presence is `UNKNOWN` and the thermal reading is invalid.
 
 **Combining the two radars (strict).** The state machine gets one presence
-value (`presence_fuse`):
+value, *at the stove* (`presence_fuse_all`, the default `RB_CTRL_PRESENCE_FUSION_ALL`):
 
 | Radar A | Radar B | Presence |
 |---|---|---|
-| PRESENT | anything | PRESENT |
-| anything | PRESENT | PRESENT |
-| ABSENT | ABSENT | ABSENT |
-| any other combination (one UNKNOWN, none PRESENT) | | UNKNOWN (flag; counts as absent while cooking) |
+| ABSENT | anything | ABSENT |
+| anything | ABSENT | ABSENT |
+| PRESENT | PRESENT or UNKNOWN | PRESENT |
+| UNKNOWN or PRESENT | PRESENT | PRESENT |
+| UNKNOWN | UNKNOWN | UNKNOWN (flag; counts as absent while cooking) |
 
-So a person seen by either radar keeps the kitchen "attended", and "nobody
-there" needs both radars working and agreeing. On top of that, every node
+So a person only counts as at the stove when every working radar sees them;
+someone seen by one radar only is *nearby* (shown on the dashboard, not used).
+The older "either radar" rule (`presence_fuse`) is still a menuconfig and
+dashboard option. On top of that, every node
 going offline or reporting an invalid sensor is its own SAFETY-class fault in
 the fault list and raises the `presence_unknown` / `thermal_lost` flags. It no
 longer puts the controller in FAULT: only the controller's own faults (failed

@@ -4,16 +4,15 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Outputs owned by each state; applied on entry. */
+/* Outputs owned by each state; applied on entry. From safety_rules.def. */
 static const safety_outputs_t STATE_OUTPUTS[SAFETY_STATE_COUNT] = {
-    [SAFETY_BOOT] = {SAFETY_BUZZER_OFF, false},
-    [SAFETY_SELF_TEST] = {SAFETY_BUZZER_OFF, false},
-    [SAFETY_IDLE] = {SAFETY_BUZZER_OFF, false},
-    [SAFETY_MONITORING] = {SAFETY_BUZZER_OFF, false},
-    [SAFETY_UNATTENDED] = {SAFETY_BUZZER_OFF, false},
-    [SAFETY_WARNING] = {SAFETY_BUZZER_WARNING, false},
-    [SAFETY_SHUTDOWN] = {SAFETY_BUZZER_SHUTDOWN, true},
-    [SAFETY_FAULT] = {SAFETY_BUZZER_FAULT, false},
+#define SAFETY_STATE(state, buzzer, shutdown) [state] = {buzzer, shutdown},
+#define SAFETY_RULE(id, from, guard, to, action, reason, when)
+#define SAFETY_SIGNAL(id, file, function, when, result)
+#include "safety_rules.def"
+#undef SAFETY_STATE
+#undef SAFETY_RULE
+#undef SAFETY_SIGNAL
 };
 
 /* Time constants of the cookware profiles (see safety.h). Estimates from typical mass and heat capacity. */
@@ -48,17 +47,17 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 
 /* Temperature tiers: a tier takes over after its temperature has held for a few seconds (a reflection
  * must not shorten the timers), and gives way only well below its threshold and for longer. */
-#define TIER_UP_PERSIST_MS 4000u
-#define TIER_DOWN_PERSIST_MS 20000u
-#define TIER_HYST_C 10.0f
+#define TIER_UP_PERSIST_MS 4000u      /* a hotter tier takes over after holding this long */
+#define TIER_DOWN_PERSIST_MS 20000u   /* a cooler one only after this long ... */
+#define TIER_HYST_C 10.0f             /* ... and this far below the threshold */
 /* A shutdown that was already due when the warning came still gives the buzzer this long. */
-#define LATE_WARNING_MIN_MS 10000u
+#define LATE_WARNING_MIN_MS 10000u    /* buzzer before a shutdown that was already due */
 
 /* Trend of the hottest pixel. */
 #define TREND_SAMPLE_MS 2000u          /* one sample per 2 s */
 #define TREND_GAP_RESET_MS 15000u      /* a longer silence starts the trend over */
 #define TREND_STALE_MS 30000u          /* no sample for this long: the trend is unknown */
-#define TREND_DEFAULT_WINDOW_MS 120000u
+#define TREND_DEFAULT_WINDOW_MS 120000u /* regression window when the config leaves it 0 */
 #define TREND_MIN_SPAN_MS 60000u       /* needs at least this much history ... */
 #define TREND_MIN_SAMPLES 12           /* ... and this many samples */
 #define TREND_HALF_LIFE_MS 30000.0f    /* recent samples count more: a pan that was steady and now cools shows up sooner */
@@ -70,15 +69,15 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
  * still relaxing, for example), the estimate climbs as the tail fades. Rising faster than
  * this over a minute means the cooling model does not fit, and heat counts as going in.
  */
-#define SETTLE_HIST_SAMPLE_MS 5000u
-#define SETTLE_DRIFT_WINDOW_MS 60000u
+#define SETTLE_HIST_SAMPLE_MS 5000u   /* the settling estimate is remembered every 5 s ... */
+#define SETTLE_DRIFT_WINDOW_MS 60000u /* ... and its rise measured over a minute */
 #define SETTLE_MAX_DRIFT_C_PER_MIN 8.0f      /* to start believing "cooling" */
 #define SETTLE_EXIT_DRIFT_C_PER_MIN 16.0f    /* to stop believing it (hysteresis: camera noise must not drop a hold) */
 #define RISING_C_PER_MIN 0.5f          /* faster than this is "heating", otherwise "holding" */
 #define COOLING_HOLD_MAX_MS 3600000u   /* a cooling hold never lasts longer than an hour ... */
 #define COOLING_HOLD_TAUS 4.0f         /* ... nor longer than 4 time constants: a pan still hot after that is not just cooling */
 /* After a hold, the buzzer sounds at least this long before the shutdown, even if the shutdown was due long ago. */
-#define WARNING_MIN_AFTER_HOLD_MS 30000u
+#define WARNING_MIN_AFTER_HOLD_MS 30000u /* buzzer before the shutdown after any hold */
 
 static bool elapsed(uint32_t now_ms, uint32_t since_ms, uint32_t timeout_ms)
 {
@@ -534,17 +533,6 @@ uint32_t safety_unattended_ms(const safety_sm_t *sm, uint32_t now_ms)
     return sm->unattended_active ? (uint32_t)(now_ms - sm->unattended_start_ms) : 0;
 }
 
-/* FAULT is for the controller itself (self-test, relay output), never for a lost sensor. */
-static bool system_ok(const safety_inputs_t *in)
-{
-    return !in->safety_fault && in->self_test == SAFETY_SELFTEST_PASS;
-}
-
-static const char *fault_reason(const safety_inputs_t *in)
-{
-    return in->self_test != SAFETY_SELFTEST_PASS ? "self-test not passed" : "safety-relevant fault active";
-}
-
 /*
  * Presence as the timers see it. UNKNOWN while cooking counts as absent (we
  * can't tell that someone is there); UNKNOWN with nothing cooking starts no
@@ -565,19 +553,175 @@ static bool present_confirmed(const safety_sm_t *sm, const safety_inputs_t *in, 
            elapsed(now, sm->present_since_ms, sm->cfg.presence_return_debounce_ms);
 }
 
-/* One evaluation pass. Returns true if a transition happened. */
+/* ---- transitions: the rules table (safety_rules.def) ---- */
+
+/* What every guard can read: worked out once per evaluation pass. */
+typedef struct {
+    bool absent_confirmed;
+    bool person_returned;
+    bool warning_due;
+    bool shutdown_due;
+    bool cooled_down;
+} eval_t;
+
+typedef bool (*rule_guard_t)(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now);
+typedef void (*rule_action_t)(safety_sm_t *sm, const eval_t *e);
+
+typedef struct {
+    uint32_t from;      /* mask of ST(state) */
+    rule_guard_t guard;
+    safety_state_t to;
+    rule_action_t action; /* runs just before the transition, or NULL */
+    const char *reason;
+} safety_rule_t;
+
+#define ST(state) (1u << (state))
+
+static bool g_always(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return true;
+}
+
+static bool g_self_test_failed(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return in->self_test == SAFETY_SELFTEST_FAIL;
+}
+
+static bool g_self_test_passed(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return in->self_test == SAFETY_SELFTEST_PASS;
+}
+
+static bool g_self_test_timeout(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return elapsed(now, sm->state_entered_ms, sm->cfg.self_test_timeout_ms);
+}
+
+/* FAULT is for the controller itself (self-test, relay output), never for a lost sensor. */
+static bool g_self_test_not_passed(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return in->self_test != SAFETY_SELFTEST_PASS;
+}
+
+static bool g_safety_fault(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return in->safety_fault;
+}
+
+static bool g_cooking(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return sm->heat_active;
+}
+
+static bool g_not_cooking(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return !sm->heat_active;
+}
+
+static bool g_absent_confirmed(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return e->absent_confirmed;
+}
+
+static bool g_person_returned(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return e->person_returned;
+}
+
+static bool g_cooled_down(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return e->cooled_down;
+}
+
+/* Work out the hold of a step that may be due (only once the rules before it did not fire). */
+static void update_hold(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now, bool due)
+{
+    sm->hold = hold_reason(sm, in, now, due, e->person_returned);
+    sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
+}
+
+static bool g_warning_unheld(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    update_hold(sm, in, e, now, e->warning_due);
+    return e->warning_due && sm->hold == SAFETY_HOLD_NONE;
+}
+
+static void a_note_late_warning(safety_sm_t *sm, const eval_t *e)
+{
+    sm->late_warning = e->shutdown_due; /* a tier got shorter while nobody was there */
+}
+
+static bool g_warning_exit(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return e->person_returned && (sm->cfg.warning_exit == SAFETY_WARNING_EXIT_ON_PRESENCE || in->reset_request);
+}
+
+static bool g_shutdown_unheld(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    update_hold(sm, in, e, now, e->shutdown_due);
+    /* A timeline that was held, or whose limits got shorter, does not jump straight to the shutdown: the buzzer sounds first. */
+    const uint32_t dwell_ms = sm->held_once ? WARNING_MIN_AFTER_HOLD_MS : (sm->late_warning ? LATE_WARNING_MIN_MS : 0);
+    return e->shutdown_due && sm->hold == SAFETY_HOLD_NONE && elapsed(now, sm->state_entered_ms, dwell_ms);
+}
+
+static bool g_reset(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return in->reset_request;
+}
+
+static bool system_ok(const safety_inputs_t *in)
+{
+    return !in->safety_fault && in->self_test == SAFETY_SELFTEST_PASS;
+}
+
+static bool g_fault_cleared_not_cooking(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return system_ok(in) && !sm->heat_active;
+}
+
+static bool g_fault_cleared_present(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return system_ok(in) && in->presence == RB_TRUE;
+}
+
+static bool g_fault_cleared(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return system_ok(in);
+}
+
+static void a_count_from_fault(safety_sm_t *sm, const eval_t *e)
+{
+    if (!sm->unattended_active) {
+        /* Nobody seen (or presence unknown while cooking): count from when the fault began. */
+        sm->unattended_active = true;
+        sm->unattended_start_ms = sm->state_entered_ms;
+    }
+}
+
+static bool g_shutdown_due(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return e->shutdown_due;
+}
+
+static bool g_fault_persisted(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+{
+    return sm->cfg.fault_shutdown_timeout_ms > 0 && elapsed(now, sm->state_entered_ms, sm->cfg.fault_shutdown_timeout_ms);
+}
+
+static const safety_rule_t RULES[] = {
+#define SAFETY_STATE(state, buzzer, shutdown)
+#define SAFETY_RULE(id, from, guard, to, action, reason, when) {from, guard, to, action, reason},
+#define SAFETY_SIGNAL(id, file, function, when, result)
+#include "safety_rules.def"
+#undef SAFETY_STATE
+#undef SAFETY_RULE
+#undef SAFETY_SIGNAL
+};
+
+/* One evaluation pass: the first rule of the current state whose guard holds. Returns true if a transition happened. */
 static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 {
     const safety_config_t *cfg = &sm->cfg;
-    /*
-     * The controller itself must be sound: a failed or never-completed
-     * self-test, or a failed shutdown output, keeps FAULT latched. A lost
-     * sensor does not (see the flags in safety_step()).
-     */
-    const bool sensors_ok = system_ok(in);
-
-    const bool absent_confirmed = sm->absent_timing && elapsed(now, sm->absent_since_ms, cfg->absence_debounce_ms);
-    const bool person_returned = present_confirmed(sm, in, now);
 
     uint32_t warning_ms = cfg->warning_timeout_ms;
     uint32_t shutdown_ms = cfg->shutdown_timeout_ms;
@@ -590,144 +734,33 @@ static bool evaluate(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
     }
     sm->eff_warning_ms = warning_ms;
     sm->eff_shutdown_ms = shutdown_ms;
-    const bool warning_due = sm->unattended_active && elapsed(now, sm->unattended_start_ms, warning_ms);
-    const bool shutdown_due = cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_UNATTENDED_START
-                                  ? sm->unattended_active && elapsed(now, sm->unattended_start_ms, shutdown_ms)
-                                  : sm->warning_started && elapsed(now, sm->warning_start_ms, shutdown_ms);
-    const bool cooled_down = !sm->heat_active && cfg->cooling_policy == SAFETY_COOLING_RETURN_TO_IDLE;
+    const eval_t e = {
+        .absent_confirmed = sm->absent_timing && elapsed(now, sm->absent_since_ms, cfg->absence_debounce_ms),
+        .person_returned = present_confirmed(sm, in, now),
+        .warning_due = sm->unattended_active && elapsed(now, sm->unattended_start_ms, warning_ms),
+        .shutdown_due = cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_UNATTENDED_START
+                            ? sm->unattended_active && elapsed(now, sm->unattended_start_ms, shutdown_ms)
+                            : sm->warning_started && elapsed(now, sm->warning_start_ms, shutdown_ms),
+        .cooled_down = !sm->heat_active && cfg->cooling_policy == SAFETY_COOLING_RETURN_TO_IDLE,
+    };
 
     sm->hold = SAFETY_HOLD_NONE;
 
-    switch (sm->state) {
-    case SAFETY_BOOT:
-        transition(sm, SAFETY_SELF_TEST, "boot complete", now);
-        return true;
-
-    case SAFETY_SELF_TEST:
-        if (in->self_test == SAFETY_SELFTEST_FAIL) {
-            transition(sm, SAFETY_FAULT, "self-test failed", now);
-            return true;
-        }
-        if (in->self_test == SAFETY_SELFTEST_PASS) {
-            transition(sm, SAFETY_IDLE, "self-test passed", now);
-            return true;
-        }
-        if (elapsed(now, sm->state_entered_ms, cfg->self_test_timeout_ms)) {
-            transition(sm, SAFETY_FAULT, "self-test timeout", now);
-            return true;
-        }
-        return false;
-
-    case SAFETY_IDLE:
-        if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, fault_reason(in), now);
-            return true;
-        }
-        if (sm->heat_active) {
-            transition(sm, SAFETY_MONITORING, "heating detected", now);
-            return true;
-        }
-        return false;
-
-    case SAFETY_MONITORING:
-        if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, fault_reason(in), now);
-            return true;
-        }
-        if (!sm->heat_active) {
-            transition(sm, SAFETY_IDLE, "heating stopped", now);
-            return true;
-        }
-        if (absent_confirmed) {
-            transition(sm, SAFETY_UNATTENDED, "person absent", now);
-            return true;
-        }
-        return false;
-
-    case SAFETY_UNATTENDED:
-        if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, fault_reason(in), now);
-            return true;
-        }
-        if (person_returned) {
-            transition(sm, SAFETY_MONITORING, "person returned", now);
-            return true;
-        }
-        if (cooled_down) {
-            transition(sm, SAFETY_IDLE, "heating stopped while unattended", now);
-            return true;
-        }
-        sm->hold = hold_reason(sm, in, now, warning_due, person_returned);
-        sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
-        if (warning_due && sm->hold == SAFETY_HOLD_NONE) {
-            sm->late_warning = shutdown_due; /* a tier got shorter while nobody was there */
-            transition(sm, SAFETY_WARNING, "unattended timeout", now);
-            return true;
-        }
-        return false;
-
-    case SAFETY_WARNING:
-        if (!sensors_ok) {
-            transition(sm, SAFETY_FAULT, fault_reason(in), now);
-            return true;
-        }
-        if (person_returned && (cfg->warning_exit == SAFETY_WARNING_EXIT_ON_PRESENCE || in->reset_request)) {
-            transition(sm, SAFETY_MONITORING, "person returned during warning", now);
-            return true;
-        }
-        if (cooled_down) {
-            transition(sm, SAFETY_IDLE, "heating stopped during warning", now);
-            return true;
-        }
-        sm->hold = hold_reason(sm, in, now, shutdown_due, person_returned);
-        sm->held_once = sm->held_once || sm->hold != SAFETY_HOLD_NONE;
-        /* A timeline that was held, or whose limits got shorter, does not jump straight to the shutdown: the buzzer sounds first. */
-        const uint32_t dwell_ms = sm->held_once ? WARNING_MIN_AFTER_HOLD_MS : (sm->late_warning ? LATE_WARNING_MIN_MS : 0);
-        if (shutdown_due && sm->hold == SAFETY_HOLD_NONE && elapsed(now, sm->state_entered_ms, dwell_ms)) {
-            transition(sm, SAFETY_SHUTDOWN, "shutdown timeout", now);
-            return true;
-        }
-        return false;
-
-    case SAFETY_SHUTDOWN:
-        /* Latched: only an operator reset leaves SHUTDOWN. */
-        if (in->reset_request) {
-            transition(sm, SAFETY_IDLE, "operator reset", now);
-            return true;
-        }
-        return false;
-
-    case SAFETY_FAULT:
-        if (sensors_ok) {
-            if (!sm->heat_active) {
-                transition(sm, SAFETY_IDLE, "fault cleared, no heating", now);
-            } else if (in->presence == RB_TRUE) {
-                transition(sm, SAFETY_MONITORING, "fault cleared, person present", now);
-            } else {
-                if (!sm->unattended_active) {
-                    /* Nobody seen (or presence unknown while cooking): count from when the fault began. */
-                    sm->unattended_active = true;
-                    sm->unattended_start_ms = sm->state_entered_ms;
-                }
-                transition(sm, SAFETY_UNATTENDED, "fault cleared, person absent", now);
-            }
-            return true;
-        }
-        /* A fault never postpones a shutdown the unattended timeline has already reached. */
-        if (shutdown_due) {
-            transition(sm, SAFETY_SHUTDOWN, "shutdown timeout reached during fault", now);
-            return true;
-        }
-        if (cfg->fault_shutdown_timeout_ms > 0 && elapsed(now, sm->state_entered_ms, cfg->fault_shutdown_timeout_ms)) {
-            transition(sm, SAFETY_SHUTDOWN, "fault persisted", now);
-            return true;
-        }
-        return false;
-
-    default:
+    if ((unsigned)sm->state >= SAFETY_STATE_COUNT) {
         transition(sm, SAFETY_FAULT, "invalid state", now);
         return true;
     }
+    for (size_t i = 0; i < sizeof(RULES) / sizeof(RULES[0]); i++) {
+        const safety_rule_t *r = &RULES[i];
+        if ((r->from & ST(sm->state)) != 0 && r->guard(sm, in, &e, now)) {
+            if (r->action != NULL) {
+                r->action(sm, &e);
+            }
+            transition(sm, r->to, r->reason, now);
+            return true;
+        }
+    }
+    return false;
 }
 
 const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)

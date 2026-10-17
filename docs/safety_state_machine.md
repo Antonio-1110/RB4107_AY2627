@@ -2,6 +2,7 @@
 
 Implementation: [`firmware/components/safety`](../firmware/components/safety).
 Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
+Every rule, generated from the table the code runs: [safety_rules.md](safety_rules.md).
 
 ```text
  BOOT ─→ SELF_TEST ─→ IDLE ─→ MONITORING ─→ UNATTENDED ─→ WARNING ─→ SHUTDOWN
@@ -15,45 +16,18 @@ Unit tests: [`firmware/testing/unit_tests`](../firmware/testing/unit_tests).
 
 | Input | Source | Unknown/invalid handling |
 |---|---|---|
-| `presence` (tri-state) | the two C4002 presence nodes via ESP-NOW, combined strictly (`node_set_inputs`, `presence_fuse`): PRESENT if either radar sees a person, ABSENT only if both validly say absent | `RB_UNKNOWN` raises the **presence unknown** flag, never FAULT. With nothing cooking it starts no timer; while cooking it counts as absent (see "Lost sensors"). It is never read as "present". |
+| `presence` (tri-state) | the two C4002 presence nodes via ESP-NOW, combined strictly (`node_set_inputs`, `presence_fuse_all`): ABSENT if any working radar says absent, PRESENT only if every working radar sees the person (see "Who is at the stove, and the pause") | `RB_UNKNOWN` raises the **presence unknown** flag, never FAULT. With nothing cooking it starts no timer; while cooking it counts as absent (see "Lost sensors"). It is never read as "present". |
 | `thermal_valid`, `cooking_temp_c` | MLX90640 features from the thermal node via ESP-NOW; `cooking_temp_c` is the hottest pixel (`max_temp_c`), the same number the dashboard shows and outlines | invalid raises the **thermal lost** flag, never FAULT. The last cooking state is kept: a timeline already running carries on, and no cooking is invented. |
 | `self_test` | controller self-test (outputs working) | must read PASS after SELF_TEST; FAIL, timeout or not-yet-passed → FAULT, latched until it passes |
 | `reset_request` | operator reset: dashboard button, console `reset` ([remote_reset.md](remote_reset.md)) | leaves SHUTDOWN; acknowledges WARNING in *exit-on-ack* mode |
 | `safety_fault` | fault manager: the controller's own faults only (`shutdown_output_failure`, `self_test_failed`). A lost sensor or node is a safety-class fault in the fault list too, but it only raises the flags above | → FAULT |
 
-## Transitions
+## Transitions and outputs
 
-| From | Condition (checked in this order) | To |
-|---|---|---|
-| BOOT | always | SELF_TEST |
-| SELF_TEST | self-test FAIL, or no result within `self_test_timeout_ms` | FAULT |
-| SELF_TEST | self-test PASS | IDLE |
-| IDLE | self-test not passed, or `safety_fault` | FAULT |
-| IDLE | hottest pixel ≥ `heat_on_temp_c` (the cooking temperature; menuconfig or dashboard) | MONITORING |
-| MONITORING | self-test not passed, or `safety_fault` | FAULT |
-| MONITORING | hottest pixel < `heat_off_temp_c` (hysteresis) | IDLE |
-| MONITORING | absent for `absence_debounce_ms` | UNATTENDED |
-| UNATTENDED | self-test not passed, or `safety_fault` | FAULT |
-| UNATTENDED | someone at the stove for `presence_return_debounce_ms` (5 s, see "Who is at the stove, and the pause") | MONITORING |
-| UNATTENDED | the pan dropped below the cooking temperature (cooling policy = return-to-idle, the default) | IDLE |
-| UNATTENDED | unattended ≥ `warning_timeout_ms`, unless held (see "Holds") | WARNING |
-| WARNING | self-test not passed, or `safety_fault` | FAULT |
-| WARNING | present for `presence_return_debounce_ms` (+ reset in exit-on-ack mode) | MONITORING |
-| WARNING | the pan dropped below the cooking temperature (return-to-idle) | IDLE |
-| WARNING | shutdown timer expired (see timing mode), unless held, and after at least 30 s of warning if a hold was involved | SHUTDOWN |
-| SHUTDOWN | operator reset (latched until then) | IDLE |
-| FAULT | self-test PASS and no `safety_fault` again → IDLE / MONITORING / UNATTENDED depending on heat and presence | |
-| FAULT | shutdown already due on the unattended timeline | SHUTDOWN |
-| FAULT | in FAULT for `fault_shutdown_timeout_ms` (0 = never) | SHUTDOWN |
-
-## Outputs per state
-
-| State | Buzzer | Shutdown relay |
-|---|---|---|
-| BOOT, SELF_TEST, IDLE, MONITORING, UNATTENDED | off | released |
-| WARNING | warning pattern | released |
-| SHUTDOWN | shutdown pattern | **activated** (latched) |
-| FAULT | fault pattern | released until FAULT → SHUTDOWN |
+The full, ordered list of transitions and what each state drives is
+generated from the table the firmware runs from:
+**[safety_rules.md](safety_rules.md)**. This page explains why the rules are
+what they are.
 
 ## Timing rules
 

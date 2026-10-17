@@ -1,0 +1,163 @@
+/*
+ * The safety rules: one table that the state machine runs from and that
+ * docs/safety_rules.md is generated from (tools/safety_rules.py gen).
+ * Change a rule here, then regenerate the doc; tools/safety_rules.py check
+ * fails if the doc is out of date or if a function named below changed
+ * without this file changing.
+ *
+ * Text fields are for the doc only and are not compiled into the firmware.
+ * {NAME} in a text field is replaced by the default of that Kconfig option
+ * or the value of that safety.c constant.
+ *
+ * SAFETY_STATE(state, buzzer, shutdown_output)
+ *     What each state drives. Applied on entry.
+ *
+ * SAFETY_RULE(id, from_states, guard, to, action, reason, when)
+ *     A transition. safety_step() checks the rules of the current state in
+ *     this order and takes the first one whose guard is true. from_states is
+ *     a mask of ST(state). action (or NULL) runs just before the transition.
+ *     reason is what logs and telemetry report.
+ *
+ * SAFETY_SIGNAL(id, file, function, when, result)
+ *     A rule worked out before or alongside the transitions (sensor fusion,
+ *     cooking, holds, timers). Doc only: function is the code that does it,
+ *     in file (relative to firmware/components/).
+ */
+
+/* ---- outputs per state ---- */
+SAFETY_STATE(SAFETY_BOOT,       SAFETY_BUZZER_OFF,      false)
+SAFETY_STATE(SAFETY_SELF_TEST,  SAFETY_BUZZER_OFF,      false)
+SAFETY_STATE(SAFETY_IDLE,       SAFETY_BUZZER_OFF,      false)
+SAFETY_STATE(SAFETY_MONITORING, SAFETY_BUZZER_OFF,      false)
+SAFETY_STATE(SAFETY_UNATTENDED, SAFETY_BUZZER_OFF,      false)
+SAFETY_STATE(SAFETY_WARNING,    SAFETY_BUZZER_WARNING,  false)
+SAFETY_STATE(SAFETY_SHUTDOWN,   SAFETY_BUZZER_SHUTDOWN, true)
+SAFETY_STATE(SAFETY_FAULT,      SAFETY_BUZZER_FAULT,    false)
+
+/* ---- A. what the controller believes about its inputs ---- */
+SAFETY_SIGNAL(A1, "sensor_node/src/sensor_node.c", sensor_node_evaluate,
+    "A node sends nothing for {RB_CTRL_NODE_STALE_MS} (stale) or {RB_CTRL_NODE_OFFLINE_MS} (offline), or its sensor reports invalid",
+    "That sensor's reading is UNKNOWN")
+SAFETY_SIGNAL(A2, "sensor_node/src/sensor_node.c", presence_fuse_all,
+    "\"At the stove\" ({RB_CTRL_PRESENCE_FUSION}): any working radar says absent",
+    "ABSENT")
+SAFETY_SIGNAL(A3, "sensor_node/src/sensor_node.c", presence_fuse_all,
+    "\"At the stove\": every working radar sees someone (a radar that is down is not asked)",
+    "PRESENT")
+SAFETY_SIGNAL(A4, "sensor_node/src/sensor_node.c", presence_fuse_all,
+    "No radar is working",
+    "UNKNOWN: a dashboard flag, never FAULT")
+SAFETY_SIGNAL(A5, "sensor_node/src/sensor_node.c", presence_fuse,
+    "Fusion set to \"either radar sees them\" (menuconfig or dashboard)",
+    "PRESENT if any radar sees someone; ABSENT only if all validly say absent")
+SAFETY_SIGNAL(A6, "sensor_node/src/sensor_node.c", node_set_inputs,
+    "Radar rules set to enforce (default {RB_CTRL_RADAR_RULES}): a radar sees someone but not for {RB_CTRL_RADAR_DWELL_MS} with {RB_CTRL_RADAR_STATIONARY_MIN_MS} stationary and within {RB_CTRL_RADAR_SETTLE_SPAN_CM} over {RB_CTRL_RADAR_SETTLE_WINDOW_MS}",
+    "That radar counts as absent (only passing). In observe mode the verdict is shown but not used")
+SAFETY_SIGNAL(A7, "safety/src/safety.c", effective_presence,
+    "Presence UNKNOWN while cooking",
+    "Counts as ABSENT. With nothing cooking, UNKNOWN starts no timer")
+SAFETY_SIGNAL(A8, "safety/src/safety.c", safety_step,
+    "Thermal camera lost or invalid",
+    "Dashboard flag only. Cooking state, tier and a running countdown are kept")
+
+/* ---- B. cooking on or off ---- */
+SAFETY_SIGNAL(B1, "safety/src/safety.c", safety_step,
+    "Not cooking, and the hottest pixel reaches the cooking temperature {RB_SAFETY_HEAT_ON_DC} (dashboard can change it)",
+    "Cooking")
+SAFETY_SIGNAL(B2, "safety/src/safety.c", safety_step,
+    "Not cooking, above the off temperature and rising at least the heat-on rate ({RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN}; 0 = this rule is off)",
+    "Cooking")
+SAFETY_SIGNAL(B3, "safety/src/safety.c", safety_step,
+    "Cooking, and the hottest pixel falls below the off temperature {RB_SAFETY_HEAT_OFF_DC}",
+    "Not cooking")
+SAFETY_SIGNAL(B4, "rb_controller/src/rb_controller.c", apply_cooking_temp,
+    "The dashboard sets a new cooking temperature",
+    "The off temperature moves with it, keeping the menuconfig gap ({RB_SAFETY_HEAT_ON_DC} - {RB_SAFETY_HEAT_OFF_DC})")
+
+/* ---- C. timers ---- */
+SAFETY_SIGNAL(C1, "safety/src/safety.c", safety_step,
+    "First ABSENT reading",
+    "The absence count starts. A presence blip does not restart it; only a confirmed return (D4) stops it")
+SAFETY_SIGNAL(C2, "safety/src/safety.c", on_enter,
+    "Entering UNATTENDED",
+    "The countdown is counted from when the absence began, never from before cooking started")
+SAFETY_SIGNAL(C3, "safety/src/safety.c", update_tier,
+    "Hottest pixel at least {RB_SAFETY_TIER1_TEMP_DC} for {TIER_UP_PERSIST_MS} (ELEVATED)",
+    "Buzzer after {RB_SAFETY_TIER1_WARNING_S}, shutdown after {RB_SAFETY_TIER1_SHUTDOWN_S}, if shorter than the base times")
+SAFETY_SIGNAL(C4, "safety/src/safety.c", update_tier,
+    "Hottest pixel at least {RB_SAFETY_TIER2_TEMP_DC}, or rising {RB_SAFETY_TIER2_RATE_DC_PER_MIN} above {RB_SAFETY_TIER2_RATE_MIN_TEMP_DC}, for {TIER_UP_PERSIST_MS} (CRITICAL)",
+    "Buzzer after {RB_SAFETY_TIER2_WARNING_S}, shutdown after {RB_SAFETY_TIER2_SHUTDOWN_S}, if shorter")
+SAFETY_SIGNAL(C5, "safety/src/safety.c", update_tier,
+    "{TIER_HYST_C} below the tier's threshold for {TIER_DOWN_PERSIST_MS}",
+    "Back to the lower tier")
+SAFETY_SIGNAL(C6, "safety/src/safety.c", pause_clock,
+    "Someone is seen during UNATTENDED or WARNING",
+    "The countdown stands still. At most {RB_SAFETY_PAUSE_BUDGET_S} per countdown, and at most {RB_SAFETY_PAUSE_BUDGET_PCT} of the shutdown time")
+
+/* ---- D. holds: a due step waits, nothing is cancelled ---- */
+SAFETY_SIGNAL(D1, "safety/src/safety.c", judge_heat,
+    "Cooling: over the last {TREND_DEFAULT_WINDOW_MS} (at least {TREND_MIN_SAMPLES} samples over {TREND_MIN_SPAN_MS}) the predicted settling temperature T + tau x rate is more than {SETTLE_MARGIN_C} below the off temperature, and it rose at most {SETTLE_MAX_DRIFT_C_PER_MIN} over the last minute. tau comes from the cookware profile ({RB_SAFETY_COOKWARE})",
+    "The pan counts as only cooling. Ends when the prediction is back {SETTLE_MARGIN_C} above the off temperature or climbs faster than {SETTLE_EXIT_DRIFT_C_PER_MIN}. With too little data, a lost camera or the trend judgment turned off (it is {RB_SAFETY_COOKING_TREND} by default), heat counts as going in")
+SAFETY_SIGNAL(D2, "safety/src/safety.c", hold_reason,
+    "A buzzer or shutdown comes due while the pan is only cooling (D1)",
+    "It waits (cooling hold), at most {COOLING_HOLD_TAUS} tau and never over {COOLING_HOLD_MAX_MS}. The countdown keeps counting; a buzzer already sounding keeps sounding")
+SAFETY_SIGNAL(D3, "safety/src/safety.c", hold_reason,
+    "A step comes due while someone is seen but not yet confirmed (D4)",
+    "It waits (return hold), at most {RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS} + {RB_SAFETY_PRESENCE_RETURN_GAP_MS}")
+SAFETY_SIGNAL(D4, "safety/src/safety.c", present_confirmed,
+    "Someone returns: PRESENT for {RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS}, absent gaps under {RB_SAFETY_PRESENCE_RETURN_GAP_MS} forgiven, still present at the end",
+    "Return confirmed (used by T10, T13)")
+
+/* ---- T. state transitions, in the order they are checked ---- */
+SAFETY_RULE(T01, ST(SAFETY_BOOT), g_always, SAFETY_SELF_TEST, NULL, "boot complete",
+    "Always")
+SAFETY_RULE(T02, ST(SAFETY_SELF_TEST), g_self_test_failed, SAFETY_FAULT, NULL, "self-test failed",
+    "The self-test reports FAIL")
+SAFETY_RULE(T03, ST(SAFETY_SELF_TEST), g_self_test_passed, SAFETY_IDLE, NULL, "self-test passed",
+    "The self-test reports PASS")
+SAFETY_RULE(T04, ST(SAFETY_SELF_TEST), g_self_test_timeout, SAFETY_FAULT, NULL, "self-test timeout",
+    "No self-test result within {RB_SAFETY_SELF_TEST_TIMEOUT_MS}")
+SAFETY_RULE(T05, ST(SAFETY_IDLE) | ST(SAFETY_MONITORING) | ST(SAFETY_UNATTENDED) | ST(SAFETY_WARNING),
+    g_self_test_not_passed, SAFETY_FAULT, NULL, "self-test not passed",
+    "The self-test (the shutdown output's read-back, every {RB_SHUTDOWN_VERIFY_PERIOD_MS}) no longer passes")
+SAFETY_RULE(T06, ST(SAFETY_IDLE) | ST(SAFETY_MONITORING) | ST(SAFETY_UNATTENDED) | ST(SAFETY_WARNING),
+    g_safety_fault, SAFETY_FAULT, NULL, "safety-relevant fault active",
+    "A controller fault in the fault list (shutdown output, self-test). A lost sensor is not one (A4, A8)")
+SAFETY_RULE(T07, ST(SAFETY_IDLE), g_cooking, SAFETY_MONITORING, NULL, "heating detected",
+    "Cooking (B1, B2)")
+SAFETY_RULE(T08, ST(SAFETY_MONITORING), g_not_cooking, SAFETY_IDLE, NULL, "heating stopped",
+    "Not cooking (B3)")
+SAFETY_RULE(T09, ST(SAFETY_MONITORING), g_absent_confirmed, SAFETY_UNATTENDED, NULL, "person absent",
+    "ABSENT for {RB_SAFETY_ABSENCE_DEBOUNCE_MS} (C1)")
+SAFETY_RULE(T10, ST(SAFETY_UNATTENDED), g_person_returned, SAFETY_MONITORING, NULL, "person returned",
+    "Return confirmed (D4). The countdown is cancelled")
+SAFETY_RULE(T11, ST(SAFETY_UNATTENDED), g_cooled_down, SAFETY_IDLE, NULL, "heating stopped while unattended",
+    "Not cooking (B3), with the cooling policy {RB_SAFETY_COOLING}. The countdown is cancelled")
+SAFETY_RULE(T12, ST(SAFETY_UNATTENDED), g_warning_unheld, SAFETY_WARNING, a_note_late_warning, "unattended timeout",
+    "Unattended for the warning time ({RB_SAFETY_WARNING_TIMEOUT_S}, shorter in a hot tier C3, C4) and no hold (D2, D3)")
+SAFETY_RULE(T13, ST(SAFETY_WARNING), g_warning_exit, SAFETY_MONITORING, NULL, "person returned during warning",
+    "Return confirmed (D4). The warning exit is {RB_SAFETY_WARNING_EXIT}; if it is changed to acknowledge, a reset is needed as well")
+SAFETY_RULE(T14, ST(SAFETY_WARNING), g_cooled_down, SAFETY_IDLE, NULL, "heating stopped during warning",
+    "Not cooking (B3), with the cooling policy {RB_SAFETY_COOLING}. The countdown is cancelled")
+SAFETY_RULE(T15, ST(SAFETY_WARNING), g_shutdown_unheld, SAFETY_SHUTDOWN, NULL, "shutdown timeout",
+    "Unattended for the shutdown time ({RB_SAFETY_SHUTDOWN_TIMEOUT_S}, counted from {RB_SAFETY_SHUTDOWN_TIMING}, shorter in a hot tier), no hold, and the buzzer has sounded at least {WARNING_MIN_AFTER_HOLD_MS} if a hold happened, or {LATE_WARNING_MIN_MS} if a tier made the shutdown due at once")
+SAFETY_RULE(T16, ST(SAFETY_SHUTDOWN), g_reset, SAFETY_IDLE, NULL, "operator reset",
+    "Operator reset (dashboard button or console reset). Nothing else leaves SHUTDOWN; a reboot also clears it. All timing starts over")
+SAFETY_RULE(T17, ST(SAFETY_FAULT), g_fault_cleared_not_cooking, SAFETY_IDLE, NULL, "fault cleared, no heating",
+    "Fault cleared, not cooking")
+SAFETY_RULE(T18, ST(SAFETY_FAULT), g_fault_cleared_present, SAFETY_MONITORING, NULL, "fault cleared, person present",
+    "Fault cleared, cooking, PRESENT")
+SAFETY_RULE(T19, ST(SAFETY_FAULT), g_fault_cleared, SAFETY_UNATTENDED, a_count_from_fault, "fault cleared, person absent",
+    "Fault cleared, cooking, nobody seen. A countdown already running carries on; otherwise it counts from when the fault began")
+SAFETY_RULE(T20, ST(SAFETY_FAULT), g_shutdown_due, SAFETY_SHUTDOWN, NULL, "shutdown timeout reached during fault",
+    "The countdown reached its shutdown time: a fault never postpones it")
+SAFETY_RULE(T21, ST(SAFETY_FAULT), g_fault_persisted, SAFETY_SHUTDOWN, NULL, "fault persisted",
+    "In FAULT for {RB_SAFETY_FAULT_SHUTDOWN_S} (0 = never)")
+
+/* ---- outside the state machine ---- */
+SAFETY_SIGNAL(X1, "rb_valve_link/src/rb_valve_link.c", link_task,
+    "Wireless gas valve: in SHUTDOWN, or the safety task stops reporting",
+    "Valve CLOSE; otherwise KEEP_OPEN every {RB_CTRL_VALVE_KEEPALIVE_MS}")
+SAFETY_SIGNAL(X2, "rb_controller/src/rb_controller.c", safety_task,
+    "MQTT, Django, the laptop or the network is down",
+    "No effect on any rule: the safety task never waits on them")
