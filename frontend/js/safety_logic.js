@@ -18,12 +18,90 @@ const HOLD_TEXT = {
 let device = null,
   events = [];
 
-// "**bold**" marks the menuconfig defaults in the generated text.
+// The generated text marks each setting as {{NAME|menuconfig default}}. LIVE maps the
+// ones the controller reports to its telemetry value; tune: true marks the ones the
+// dashboard's Tuning cards can change. Anything else shows its menuconfig default.
+const num = (v) => typeof v === "number" && Number.isFinite(v);
+const trim = (v) => String(Math.round(v * 10) / 10);
+const secs = (v) => (num(v) ? `${trim(v)} s` : null);
+const degC = (v) => (num(v) ? `${trim(v)} °C` : null);
+const rate = (v) => (num(v) ? `${trim(v)} °C/min` : null);
+const from = (obj, ...keys) => keys.reduce((o, k) => (o && typeof o === "object" ? o[k] : undefined), obj);
+
+const FUSION = { all: "every working radar sees them", any: "either radar sees them" };
+const RADAR_MODE = {
+  off: "off",
+  observe: "observe: computed and reported, not used",
+  enforce: "enforce: a radar that only sees someone passing does not count as at the stove",
+};
+const COOKWARE = { mixed: "mixed / unknown", light: "light pans", heavy: "heavy pans", liquid: "pots with liquid" };
+const COUNTS_FROM = { UNATTENDED: "start of UNATTENDED (total unattended time)", WARNING: "start of WARNING" };
+
+const pf = (key) => (v) => secs(from(v, "presence_filter", key));
+const tier = (t, key, fmt) => (v) => fmt(from(v, "tiers", t, key));
+const radar = (key) => (v) => secs(from(v, "radar_rules", key));
+const LIVE = {
+  RB_SAFETY_HEAT_ON_DC: { tune: true, get: (v) => degC(v.cooking_on_c) },
+  RB_SAFETY_HEAT_OFF_DC: { tune: true, get: (v) => degC(v.cooking_off_c) },
+  RB_SAFETY_ABSENCE_DEBOUNCE_MS: { tune: true, get: pf("absence_seconds") },
+  RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS: { tune: true, get: pf("return_seconds") },
+  RB_SAFETY_PRESENCE_RETURN_GAP_MS: { tune: true, get: pf("return_gap_seconds") },
+  RB_SAFETY_PAUSE_BUDGET_S: { tune: true, get: pf("pause_budget_seconds") },
+  RB_SAFETY_PAUSE_BUDGET_PCT: {
+    tune: true,
+    get: (v) => (num(from(v, "presence_filter", "pause_budget_pct")) ? `${v.presence_filter.pause_budget_pct} %` : null),
+  },
+  RB_CTRL_PRESENCE_FUSION: { tune: true, get: (v) => FUSION[from(v, "presence_filter", "fusion")] || null },
+  RB_SAFETY_WARNING_TIMEOUT_S: { tune: true, get: (v) => secs(v.warning_after_seconds) },
+  RB_SAFETY_SHUTDOWN_TIMEOUT_S: { tune: true, get: (v) => secs(v.shutdown_after_seconds) },
+  RB_SAFETY_SHUTDOWN_TIMING: { tune: false, get: (v) => COUNTS_FROM[v.shutdown_counts_from] || null },
+  RB_SAFETY_COOKWARE: {
+    tune: true,
+    get: (v) =>
+      COOKWARE[v.cookware_profile]
+        ? COOKWARE[v.cookware_profile] + (num(v.cookware_tau_s) ? ` (${trim(v.cookware_tau_s / 60)} min)` : "")
+        : null,
+  },
+  RB_SAFETY_TIER1_TEMP_DC: { tune: true, get: tier("elevated", "temp_c", degC) },
+  RB_SAFETY_TIER1_WARNING_S: { tune: true, get: tier("elevated", "warning_seconds", secs) },
+  RB_SAFETY_TIER1_SHUTDOWN_S: { tune: true, get: tier("elevated", "shutdown_seconds", secs) },
+  RB_SAFETY_TIER2_TEMP_DC: { tune: true, get: tier("critical", "temp_c", degC) },
+  RB_SAFETY_TIER2_RATE_DC_PER_MIN: { tune: true, get: tier("critical", "rate_c_per_min", rate) },
+  RB_SAFETY_TIER2_RATE_MIN_TEMP_DC: { tune: true, get: tier("critical", "rate_min_temp_c", degC) },
+  RB_SAFETY_TIER2_WARNING_S: { tune: true, get: tier("critical", "warning_seconds", secs) },
+  RB_SAFETY_TIER2_SHUTDOWN_S: { tune: true, get: tier("critical", "shutdown_seconds", secs) },
+  RB_CTRL_RADAR_RULES: { tune: true, get: (v) => RADAR_MODE[from(v, "radar_rules", "mode")] || null },
+  RB_CTRL_RADAR_DWELL_MS: { tune: true, get: radar("dwell_seconds") },
+  RB_CTRL_RADAR_STATIONARY_MIN_MS: { tune: true, get: radar("stationary_min_seconds") },
+  RB_CTRL_RADAR_SETTLE_WINDOW_MS: { tune: true, get: radar("settle_window_seconds") },
+  RB_CTRL_RADAR_SETTLE_SPAN_CM: {
+    tune: true,
+    get: (v) => (num(from(v, "radar_rules", "settle_span_cm")) ? `${v.radar_rules.settle_span_cm} cm` : null),
+  },
+};
+
+function value(name, fallback) {
+  const unquoted = fallback.replace(/^"(.*)"$/, "$1");
+  const spec = LIVE[name];
+  const live = spec && device && device.values ? spec.get(device.values) : null;
+  const node = make("strong", live || unquoted, `logic-val${spec && spec.tune ? " tunable" : ""}${live ? "" : " default"}`);
+  node.title = live
+    ? `Reported by the controller${spec.tune ? ", tunable on the dashboard" : ""} (menuconfig default ${unquoted})`
+    : spec && spec.tune
+      ? "Menuconfig default; tunable on the dashboard (not reported yet)"
+      : `Menuconfig default (${name}); change it in menuconfig or the code`;
+  return node;
+}
+
 function rich(text) {
   const out = document.createDocumentFragment();
-  text.split("**").forEach((part, i) => {
-    if (part) out.append(i % 2 ? make("strong", part) : document.createTextNode(part));
-  });
+  let at = 0;
+  for (const m of text.matchAll(/\{\{(\w+)\|([^}]*)\}\}/g)) {
+    if (m.index > at) out.append(document.createTextNode(text.slice(at, m.index)));
+    out.append(value(m[1], m[2]));
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) out.append(document.createTextNode(text.slice(at)));
   return out;
 }
 

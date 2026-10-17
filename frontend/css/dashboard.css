@@ -2061,3 +2061,13 @@ body[data-view="detail"] .safety-note {
     display: none;
   }
 }
+
+.logic-val.tunable {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.logic-val.default {
+  color: var(--muted, #6b7280);
+  font-weight: 600;
+}

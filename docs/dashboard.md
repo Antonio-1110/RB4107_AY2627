@@ -115,8 +115,10 @@ The overview has a **Tiles | Table** switch and a one-row fleet strip. A
 `safety_rules_data.js` is generated from
 `firmware/components/safety/src/safety_rules.def`, the table the controller's
 state machine runs, so the card can't drift from the firmware;
-`tools/safety_rules.py check` fails if it is stale. Bold values are the
-menuconfig defaults (the Countdown card shows the times in force). The current
+`tools/safety_rules.py check` fails if it is stale. Each setting in the text
+(`{{NAME|default}}`) shows the value the controller reports (map in `LIVE` in
+`safety_logic.js`), falling back to the menuconfig default in grey; settings a
+Tuning card can change are underlined. The current
 state comes from `safety.state`, a hold from `safety.hold`, and the last rule
 that fired is matched from the newest event's `safety.reason` and
 `from_state`.
