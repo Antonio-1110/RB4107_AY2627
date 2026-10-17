@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run every test that doesn't need hardware:
-#   0. docs/safety_rules.md checked against the Kconfig and safety.c,
+#   0. the safety rules table vs docs/safety_rules.md (tools/safety_rules.py check),
 #   1. firmware unit tests (firmware/testing/unit_tests) built for ESP-IDF's linux target,
 #   2. Django backend tests (the broker round trip runs only if Mosquitto is up).
 #
@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "== safety rules doc vs code =="
-python3 "$ROOT/tools/check_safety_rules_doc.py"
+python3 "$ROOT/tools/safety_rules.py" check
 
 echo "== firmware unit tests (linux target) =="
 cd "$ROOT/firmware/testing/unit_tests"

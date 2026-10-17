@@ -2,28 +2,33 @@
 
 Read [`docs/agent-context/handover.md`](docs/agent-context/handover.md) first.
 
-## Every task: check that the safety rules doc matches the code
+## Safety rules: one table, code and doc
 
-[`docs/safety_rules.md`](docs/safety_rules.md) is the list of every condition
-the controller reacts to and what it does. It must always describe what the
-code on your branch does. Before you finish any task (and before opening or
-updating a PR):
+The controller's safety logic is a table:
+[`firmware/components/safety/src/safety_rules.def`](firmware/components/safety/src/safety_rules.def).
+The state machine in `safety.c` runs its transitions straight from that table,
+and [`docs/safety_rules.md`](docs/safety_rules.md) is generated from it. Don't
+read the codebase to describe the rules, and never edit `safety_rules.md` by
+hand.
 
-1. Run `python3 tools/check_safety_rules_doc.py`. It checks the settings and
-   constants tables against the Kconfig and `safety.c`. It must pass.
-2. If your change touches any of these, re-read the matching rules and confirm
-   each one against the code. The script can't see behaviour, only numbers:
-   - `firmware/components/safety/` (state machine, trend, tiers, holds)
-   - `firmware/components/sensor_node/` (radar fusion, radar rules, node health)
-   - `firmware/components/rb_safety_config/`, `rb_controller/`, `rb_outputs/`,
-     `rb_valve_link/`, `shutdown_output/`
-   - the `RB_SAFETY_*`, `RB_CTRL_PRESENCE_FUSION`, `RB_CTRL_RADAR_*`,
-     `RB_CTRL_NODE_*` or `RB_SHUTDOWN_*` options in
-     `firmware/components/rb_config/Kconfig`
-   - what the dashboard can change about any of the above
-3. Update `docs/safety_rules.md` (and `docs/safety_state_machine.md` where it
-   explains the same rule) in the same PR. If you find a mismatch you did not
-   cause, fix the doc to match the code and tell the user. Never change the
-   code to fit the doc without asking.
-4. Say in your PR description that the check passed, or what you changed in
-   the doc.
+Every task, before you finish (and before opening or updating a PR):
+
+1. Run `python3 tools/safety_rules.py check`. It must pass. It fails when:
+   - the doc is out of date (run `python3 tools/safety_rules.py gen`);
+   - the table names a guard, action or function that doesn't exist;
+   - a function the table names (or `evaluate()`, `transition()`,
+     `on_enter()`, `on_exit()`) changed on your branch but the table didn't.
+     Then re-read the rules that name it, fix their text in the table, and
+     regenerate.
+2. To change when the controller does something, change the table: add,
+   reorder or edit a `SAFETY_RULE` and its guard, not ad-hoc code in
+   `evaluate()`. Signal rules (`SAFETY_SIGNAL`: fusion, cooking, timers,
+   holds) are written next to the function that does the work; update their
+   text when you change that function.
+3. Run the safety tests after any change there: `tools/run_safety_tests.sh`
+   (seconds, no idf.py build) or `tools/run_host_tests.sh` (everything).
+   Add or update a test in `firmware/testing/unit_tests/main/test_safety.c`
+   for any rule you add or change.
+4. If the table and the code's behaviour disagree and you didn't cause it,
+   tell the user. Never change behaviour just to match the doc without asking.
+5. Say in the PR description that the check passed.

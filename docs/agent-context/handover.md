@@ -77,12 +77,12 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
   arrives. The ESP-IDF driver here doesn't; see `firmware/testing/c4002/README.md`.
 - Flash over UART, not JTAG.
 
-## Safety rules must match the code
+## Safety rules are a table
 
-[`docs/safety_rules.md`](../safety_rules.md) lists every condition the
-controller reacts to and what it does. Before finishing any task, check it
-against the code as [`CLAUDE.md`](../../CLAUDE.md) describes, and fix the
-doc (or tell the user) when they disagree.
+The state machine runs from `firmware/components/safety/src/safety_rules.def`,
+and [`docs/safety_rules.md`](../safety_rules.md) is generated from it
+(`tools/safety_rules.py`). Change behaviour in the table, regenerate, and run
+the check before finishing; see [`CLAUDE.md`](../../CLAUDE.md).
 
 ## How the user likes to work
 
