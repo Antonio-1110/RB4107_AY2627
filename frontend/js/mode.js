@@ -6,7 +6,7 @@
 import { $ } from "./dom.js";
 
 const KEYS = { mode: "rb4107.mode", tab: "rb4107.tab", theme: "rb4107.theme", overview: "rb4107.overview" };
-const TABS = ["rules", "radar", "thermal", "diag"];
+const TABS = ["rules", "logic", "radar", "thermal", "diag"];
 const THEMES = ["auto", "light", "dark"];
 const THEME_LABEL = { auto: "Auto", light: "Light", dark: "Dark" };
 

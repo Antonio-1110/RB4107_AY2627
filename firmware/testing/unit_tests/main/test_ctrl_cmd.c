@@ -334,6 +334,66 @@ static void test_bad_cooking_temps_are_rejected(void)
     }
 }
 
+/* A params command with every setting of rb_params.def at one end of its range (max = false: min). */
+static void params_json(char *out, size_t cap, bool max, int skip, const char *extra)
+{
+    size_t n = (size_t)snprintf(out, cap, "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                          "\"request_id\":3,\"action\":\"params\"");
+    for (int i = 0; i < RB_PARAM_COUNT; i++) {
+        if (i != skip) {
+            n += (size_t)snprintf(out + n, cap - n, ",\"%s\":%lu", RB_PARAMS[i].key,
+                                  (unsigned long)(max ? RB_PARAMS[i].max : RB_PARAMS[i].min));
+        }
+    }
+    snprintf(out + n, cap - n, "%s}", extra);
+}
+
+static void test_params_are_parsed(void)
+{
+    static char json[2048];
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    for (int end = 0; end < 2; end++) {
+        params_json(json, sizeof(json), end == 1, -1, "");
+        TEST_ASSERT_TRUE_MESSAGE(parse(json, &cmd, err), err);
+        TEST_ASSERT_EQUAL(RB_CTRL_ACTION_PARAMS, cmd.action);
+        for (int i = 0; i < RB_PARAM_COUNT; i++) {
+            TEST_ASSERT_EQUAL_UINT32_MESSAGE(end ? RB_PARAMS[i].max : RB_PARAMS[i].min, cmd.params.v[i], RB_PARAMS[i].key);
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":3,\"action\":\"params_defaults\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_PARAMS_DEFAULTS, cmd.action);
+}
+
+static void test_bad_params_are_rejected(void)
+{
+    static char json[2048];
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    /* one setting missing */
+    params_json(json, sizeof(json), false, RB_PARAM_trend_window_ms, "");
+    TEST_ASSERT_FALSE(parse(json, &cmd, err));
+    /* one twice */
+    params_json(json, sizeof(json), false, -1, ",\"tier_hyst_dc\":20");
+    TEST_ASSERT_FALSE(parse(json, &cmd, err));
+    /* one out of range, below and above */
+    params_json(json, sizeof(json), false, RB_PARAM_self_test_timeout_ms, ",\"self_test_timeout_ms\":999");
+    TEST_ASSERT_FALSE(parse(json, &cmd, err));
+    params_json(json, sizeof(json), true, RB_PARAM_valve_keepalive_ms, ",\"valve_keepalive_ms\":2501");
+    TEST_ASSERT_FALSE(parse(json, &cmd, err));
+    /* a string */
+    params_json(json, sizeof(json), false, RB_PARAM_shutdown_timing, ",\"shutdown_timing\":\"1\"");
+    TEST_ASSERT_FALSE(parse(json, &cmd, err));
+    /* a setting with another action */
+    TEST_ASSERT_FALSE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                            "\"request_id\":3,\"action\":\"params_defaults\",\"tier_hyst_dc\":20}",
+                            &cmd, err));
+    TEST_ASSERT_TRUE(err[0] != '\0');
+}
+
 void run_ctrl_cmd_tests(void)
 {
     RUN_TEST(test_reset_is_parsed);
@@ -350,4 +410,6 @@ void run_ctrl_cmd_tests(void)
     RUN_TEST(test_bad_attendance_is_rejected);
     RUN_TEST(test_radar_rules_are_parsed);
     RUN_TEST(test_bad_radar_rules_are_rejected);
+    RUN_TEST(test_params_are_parsed);
+    RUN_TEST(test_bad_params_are_rejected);
 }

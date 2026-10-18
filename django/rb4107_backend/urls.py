@@ -28,6 +28,7 @@ urlpatterns = [
     path("api/devices/<str:device_id>/tiers/", views.tiers),
     path("api/devices/<str:device_id>/attendance/", views.attendance),
     path("api/devices/<str:device_id>/radar-rules/", views.radar_rules),
+    path("api/devices/<str:device_id>/params/", views.params),
     # Dashboard files. Fine for the lab prototype; a production server would
     # serve frontend/ directly (e.g. nginx) and proxy /api/ to Django.
     path("", serve, {"path": "index.html", "document_root": settings.FRONTEND_DIR}),

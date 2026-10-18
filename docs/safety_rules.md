@@ -6,7 +6,8 @@ Every condition the S3 controller reacts to, and what it does. The state
 machine runs from the same table this page is generated from
 ([`safety_rules.def`](../firmware/components/safety/src/safety_rules.def)), so
 the transitions below are exactly what the firmware does. Values in **bold**
-are the menuconfig defaults; the dashboard can change many of them. The
+are the menuconfig defaults; the dashboard can change every one of them (see the
+last section) and shows the values in force. The
 reasons behind the rules are in [safety_state_machine.md](safety_state_machine.md).
 
 ## Outputs per state
@@ -99,7 +100,7 @@ SHUTDOWN is left only by T16. A state not in the table goes to FAULT ("invalid s
 | # | When | Result | Code |
 |---|---|---|---|
 | X1 | Wireless gas valve: in SHUTDOWN, or the safety task stops reporting | Valve CLOSE; otherwise KEEP_OPEN every **1 s** | `link_task()` in `rb_valve_link/src/rb_valve_link.c` |
-| X2 | MQTT, Django, the laptop or the network is down | No effect on any rule: the safety task never waits on them | `safety_task()` in `rb_controller/src/rb_controller.c` |
+| X2 | MQTT, Django, the laptop or the network is down | No effect on any rule: the safety task never waits on them, and the settings the dashboard gave it stay in force (saved on the controller) | `safety_task()` in `rb_controller/src/rb_controller.c` |
 
 ## Settings
 
@@ -168,3 +169,39 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `COOLING_HOLD_MAX_MS` | 3600000 | a cooling hold never lasts longer than an hour ... |
 | `COOLING_HOLD_TAUS` | 4.0 | ... nor longer than 4 time constants: a pan still hot after that is not just cooling |
 | `WARNING_MIN_AFTER_HOLD_MS` | 30000 | buzzer before the shutdown after any hold |
+
+## Changing them from the dashboard
+
+The dashboard's Tuning cards change the cooking temperature, cookware profile, temperature tiers,
+presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules. Every other
+setting above is on the Logic tab's **Other settings** card
+([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)); the controller saves
+them until **Defaults** is pressed.
+
+| Setting | Key | Default | Range |
+|---|---|---|---|
+| Shutdown time counts from | `shutdown_timing` | start of UNATTENDED (total unattended time) | start of UNATTENDED (total unattended time) / start of WARNING |
+| Someone comes back during WARNING | `warning_exit` | return to MONITORING | return to MONITORING / stay in WARNING until the person acknowledges (reset input) |
+| The pan cools down while unattended | `cooling_policy` | return to IDLE and cancel the timers | keep the timers running (old behaviour: shuts a cold stove off) / return to IDLE and cancel the timers |
+| Judge from the temperature trend | `cooking_trend` | on | off / on |
+| Also cooking when rising this fast, 0 = off | `heat_on_rate_dc_per_min` | 0 °C/min | 0 °C/min to 1000 °C/min |
+| Cooking is over this far below the cooking temperature | `heat_off_gap_dc` | 10 °C | 0 °C to 100 °C |
+| FAULT shuts down after, 0 = never | `fault_shutdown_ms` | 90 s | 0 s to 3600 s |
+| Self-test result needed within, at boot | `self_test_timeout_ms` | 10 s | 1 s to 120 s |
+| Read back the shutdown output every | `verify_period_ms` | 1 s | 0.1 s to 60 s |
+| A sensor node is STALE after silence of | `node_stale_ms` | 2 s | 0.2 s to 60 s |
+| A sensor node is OFFLINE after silence of | `node_offline_ms` | 10 s | 0.5 s to 600 s |
+| Wireless valve KEEP_OPEN every, under the valve's 3 s | `valve_keepalive_ms` | 1 s | 0.1 s to 2.5 s |
+| A hotter tier takes over after holding | `tier_up_persist_ms` | 4 s | 0.1 s to 60 s |
+| A cooler tier takes over after holding | `tier_down_persist_ms` | 20 s | 0.1 s to 600 s |
+| A cooler tier also needs the pan this far below its threshold | `tier_hyst_dc` | 10 °C | 0.1 °C to 50 °C |
+| Buzzer before a shutdown that was already due | `late_warning_min_ms` | 10 s | 1 s to 300 s |
+| Trend window | `trend_window_ms` | 120 s | 10 s to 250 s |
+| Trend needs at least this much history | `trend_min_span_ms` | 60 s | 10 s to 250 s |
+| Trend needs at least this many samples (one per 2 s) | `trend_min_samples` | 12 | 3 to 128 |
+| Cooling margin around the off temperature | `settle_margin_dc` | 3 °C | 0.1 °C to 50 °C |
+| Prediction may climb this fast to start a cooling hold | `settle_max_drift_dc_per_min` | 8 °C/min | 0.1 °C/min to 100 °C/min |
+| A cooling hold ends when the prediction climbs faster than | `settle_exit_drift_dc_per_min` | 16 °C/min | 0.1 °C/min to 100 °C/min |
+| A cooling hold lasts at most | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
+| A cooling hold lasts at most this many time constants | `cooling_hold_taus_x10` | 4 | 0.1 to 20 |
+| Buzzer before the shutdown after any hold | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |

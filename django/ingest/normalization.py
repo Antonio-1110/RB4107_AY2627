@@ -78,7 +78,17 @@ def _cooking_trend(safety):
             "cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),
             "cooking_settle_c": finite(cooking.get("settle_c")), "hold": safety.get("hold"),
             "cookware_profile": cookware.get("profile"), "cookware_tau_s": finite(cookware.get("tau_s")),
-            "cookware_source": cookware.get("source")}
+            "cookware_source": cookware.get("source"), **_params(safety)}
+
+
+def _params(safety):
+    """Firmware since 2026-10-17 reports every other safety setting (rb_params.def) as safety.params, in its
+    own units; older firmware doesn't (None)."""
+    params = safety.get("params")
+    if not isinstance(params, dict):
+        return {"params": None, "params_source": None}
+    return {"params": {k: v for k, v in params.items() if isinstance(v, int) and not isinstance(v, bool)},
+            "params_source": safety.get("params_source")}
 
 
 def thermal_fields(thermal):

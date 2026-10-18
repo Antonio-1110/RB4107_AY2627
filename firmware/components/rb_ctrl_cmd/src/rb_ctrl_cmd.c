@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define KEY_LEN 24
+#define KEY_LEN 32 /* the longest key in rb_params.def fits */
+_Static_assert(RB_PARAM_COUNT <= 32, "params_seen has one bit per setting");
 #define STR_LEN 40
 
 typedef struct {
@@ -53,7 +54,7 @@ static bool read_uint(scan_t *s, long *out)
     const char *start = s->p;
     long v = 0;
     while (s->p < s->end && *s->p >= '0' && *s->p <= '9') {
-        if (v > 1000000) {
+        if (v > 100000000) { /* keeps v * 10 + 9 within a 32-bit long */
             return false;
         }
         v = v * 10 + (*s->p++ - '0');
@@ -139,6 +140,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
         return false;
     }
     unsigned seen = 0;
+    uint32_t params_seen = 0; /* one bit per rb_params.def setting */
     if (!eat(&s, '}')) {
         do {
             char key[KEY_LEN];
@@ -155,6 +157,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                 return false;
             }
             unsigned bit;
+            int param;
             if (strcmp(key, "schema_version") == 0) {
                 bit = SEEN_VERSION;
                 if (is_str || num != 2) {
@@ -209,11 +212,15 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_TIERS;
                 } else if (is_str && strcmp(str, "tiers_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_TIERS_DEFAULTS;
+                } else if (is_str && strcmp(str, "params") == 0) {
+                    out->action = RB_CTRL_ACTION_PARAMS;
+                } else if (is_str && strcmp(str, "params_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_PARAMS_DEFAULTS;
                 } else {
                     fail(err, err_len,
                          "action must be reset, presence_filter, presence_filter_defaults, cooking_temp, "
                          "cooking_temp_defaults, cookware, cookware_defaults, tiers, tiers_defaults, attendance, "
-                         "attendance_defaults, radar_rules or radar_rules_defaults");
+                         "attendance_defaults, radar_rules, radar_rules_defaults, params or params_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -360,6 +367,19 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 strlcpy(out->cookware, str, sizeof(out->cookware)); /* one of the values checked above: fits */
+            } else if ((param = rb_params_find(key)) >= 0) {
+                if (is_str || (uint32_t)num < RB_PARAMS[param].min || (uint32_t)num > RB_PARAMS[param].max) {
+                    fail(err, err_len, "%s must be an integer %lu..%lu", key, (unsigned long)RB_PARAMS[param].min,
+                         (unsigned long)RB_PARAMS[param].max);
+                    return false;
+                }
+                if (params_seen & (1u << param)) {
+                    fail(err, err_len, "duplicate key '%s'", key);
+                    return false;
+                }
+                params_seen |= 1u << param;
+                out->params.v[param] = (uint32_t)num;
+                bit = 0;
             } else {
                 fail(err, err_len, "unknown key '%s'", key);
                 return false;
@@ -409,6 +429,11 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     if (out->action == RB_CTRL_ACTION_ATTENDANCE ? (seen & SEEN_ATTENDANCE) != SEEN_ATTENDANCE
                                                   : (seen & SEEN_ATTENDANCE) != 0) {
         fail(err, err_len, "attendance needs pause_budget_ms, pause_budget_pct and presence_fusion, other actions none");
+        return false;
+    }
+    const uint32_t all_params = RB_PARAM_COUNT == 32 ? UINT32_MAX : (1u << RB_PARAM_COUNT) - 1u;
+    if (out->action == RB_CTRL_ACTION_PARAMS ? params_seen != all_params : params_seen != 0) {
+        fail(err, err_len, "params needs every setting of rb_params.def, other actions none");
         return false;
     }
     return true;

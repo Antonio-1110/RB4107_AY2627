@@ -130,6 +130,23 @@ limits 0-10 s, 0-60 s, 0-60 s, 0.5-60 s, 0-1000 cm, 0-1200 cm. The controller
 keeps the values in NVS and reports them in `safety.radar_rules` (with
 `source`). Menuconfig: `RB_CTRL_REMOTE_RADAR_RULES`.
 
+## Other safety settings
+
+Tuning → Logic → **Other settings** holds every other number and choice in the
+[safety rules](safety_rules.md#changing-them-from-the-dashboard): where the
+shutdown counts from, the cooling and warning-exit policies, the trend on or
+off, the heat-on rate and off gap, the fault shutdown, self-test, node and valve
+timings, and the fine tuning of the tiers, the trend and the holds. They come
+from one table, [`rb_params.def`](../firmware/components/rb_params/include/rb_params.def).
+**Apply settings** calls `POST /api/devices/<id>/params/` with every key in the
+table's units (ms, 0.1 °C, 0.1 °C/min, choice index), for example
+`{"shutdown_timing": 0, ..., "warning_min_after_hold_ms": 30000}`, or
+`{"defaults": true}`. Django checks the ranges from
+`django/ingest/safety_params.json`; the controller checks them again, refuses a
+set that doesn't fit together and keeps the ones in use, saves the rest in NVS
+(key `params`, dropped if a later firmware changes the table) and reports them as
+`safety.params` with `safety.params_source`. Menuconfig: `RB_CTRL_REMOTE_PARAMS`.
+
 ## Temperature tiers
 
 The Timer rule (Tuning → Rules) also holds the **temperature tiers**: from which

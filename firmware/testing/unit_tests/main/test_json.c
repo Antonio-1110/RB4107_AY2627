@@ -3,10 +3,11 @@
 #include <string.h>
 #include "rb_json.h"
 #include "rb_json_writer.h"
+#include "rb_params.h"
 #include "rb_topics.h"
 #include "unity.h"
 
-static char buf[3072];
+static char buf[4096]; /* PAYLOAD_LEN in rb_telemetry.c */
 
 static const rb_json_node_t NODES[] = {
     {"node_01", "presence", "ONLINE", true, true, NULL, 0, 0, 0},
@@ -244,8 +245,34 @@ static void test_thermal_frame_fits_payload_buffer(void)
                                      "\"invalid\":255,\"hot_threshold_c\":50.0,\"hot_region_radius\":1,\"encoding\":\"u8_base64\",\"pixels\":\"AAECAwQF"));
 }
 
+/* The state with every setting of rb_params.def, at its largest, still fits the payload buffer. */
+static void test_state_with_params_fits_payload_buffer(void)
+{
+    static const char *keys[RB_PARAM_COUNT];
+    static uint32_t values[RB_PARAM_COUNT];
+    for (int i = 0; i < RB_PARAM_COUNT; i++) {
+        keys[i] = RB_PARAMS[i].key;
+        values[i] = RB_PARAMS[i].max;
+    }
+    rb_telemetry_t t = sample();
+    t.hdr = (rb_json_header_t){.controller_id = "controller_with_a_long_name_01", .boot_id = "3f9a01c2",
+                               .timestamp = "2026-10-02T23:59:59.999+08:00", .uptime_ms = 4000000000u,
+                               .sequence = 4000000000u};
+    t.safety.radar_rules = "observe";
+    t.safety.param_keys = keys;
+    t.safety.param_values = values;
+    t.safety.param_count = RB_PARAM_COUNT;
+    t.safety.params_remote = true;
+    const size_t len = rb_json_telemetry(&t, buf, sizeof(buf));
+    TEST_ASSERT_NOT_EQUAL(0, len);
+    TEST_ASSERT_TRUE(len < sizeof(buf) - 512); /* room for more faults and nodes */
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"params\":{\"shutdown_timing\":1,"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"params_source\":\"dashboard\""));
+}
+
 void run_json_tests(void)
 {
+    RUN_TEST(test_state_with_params_fits_payload_buffer);
     RUN_TEST(test_unknown_values_are_null);
     RUN_TEST(test_radar_rule_fields);
     RUN_TEST(test_telemetry_reports_espnow_channel);

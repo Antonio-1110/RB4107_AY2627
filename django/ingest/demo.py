@@ -11,6 +11,8 @@ import math
 
 from django.utils import timezone
 
+from .commands import safety_params
+
 SCENARIOS = ("monitoring", "unattended", "warning", "shutdown", "idle", "fault_radars",
              "fault_node_offline", "network_loss", "cooling", "hot_pan", "passing")
 # Without a scenario (tests, older catalogues) the index picks one, as before.
@@ -157,7 +159,8 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                               paused=scenario == "passing", pause_used_ms=4000 if scenario == "passing" else 0,
                               pause_budget_ms=30000,
                               presence_unknown=presence == "UNKNOWN", thermal_lost=False,
-                              absent_ms=0, returning_ms=0)
+                              absent_ms=0, returning_ms=0,
+                              params={p["key"]: p["default"] for p in safety_params()}, params_source="menuconfig")
     return data
 
 

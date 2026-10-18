@@ -19,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "rb_espnow.h"
+#include "rb_params.h"
 #include "rb_protocol.h"
 #include "safety.h"
 #include "sensor_node.h"
@@ -105,6 +106,8 @@ typedef struct {
     bool thermal_lost;            /* flag: thermal data missing/invalid */
     uint32_t absent_ms;           /* absence debounce progress, 0 = not running */
     uint32_t returning_ms;        /* return debounce progress, 0 = not running */
+    rb_params_t params;           /* the other safety settings in force (rb_params.def) */
+    bool params_remote;           /* set from the dashboard, not menuconfig */
 } rb_snapshot_t;
 
 /* Hooks the application provides. All are optional and all run in the safety task. */
@@ -125,6 +128,9 @@ typedef struct {
     void (*node_packet)(const rb_espnow_rx_t *rx, void *ctx);
     /* A packet from a valve node (wireless gas valve). Return false if it isn't one we expect. */
     bool (*valve_packet)(const rb_packet_t *packet, uint32_t rx_ms, void *ctx);
+    /* The settings rb_params.def keeps outside the safety task changed: the valve keep-alive and the
+     * shutdown read-back period. */
+    void (*params_applied)(const rb_params_target_t *target, void *ctx);
     void *ctx;
 } rb_controller_hooks_t;
 
@@ -132,6 +138,8 @@ typedef struct {
     safety_config_t safety;
     sensor_node_health_config_t health;
     node_set_config_t nodes;
+    uint32_t valve_keepalive_ms;  /* only reported and passed to params_applied: the application uses them */
+    uint32_t verify_period_ms;
     uint32_t rx_queue_len;
     uint32_t event_queue_len;
     uint32_t tick_ms;
@@ -270,6 +278,14 @@ typedef struct {
  * ignored. Saving it across reboots is the caller's job.
  */
 esp_err_t rb_controller_set_tiers(const rb_tiers_t *tiers);
+
+/*
+ * Replace the other safety settings (rb_params.def), or NULL for the menuconfig and built-in ones. Stays on
+ * top of any later rb_controller_set_safety_config() until a reboot or a call with NULL. Applied at the next
+ * step; values out of range, or that safety_config_valid() / rb_params_target_valid() refuse, are logged and
+ * ignored. Saving it across reboots is the caller's job.
+ */
+esp_err_t rb_controller_set_params(const rb_params_t *params);
 
 #ifdef __cplusplus
 }

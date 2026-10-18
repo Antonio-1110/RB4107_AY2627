@@ -207,6 +207,17 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_key(w, "source");
     rb_json_str(w, t->safety.cookware_remote ? "dashboard" : "menuconfig");
     rb_json_obj_end(w);
+    if (t->safety.param_keys != NULL && t->safety.param_values != NULL) {
+        rb_json_key(w, "params");
+        rb_json_obj_begin(w);
+        for (unsigned i = 0; i < t->safety.param_count; i++) {
+            rb_json_key(w, t->safety.param_keys[i]);
+            rb_json_int(w, t->safety.param_values[i]);
+        }
+        rb_json_obj_end(w);
+        rb_json_key(w, "params_source");
+        rb_json_str(w, t->safety.params_remote ? "dashboard" : "menuconfig");
+    }
     rb_json_obj_end(w);
 }
 

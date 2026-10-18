@@ -1106,6 +1106,57 @@ static void test_tier_config_is_checked(void)
     TEST_ASSERT_TRUE(safety_config_valid(&cfg));
 }
 
+/* ---- fine tuning from the config (rb_params.def): 0 = the built-in value ---- */
+
+static void test_built_in_tuning_is_filled_in(void)
+{
+    safety_config_t cfg = th_default_config();
+    safety_config_fill_defaults(&cfg);
+    TEST_ASSERT_EQUAL_UINT32(4000, cfg.tier_up_persist_ms);
+    TEST_ASSERT_EQUAL_UINT32(20000, cfg.tier_down_persist_ms);
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, cfg.tier_hyst_c);
+    TEST_ASSERT_EQUAL_UINT32(120000, cfg.trend_window_ms);
+    TEST_ASSERT_EQUAL_UINT16(12, cfg.trend_min_samples);
+    TEST_ASSERT_EQUAL_FLOAT(4.0f, cfg.cooling_hold_taus);
+    TEST_ASSERT_EQUAL_UINT32(30000, cfg.warning_min_after_hold_ms);
+    TEST_ASSERT_TRUE(safety_config_valid(&cfg));
+    cfg.tier_hyst_c = 3.0f; /* a value already set stays */
+    safety_config_fill_defaults(&cfg);
+    TEST_ASSERT_EQUAL_FLOAT(3.0f, cfg.tier_hyst_c);
+}
+
+static void test_tuned_tier_timing_is_used(void)
+{
+    th_t h;
+    safety_config_t cfg = tier_config(false);
+    cfg.tier_up_persist_ms = 1000; /* a 2 s spike now counts ... */
+    cfg.tier_hyst_c = 2.0f;        /* ... and 5 degC under the threshold is enough to give way */
+    cfg.tier_down_persist_ms = 5000;
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 52000, spike_curve);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    const_temp_c = 195.0f;
+    run_curve(&h, 4000, constant_temp);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    run_curve(&h, 2000, constant_temp);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_ELEVATED, h.sm.tier);
+}
+
+static void test_tuning_config_is_checked(void)
+{
+    safety_config_t cfg = th_default_config();
+    cfg.trend_min_samples = SAFETY_TREND_MAX + 1; /* more samples than the buffer holds */
+    TEST_ASSERT_FALSE(safety_config_valid(&cfg));
+    cfg = th_default_config();
+    cfg.trend_window_ms = SAFETY_TREND_MAX * 2000u + 2000u;
+    TEST_ASSERT_FALSE(safety_config_valid(&cfg));
+    cfg = th_default_config();
+    cfg.settle_margin_c = -1.0f;
+    TEST_ASSERT_FALSE(safety_config_valid(&cfg));
+}
+
 /* ---- pause: someone passing stops the clock, only a stay of 5 s cancels ---- */
 
 static safety_config_t pause_config(void)
@@ -1289,6 +1340,9 @@ void run_safety_tests(void)
     RUN_TEST(test_a_tier_gives_way_only_well_below_its_temperature);
     RUN_TEST(test_a_lost_camera_keeps_the_tier);
     RUN_TEST(test_tier_config_is_checked);
+    RUN_TEST(test_built_in_tuning_is_filled_in);
+    RUN_TEST(test_tuned_tier_timing_is_used);
+    RUN_TEST(test_tuning_config_is_checked);
     RUN_TEST(test_a_short_pass_stops_the_clock_and_resets_nothing);
     RUN_TEST(test_five_seconds_of_presence_cancel_the_timeline);
     RUN_TEST(test_the_pause_budget_limits_the_delay);

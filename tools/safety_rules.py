@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""Generate docs/safety_rules.md from the safety rules table, and check it.
+"""Generate docs/safety_rules.md and the dashboard's copy from the safety rules table, and check them.
 
 The state machine runs from firmware/components/safety/src/safety_rules.def,
 so the doc is generated from the same table the firmware executes.
 
-  python3 tools/safety_rules.py gen     write docs/safety_rules.md
-  python3 tools/safety_rules.py check   exit 1 if the doc is out of date, the
-                                        table names something that doesn't exist,
-                                        or a function the table names changed on
-                                        this branch without the table changing
+It also reads the dashboard settings table, firmware/components/rb_params/include/rb_params.def
+(every setting in the rules that has no dashboard card of its own), for Django's and the dashboard's
+copy and the command schema.
+
+  python3 tools/safety_rules.py gen     write docs/safety_rules.md, frontend/js/safety_rules_data.js,
+                                        django/ingest/safety_params.json and the "params" keys of
+                                        docs/schema/rb4107_mqtt.schema.json
+  python3 tools/safety_rules.py check   exit 1 if any of those is out of date, the table names
+                                        something that doesn't exist, a setting in the rules
+                                        can't be changed from the dashboard, or a function the
+                                        table names changed on this branch without the table
+                                        changing
 
 The branch comparison uses SAFETY_RULES_BASE (default origin/main) and is
 skipped when git or that ref is not available.
 """
+import json
 import os
 import re
 import subprocess
@@ -25,6 +33,14 @@ DEF = COMPONENTS / "safety" / "src" / "safety_rules.def"
 SAFETY_C = COMPONENTS / "safety" / "src" / "safety.c"
 KCONFIG = COMPONENTS / "rb_config" / "Kconfig"
 DOC = ROOT / "docs" / "safety_rules.md"
+JS = ROOT / "frontend" / "js" / "safety_rules_data.js"
+PARAMS_DEF = COMPONENTS / "rb_params" / "include" / "rb_params.def"
+PARAMS_JSON = ROOT / "django" / "ingest" / "safety_params.json"
+SCHEMA = ROOT / "docs" / "schema" / "rb4107_mqtt.schema.json"
+LOGIC_JS = ROOT / "frontend" / "js" / "safety_logic.js"
+# Wire units of rb_params.def: (scale from SI, unit shown).
+KINDS = {"MS": (1000, " s"), "DC": (10, " °C"), "DC_PER_MIN": (10, " °C/min"), "TENTHS": (10, ""), "COUNT": (1, ""),
+         "BOOL": (1, ""), "CHOICE": (1, "")}
 
 SECTIONS = {
     "A": "A. What the controller believes about its inputs",
@@ -98,10 +114,9 @@ def c_string(arg):
     return "".join(parts).replace('\\"', '"').replace("\\\\", "\\")
 
 
-def parse_def():
-    text = strip_c_comments(DEF.read_text())
+def macro_entries(text, names):
     entries = []
-    for m in re.finditer(r"\b(SAFETY_STATE|SAFETY_RULE|SAFETY_SIGNAL)\s*\(", text):
+    for m in re.finditer(r"\b(" + "|".join(names) + r")\s*\(", text):
         start, depth, i = m.end(), 1, m.end()
         while depth:
             if text[i] == '"':
@@ -114,6 +129,11 @@ def parse_def():
                 depth -= 1
             i += 1
         entries.append((m.group(1), split_args(text[start:i - 1])))
+    return entries
+
+
+def parse_def():
+    entries = macro_entries(strip_c_comments(DEF.read_text()), ("SAFETY_STATE", "SAFETY_RULE", "SAFETY_SIGNAL"))
     states, rules, signals = [], [], []
     for kind, a in entries:
         if kind == "SAFETY_STATE":
@@ -154,6 +174,90 @@ def parse_constants():
     return out
 
 
+def si_value(name, kconfig, consts):
+    """A Kconfig default or safety.c constant in seconds, degC, degC/min or plain numbers."""
+    if name in consts:
+        raw = consts[name][0]
+    elif name in kconfig and kconfig[name]["default"] is not None and kconfig[name]["kind"] == "config":
+        raw = kconfig[name]["default"]
+    else:
+        raise Error(f"rb_params.def: {name} is neither a Kconfig option with a default nor a safety.c constant")
+    for suffix, scale in (("_DC_PER_MIN", 10), ("_DC", 10), ("_MS", 1000)):
+        if name.endswith(suffix):
+            return float(raw) / scale
+    return float(raw)
+
+
+def parse_params(kconfig, consts):
+    """rb_params.def rows, with their menuconfig/built-in default in wire units."""
+    raw = PARAMS_DEF.read_text()
+    groups = [g for line in raw.splitlines()
+              for g in ([re.match(r"^/\* ([A-Z][^*]*?) \*/\s*$", line).group(1)] if re.match(r"^/\* ([A-Z][^*]*?) \*/\s*$", line)
+                        else ["@"] if line.startswith("RB_PARAM(") else [])]
+    group_of, current = [], None
+    for g in groups:
+        if g == "@":
+            group_of.append(current)
+        else:
+            current = g
+    params = []
+    for n, (_, a) in enumerate(macro_entries(strip_c_comments(raw), ("RB_PARAM",))):
+        key, kind, lo, hi, source, options, label = a[0], a[1], int(a[2]), int(a[3]), a[4], c_string(a[5]), c_string(a[6])
+        if kind not in KINDS:
+            raise Error(f"rb_params.def {key}: unknown kind {kind}")
+        labels = None
+        if kind == "CHOICE":
+            members = options.split("|")
+            missing = [m for m in members if m not in kconfig]
+            if missing or kconfig.get(source, {}).get("kind") != "choice":
+                raise Error(f"rb_params.def {key}: {source} must be a Kconfig choice with members {members}")
+            labels = [kconfig[m]["prompt"] for m in members]
+            default = members.index(kconfig[source]["default"])
+        elif kind == "BOOL":
+            if source not in kconfig or kconfig[source]["default"] not in ("y", "n"):
+                raise Error(f"rb_params.def {key}: {source} must be a Kconfig bool")
+            labels, default = options.split("|"), 1 if kconfig[source]["default"] == "y" else 0
+        else:
+            expr = re.sub(r"[A-Za-z_]\w*", lambda m: repr(si_value(m.group(0), kconfig, consts)), source)
+            if not re.fullmatch(r"[\d.\s+\-e]+", expr):
+                raise Error(f"rb_params.def {key}: source may only add and subtract names")
+            default = round(eval(expr) * KINDS[kind][0])  # numbers, + and - only (checked above)
+        if not lo <= default <= hi:
+            raise Error(f"rb_params.def {key}: the default {default} is outside {lo}..{hi}")
+        params.append({"key": key, "kind": kind, "min": lo, "max": hi, "default": default, "label": label,
+                       "source": source, "options": labels, "group": group_of[n] if n < len(group_of) else None})
+    return params
+
+
+def param_text(p, v):
+    if p["options"]:
+        return p["options"][v]
+    scale, unit = KINDS[p["kind"]]
+    return fmt_num(v / scale) + unit
+
+
+def schema_with_params(text, params):
+    """The schema with the controller_command "params" keys rewritten from rb_params.def (one line each)."""
+    start = text.index('    "controller_command": {')
+    props = text.index('      "properties": {\n', start) + len('      "properties": {\n')
+    end = text.index("\n      },\n", props)
+    keys = {p["key"] for p in params}
+    lines = [ln for ln in text[props:end].split("\n")
+             if not (re.match(r'^\s*"(\w+)":', ln) and re.match(r'^\s*"(\w+)":', ln).group(1) in keys)]
+    lines[-1] = lines[-1].rstrip(",") + ","
+    for i, p in enumerate(params):
+        desc = f"params: {p['label']}" + (f" (0 = {p['options'][0]}, 1 = {p['options'][1]})" if p["options"] else
+                                          f" ({p['kind'].lower().replace('_', ' ')})")
+        lines.append(f'        "{p["key"]}": {json.dumps({"type": "integer", "minimum": p["min"], "maximum": p["max"], "description": desc}, ensure_ascii=False)}'
+                     + ("," if i < len(params) - 1 else ""))
+    return text[:props] + "\n".join(lines) + text[end:]
+
+
+def dashboard_card_settings():
+    """The settings the dashboard's own cards change: LIVE entries marked tune: true in safety_logic.js."""
+    return set(re.findall(r"\b([A-Z][A-Z0-9_]+): \{\s*tune: true", LOGIC_JS.read_text()))
+
+
 # ---- rendering ----
 
 def fmt_num(v):
@@ -186,16 +290,19 @@ def resolve(name, kconfig, consts):
     return with_unit(name, sym["default"])
 
 
-def render_text(text, kconfig, consts, used):
+def render_text(text, kconfig, consts, used, live=False):
+    """{NAME} -> **default**, or for the dashboard {{NAME|default}} so it can show the live value instead."""
     def sub(m):
         used.add(m.group(1))
-        return f"**{resolve(m.group(1), kconfig, consts)}**"
+        value = resolve(m.group(1), kconfig, consts)
+        return f"{{{{{m.group(1)}|{value}}}}}" if live else f"**{value}**"
     return re.sub(r"\{(\w+)\}", sub, text)
 
 
 def generate():
     states, rules, signals = parse_def()
     kconfig, consts = parse_kconfig(), parse_constants()
+    params = parse_params(kconfig, consts)
     used = set()
     out = [
         "# Safety rules: what the controller does, and when",
@@ -206,7 +313,8 @@ def generate():
         "machine runs from the same table this page is generated from",
         "([`safety_rules.def`](../firmware/components/safety/src/safety_rules.def)), so",
         "the transitions below are exactly what the firmware does. Values in **bold**",
-        "are the menuconfig defaults; the dashboard can change many of them. The",
+        "are the menuconfig defaults; the dashboard can change every one of them (see the",
+        "last section) and shows the values in force. The",
         "reasons behind the rules are in [safety_state_machine.md](safety_state_machine.md).",
         "",
         "## Outputs per state",
@@ -228,6 +336,16 @@ def generate():
 
     for letter in "ABCD":
         signal_section(letter)
+    data = {
+        "states": [{"state": s["state"], "buzzer": BUZZER[s["buzzer"]], "shutdown": s["shutdown"]} for s in states],
+        "sections": [{"key": letter, "title": SECTIONS[letter],
+                      "rows": [{"id": s["id"], "when": render_text(s["when"], kconfig, consts, set(), True),
+                                "result": render_text(s["result"], kconfig, consts, set(), True), "code": f"{s['function']}()"}
+                               for s in signals if s["id"][0] == letter]} for letter in SECTIONS],
+        "transitions": [{"id": r["id"], "from": r["from"], "to": r["to"], "reason": r["reason"],
+                         "when": render_text(r["when"], kconfig, consts, set(), True)} for r in rules],
+        "params": params,
+    }
 
     out.extend(["", "## T. State transitions", "",
                 "Checked on every step in this order; the first rule of the current state that holds is taken.",
@@ -251,8 +369,27 @@ def generate():
     out.extend(["", "## Fixed constants in safety.c", "", "| Constant | Value | Note |", "|---|---|---|"])
     for k, (v, note) in consts.items():
         out.append(f"| `{k}` | {v} | {note} |")
+    out.extend(["", "## Changing them from the dashboard", "",
+                "The dashboard's Tuning cards change the cooking temperature, cookware profile, temperature tiers,",
+                "presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules. Every other",
+                "setting above is on the Logic tab's **Other settings** card",
+                "([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)); the controller saves",
+                "them until **Defaults** is pressed.", "",
+                "| Setting | Key | Default | Range |", "|---|---|---|---|"])
+    for p in params:
+        rng = " / ".join(p["options"]) if p["options"] else f"{param_text(p, p['min'])} to {param_text(p, p['max'])}"
+        out.append(f"| {p['label']} | `{p['key']}` | {param_text(p, p['default'])} | {rng} |")
     out.append("")
-    return "\n".join(out), states, rules, signals
+    js = ("// Generated by tools/safety_rules.py from firmware/components/safety/src/safety_rules.def.\n"
+          "// Do not edit: change the table and run `python3 tools/safety_rules.py gen`.\n"
+          "// {{NAME|default}} is a Kconfig option or safety.c constant with its default; the dashboard\n"
+          "// shows the value the controller reports instead when it reports one.\n"
+          f"export default {json.dumps(data, indent=1, ensure_ascii=False)};\n")
+    django = json.dumps({"_": "Generated by tools/safety_rules.py from firmware/components/rb_params/include/rb_params.def; "
+                              "do not edit.", "params": params}, indent=1, ensure_ascii=False) + "\n"
+    schema = schema_with_params(SCHEMA.read_text(), params)
+    uncovered = sorted(used - {p["source"] for p in params} - dashboard_card_settings())
+    return "\n".join(out), states, rules, signals, js, django, schema, uncovered
 
 
 # ---- checks ----
@@ -294,7 +431,7 @@ def git_ok(base):
 
 
 def check():
-    text, states, rules, signals = generate()
+    text, states, rules, signals, js, django, schema, uncovered = generate()
     errors = []
     if len(states) != len(STATE_NAMES) or [s["state"] for s in states] != STATE_NAMES:
         errors.append("SAFETY_STATE entries must list every state once, in enum order")
@@ -321,6 +458,15 @@ def check():
 
     if not DOC.exists() or DOC.read_text() != text:
         errors.append(f"{DOC.relative_to(ROOT)} is out of date: run python3 tools/safety_rules.py gen")
+    if not JS.exists() or JS.read_text() != js:
+        errors.append(f"{JS.relative_to(ROOT)} is out of date: run python3 tools/safety_rules.py gen")
+    if not PARAMS_JSON.exists() or PARAMS_JSON.read_text() != django:
+        errors.append(f"{PARAMS_JSON.relative_to(ROOT)} is out of date: run python3 tools/safety_rules.py gen")
+    if SCHEMA.read_text() != schema:
+        errors.append(f"the params keys in {SCHEMA.relative_to(ROOT)} are out of date: run python3 tools/safety_rules.py gen")
+    for name in uncovered:
+        errors.append(f"{{{name}}} in the rules can't be changed from the dashboard: add it to rb_params.def "
+                      f"(or to a dashboard card and its LIVE entry in safety_logic.js)")
 
     base = os.environ.get("SAFETY_RULES_BASE", "origin/main")
     if git_ok(base):
@@ -340,7 +486,7 @@ def check():
         print("Safety rules check failed:")
         print("\n".join(f"  - {e}" for e in errors))
         return 1
-    print(f"Safety rules OK: {len(rules)} transitions, {len(signals)} signals, doc up to date")
+    print(f"Safety rules OK: {len(rules)} transitions, {len(signals)} signals, doc and dashboard copy up to date")
     return 0
 
 
@@ -348,8 +494,15 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "check"
     try:
         if cmd == "gen":
-            DOC.write_text(generate()[0])
-            print(f"wrote {DOC.relative_to(ROOT)}")
+            text, _, _, _, js, django, schema, uncovered = generate()
+            DOC.write_text(text)
+            JS.write_text(js)
+            PARAMS_JSON.write_text(django)
+            SCHEMA.write_text(schema)
+            print(f"wrote {DOC.relative_to(ROOT)}, {JS.relative_to(ROOT)}, {PARAMS_JSON.relative_to(ROOT)} and "
+                  f"the params keys of {SCHEMA.relative_to(ROOT)}")
+            for name in uncovered:
+                print(f"warning: {{{name}}} can't be changed from the dashboard (check will fail)")
             return 0
         if cmd == "check":
             return check()
