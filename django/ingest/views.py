@@ -11,7 +11,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import commands, validation
+from . import commands, incidents, validation
 from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .locations import (active_alerts, aggregate_stalls, classify_cooking, classify_display_state,
                         fleet_summary, load_location_catalog, location_for)
@@ -350,3 +350,11 @@ def thermal_frame(request, device_id):
               for row in ThermalFrame.objects.filter(device=device).order_by("sensor_node")]
     return JsonResponse({"device_id": device_id, "stale_after_seconds": settings.DEVICE_STALE_SECONDS,
                          "frames": frames})
+
+
+@require_GET
+@never_cache
+def stall_history(request):
+    """Per-stall history of unattended / buzzer warning / shutdown incidents (ingest/incidents.py)."""
+    stall_id = request.GET.get("stall") or None
+    return JsonResponse(incidents.stall_history(timezone.now(), stall_id))

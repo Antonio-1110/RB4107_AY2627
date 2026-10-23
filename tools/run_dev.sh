@@ -168,6 +168,8 @@ fi
 
 start subscriber "$PYTHON" manage.py mqtt_subscriber
 if [[ "$DEMO" == 1 ]]; then
+    # Made-up past incidents for the simulated stalls' Stall history.
+    "$PYTHON" manage.py seed_incident_history >/dev/null || echo "[dev] seed_incident_history failed" >&2
     start simulator "$PYTHON" manage.py simulate_fleet
 fi
 start web "$PYTHON" manage.py runserver "$HTTP_ADDR"
