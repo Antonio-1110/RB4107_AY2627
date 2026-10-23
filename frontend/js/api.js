@@ -26,6 +26,10 @@ export const fetchHistory = (deviceId, hours, limit = 360) =>
 export const fetchEvents = (deviceId, hours = 24, limit = 30) =>
   get(`${device(deviceId)}/events/?hours=${hours}&limit=${limit}`);
 
+// Every stall's incident counts, plus the incidents of one stall (unattended, buzzer warning, shutdown).
+export const fetchStallHistory = (stallId = "") =>
+  get(`/api/stall-history/${stallId ? `?stall=${encodeURIComponent(stallId)}` : ""}`);
+
 async function post(path, body) {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",

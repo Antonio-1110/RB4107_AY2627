@@ -14,7 +14,8 @@
       >
       <nav class="view-tabs" aria-label="Dashboard views">
         <button id="overview-tab" class="tab active" type="button">All stalls</button
-        ><button id="detail-tab" class="tab" type="button" disabled>Stall detail</button>
+        ><button id="detail-tab" class="tab" type="button" disabled>Stall detail</button
+        ><button id="history-tab" class="tab" type="button">Stall history</button>
       </nav>
       <div class="mode-switch" role="group" aria-label="Dashboard mode">
         <button type="button" data-mode-button="monitor" aria-pressed="true" title="Deployment view: what the stall shows, nothing to change">Monitor</button
@@ -165,6 +166,101 @@
         <p id="catalog-notice" class="catalog-note"></p>
       </section>
 
+      <section id="history-view" hidden>
+        <section class="card hist-stalls" aria-labelledby="hist-stalls-title">
+          <div class="section-heading">
+            <div>
+              <h2 id="hist-stalls-title">Stalls</h2>
+              <p class="muted">Unattended cooking incidents recorded per stall, for as long as the stall is on the system.</p>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="hist-stall-table">
+              <thead>
+                <tr>
+                  <th>Stall / location</th>
+                  <th>Incidents</th>
+                  <th>Buzzer warnings</th>
+                  <th>Shutdowns</th>
+                  <th>Last incident</th>
+                </tr>
+              </thead>
+              <tbody id="hist-stall-rows">
+                <tr>
+                  <td colspan="5" class="empty-cell">Loading…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section id="hist-detail" class="hist-detail" hidden>
+          <div class="section-heading">
+            <div>
+              <h2 id="hist-stall-name">Stall</h2>
+              <p id="hist-stall-location" class="muted"></p>
+            </div>
+            <span id="hist-demo" class="pill demo" hidden>INCLUDES MADE-UP DEMO HISTORY</span>
+          </div>
+          <section class="summary-grid hist-summary" aria-label="Stall incident totals">
+            <article class="summary-card">
+              <p>Incidents</p>
+              <strong id="hist-total">0</strong>
+            </article>
+            <article class="summary-card fault">
+              <p>Unattended only</p>
+              <strong id="hist-unattended">0</strong>
+            </article>
+            <article class="summary-card warning">
+              <p>Buzzer warnings</p>
+              <strong id="hist-warnings">0</strong>
+            </article>
+            <article class="summary-card critical">
+              <p>Shutdowns</p>
+              <strong id="hist-shutdowns">0</strong>
+            </article>
+            <article class="summary-card">
+              <p>Recorded since</p>
+              <strong id="hist-since" class="hist-since">—</strong>
+            </article>
+          </section>
+          <section class="card" aria-labelledby="hist-list-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="hist-list-title">Incidents</h2>
+                <p class="muted">
+                  Each row is one time the cook left while cooking: how far it escalated and how it
+                  ended. The end is inferred from the state the controller went to next.
+                </p>
+              </div>
+              <label class="hist-filter"
+                >Show<select id="hist-filter">
+                  <option value="">Everything</option>
+                  <option value="warning">Buzzer warning or worse</option>
+                  <option value="shutdown">Shutdowns only</option>
+                </select></label
+              >
+            </div>
+            <div class="table-scroll">
+              <table class="hist-table">
+                <thead>
+                  <tr>
+                    <th>Started</th>
+                    <th>Reached</th>
+                    <th>Buzzer after</th>
+                    <th>Shutdown after</th>
+                    <th>Lasted</th>
+                    <th>Ended by</th>
+                    <th>Hottest</th>
+                  </tr>
+                </thead>
+                <tbody id="hist-rows"></tbody>
+              </table>
+            </div>
+            <p id="hist-note" class="muted small"></p>
+          </section>
+        </section>
+      </section>
+
       <section id="detail-view" data-mode="monitor" data-tab="rules" hidden>
         <article id="detail-alert" class="detail-alert" role="alert" hidden></article>
         <div class="dv-top">
@@ -179,6 +275,7 @@
             ><span id="demo-badge" class="pill demo" hidden>SIMULATED DATA</span
             ><span id="detail-demo" class="pill demo" hidden>DEMO REFERENCE</span
             ><span id="test-timers-badge" class="pill warn" hidden>FIRMWARE TEST TIMERS</span
+            ><button id="open-history" class="secondary-button" type="button">Incident history</button
             ><a
               id="official-map"
               class="secondary-button"

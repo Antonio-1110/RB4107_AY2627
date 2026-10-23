@@ -22,6 +22,8 @@
 #   RB4107_HTTP_ADDR=0.0.0.0:8000     address for runserver (127.0.0.1:8000 = this Mac only)
 #   RB4107_SKIP_BROKER=1              don't start Mosquitto (use one already running)
 #   RB4107_NO_BROWSER=1               don't open the dashboard in the browser
+#   RB4107_ALLOW_SLEEP=1              let the Mac sleep (by default, on macOS,
+#                                     caffeinate keeps it awake while this runs)
 #
 # Uses django/.venv if it exists. Written for the bash 3.2 that
 # ships with macOS.
@@ -81,6 +83,7 @@ port_open() {
 # Ctrl-C would only kill that sleep and the script would carry on.
 PIDS=""
 NAMES=""
+CAFFEINATE_PID=""
 
 # prefix <label>: copy stdin to stdout line by line, tagging each line.
 # (A plain read loop, because some awk/sed builds buffer piped input.)
@@ -126,6 +129,8 @@ cleanup() {
         sleep 0.5
     done
     for pid in $PIDS; do kill -KILL -- "-$pid" 2>/dev/null; done
+    # Before `wait`: caffeinate -w waits for this script, so `wait` would hang.
+    [[ -n "$CAFFEINATE_PID" ]] && kill "$CAFFEINATE_PID" 2>/dev/null
     wait 2>/dev/null
     rm -f "$PID_FILE"
     erase_data
@@ -134,6 +139,19 @@ cleanup() {
 trap 'cleanup; exit 0' INT TERM HUP
 trap cleanup EXIT
 echo $$ > "$PID_FILE"
+
+# --- Keep the Mac awake ----------------------------------------------------------
+# Idle sleep would stop the broker, subscriber and dashboard (the controller
+# keeps protecting the kitchen, but telemetry is lost and Reset shutdown is
+# gone). caffeinate -i blocks idle sleep, -s blocks system sleep on mains
+# power, and -w ends it with this script even if the script is killed.
+# Closing the lid still sleeps the Mac; see docs/setup.md.
+if [[ "${RB4107_ALLOW_SLEEP:-0}" != 1 ]] && [[ "$(uname)" == Darwin ]] \
+        && command -v caffeinate >/dev/null 2>&1; then
+    caffeinate -i -s -w $$ &
+    CAFFEINATE_PID=$!
+    echo "[dev] keeping the Mac awake while running (RB4107_ALLOW_SLEEP=1 to allow sleep)"
+fi
 
 # --- 1. Broker -----------------------------------------------------------------
 if [[ "$DEMO" == 1 ]]; then
@@ -168,6 +186,8 @@ fi
 
 start subscriber "$PYTHON" manage.py mqtt_subscriber
 if [[ "$DEMO" == 1 ]]; then
+    # Made-up past incidents for the simulated stalls' Stall history.
+    "$PYTHON" manage.py seed_incident_history >/dev/null || echo "[dev] seed_incident_history failed" >&2
     start simulator "$PYTHON" manage.py simulate_fleet
 fi
 start web "$PYTHON" manage.py runserver "$HTTP_ADDR"

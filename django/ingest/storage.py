@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from . import incidents
 from .models import Device, InboundMessage, LogLine, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .normalization import normalize
 
@@ -56,6 +57,7 @@ def track_boot(device, message, row, now, source):
     previous = device.boot_id
     device.boot_id, device.last_sequence = boot_id, sequence
     if previous:
+        incidents.controller_restarted(device, now)
         SafetyEvent.objects.create(device=device, message=row, received_at=now, source_at=source,
                                    event_type="controller_restarted",
                                    detail={"previous_boot_id": previous, "boot_id": boot_id,
@@ -116,6 +118,7 @@ def persist(message, received_at=None):
                     device.reported_online = True
                 if not message.retained and message.type == "telemetry":
                     device.last_snapshot_source_at = min(now, source) if source else None
+                    incidents.record_state(device, fields["safety_state"], now, fields.get("temperature_c"))
             elif order == "live":
                 row.outcome = "historical"
                 row.save(update_fields=["outcome"])

@@ -26,6 +26,7 @@ import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
 import { renderTuning } from "./tuning.js";
 import { renderSafetyLogic, setSafetyEvents } from "./safety_logic.js";
+import { refreshStallHistory, showStallHistory } from "./stall_history.js";
 import { renderLogs } from "./logs.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
@@ -39,7 +40,9 @@ let selectedStall = "",
   initialRouteApplied = false,
   heatmap = null, // decoded picture of the selected device, or null
   heatmapNumber = null, // its picture number
-  heatmapGeometry = null;
+  heatmapGeometry = null,
+  lastIncidentsAt = 0,
+  historyStall = ""; // the stall to open when switching to the history view
 function freshness(device, key, explicitAge) {
   const age = explicitAge === undefined ? device.field_age_seconds[key] : explicitAge;
   if (age == null) return "No live timestamp · retained or not reported";
@@ -65,10 +68,17 @@ function showView(view) {
   activeView = view;
   $("overview-view").hidden = view !== "overview";
   $("detail-view").hidden = view !== "detail";
+  $("history-view").hidden = view !== "history";
   document.body.dataset.view = view;
   $("overview-tab").classList.toggle("active", view === "overview");
   $("detail-tab").classList.toggle("active", view === "detail");
-  if (view === "overview") {
+  $("history-tab").classList.toggle("active", view === "history");
+  if (view === "history") {
+    set("page-title", "Stall incident history");
+    set("page-subtitle", "Unattended cooking, buzzer warnings and shutdowns, per stall.");
+    showStallHistory(historyStall);
+    historyStall = "";
+  } else if (view === "overview") {
     set("page-title", "All-stall safety overview");
     set("page-subtitle", "Airport terminals, zones and external sites in one view.");
     history.replaceState(null, "", "#overview");
@@ -106,6 +116,16 @@ function openStall(stallId, deviceId = "") {
 function applyInitialRoute() {
   if (initialRouteApplied) return;
   initialRouteApplied = true;
+  const past = location.hash.match(/^#history(?:=(.+))?$/);
+  if (past) {
+    try {
+      historyStall = past[1] ? decodeURIComponent(past[1]) : "";
+    } catch {
+      historyStall = "";
+    }
+    showView("history");
+    return;
+  }
   const match = location.hash.match(/^#stall=(.+)$/);
   if (!match) return;
   let stallId;
@@ -848,6 +868,10 @@ async function refresh(forceHistory = false) {
     renderOverview();
     applyInitialRoute();
     if (activeView === "detail") renderDetail();
+    if (activeView === "history" && Date.now() - lastIncidentsAt > 10000) {
+      lastIncidentsAt = Date.now();
+      refreshStallHistory();
+    }
     await Promise.all([refreshDetailData(forceHistory), refreshHeatmap()]);
   } catch (error) {
     document.body.classList.add("transport-lost");
@@ -889,6 +913,12 @@ $("clear-filters").addEventListener("click", () => {
   renderOverview();
 });
 $("overview-tab").addEventListener("click", () => showView("overview"));
+$("history-tab").addEventListener("click", () => showView("history"));
+$("open-history").addEventListener("click", () => {
+  historyStall = selectedStall;
+  showView("history");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 $("back-overview").addEventListener("click", () => showView("overview"));
 $("detail-tab").addEventListener("click", () => {
   if (selectedStall) showView("detail");

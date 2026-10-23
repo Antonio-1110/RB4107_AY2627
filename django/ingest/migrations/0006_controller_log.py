@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("ingest", "0004_inbound_topic_index"),
+        ("ingest", "0005_incident_history"),
     ]
 
     operations = [

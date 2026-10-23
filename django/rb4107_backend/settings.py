@@ -144,6 +144,17 @@ LOCATION_CATALOG_FILE = Path(env("RB4107_LOCATION_CATALOG_FILE", "locations.json
 if not LOCATION_CATALOG_FILE.is_absolute():
     LOCATION_CATALOG_FILE = BASE_DIR / LOCATION_CATALOG_FILE
 
+# --- Staff alerts (ingest/alerts.py, docs/telegram_alerts.md) ---------------
+# Off until both the bot token and at least one chat ID are set. Keep the
+# token in django/.env, never in the repository.
+RB4107_TELEGRAM_BOT_TOKEN = env("RB4107_TELEGRAM_BOT_TOKEN", "")
+RB4107_TELEGRAM_CHAT_IDS = [c.strip() for c in env("RB4107_TELEGRAM_CHAT_IDS", "").split(",") if c.strip()]
+# Which escalations send a message: unattended, warning (buzzer), shutdown, fault.
+RB4107_ALERT_EVENTS = [e.strip() for e in env("RB4107_ALERT_EVENTS", "warning,shutdown").split(",") if e.strip()]
+# Skip events the broker held for longer than this while the subscriber was
+# down (only when the controller had the time); 0 sends them all.
+RB4107_ALERT_MAX_AGE_S = int(env("RB4107_ALERT_MAX_AGE_S", "600"))
+
 # --- Logging ---------------------------------------------------------------
 # Log lines look like the firmware's: [MQTT][INFO] broker connected
 
