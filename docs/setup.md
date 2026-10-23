@@ -128,6 +128,24 @@ back within seconds, since they are generated, not stored.
 Options: `RB4107_SKIP_BROKER=1` if a broker is already running,
 `RB4107_NO_BROWSER=1` to not open the browser.
 
+While it runs, `run_dev.sh` keeps the Mac from sleeping (`caffeinate -i -s`,
+macOS only; `RB4107_ALLOW_SLEEP=1` turns that off), so the broker and
+dashboard stay up during a long test. For a multi-day run:
+
+- Keep the Mac on its charger: `-s` only blocks sleep on mains power.
+- Don't close the lid. A closed lid sleeps the Mac anyway unless an external
+  display, keyboard and power are connected. If it has to be closed,
+  `sudo pmset -a disablesleep 1` stops all sleep until you undo it with
+  `sudo pmset -a disablesleep 0`.
+- Turn off automatic macOS updates (System Settings > General > Software
+  Update > Automatic Updates) so it doesn't restart overnight.
+- Stopping `run_dev.sh` erases the recorded data, so leave it running until
+  you have looked at the results.
+
+If the Mac does sleep, the controller keeps protecting the kitchen on its
+own; only telemetry, the dashboard and Reset shutdown are missing until it
+wakes.
+
 For a demonstration, `tools/run_dev.sh --demo` adds simulated stalls next to
 the real one: the cases a single bench stall can't show at once (several
 incidents across sites, a stall that has cut its supply and is cooling down,
