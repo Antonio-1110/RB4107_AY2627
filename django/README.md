@@ -25,6 +25,7 @@ Run from this folder with the virtualenv active.
 | `python manage.py mqtt_subscriber` | persistent MQTT subscriber; runs until Ctrl-C. `--host`, `--stats-interval` override settings |
 | `python manage.py simulate_fleet` | publishes made-up controllers over MQTT (needs the subscriber) |
 | `python manage.py simulate_fleet --direct` | same data written straight to the database, no broker. Don't run it together with the subscriber |
+| `python manage.py telegram_alerts` | Telegram alert setup: `--find-chats` lists chat IDs, `--test` sends a test message ([telegram_alerts.md](../docs/telegram_alerts.md)) |
 | `python manage.py test ingest` | unit tests |
 
 ## Configuration (environment variables)
@@ -50,6 +51,7 @@ exported environment variables win.
 | `RB4107_DEVICE_STALE_SECONDS` | `15` | when the dashboard marks data stale (display only) |
 | `RB4107_WORKER_STALE_SECONDS` | `10` | subscriber heartbeat timeout |
 | `RB4107_FRONTEND_DIR` | `../frontend` | folder served at `/` |
+| `RB4107_TELEGRAM_BOT_TOKEN` / `_CHAT_IDS`, `RB4107_ALERT_EVENTS` / `_MAX_AGE_S` | empty / empty, `warning,shutdown` / `600` | Telegram alerts to staff, off until token and chat are set ([telegram_alerts.md](../docs/telegram_alerts.md)) |
 
 Several real controllers need a unique `controller_id` and topic prefix each
 (e.g. `rb4107/controller_01`), otherwise their retained messages overwrite
@@ -62,6 +64,7 @@ each other.
 | `ingest/subscriber.py` | connects, resubscribes on every reconnect, backs off while the broker is down, disconnects cleanly on Ctrl-C / `SIGTERM` |
 | `ingest/validation.py` | checks topic, UTF-8 JSON ≤ 8 KB, `schema_version` 2, `type` allowed on that topic, then the JSON Schema. Failures are logged as `rejected message` and dropped; nothing stops the subscriber |
 | `ingest/handlers.py` | stores each message (`storage.py`) and logs it: telemetry at INFO, warnings/shutdowns/FAULT at WARNING, routine heartbeat/sensor messages at DEBUG |
+| `ingest/alerts.py` | sends a Telegram message for the events in `RB4107_ALERT_EVENTS` |
 | `ingest/normalization.py` | maps schema v2 to dashboard fields |
 | `ingest/views.py` | `/api/health/`, `/api/devices/`, and per device `latest/`, `history/`, `events/` |
 

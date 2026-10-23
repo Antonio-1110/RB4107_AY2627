@@ -11,6 +11,7 @@ import threading
 from collections import Counter
 from typing import Callable
 
+from . import alerts
 from .validation import Message
 from .storage import persist, store_thermal_frame
 
@@ -55,6 +56,7 @@ def handle_event(msg: Message) -> None:
     d = msg.data
     safety, fault = d["safety"], d["fault"]
     kind = d["event"]
+    alerts.notify(msg)
     if kind in ("warning", "shutdown") or (kind == "state_change" and safety["state"] == "FAULT"):
         event_log.warning(
             "%s %s: %s -> %s (%s), unattended %.1fs",
