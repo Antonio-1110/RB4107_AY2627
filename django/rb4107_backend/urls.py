@@ -15,6 +15,7 @@ serve = cache_control(no_cache=True)(_serve)
 urlpatterns = [
     path("api/health/", views.health),
     path("api/devices/", views.devices),
+    path("api/stall-history/", views.stall_history),
     path("api/devices/<str:device_id>/latest/", views.latest),
     path("api/devices/<str:device_id>/history/", views.history),
     path("api/devices/<str:device_id>/events/", views.events),

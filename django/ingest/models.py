@@ -80,3 +80,27 @@ class ThermalFrame(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["device", "sensor_node"], name="one_frame_per_node")]
+
+
+class Incident(models.Model):
+    """One unattended-cooking episode of a controller, for the per-stall history.
+
+    Django opens one when the reported state first leaves MONITORING for
+    UNATTENDED, WARNING or SHUTDOWN, raises `peak` as it escalates and closes it
+    when the state is back to MONITORING or IDLE (or the controller restarts).
+    Display only: the controller never reads these. Never pruned.
+    """
+    PEAKS = ("unattended", "warning", "shutdown")
+    device = models.ForeignKey(Device, on_delete=models.CASCADE)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    peak = models.CharField(max_length=16, default="unattended")
+    last_state = models.CharField(max_length=16, default="unattended")
+    warning_at = models.DateTimeField(null=True, blank=True)
+    shutdown_at = models.DateTimeField(null=True, blank=True)
+    end_reason = models.CharField(max_length=40, blank=True)
+    max_temp_c = models.FloatField(null=True, blank=True)
+    demo = models.BooleanField(default=False)  # made up by seed_incident_history
+
+    class Meta:
+        indexes = [models.Index(fields=["device", "started_at"], name="incident_device_started")]

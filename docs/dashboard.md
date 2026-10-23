@@ -32,6 +32,7 @@ frontend/
     ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
     ├── mode.js       Monitor / Tuning mode, tuning tabs, overview layout, colour theme
     ├── safety_logic.js        Safety logic card: current state, next rules, last rule fired
+    ├── stall_history.js       Stall history view: incidents per stall
     ├── params.js              Other settings (Tuning > Logic): every setting in rb_params.def
     ├── safety_rules_data.js   the controller's rules table, generated (tools/safety_rules.py gen)
     ├── dom.js        small DOM helpers
@@ -181,6 +182,34 @@ day of detail (roughly 1 GB at the default rates, a few GB at most).
 `python manage.py prune_history --dry-run` shows what would go; run it without
 `--dry-run` for a first clean-up. SQLite does not give disk space back by
 itself: run `sqlite3 db.sqlite3 VACUUM` once after a big clean-up.
+
+## Stall history
+
+The **Stall history** tab lists every stall with its count of incidents,
+buzzer warnings and shutdowns, and for the chosen stall each incident: when it
+started, how far it escalated (unattended, buzzer warning, shutdown), after how
+long the buzzer and shutdown came, how long it lasted, how it ended and the
+hottest reading. The stall page's **Incident history** button opens it on that
+stall.
+
+An incident is one unattended-cooking episode (`ingest/incidents.py`). Django
+builds it from the controller's live telemetry, which the firmware publishes on
+every state change: it opens when the state first becomes UNATTENDED, WARNING
+or SHUTDOWN, and closes when the state is back to MONITORING (person returned),
+IDLE (heating stopped, or "reset after shutdown" from SHUTDOWN) or the
+controller restarts. FAULT keeps it open. The end reason is inferred from the
+next state, not reported by the controller. Retained snapshots and out-of-order
+messages never open one. Incidents are never pruned, so a stall keeps its
+record for as long as the database exists (but `tools/run_dev.sh` still erases
+the database when it stops).
+
+API: `GET /api/stall-history/` (every stall's counts) and
+`GET /api/stall-history/?stall=<stall_id>` (plus its newest 500 incidents).
+
+Demo: `tools/run_dev.sh --demo` runs `python manage.py seed_incident_history`,
+which gives each simulated stall about two months of made-up past incidents,
+marked "demo" in the list. `--clear` deletes them. The real controller's
+history is only what it actually did.
 
 ## Active cooking
 
