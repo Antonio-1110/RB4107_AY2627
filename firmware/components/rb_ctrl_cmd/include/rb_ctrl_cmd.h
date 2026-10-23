@@ -48,6 +48,10 @@
  *                               controller; needs every key of rb_params.def, each an integer in
  *                               its range
  *   "params_defaults"           forget the saved settings: back to menuconfig and the built-in values
+ *   "log_level"                 set one tag's log level until reboot, as the console's `log` command;
+ *                               needs log_tag (1..15 characters: letters, digits, _ - . or "*" for
+ *                               the default) and log_level ("none" "error" "warn" "info" "debug" "verbose")
+ *   "log_level_defaults"        back to the menuconfig log levels
  *
  * Flat object, strings and integers only, so a small hand-written parser is
  * enough.
@@ -88,6 +92,8 @@ typedef enum {
     RB_CTRL_ACTION_RADAR_RULES_DEFAULTS,
     RB_CTRL_ACTION_PARAMS,
     RB_CTRL_ACTION_PARAMS_DEFAULTS,
+    RB_CTRL_ACTION_LOG_LEVEL,
+    RB_CTRL_ACTION_LOG_LEVEL_DEFAULTS,
 } rb_ctrl_action_t;
 
 typedef struct {
@@ -127,6 +133,9 @@ typedef struct {
     uint16_t radar_zone_max_cm;
     /* RB_CTRL_ACTION_PARAMS only: every setting of rb_params.def, range-checked. */
     rb_params_t params;
+    /* RB_CTRL_ACTION_LOG_LEVEL only. */
+    char log_tag[16];
+    uint8_t log_level;            /* 0 none .. 5 verbose: the esp_log_level_t values */
 } rb_ctrl_cmd_t;
 
 /*

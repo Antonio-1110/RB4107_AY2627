@@ -128,6 +128,7 @@ RB4107_RETENTION_FULL_HOURS = float(env("RB4107_RETENTION_FULL_HOURS", "24"))   
 RB4107_RETENTION_THIN_SECONDS = int(env("RB4107_RETENTION_THIN_SECONDS", "60"))      # then one per this many seconds ...
 RB4107_RETENTION_DAYS = float(env("RB4107_RETENTION_DAYS", "30"))                    # ... until this age
 RB4107_RETENTION_OTHER_DAYS = float(env("RB4107_RETENTION_OTHER_DAYS", "90"))        # faults, node status, rejected messages
+RB4107_RETENTION_LOG_DAYS = float(env("RB4107_RETENTION_LOG_DAYS", "7"))            # controller log lines (Logs tab)
 RB4107_RETENTION_INTERVAL_S = int(env("RB4107_RETENTION_INTERVAL_S", "3600"))
 
 TEST_RUNNER = "rb4107_backend.test_runner.Runner"

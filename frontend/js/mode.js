@@ -6,7 +6,7 @@
 import { $ } from "./dom.js";
 
 const KEYS = { mode: "rb4107.mode", tab: "rb4107.tab", theme: "rb4107.theme", overview: "rb4107.overview" };
-const TABS = ["rules", "logic", "radar", "thermal", "diag"];
+const TABS = ["rules", "logic", "radar", "thermal", "diag", "logs"];
 const THEMES = ["auto", "light", "dark"];
 const THEME_LABEL = { auto: "Auto", light: "Light", dark: "Dark" };
 
@@ -34,6 +34,7 @@ const listeners = [];
 
 export const getMode = () => mode;
 export const isTuning = () => mode === "tuning";
+export const getTab = () => tab;
 export const onModeChange = (callback) => listeners.push(callback);
 
 // Canvases change size with the mode, tab and theme: ask them to redraw once the layout has settled.

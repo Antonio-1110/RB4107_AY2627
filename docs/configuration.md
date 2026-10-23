@@ -26,6 +26,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
 | `CONFIG_RB_NODE_ID` | Sensor node ID | `1` | 1 – 65535 |  |
+| `CONFIG_RB_NODE_ID_BY_MAC` | Node ID by MAC address (overrides Sensor node ID) | `""` |  |  |
 | `CONFIG_RB_NODE_STATUS_LED_GPIO` | Status LED GPIO (-1 = none) | `15` | -1 – 30 |  |
 | `CONFIG_RB_NODE_HEALTH_LOG_PERIOD_MS` | Board health log period (ms) | `10000` | 1000 – 600000 |  |
 | `CONFIG_RB_NODE_CONTROLLER_MAC` | Controller (ESP32-S3) Wi-Fi STA MAC address | `"FF:FF:FF:FF:FF:FF"` |  |  |
@@ -50,6 +51,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_C4002_RESOLUTION` (choice) | Distance gate resolution: `CONFIG_RB_C4002_RESOLUTION_80CM` = 80 cm (15 gates, ~11 m); `CONFIG_RB_C4002_RESOLUTION_20CM` = 20 cm (25 gates, ~4.9 m) | `CONFIG_RB_C4002_RESOLUTION_20CM` |  |  |
 | `CONFIG_RB_C4002_MOTION_SENSITIVITY` | Motion sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
 | `CONFIG_RB_C4002_PRESENCE_SENSITIVITY` | Static presence sensitivity group (0 low, 1 mid, 2 high) | `1` | 0 – 2 |  |
+| `CONFIG_RB_C4002_DISAPPEAR_DELAY_S` | Target disappear delay (s) | `1` | 0 – 65535 |  |
+| `CONFIG_RB_C4002_LOCK_TIME_DS` | Lock time after a target leaves (0.1 s units) | `10` | 2 – 100 |  |
 | `CONFIG_RB_C4002_REMOTE_TUNING` | Accept C4002 settings and calibration from the dashboard | `y` |  |  |
 | `CONFIG_RB_C4002_LIVE_PERIOD_MS` | Send raw C4002 results for the dashboard's live view every (ms), 0 = off | `250` | 0 – 10000 |  |
 | `CONFIG_RB_C4002_ENV_CALIBRATION_AT_BOOT` | Run environment calibration at boot (area must be empty) | `n` |  |  |
@@ -72,7 +75,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `CONFIG_RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` | Hot pixel threshold (0.1 degC) | `500` | -400 – 3000 | ⚠ |
+| `CONFIG_RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` | Hot pixel threshold (0.1 degC) | `500` | -400 – 3000 |  |
 | `CONFIG_RB_THERMAL_HOT_REGION_RADIUS` | Hot region radius (pixels) | `1` | 0 – 4 |  |
 | `CONFIG_RB_THERMAL_RATE_WINDOW_S` | Rate-of-change window (s) | `30` | 4 – 600 |  |
 | `CONFIG_RB_THERMAL_VALID_MIN_DC` | Lowest plausible pixel temperature (0.1 degC) | `-400` | -400 – 0 |  |
@@ -157,15 +160,28 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
+| `RB_CTRL_PRESENCE_FUSION` (choice) | Someone counts as at the stove when ...: `CONFIG_RB_CTRL_PRESENCE_FUSION_ALL` = every working radar sees them; `CONFIG_RB_CTRL_PRESENCE_FUSION_ANY` = either radar sees them (the earlier behaviour) | `CONFIG_RB_CTRL_PRESENCE_FUSION_ALL` |  |  |
+| `RB_CTRL_RADAR_RULES` (choice) | Radar state and distance rules (placeholder, untuned): `CONFIG_RB_CTRL_RADAR_RULES_OFF` = off; `CONFIG_RB_CTRL_RADAR_RULES_OBSERVE` = observe: computed and reported, not used; `CONFIG_RB_CTRL_RADAR_RULES_ENFORCE` = enforce: a radar that only sees someone passing does not count as at the stove | `CONFIG_RB_CTRL_RADAR_RULES_OBSERVE` |  |  |
+| `CONFIG_RB_CTRL_RADAR_QUIET_GAP_MS` | A none for this long ends an episode (ms) | `1500` | 200 – 10000 |  |
+| `CONFIG_RB_CTRL_RADAR_DWELL_MS` | Time in the cook zone needed to count as dwelling (ms) | `4000` | 500 – 60000 |  |
+| `CONFIG_RB_CTRL_RADAR_STATIONARY_MIN_MS` | ... of which as a stationary target at least (ms) | `1500` | 0 – 60000 |  |
+| `CONFIG_RB_CTRL_RADAR_SETTLE_WINDOW_MS` | The distance must have settled over the last (ms) ... | `4000` | 500 – 30000 |  |
+| `CONFIG_RB_CTRL_RADAR_SETTLE_SPAN_CM` | ... to within a span of (cm) | `60` | 5 – 500 |  |
+| `CONFIG_RB_CTRL_RADAR_ZONE_MAX_CM` | Cook zone: targets up to this far from the radar (cm, 0 = no limit) | `0` | 0 – 1100 |  |
+| `CONFIG_RB_CTRL_REMOTE_ATTENDANCE` | Accept the fusion and the pause budget from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_RADAR_RULES` | Accept the radar state and distance rules from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_PRESENCE_NODE_COUNT` | Number of presence nodes (C4002 radars) | `2` | 1 – 2 |  |
 | `CONFIG_RB_CTRL_PRESENCE_A_NODE_ID` | Presence node A ID | `1` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_PRESENCE_B_NODE_ID` | Presence node B ID | `2` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_THERMAL_NODE_ID` | Thermal node ID | `3` | 1 – 65535 |  |
 | `CONFIG_RB_CTRL_C4002_REMOTE_TUNING` | Relay C4002 tuning commands from the dashboard to the presence nodes | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_RESET` | Accept the operator reset from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_LOG` | Accept log level changes from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER` | Accept presence filter and buzzer/shutdown times from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_REMOTE_COOKING_TEMP` | Accept the cooking temperature from the dashboard | `y` |  |  |
-| `CONFIG_RB_CTRL_REMOTE_PARAMS` | Accept the other safety settings from the dashboard (policies, fault/node/valve timings, tier, trend and hold tuning; saved on the controller) | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_COOKWARE` | Accept the cookware profile from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_TIERS` | Accept the temperature tiers from the dashboard | `y` |  |  |
+| `CONFIG_RB_CTRL_REMOTE_PARAMS` | Accept the other safety settings from the dashboard | `y` |  |  |
 | `CONFIG_RB_CTRL_RX_QUEUE_LEN` | ESP-NOW receive queue length | `16` | 4 – 64 |  |
 | `CONFIG_RB_CTRL_NODE_STALE_MS` | Node STALE after (ms) without a packet | `2000` | 200 – 60000 |  |
 | `CONFIG_RB_CTRL_NODE_OFFLINE_MS` | Node OFFLINE after (ms) without a packet | `10000` | 500 – 600000 |  |
@@ -227,6 +243,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_MQTT_TELEMETRY_PERIOD_MS` | Periodic telemetry interval (ms) | `1000` | 200 – 60000 |  |
 | `CONFIG_RB_MQTT_PUBLISH_SENSOR_TOPICS` | Also publish per-node presence/thermal topics every period | `y` |  |  |
 | `CONFIG_RB_MQTT_PUBLISH_HEATMAP` | Publish the thermal node's heat-map pictures | `y` |  |  |
+| `CONFIG_RB_MQTT_PUBLISH_LOG` | Publish the controller's log lines (dashboard Logs tab) | `y` |  |  |
+| `CONFIG_RB_MQTT_LOG_BUFFER_LINES` | Log lines kept for the dashboard | `100` | 16 – 400 |  |
+| `CONFIG_RB_MQTT_LOG_SKIP_TAGS` | Tags never sent to the dashboard (comma separated) | `"mqtt_client,outbox,transport_base,transport,esp-tls"` |  |  |
 
 ## Diagnostics / simulation
 
@@ -251,26 +270,25 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN` | Also detect cooking when rising at least (0.1 degC/min), 0 = off | `0` | 0 – 10000 | ⚠ |
 | `CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS` | Absence must last (ms) before UNATTENDED | `1000` | 0 – 60000 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS` | Presence must last (ms) to cancel UNATTENDED/WARNING | `5000` | 0 – 60000 |  |
-| `CONFIG_RB_SAFETY_PAUSE_BUDGET_S` / `_PCT` | Pause budget per timeline: seconds (0 = never pause) and at most this share of the shutdown time (%) | `30` / `25` | 0 – 600 / 0 – 100 |  |
-| `RB_CTRL_PRESENCE_FUSION` (choice) | Someone counts as at the stove when every working radar sees them (`..._ALL`) or either does (`..._ANY`) | `CONFIG_RB_CTRL_PRESENCE_FUSION_ALL` |  |  |
-| `RB_CTRL_RADAR_RULES` (choice) | Radar state/distance rules: off, observe (shown only), enforce (a passing target is not "at the stove") | `CONFIG_RB_CTRL_RADAR_RULES_OBSERVE` |  | ⚠ |
-| `CONFIG_RB_CTRL_RADAR_QUIET_GAP_MS` / `_DWELL_MS` / `_STATIONARY_MIN_MS` / `_SETTLE_WINDOW_MS` / `_SETTLE_SPAN_CM` / `_ZONE_MAX_CM` | Episode gap tolerance, dwell time, stationary time, settle window, allowed distance span, zone limit (0 = no limit) | `1500` / `4000` / `1500` / `4000` / `60` / `0` |  | ⚠ |
-| `CONFIG_RB_CTRL_REMOTE_RADAR_RULES` | Accept the radar rules (mode and numbers) from the dashboard (saved on the controller) | `y` |  |  |
-| `CONFIG_RB_CTRL_REMOTE_ATTENDANCE` | Accept the fusion and the pause budget from the dashboard (saved on the controller) | `y` |  |  |
+| `CONFIG_RB_SAFETY_PAUSE_BUDGET_S` | Pause budget per timeline (s, 0 = never pause) | `30` | 0 – 600 |  |
+| `CONFIG_RB_SAFETY_PAUSE_BUDGET_PCT` | ... and at most this share of the shutdown time (%) | `25` | 0 – 100 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS` | Gaps shorter than this (ms) don't restart the presence count | `1000` | 0 – 10000 |  |
 | `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `180` | 1 – 3600 |  |
 | `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `300` | 1 – 3600 |  |
 | `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  | ⚠ |
 | `RB_SAFETY_WARNING_EXIT` (choice) | Person returns during WARNING: `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` = return to MONITORING; `CONFIG_RB_SAFETY_WARNING_EXIT_ACK` = stay in WARNING until the person acknowledges (reset input) | `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` |  | ⚠ |
-| `RB_SAFETY_COOLING` (choice) | Pan drops below the cooking temperature while UNATTENDED/WARNING: `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` = keep the timers running (old behaviour); `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` = return to IDLE and cancel the timers | `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` |  |  |
+| `RB_SAFETY_COOLING` (choice) | Pan drops below the cooking temperature while UNATTENDED/WARNING: `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` = keep the timers running (old behaviour: shuts a cold stove off); `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` = return to IDLE and cancel the timers | `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` |  |  |
+| `CONFIG_RB_SAFETY_COOKING_TREND` | Judge from the temperature trend whether heat is going in | `y` |  |  |
 | `CONFIG_RB_SAFETY_TEMP_TIERS` | Shorter buzzer and shutdown times for hotter pans | `y` |  |  |
-| `CONFIG_RB_SAFETY_TIER1_TEMP_DC` / `_WARNING_S` / `_SHUTDOWN_S` | ELEVATED: from this hottest-pixel temperature (0.1 °C), buzzer and shutdown times (s) | `1200` / `60` / `150` | 0 – 3000 / 1 – 3600 / 1 – 3600 | placeholders |
-| `CONFIG_RB_SAFETY_TIER2_TEMP_DC` / `_WARNING_S` / `_SHUTDOWN_S` | CRITICAL: from this temperature (0.1 °C), buzzer and shutdown times (s) | `2000` / `30` / `120` | 0 – 3000 / 1 – 3600 / 1 – 3600 | placeholders |
-| `CONFIG_RB_SAFETY_TIER2_RATE_DC_PER_MIN` / `_RATE_MIN_TEMP_DC` | CRITICAL also when rising at least this fast (0.1 °C/min, 0 = off) above this temperature (0.1 °C) | `200` / `1500` | 0 – 10000 / 0 – 3000 | placeholders |
-| `CONFIG_RB_CTRL_REMOTE_TIERS` | Accept the temperature tiers from the dashboard (saved on the controller) | `y` |  |  |
-| `CONFIG_RB_SAFETY_COOKING_TREND` | Judge from the temperature trend whether heat is going in (a cooling pan holds the buzzer and shutdown back) | `y` |  |  |
-| `RB_SAFETY_COOKWARE` (choice) | Cookware profile: mixed (10 min) / light (5 min) / heavy (15 min) / liquid (40 min) | `CONFIG_RB_SAFETY_COOKWARE_MIXED` |  |  |
-| `CONFIG_RB_CTRL_REMOTE_COOKWARE` | Accept the cookware profile from the dashboard | `y` |  |  |
+| `CONFIG_RB_SAFETY_TIER1_TEMP_DC` | ELEVATED from a hottest-pixel temperature of (0.1 degC) | `1200` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER1_WARNING_S` | ELEVATED: unattended time before WARNING (s) | `60` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER1_SHUTDOWN_S` | ELEVATED: shutdown time (s, counted like the base shutdown time) | `150` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER2_TEMP_DC` | CRITICAL from a hottest-pixel temperature of (0.1 degC) | `2000` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER2_RATE_DC_PER_MIN` | ... or when rising at least this fast above the next setting (0.1 degC/min, 0 = off) | `200` | 0 – 10000 |  |
+| `CONFIG_RB_SAFETY_TIER2_RATE_MIN_TEMP_DC` | ... the lowest temperature at which the rising-fast rule applies (0.1 degC) | `1500` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER2_WARNING_S` | CRITICAL: unattended time before WARNING (s) | `30` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S` | CRITICAL: shutdown time (s, counted like the base shutdown time) | `120` | 1 – 3600 |  |
+| `RB_SAFETY_COOKWARE` (choice) | Cookware profile (how fast the pans lose heat): `CONFIG_RB_SAFETY_COOKWARE_MIXED` = mixed / unknown (10 min); `CONFIG_RB_SAFETY_COOKWARE_LIGHT` = light pans: woks, thin aluminium or stainless (5 min); `CONFIG_RB_SAFETY_COOKWARE_HEAVY` = heavy pans: cast iron, thick clad (15 min); `CONFIG_RB_SAFETY_COOKWARE_LIQUID` = pots with liquid: soup, stock, boiling water (40 min) | `CONFIG_RB_SAFETY_COOKWARE_MIXED` |  |  |
 | `CONFIG_RB_SAFETY_FAULT_SHUTDOWN_S` | Shut down after this long in FAULT (s, 0 = never) | `90` | 0 – 3600 | ⚠ |
 ## Quick index
 

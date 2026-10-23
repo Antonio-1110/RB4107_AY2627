@@ -104,9 +104,11 @@ accepting commands.
   any hold and the last rule that fired highlighted), **Radar** (C4002
   settings and the live radar view), **Thermal** (heat map with the outline and
   pixel-size controls), **Diagnostics** (readings, history, system status,
-  events, sensor reports, raw telemetry). The header gets an orange underline
+  events, sensor reports, raw telemetry), **Logs** (the controller's own log
+lines, live, with level/tag/text filters, and its per-tag log levels, editable;
+[logging.md](logging.md#logs-tab)). The header gets an orange underline
   so it is obvious which mode you are in. The live radar stream is only polled
-  in Tuning.
+  in Tuning, and the log only while the Logs tab is open.
 
 The overview has a **Tiles | Table** switch and a one-row fleet strip. A
 **Light | Dark | Auto** theme button follows the system setting by default.
@@ -173,6 +175,7 @@ first run a minute after start):
 | then thinned to one per | 60 s | `RB4107_RETENTION_THIN_SECONDS` |
 | and deleted after | 30 days | `RB4107_RETENTION_DAYS` |
 | faults, node status, tuning replies, rejected messages: delete after | 90 days | `RB4107_RETENTION_OTHER_DAYS` |
+| controller log lines (Logs tab): delete after | 7 days | `RB4107_RETENTION_LOG_DAYS` |
 | how often (0 = never) | 3600 s | `RB4107_RETENTION_INTERVAL_S` |
 
 Safety events and the messages that carry them (including restarts) are never

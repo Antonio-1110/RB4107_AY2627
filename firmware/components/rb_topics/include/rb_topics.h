@@ -3,7 +3,7 @@
 /*
  * RB4107 MQTT topic tree (TODO section 20). Documented in docs/mqtt_topics.md.
  *
- *   <prefix>/controller/{status,heartbeat,state,faults}
+ *   <prefix>/controller/{status,heartbeat,state,faults,log}
  *   <prefix>/sensors/<node>/{presence,thermal,status,c4002_config,thermal_frame}
  *   <prefix>/sensors/<node>/c4002_set    (dashboard -> controller, subscribed)
  *   <prefix>/controller/command          (dashboard -> controller, subscribed)
@@ -34,6 +34,7 @@ typedef enum {
     RB_TOPIC_EVENT_SHUTDOWN,
     RB_TOPIC_EVENT_FAULT,
     RB_TOPIC_SENSOR_THERMAL_FRAME,    /* per node: heat-map picture (display only) */
+    RB_TOPIC_CONTROLLER_LOG,          /* the controller's log lines (dashboard Logs tab) */
     RB_TOPIC_COUNT,
 } rb_topic_t;
 

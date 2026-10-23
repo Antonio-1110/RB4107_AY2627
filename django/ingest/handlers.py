@@ -12,7 +12,7 @@ from collections import Counter
 from typing import Callable
 
 from .validation import Message
-from .storage import persist, store_thermal_frame
+from .storage import persist, store_controller_log, store_thermal_frame
 
 telemetry_log = logging.getLogger("rb4107.telemetry")
 event_log = logging.getLogger("rb4107.event")
@@ -117,6 +117,7 @@ HANDLERS: dict[str, Callable[[Message], None]] = {
     "c4002_config": handle_c4002_config,
     "c4002_live": handle_quiet,
     "thermal_frame": handle_quiet,
+    "controller_log": handle_quiet,
 }
 
 
@@ -124,6 +125,8 @@ def handle(msg: Message) -> None:
     if msg.type == "thermal_frame":
         # Display only: the latest picture replaces the previous one.
         store_thermal_frame(msg)
+    elif msg.type == "controller_log":
+        store_controller_log(msg)
     else:
         persist(msg)
     with _stats_lock:

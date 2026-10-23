@@ -10,7 +10,8 @@ history only needs full resolution for the chart window. This job:
   * thins telemetry (and its Reading) to one per `thin_seconds` once it is older
     than `full_hours`, and deletes it after `days`;
   * deletes everything else (faults, node status, tuning replies, rejected
-    messages) after `other_days`.
+    messages) after `other_days`;
+  * deletes the controller's log lines (the Logs tab) after `log_days`.
 
 Safety events, and the messages that carry them, are never deleted: they are
 small and they are the log of what the controller did.
@@ -24,7 +25,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 
-from .models import InboundMessage
+from .models import InboundMessage, LogLine
 
 log = logging.getLogger("rb4107.retention")
 
@@ -40,6 +41,7 @@ class Policy:
     thin_seconds: int = 60
     days: float = 30
     other_days: float = 90
+    log_days: float = 7
 
     @classmethod
     def from_settings(cls) -> "Policy":
@@ -93,6 +95,9 @@ def prune(now=None, policy: Policy | None = None, *, dry_run: bool = False) -> d
     other = keep.exclude(_suffix_filter(HIGH_RATE_SUFFIXES + (TELEMETRY_SUFFIX,)))
     result["other"] = _delete_ids(
         other.filter(received_at__lt=now - timedelta(days=policy.other_days)).values_list("id", flat=True), dry_run)
+
+    old_lines = LogLine.objects.filter(received_at__lt=now - timedelta(days=policy.log_days))
+    result["log_lines"] = old_lines.count() if dry_run else old_lines.delete()[0]
 
     if any(result.values()):
         log.info("%s %s", "would prune" if dry_run else "pruned", ", ".join(f"{k}={v}" for k, v in result.items()))

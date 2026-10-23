@@ -116,6 +116,31 @@ enum {
                  SEEN_T2_STOP,
 };
 
+/* In esp_log_level_t order. */
+static const char *const LOG_LEVELS[] = {"none", "error", "warn", "info", "debug", "verbose"};
+
+/* "*" or an ESP-IDF style tag: 1..15 of A-Z a-z 0-9 _ - . */
+static bool log_tag_ok(const char *tag)
+{
+    if (strcmp(tag, "*") == 0) {
+        return true;
+    }
+    size_t n = 0;
+    for (; tag[n] != '\0'; n++) {
+        const char c = tag[n];
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+              c == '.')) {
+            return false;
+        }
+    }
+    return n >= 1 && n <= 15;
+}
+
+/* Past the range of an enum constant. */
+#define SEEN_LOG_TAG (1u << 30)
+#define SEEN_LOG_LEVEL (1u << 31)
+#define SEEN_LOG (SEEN_LOG_TAG | SEEN_LOG_LEVEL)
+
 /* One of the filter values: an integer min..max milliseconds. */
 static bool filter_value(const char *key, bool is_str, long num, long min, long max, uint32_t *out, char *err,
                          size_t err_len)
@@ -216,11 +241,16 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     out->action = RB_CTRL_ACTION_PARAMS;
                 } else if (is_str && strcmp(str, "params_defaults") == 0) {
                     out->action = RB_CTRL_ACTION_PARAMS_DEFAULTS;
+                } else if (is_str && strcmp(str, "log_level") == 0) {
+                    out->action = RB_CTRL_ACTION_LOG_LEVEL;
+                } else if (is_str && strcmp(str, "log_level_defaults") == 0) {
+                    out->action = RB_CTRL_ACTION_LOG_LEVEL_DEFAULTS;
                 } else {
                     fail(err, err_len,
                          "action must be reset, presence_filter, presence_filter_defaults, cooking_temp, "
                          "cooking_temp_defaults, cookware, cookware_defaults, tiers, tiers_defaults, attendance, "
-                         "attendance_defaults, radar_rules, radar_rules_defaults, params or params_defaults");
+                         "attendance_defaults, radar_rules, radar_rules_defaults, params, params_defaults, "
+                         "log_level or log_level_defaults");
                     return false;
                 }
             } else if (strcmp(key, "absence_ms") == 0) {
@@ -367,6 +397,26 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 strlcpy(out->cookware, str, sizeof(out->cookware)); /* one of the values checked above: fits */
+            } else if (strcmp(key, "log_tag") == 0) {
+                bit = SEEN_LOG_TAG;
+                if (!is_str || !log_tag_ok(str)) {
+                    fail(err, err_len, "log_tag must be \"*\" or 1..15 letters, digits, _ - .");
+                    return false;
+                }
+                strlcpy(out->log_tag, str, sizeof(out->log_tag)); /* checked above: fits */
+            } else if (strcmp(key, "log_level") == 0) {
+                bit = SEEN_LOG_LEVEL;
+                int level = -1;
+                for (int i = 0; is_str && i < (int)(sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0])); i++) {
+                    if (strcmp(str, LOG_LEVELS[i]) == 0) {
+                        level = i;
+                    }
+                }
+                if (level < 0) {
+                    fail(err, err_len, "log_level must be none, error, warn, info, debug or verbose");
+                    return false;
+                }
+                out->log_level = (uint8_t)level;
             } else if ((param = rb_params_find(key)) >= 0) {
                 if (is_str || (uint32_t)num < RB_PARAMS[param].min || (uint32_t)num > RB_PARAMS[param].max) {
                     fail(err, err_len, "%s must be an integer %lu..%lu", key, (unsigned long)RB_PARAMS[param].min,
@@ -429,6 +479,10 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     if (out->action == RB_CTRL_ACTION_ATTENDANCE ? (seen & SEEN_ATTENDANCE) != SEEN_ATTENDANCE
                                                   : (seen & SEEN_ATTENDANCE) != 0) {
         fail(err, err_len, "attendance needs pause_budget_ms, pause_budget_pct and presence_fusion, other actions none");
+        return false;
+    }
+    if (out->action == RB_CTRL_ACTION_LOG_LEVEL ? (seen & SEEN_LOG) != SEEN_LOG : (seen & SEEN_LOG) != 0) {
+        fail(err, err_len, "log_level needs log_tag and log_level, other actions none");
         return false;
     }
     const uint32_t all_params = RB_PARAM_COUNT == 32 ? UINT32_MAX : (1u << RB_PARAM_COUNT) - 1u;

@@ -35,6 +35,7 @@ TYPE_TO_DEF = {
     "controller_status": "controller_status",
     "c4002_config": "c4002_config",
     "c4002_live": "c4002_live",
+    "controller_log": "controller_log",
 }
 
 # Which message types may appear on which topic (the part after the prefix).
@@ -43,6 +44,7 @@ TOPIC_TYPES = {
     "controller/heartbeat": {"heartbeat"},
     "controller/state": {"telemetry"},
     "controller/faults": {"faults"},
+    "controller/log": {"controller_log"},
     "sensors/*/presence": {"presence"},
     "sensors/*/thermal": {"thermal"},
     "sensors/*/thermal_frame": {"thermal_frame"},

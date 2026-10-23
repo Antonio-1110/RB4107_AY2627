@@ -19,7 +19,8 @@
     {"$ref": "#/$defs/event"},
     {"$ref": "#/$defs/controller_status"},
     {"$ref": "#/$defs/c4002_config"},
-    {"$ref": "#/$defs/c4002_live"}
+    {"$ref": "#/$defs/c4002_live"},
+    {"$ref": "#/$defs/controller_log"}
   ],
   "$defs": {
     "header": {
@@ -310,6 +311,27 @@
         "online": {"type": "boolean"}
       }
     },
+    "controller_log": {
+      "description": "rb4107/controller/log (QoS 0, not retained): the controller's own log lines, as the serial port shows them, in batches; also sent without lines when the log levels change, after reconnecting and every 30 s (docs/logging.md).",
+      "allOf": [{"$ref": "#/$defs/header"}],
+      "required": ["dropped", "levels", "lines"],
+      "properties": {
+        "type": {"const": "controller_log"},
+        "dropped": {"type": "integer", "minimum": 0, "description": "lines lost since boot (buffer full, or logged while another line was being copied)"},
+        "levels": {"type": "object", "required": ["*"], "additionalProperties": {"$ref": "#/$defs/log_level"}, "description": "\"*\" = the default level; the other keys are tags set by menuconfig, the console or the dashboard"},
+        "lines": {"type": "array", "maxItems": 50, "items": {
+          "type": "object",
+          "required": ["uptime_ms", "level", "tag", "msg"],
+          "properties": {
+            "uptime_ms": {"type": "integer", "minimum": 0},
+            "level": {"enum": ["E", "W", "I", "D", "V"]},
+            "tag": {"type": "string", "minLength": 1, "maxLength": 15},
+            "msg": {"type": "string", "maxLength": 119}
+          }
+        }}
+      }
+    },
+    "log_level": {"enum": ["none", "error", "warn", "info", "debug", "verbose"]},
     "c4002_sensitivity": {"enum": ["low", "mid", "high", "custom"]},
     "c4002_gates": {"type": "array", "minItems": 25, "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 1}, "description": "one entry per distance gate, 1 = enabled; 80 cm resolution only uses the first 15"},
     "c4002_thresholds": {"type": "array", "minItems": 25, "maxItems": 25, "items": {"type": "integer", "minimum": 0, "maximum": 99}, "description": "one threshold per distance gate, used with sensitivity custom; 80 cm resolution only uses the first 15"},
@@ -410,7 +432,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values; params = set every other safety setting (the keys marked params: below, all of them, from firmware/components/rb_params/include/rb_params.def), saved on the controller; params_defaults = back to the menuconfig and built-in values (docs/remote_reset.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values; params = set every other safety setting (the keys marked params: below, all of them, from firmware/components/rb_params/include/rb_params.def), saved on the controller; params_defaults = back to the menuconfig and built-in values; log_level = set one tag's log level (log_tag, \"*\" = the default) until reboot, as the console's log command; log_level_defaults = back to the menuconfig log levels (docs/remote_reset.md, docs/logging.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -421,7 +443,9 @@
         "request_id": {"type": "integer", "minimum": 1, "maximum": 65535},
         "action": {"enum": ["reset", "presence_filter", "presence_filter_defaults", "cooking_temp",
                             "cooking_temp_defaults", "cookware", "cookware_defaults", "tiers", "tiers_defaults", "attendance", "attendance_defaults", "radar_rules", "radar_rules_defaults",
-                            "params", "params_defaults"]},
+                            "params", "params_defaults", "log_level", "log_level_defaults"]},
+        "log_tag": {"type": "string", "pattern": "^(\\*|[A-Za-z0-9_.-]{1,15})$"},
+        "log_level": {"$ref": "#/$defs/log_level"},
         "radar_mode": {"enum": ["off", "observe", "enforce"]},
         "radar_quiet_gap_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "radar_dwell_ms": {"type": "integer", "minimum": 0, "maximum": 60000},
@@ -479,6 +503,11 @@
           "then": {"required": ["absence_ms", "return_ms", "return_gap_ms", "warning_ms", "shutdown_ms"]},
           "else": {"not": {"anyOf": [{"required": ["absence_ms"]}, {"required": ["return_ms"]}, {"required": ["return_gap_ms"]},
                                      {"required": ["warning_ms"]}, {"required": ["shutdown_ms"]}]}}
+        },
+        {
+          "if": {"properties": {"action": {"const": "log_level"}}},
+          "then": {"required": ["log_tag", "log_level"]},
+          "else": {"not": {"anyOf": [{"required": ["log_tag"]}, {"required": ["log_level"]}]}}
         },
         {
           "if": {"properties": {"action": {"const": "cooking_temp"}}},

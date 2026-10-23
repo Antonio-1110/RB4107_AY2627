@@ -1,12 +1,13 @@
 """Dashboard -> controller commands: remote C4002 tuning (docs/c4002_tuning.md),
 the operator reset of a latched shutdown, the presence filter and the cooking
-temperature (docs/remote_reset.md). Nothing here can trigger a shutdown or drive
-an output directly.
+temperature (docs/remote_reset.md), and the log levels (docs/logging.md).
+Nothing here can trigger a shutdown or drive an output directly.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from functools import lru_cache
 from pathlib import Path
@@ -293,6 +294,36 @@ def build_cookware_command(controller_id: str, body: dict) -> dict:
         if set(body) != {"cookware"} or value not in COOKWARE_PROFILES:
             raise CommandError(f'send {{"cookware": one of {", ".join(COOKWARE_PROFILES)}}}, or {{"defaults": true}}')
         values, action = {"cookware": value}, "cookware"
+    command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
+               "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
+    try:
+        validation.check_command(command)
+    except validation.InvalidMessage as exc:
+        raise CommandError(str(exc)) from None
+    return command
+
+
+LOG_LEVELS = ("none", "error", "warn", "info", "debug", "verbose")
+LOG_TAG = re.compile(r"^(\*|[A-Za-z0-9_.-]{1,15})$")
+
+
+def build_log_level_command(controller_id: str, body: dict) -> dict:
+    """{"tag": "SAFETY", "level": "debug"} sets one tag's log level ("*" = the default for every tag) until the
+    controller reboots, as the console's `log` command; {"defaults": true} goes back to the menuconfig levels.
+    The answer is the levels in the next controller/log message (docs/logging.md)."""
+    if not isinstance(body, dict):
+        raise CommandError("body must be a JSON object")
+    if body == {"defaults": True}:
+        values, action = {}, "log_level_defaults"
+    else:
+        tag, level = body.get("tag"), body.get("level")
+        if set(body) != {"tag", "level"}:
+            raise CommandError('send {"tag", "level"}, or {"defaults": true}')
+        if not isinstance(tag, str) or not LOG_TAG.match(tag):
+            raise CommandError('tag must be "*" or 1 to 15 letters, digits, _ - .')
+        if level not in LOG_LEVELS:
+            raise CommandError(f"level must be one of {', '.join(LOG_LEVELS)}")
+        values, action = {"log_tag": tag, "log_level": level}, "log_level"
     command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
                "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
     try:

@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
+from .models import Device, InboundMessage, LogLine, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .normalization import normalize
 
 
@@ -136,6 +136,24 @@ def store_thermal_frame(message, received_at=None):
     ThermalFrame.objects.update_or_create(
         device=device, sensor_node=data["sensor_node"],
         defaults={"received_at": now, "source_at": source_time(data), "frame": data["frame"]})
+    WorkerStatus.objects.filter(name="mqtt").update(last_message_at=now)
+
+
+def store_controller_log(message, received_at=None):
+    """Keep the controller's log lines as LogLine rows (pruned after RB4107_RETENTION_LOG_DAYS) and the levels
+    in force on the Device. Batches arrive several times a second while the controller is busy, so they are
+    not also stored as InboundMessage rows."""
+    now = received_at or timezone.now()
+    data = message.data
+    with transaction.atomic():
+        device, _ = Device.objects.get_or_create(device_id=data["controller_id"])
+        boot_id = data.get("boot_id") or ""
+        LogLine.objects.bulk_create([
+            LogLine(device=device, received_at=now, boot_id=boot_id, uptime_ms=line["uptime_ms"],
+                    level=line["level"], tag=line["tag"], msg=line["msg"])
+            for line in data["lines"]])
+        device.log_levels, device.log_dropped, device.log_received_at = data["levels"], data["dropped"], now
+        device.save(update_fields=["log_levels", "log_dropped", "log_received_at"])
     WorkerStatus.objects.filter(name="mqtt").update(last_message_at=now)
 
 

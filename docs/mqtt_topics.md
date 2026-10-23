@@ -14,7 +14,8 @@ rb4107/
 │   ├── heartbeat   liveness
 │   ├── state       full telemetry snapshot (schema in mqtt_schema.md)
 │   ├── faults      active fault list
-│   └── command     dashboard → controller operator reset (subscribed)
+│   ├── log         the controller's log lines (dashboard Logs tab)
+│   └── command     dashboard → controller commands (subscribed)
 ├── sensors/
 │   └── <node>/
 │       ├── presence
@@ -36,6 +37,7 @@ rb4107/
 | `controller/heartbeat` | 0 | no | every telemetry period |
 | `controller/state` | 0 | yes | every telemetry period, and right away on every state transition |
 | `controller/faults` | 1 | yes | on every fault raised/cleared |
+| `controller/log` | 0 | no | batches of the controller's log lines while the broker is connected, plus the log levels every 30 s and on change; off with `RB_MQTT_PUBLISH_LOG` ([logging.md](logging.md)) |
 | `controller/command` | 1 | no | published by Django when the dashboard's reset button is pressed; the controller subscribes ([remote_reset.md](remote_reset.md)) |
 | `sensors/<node>/presence` | 0 | no | every telemetry period, for each presence node (`node_01`, `node_02`) |
 | `sensors/<node>/thermal` | 0 | no | every telemetry period, for the thermal node (`node_03`) |
