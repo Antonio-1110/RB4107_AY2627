@@ -15,6 +15,11 @@ class Device(models.Model):
     # messages even while the controller's clock is unset.
     boot_id = models.CharField(max_length=32, blank=True)
     last_sequence = models.PositiveBigIntegerField(null=True)
+    # From the newest controller/log message: the log levels in force ({"*": default, tag: level})
+    # and how many lines the controller lost since it booted.
+    log_levels = models.JSONField(default=dict)
+    log_dropped = models.PositiveBigIntegerField(null=True)
+    log_received_at = models.DateTimeField(null=True)
 
 
 class InboundMessage(models.Model):
@@ -80,6 +85,21 @@ class ThermalFrame(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["device", "sensor_node"], name="one_frame_per_node")]
+
+
+class LogLine(models.Model):
+    """One line the controller logged (controller/log), for the dashboard's Logs tab."""
+    device = models.ForeignKey(Device, on_delete=models.CASCADE)
+    received_at = models.DateTimeField()
+    boot_id = models.CharField(max_length=32, blank=True)
+    uptime_ms = models.PositiveBigIntegerField()
+    level = models.CharField(max_length=1)  # E W I D V
+    tag = models.CharField(max_length=16)
+    msg = models.CharField(max_length=128)
+
+    class Meta:
+        indexes = [models.Index(fields=["device", "id"], name="logline_device_id"),
+                   models.Index(fields=["received_at"], name="logline_received")]
 
 
 class Incident(models.Model):

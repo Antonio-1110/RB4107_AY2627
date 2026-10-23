@@ -12,6 +12,7 @@
 #include "rb_controller.h"
 #include "rb_espnow.h"
 #include "rb_heatmap.h"
+#include "rb_log.h"
 #include "rb_mqtt.h"
 #include "rb_net.h"
 #include "rb_safety_config.h"
@@ -293,15 +294,11 @@ static int cmd_reset(int argc, char **argv)
 
 static int cmd_log(int argc, char **argv)
 {
-    static const char *const names[] = {"none", "error", "warn", "info", "debug", "verbose"};
-    if (argc == 3) {
-        for (int lvl = 0; lvl < 6; lvl++) {
-            if (strcmp(argv[2], names[lvl]) == 0) {
-                esp_log_level_set(argv[1], (esp_log_level_t)lvl);
-                printf("log %s -> %s\n", argv[1], names[lvl]);
-                return 0;
-            }
-        }
+    esp_log_level_t level;
+    if (argc == 3 && rb_log_level_parse(argv[2], &level)) {
+        rb_log_set_level(argv[1], level); /* also shown on the dashboard's Logs tab */
+        printf("log %s -> %s\n", argv[1], rb_log_level_name(level));
+        return 0;
     }
     printf("usage: log <TAG|*> <none|error|warn|info|debug|verbose>\n");
     return 1;

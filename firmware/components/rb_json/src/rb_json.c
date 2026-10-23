@@ -380,6 +380,43 @@ size_t rb_json_thermal_frame(const rb_json_thermal_frame_t *f, char *buf, size_t
     return rb_json_finish(&w);
 }
 
+size_t rb_json_controller_log(const rb_json_controller_log_t *l, char *buf, size_t len)
+{
+    rb_json_writer_t w;
+    rb_json_init(&w, buf, len);
+    rb_json_begin_message(&w, &l->hdr, "controller_log");
+    rb_json_key(&w, "dropped");
+    rb_json_int(&w, l->dropped);
+    rb_json_key(&w, "levels");
+    rb_json_obj_begin(&w);
+    rb_json_key(&w, "*");
+    rb_json_str(&w, l->default_level);
+    for (size_t i = 0; i < l->level_count; i++) {
+        rb_json_key(&w, l->levels[i].tag);
+        rb_json_str(&w, l->levels[i].level);
+    }
+    rb_json_obj_end(&w);
+    rb_json_key(&w, "lines");
+    rb_json_arr_begin(&w);
+    for (size_t i = 0; i < l->line_count; i++) {
+        const rb_json_log_line_t *line = &l->lines[i];
+        const char level[2] = {line->level, '\0'};
+        rb_json_obj_begin(&w);
+        rb_json_key(&w, "uptime_ms");
+        rb_json_int(&w, line->uptime_ms);
+        rb_json_key(&w, "level");
+        rb_json_str(&w, level);
+        rb_json_key(&w, "tag");
+        rb_json_str(&w, line->tag);
+        rb_json_key(&w, "msg");
+        rb_json_str(&w, line->msg);
+        rb_json_obj_end(&w);
+    }
+    rb_json_arr_end(&w);
+    rb_json_obj_end(&w);
+    return rb_json_finish(&w);
+}
+
 size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len)
 {
     rb_json_writer_t w;

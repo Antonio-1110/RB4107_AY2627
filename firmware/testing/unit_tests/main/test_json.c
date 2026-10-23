@@ -270,8 +270,54 @@ static void test_state_with_params_fits_payload_buffer(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"params_source\":\"dashboard\""));
 }
 
+/* A full controller/log message at its worst (every character escaped, every tag tracked) fits PAYLOAD_LEN. */
+static void test_controller_log_fits_payload_buffer(void)
+{
+    static char big[4096]; /* PAYLOAD_LEN in rb_telemetry.c */
+    static char quotes[120];
+    memset(quotes, '"', sizeof(quotes) - 1);
+    rb_json_log_line_t lines[10]; /* LOG_LINES_PER_MESSAGE */
+    for (size_t i = 0; i < 10; i++) {
+        lines[i] = (rb_json_log_line_t){4000000000u, 'W', "ABCDEFGHIJKLMNO", quotes};
+    }
+    rb_json_log_level_t levels[16]; /* RB_LOG_TRACKED_TAGS */
+    for (size_t i = 0; i < 16; i++) {
+        levels[i] = (rb_json_log_level_t){"ABCDEFGHIJKLMNO", "verbose"};
+    }
+    const rb_json_controller_log_t l = {
+        .hdr = {.controller_id = "controller_with_a_long_name_01", .boot_id = "3f9a01c2",
+                .timestamp = "2026-10-02T23:59:59.999+08:00", .uptime_ms = 4000000000u, .sequence = 4000000000u},
+        .dropped = 4000000000u,
+        .default_level = "verbose",
+        .levels = levels,
+        .level_count = 16,
+        .lines = lines,
+        .line_count = 10,
+    };
+    const size_t len = rb_json_controller_log(&l, big, sizeof(big));
+    TEST_ASSERT_NOT_EQUAL(0, len);
+    TEST_ASSERT_TRUE(len < sizeof(big) - 128);
+
+    const rb_json_log_line_t one = {1234, 'E', "THERMAL", "frame read \"failed\""};
+    const rb_json_log_level_t debug = {"SAFETY", "debug"};
+    const rb_json_controller_log_t small = {
+        .hdr = {.controller_id = "c", .boot_id = "b", .timestamp = NULL, .uptime_ms = 5, .sequence = 6},
+        .default_level = "info",
+        .levels = &debug,
+        .level_count = 1,
+        .lines = &one,
+        .line_count = 1,
+    };
+    TEST_ASSERT_NOT_EQUAL(0, rb_json_controller_log(&small, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"type\":\"controller_log\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"dropped\":0,\"levels\":{\"*\":\"info\",\"SAFETY\":\"debug\"},"
+                                     "\"lines\":[{\"uptime_ms\":1234,\"level\":\"E\",\"tag\":\"THERMAL\","
+                                     "\"msg\":\"frame read \\\"failed\\\"\"}]}"));
+}
+
 void run_json_tests(void)
 {
+    RUN_TEST(test_controller_log_fits_payload_buffer);
     RUN_TEST(test_state_with_params_fits_payload_buffer);
     RUN_TEST(test_unknown_values_are_null);
     RUN_TEST(test_radar_rule_fields);

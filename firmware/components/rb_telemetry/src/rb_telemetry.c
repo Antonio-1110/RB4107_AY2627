@@ -12,6 +12,10 @@
 #include "rb_heatmap.h"
 #endif
 #include "rb_json.h"
+#if CONFIG_RB_MQTT_PUBLISH_LOG
+#include "rb_log.h"
+#include "rb_log_capture.h"
+#endif
 #include "rb_mqtt.h"
 #include "rb_protocol.h"
 #include "rb_time.h"
@@ -356,6 +360,73 @@ static void publish_heatmap(void)
 }
 #endif
 
+#if CONFIG_RB_MQTT_PUBLISH_LOG
+#define LOG_LINES_PER_MESSAGE 10 /* ~3 KB at worst: fits the payload buffer with the levels */
+#define LOG_MESSAGES_PER_PASS 4
+#define LOG_LEVELS_REPEAT_MS 30000
+
+/*
+ * The controller's log lines, while the broker is connected (they wait in the
+ * capture buffer otherwise). A message also goes out without lines when the
+ * log levels change, after reconnecting, and every 30 s, so the dashboard
+ * always knows the levels in force.
+ */
+static void publish_log(void)
+{
+    static rb_log_line_t lines[LOG_LINES_PER_MESSAGE]; /* ~1.4 KB: kept off the task stack */
+    static rb_json_log_line_t json_lines[LOG_LINES_PER_MESSAGE];
+    static uint32_t sent_version = UINT32_MAX, sent_ms;
+    static bool was_connected;
+    const bool connected = rb_mqtt_state() == RB_MQTT_CONNECTED;
+    const bool reconnected = connected && !was_connected;
+    was_connected = connected;
+    if (!connected) {
+        return;
+    }
+    for (int pass = 0; pass < LOG_MESSAGES_PER_PASS; pass++) {
+        const size_t n = rb_log_capture_take(lines, LOG_LINES_PER_MESSAGE);
+        const uint32_t now = rb_time_mono_ms();
+        const uint32_t version = rb_log_levels_version();
+        if (n == 0 && !(pass == 0 && (reconnected || version != sent_version || now - sent_ms >= LOG_LEVELS_REPEAT_MS))) {
+            return;
+        }
+        rb_log_tag_level_t tags[RB_LOG_TRACKED_TAGS];
+        rb_json_log_level_t levels[RB_LOG_TRACKED_TAGS];
+        esp_log_level_t default_level;
+        const size_t tag_count = rb_log_levels(&default_level, tags, RB_LOG_TRACKED_TAGS);
+        for (size_t i = 0; i < tag_count; i++) {
+            levels[i] = (rb_json_log_level_t){tags[i].tag, rb_log_level_name(tags[i].level)};
+        }
+        for (size_t i = 0; i < n; i++) {
+            json_lines[i] = (rb_json_log_line_t){lines[i].uptime_ms, lines[i].level, lines[i].tag, lines[i].msg};
+        }
+        const rb_json_controller_log_t msg = {
+            .hdr = header(now),
+            .dropped = rb_log_capture_dropped(),
+            .default_level = rb_log_level_name(default_level),
+            .levels = levels,
+            .level_count = tag_count,
+            .lines = json_lines,
+            .line_count = n,
+        };
+        const size_t len = rb_json_controller_log(&msg, s_payload, sizeof(s_payload));
+        if (len == 0) {
+            continue; /* can't happen with printable 120-character lines; logging it would only add another line */
+        }
+        char topic[TOPIC_LEN];
+        rb_topic_build(RB_TOPIC_CONTROLLER_LOG, CONFIG_RB_MQTT_TOPIC_PREFIX, 0, topic, sizeof(topic));
+        if (rb_mqtt_publish(topic, s_payload, rb_topic_info(RB_TOPIC_CONTROLLER_LOG)->qos, false) != ESP_OK) {
+            s_stats.publish_failures++;
+        }
+        sent_version = version;
+        sent_ms = now;
+        if (n < LOG_LINES_PER_MESSAGE) {
+            return;
+        }
+    }
+}
+#endif
+
 static void telemetry_task(void *arg)
 {
     uint32_t next_periodic = rb_time_mono_ms();
@@ -371,6 +442,9 @@ static void telemetry_task(void *arg)
         publish_c4002_replies();
 #if CONFIG_RB_MQTT_PUBLISH_HEATMAP
         publish_heatmap(); /* checked at least once per telemetry period */
+#endif
+#if CONFIG_RB_MQTT_PUBLISH_LOG
+        publish_log();
 #endif
         if ((int32_t)(rb_time_mono_ms() - next_periodic) >= 0) {
             next_periodic += CONFIG_RB_MQTT_TELEMETRY_PERIOD_MS;

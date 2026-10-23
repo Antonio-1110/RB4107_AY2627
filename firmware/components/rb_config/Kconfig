@@ -875,6 +875,16 @@ menu "RB4107 configuration"
                     network can send it: turn this off outside the demo
                     (docs/remote_reset.md).
 
+            config RB_CTRL_REMOTE_LOG
+                bool "Accept log level changes from the dashboard"
+                default y
+                help
+                    A "log_level" command sets one tag's log level (or "*",
+                    the default), as the diagnostic console's `log` command;
+                    "log_level_defaults" goes back to the menuconfig levels.
+                    Until the next reboot, not saved. Only changes what is
+                    logged, never the safety behaviour.
+
             config RB_CTRL_REMOTE_PRESENCE_FILTER
                 bool "Accept presence filter and buzzer/shutdown times from the dashboard"
                 default y
@@ -1204,6 +1214,35 @@ menu "RB4107 configuration"
                 Forwards each complete THERMAL_FRAME picture from the thermal
                 node on sensors/<node>/thermal_frame (QoS 0, not retained),
                 about 1.4 KB per picture. Display only.
+
+        config RB_MQTT_PUBLISH_LOG
+            bool "Publish the controller's log lines (dashboard Logs tab)"
+            default y
+            help
+                Copies every line the controller logs (the same lines the
+                serial monitor shows, at the same per-tag levels) to
+                <prefix>/controller/log (QoS 0, not retained), batched by the
+                telemetry task. Lines logged while the broker is unreachable
+                wait in a buffer and are sent after reconnecting. Copying
+                never waits, so it can't hold up the safety task
+                (docs/logging.md).
+
+        config RB_MQTT_LOG_BUFFER_LINES
+            int "Log lines kept for the dashboard"
+            depends on RB_MQTT_PUBLISH_LOG
+            range 16 400
+            default 100
+            help
+                About 140 bytes of RAM each. When full, the oldest line is
+                dropped (and counted in the message's "dropped").
+
+        config RB_MQTT_LOG_SKIP_TAGS
+            string "Tags never sent to the dashboard (comma separated)"
+            depends on RB_MQTT_PUBLISH_LOG
+            default "mqtt_client,outbox,transport_base,transport,esp-tls"
+            help
+                ESP-MQTT's own tags: with them at DEBUG, sending a log line
+                would log a line, forever. They still show on the serial port.
 
     endmenu
 

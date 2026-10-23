@@ -298,6 +298,7 @@
           <button type="button" data-tab-button="radar">Radar</button>
           <button type="button" data-tab-button="thermal">Thermal</button>
           <button type="button" data-tab-button="diag">Diagnostics</button>
+          <button type="button" data-tab-button="logs">Logs</button>
         </nav>
         <div class="dv-grid">
         <section class="card cooking-banner unknown dv-banner" id="cooking-banner" aria-label="Active cooking" data-tab="diag">
@@ -941,6 +942,82 @@
                 Apply thresholds
               </button>
             </div>
+          </details>
+        </section>
+        <section id="logs-card" class="card logs-card dv-logs" data-show="tuning" data-tab="logs" aria-labelledby="logs-title">
+          <div class="section-heading">
+            <div>
+              <h2 id="logs-title">Controller log</h2>
+              <p class="muted">
+                The lines the controller prints on its serial port, sent over MQTT. The sensor
+                nodes' logs stay on their own serial ports.
+              </p>
+            </div>
+            <span id="logs-count" class="count">0 lines</span>
+          </div>
+          <div class="tuning-grid logs-filters">
+            <label
+              >Show<select id="logs-level">
+                <option value="V" selected>Everything the controller logs</option>
+                <option value="D">Debug and above</option>
+                <option value="I">Info and above</option>
+                <option value="W">Warnings and errors</option>
+                <option value="E">Errors only</option>
+              </select></label
+            >
+            <label
+              >Tag<select id="logs-tag">
+                <option value="">All tags</option>
+              </select></label
+            >
+            <label>Search<input id="logs-search" type="search" placeholder="text in the line" /></label>
+            <label class="logs-follow"
+              ><span><input id="logs-follow" type="checkbox" checked /> Follow new lines</span></label
+            >
+          </div>
+          <p id="logs-status" class="tuning-status muted">Waiting for the controller's log.</p>
+          <div id="logs-view" class="logs-view" role="log" aria-live="off" tabindex="0">
+            <p class="empty-cell">No log lines yet.</p>
+          </div>
+          <details class="logs-levels" open>
+            <summary>Log levels on the controller</summary>
+            <p class="muted small">
+              What the controller logs, per tag: the serial port and this page show the same lines.
+              A change lasts until the controller reboots; at boot it starts from the menuconfig
+              levels (RB4107 configuration → Logging). Debug is the most the firmware is built with.
+            </p>
+            <table class="logs-levels-table">
+              <thead>
+                <tr>
+                  <th>Tag</th>
+                  <th>Level</th>
+                </tr>
+              </thead>
+              <tbody id="logs-levels-rows">
+                <tr>
+                  <td colspan="2" class="empty-cell">Not reported yet</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="tuning-actions logs-level-form">
+              <label class="range-label"
+                >Tag<input id="logs-new-tag" list="logs-tag-list" maxlength="15" placeholder="e.g. SAFETY" /></label
+              ><datalist id="logs-tag-list"></datalist>
+              <label class="range-label"
+                >Level<select id="logs-new-level">
+                  <option value="none">None</option>
+                  <option value="error">Error</option>
+                  <option value="warn">Warn</option>
+                  <option value="info">Info</option>
+                  <option value="debug" selected>Debug</option>
+                  <option value="verbose">Verbose</option>
+                </select></label
+              >
+              <button id="logs-set-level" class="secondary-button" type="button">Set level</button>
+              <span class="tuning-spacer"></span>
+              <button id="logs-defaults" class="secondary-button" type="button">Back to menuconfig levels</button>
+            </div>
+            <p id="logs-level-status" class="tuning-status muted" hidden></p>
           </details>
         </section>
         <details class="raw-panel dv-raw" data-show="tuning" data-tab="diag">

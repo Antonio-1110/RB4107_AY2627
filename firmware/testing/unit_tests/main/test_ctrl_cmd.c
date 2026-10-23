@@ -394,8 +394,60 @@ static void test_bad_params_are_rejected(void)
     TEST_ASSERT_TRUE(err[0] != '\0');
 }
 
+static void test_log_level_is_parsed(void)
+{
+    rb_ctrl_cmd_t cmd;
+    char err[80];
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":3,\"action\":\"log_level\",\"log_tag\":\"esp-tls\",\"log_level\":\"debug\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_LOG_LEVEL, cmd.action);
+    TEST_ASSERT_EQUAL_STRING("esp-tls", cmd.log_tag);
+    TEST_ASSERT_EQUAL(4, cmd.log_level); /* ESP_LOG_DEBUG */
+
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":3,\"action\":\"log_level\",\"log_level\":\"none\",\"log_tag\":\"*\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL_STRING("*", cmd.log_tag);
+    TEST_ASSERT_EQUAL(0, cmd.log_level);
+
+    TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
+                                   "\"request_id\":4,\"action\":\"log_level_defaults\"}",
+                                   &cmd, err),
+                             err);
+    TEST_ASSERT_EQUAL(RB_CTRL_ACTION_LOG_LEVEL_DEFAULTS, cmd.action);
+}
+
+static void test_bad_log_levels_are_rejected(void)
+{
+#define HEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
+    static const char *const bad[] = {
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"SAFETY\"}",                         /* level missing */
+        HEAD "\"action\":\"log_level\",\"log_level\":\"info\"}",                         /* tag missing */
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"SAFETY\",\"log_level\":\"loud\"}",   /* unknown level */
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"SAFETY\",\"log_level\":3}",          /* level as a number */
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"\",\"log_level\":\"info\"}",         /* empty tag */
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"SIXTEEN_CHARS_XX\",\"log_level\":\"info\"}",
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"A B\",\"log_level\":\"info\"}",
+        HEAD "\"action\":\"log_level\",\"log_tag\":\"S*\",\"log_level\":\"info\"}",
+        HEAD "\"action\":\"log_level_defaults\",\"log_tag\":\"SAFETY\"}",                 /* values with defaults */
+        HEAD "\"action\":\"reset\",\"log_level\":\"info\"}",
+    };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        rb_ctrl_cmd_t cmd;
+        char err[80];
+        TEST_ASSERT_FALSE_MESSAGE(parse(bad[i], &cmd, err), bad[i]);
+        TEST_ASSERT_NOT_EQUAL(0, strlen(err));
+    }
+#undef HEAD
+}
+
 void run_ctrl_cmd_tests(void)
 {
+    RUN_TEST(test_log_level_is_parsed);
+    RUN_TEST(test_bad_log_levels_are_rejected);
     RUN_TEST(test_reset_is_parsed);
     RUN_TEST(test_bad_commands_are_rejected);
     RUN_TEST(test_presence_filter_is_parsed);

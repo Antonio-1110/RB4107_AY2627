@@ -73,6 +73,16 @@ export const sendAttendance = (deviceId, body) => post(`${device(deviceId)}/atte
 // table's units, or {defaults: true}. The answer is values.params / params_source in the next telemetry.
 export const sendParams = (deviceId, body) => post(`${device(deviceId)}/params/`, body);
 
+// The controller's log lines, oldest first: the newest `limit`, or those after the id `after`;
+// filters {level: "E"|"W"|"I"|"D"|"V", tag, q}. Also the log levels in force (docs/logging.md).
+export const fetchLogs = (deviceId, { after = 0, limit = 300, level = "V", tag = "", q = "" } = {}) =>
+  get(
+    `${device(deviceId)}/logs/?${new URLSearchParams({ after, limit, level, ...(tag && { tag }), ...(q && { q }) })}`,
+  );
+// One tag's log level until the controller reboots: {tag, level} ("*" = default), or {defaults: true}.
+// The answer is the levels in the next fetchLogs().
+export const sendLogLevel = (deviceId, body) => post(`${device(deviceId)}/log-level/`, body);
+
 // Remote C4002 tuning. The node's answer
 // arrives later in the device's values (sensors.<node>.c4002).
 export const sendC4002Command = (deviceId, node, body) =>

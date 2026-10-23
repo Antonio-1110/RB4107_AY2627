@@ -27,6 +27,7 @@ import { renderCookingTemp } from "./cooking_temp.js";
 import { renderTuning } from "./tuning.js";
 import { renderSafetyLogic, setSafetyEvents } from "./safety_logic.js";
 import { refreshStallHistory, showStallHistory } from "./stall_history.js";
+import { renderLogs } from "./logs.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
 let selectedStall = "",
@@ -527,6 +528,7 @@ function renderDevice(device) {
   renderRadarRules(device);
   renderTuning(device);
   renderSafetyLogic(device);
+  renderLogs(device);
   renderDetailAlert(device);
 }
 function renderDetail() {

@@ -11,6 +11,7 @@ idf_component_register(SRCS "test_main.c"
                             "test_c4002_tuning.c"
                             "test_valve.c"
                             "test_ctrl_cmd.c"
+                            "test_log_line.c"
                        INCLUDE_DIRS "."
                        PRIV_REQUIRES unity safety rb_safety_config sensor_node fault_manager rb_protocol c4002 thermal_features thermal_frame rb_json
-                                     rb_topics rb_types rb_c4002_cmd valve_logic rb_ctrl_cmd rb_params)
+                                     rb_topics rb_types rb_c4002_cmd valve_logic rb_ctrl_cmd rb_params rb_log_capture)

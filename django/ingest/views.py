@@ -3,6 +3,7 @@ import math
 import re
 from datetime import timedelta
 from django.conf import settings
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -12,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from . import commands, incidents, validation
-from .models import Device, InboundMessage, Reading, SafetyEvent, ThermalFrame, WorkerStatus
+from .models import Device, InboundMessage, LogLine, Reading, SafetyEvent, ThermalFrame, WorkerStatus
 from .locations import (active_alerts, aggregate_stalls, classify_cooking, classify_display_state,
                         fleet_summary, load_location_catalog, location_for)
 
@@ -302,6 +303,68 @@ def params(request, device_id):
     except commands.BrokerUnavailable as error:
         return JsonResponse({"error": str(error)}, status=503)
     return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
+
+
+@csrf_exempt  # lab prototype: the API has no login (docs/logging.md)
+@require_POST
+def log_level(request, device_id):
+    """Set one tag's log level on the controller until it reboots ({"tag", "level"}), or go back to the
+    menuconfig levels ({"defaults": true}). The answer is the levels in the next /logs/."""
+    device = get_object_or_404(Device, device_id=device_id)
+    try:
+        body = json.loads(request.body or b"{}")
+        command = commands.build_log_level_command(device.device_id, body)
+    except (ValueError, commands.CommandError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    topic = commands.controller_command_topic(device.device_id)
+    try:
+        commands.publish(topic, command)
+    except commands.BrokerUnavailable as error:
+        return JsonResponse({"error": str(error)}, status=503)
+    return JsonResponse({"request_id": command["request_id"], "topic": topic, "command": command}, status=202)
+
+
+LOG_SEVERITY = "EWIDV"  # most severe first: level=W also returns E
+LOG_MAX_LINES = 1000
+
+
+@require_GET
+@never_cache
+def logs(request, device_id):
+    """The controller's log lines, oldest first: the newest `limit`, or only those after ?after=<id>.
+    Filters: level (E W I D V: that level and more severe), tag (exact), q (text in the message or tag)."""
+    device = get_object_or_404(Device, device_id=device_id)
+    try:
+        after = int(request.GET.get("after", "0"))
+        limit = int(request.GET.get("limit", "300"))
+        if after < 0 or not 1 <= limit <= LOG_MAX_LINES:
+            raise ValueError()
+    except ValueError:
+        return JsonResponse({"error": f"after must be an integer >= 0; limit 1..{LOG_MAX_LINES}"}, status=400)
+    level = request.GET.get("level", "V").upper()
+    if len(level) != 1 or level not in LOG_SEVERITY:
+        return JsonResponse({"error": "level must be one of E, W, I, D, V"}, status=400)
+    # Read before the lines: a line stored in between is then picked up next time, not skipped.
+    last = LogLine.objects.filter(device=device).order_by("-id").values_list("id", flat=True).first()
+    rows = LogLine.objects.filter(device=device, id__gt=after,
+                                  level__in=list(LOG_SEVERITY[:LOG_SEVERITY.index(level) + 1]))
+    if request.GET.get("tag"):
+        rows = rows.filter(tag=request.GET["tag"])
+    if request.GET.get("q"):
+        rows = rows.filter(Q(msg__icontains=request.GET["q"]) | Q(tag__icontains=request.GET["q"]))
+    fields = ("id", "received_at", "boot_id", "uptime_ms", "level", "tag", "msg")
+    if after:
+        lines = list(rows.order_by("id").values(*fields)[:limit])
+    else:
+        lines = list(reversed(rows.order_by("-id").values(*fields)[:limit]))
+    now = timezone.now()
+    return JsonResponse({
+        "device_id": device_id, "lines": lines, "last_id": last or 0,
+        "levels": device.log_levels, "dropped": device.log_dropped,
+        "levels_age_seconds": age(device.log_received_at, now),
+        "tags": sorted(set(LogLine.objects.filter(device=device).order_by("-id").values_list("tag", flat=True)[:2000])),
+        "retention_days": settings.RB4107_RETENTION_LOG_DAYS,
+    })
 
 
 LIVE_WINDOW_SECONDS = 60

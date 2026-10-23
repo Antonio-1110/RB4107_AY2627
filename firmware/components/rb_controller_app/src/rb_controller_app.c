@@ -20,6 +20,9 @@
 #include "rb_espnow.h"
 #include "rb_heatmap.h"
 #include "rb_log.h"
+#if CONFIG_RB_MQTT_PUBLISH_LOG
+#include "rb_log_capture.h"
+#endif
 #include "rb_mqtt.h"
 #include "rb_outputs.h"
 #include "rb_sim.h"
@@ -531,7 +534,7 @@ static bool valve_packet(const rb_packet_t *packet, uint32_t rx_ms, void *ctx)
 
 #if CONFIG_RB_CTRL_REMOTE_RESET || CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER || CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || \
     CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || CONFIG_RB_CTRL_REMOTE_ATTENDANCE || \
-    CONFIG_RB_CTRL_REMOTE_RADAR_RULES || CONFIG_RB_CTRL_REMOTE_PARAMS
+    CONFIG_RB_CTRL_REMOTE_RADAR_RULES || CONFIG_RB_CTRL_REMOTE_PARAMS || CONFIG_RB_CTRL_REMOTE_LOG
 #define RB_CTRL_COMMANDS 1
 /* MQTT task: operator reset, presence filter and cooking temperature sent from the dashboard (docs/remote_reset.md). */
 static void on_controller_command(const char *topic, const char *data, size_t len, void *ctx)
@@ -623,6 +626,23 @@ static void on_controller_command(const char *topic, const char *data, size_t le
         ESP_LOGW(TAG, "dashboard safety settings refused: turned off in menuconfig");
 #endif
         break;
+    case RB_CTRL_ACTION_LOG_LEVEL:
+#if CONFIG_RB_CTRL_REMOTE_LOG
+        rb_log_set_level(cmd.log_tag, (esp_log_level_t)cmd.log_level);
+        ESP_LOGW(TAG, "log level %s -> %s from the dashboard (until reboot)", cmd.log_tag,
+                 rb_log_level_name((esp_log_level_t)cmd.log_level));
+#else
+        ESP_LOGW(TAG, "dashboard log level refused: turned off in menuconfig");
+#endif
+        break;
+    case RB_CTRL_ACTION_LOG_LEVEL_DEFAULTS:
+#if CONFIG_RB_CTRL_REMOTE_LOG
+        rb_log_reset_levels();
+        ESP_LOGW(TAG, "log levels back to menuconfig from the dashboard");
+#else
+        ESP_LOGW(TAG, "dashboard log level refused: turned off in menuconfig");
+#endif
+        break;
     }
 }
 
@@ -638,6 +658,9 @@ static esp_err_t remote_commands_start(void)
 
 esp_err_t rb_controller_app_start(void)
 {
+#if CONFIG_RB_MQTT_PUBLISH_LOG
+    rb_log_capture_start(); /* first, so the boot lines reach the dashboard too */
+#endif
     rb_log_init();
     ESP_LOGI(TAG, "RB4107 controller %s starting, boot %s", CONFIG_RB_MQTT_CONTROLLER_ID, rb_time_boot_id());
 

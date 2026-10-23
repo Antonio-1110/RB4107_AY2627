@@ -171,6 +171,29 @@ typedef struct {
     const uint8_t *pixels;        /* width * height bytes, row by row */
 } rb_json_thermal_frame_t;
 
+/* controller/log: the controller's own log lines and the log levels in force (docs/logging.md). */
+typedef struct {
+    uint32_t uptime_ms;
+    char level;                   /* 'E' 'W' 'I' 'D' 'V' */
+    const char *tag;
+    const char *msg;
+} rb_json_log_line_t;
+
+typedef struct {
+    const char *tag;
+    const char *level;            /* "none" "error" "warn" "info" "debug" "verbose" */
+} rb_json_log_level_t;
+
+typedef struct {
+    rb_json_header_t hdr;
+    uint32_t dropped;             /* lines lost since boot */
+    const char *default_level;    /* written as the "*" level */
+    const rb_json_log_level_t *levels;
+    size_t level_count;
+    const rb_json_log_line_t *lines;
+    size_t line_count;
+} rb_json_controller_log_t;
+
 /* Each returns the JSON length, or 0 if it did not fit into buf. */
 size_t rb_json_telemetry(const rb_telemetry_t *t, char *buf, size_t len);   /* controller/state */
 size_t rb_json_heartbeat(const rb_telemetry_t *t, char *buf, size_t len);   /* controller/heartbeat */
@@ -180,6 +203,7 @@ size_t rb_json_thermal(const rb_telemetry_t *t, char *buf, size_t len);     /* s
 size_t rb_json_node_status(const rb_telemetry_t *t, char *buf, size_t len); /* sensors/<node>/status */
 size_t rb_json_event(const rb_event_msg_t *e, char *buf, size_t len);       /* events/... */
 size_t rb_json_thermal_frame(const rb_json_thermal_frame_t *f, char *buf, size_t len); /* sensors/<node>/thermal_frame */
+size_t rb_json_controller_log(const rb_json_controller_log_t *l, char *buf, size_t len); /* controller/log */
 
 /*
  * Open a message object and write the common header fields, for messages
