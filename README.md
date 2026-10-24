@@ -14,7 +14,7 @@ Built for NUS RB4107 (AY2026/27).
 C4002 radar #1 → ESP32-C6 presence node A ─┐
 C4002 radar #2 → ESP32-C6 presence node B ─┼─ ESP-NOW → ESP32-S3 controller
 MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety state machine → buzzer, shutdown relay
-                                                          └── Ethernet → MQTT broker → Django → dashboard
+                                                          └── Wi-Fi → MQTT broker → Django → dashboard
 ```
 
 1. Each sensor node reads one sensor and sends the readings to the controller
@@ -39,7 +39,7 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 |---|---|
 | 2 × presence node | DFRobot DFR1117 (ESP32-C6) + DFRobot C4002 mmWave radar |
 | Thermal node | DFRobot DFR1117 (ESP32-C6) + MLX90640 32×24 thermal camera |
-| Controller | Waveshare ESP32-S3-POE-ETH-8DI-8DO (8 transistor outputs, buzzer, RTC, Ethernet) |
+| Controller | Waveshare ESP32-S3-POE-ETH-8DI-8DO (8 transistor outputs, buzzer, RTC; Wi-Fi to the broker) |
 | Shutdown relay | external relay or contactor with a DC coil, switched by one of the controller's outputs (the board has no relays of its own) |
 | Broker, backend, dashboard | a laptop running Mosquitto and Django |
 

@@ -1,6 +1,6 @@
 /*
  * TODO section 6: ESP32-S3 central controller base project
- * (Waveshare ESP32-S3-ETH-8DI-8RO, ESP-IDF + FreeRTOS).
+ * (Waveshare ESP32-S3-POE-ETH-8DI-8DO, ESP-IDF + FreeRTOS).
  *
  * Board bring-up: prints chip information and the Wi-Fi STA MAC (the sensor
  * node needs it as its ESP-NOW peer), scans the board I2C bus for the TCA9554

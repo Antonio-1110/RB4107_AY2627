@@ -1,11 +1,11 @@
 /*
  * TODO section 17: S3 network connectivity.
  *
- * Brings up the configured interface (W5500 Ethernet by default), logs
+ * Brings up the configured interface (Wi-Fi station by default), logs
  * every state change (link, DHCP address, loss), and once connected pings
  * the MacBook (RB_BROKER_HOST) every 10 s to check the LAN path.
- * Reconnection is automatic: unplug and replug the cable (or turn the
- * access point off and on) and watch the log.
+ * Reconnection is automatic: turn the access point off and on and watch
+ * the log.
  */
 #include <inttypes.h>
 #include <string.h>
