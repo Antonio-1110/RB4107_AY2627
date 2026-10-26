@@ -3,7 +3,7 @@
 This runs on the MacBook, not on an ESP32.
 
 ```text
-ESP32-S3 ──Ethernet──▶ <MacBook LAN IP>:1883 ──▶ Mosquitto ──▶ Django subscriber
+ESP32-S3 ──Wi-Fi──▶ <MacBook LAN IP>:1883 ──▶ Mosquitto ──▶ Django subscriber
 ```
 
 ## 1. Install

@@ -29,9 +29,10 @@ menu "RB4107 configuration"
             default 1
             help
                 The channel the controller and every node start on. With the
-                controller on Ethernet nothing changes it. With the controller
-                on Wi-Fi, ESP-NOW has to use the access point's channel, and
-                the nodes find it (RB_ESPNOW_FOLLOW_CHANNEL).
+                controller on Wi-Fi (the default), ESP-NOW has to use the
+                access point's channel, and the nodes find it
+                (RB_ESPNOW_FOLLOW_CHANNEL). Only the unused Ethernet options
+                keep ESP-NOW on this channel.
 
         config RB_ESPNOW_FOLLOW_CHANNEL
             bool "Nodes: follow the controller when it changes channel"
@@ -521,7 +522,7 @@ menu "RB4107 configuration"
 
     endmenu
 
-    menu "Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)"
+    menu "Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO)"
 
         comment "Defaults come from the earlier prototype controller"
 
@@ -1022,11 +1023,14 @@ menu "RB4107 configuration"
 
         choice RB_NET_TYPE
             prompt "Controller network interface"
-            default RB_NET_ETHERNET_WIFI
+            default RB_NET_WIFI
             help
                 Only telemetry uses the network; safety never waits for it.
+                The controller is Wi-Fi only: set RB_WIFI_SSID and
+                RB_WIFI_PASSWORD. The Ethernet options are kept but unused
+                and untested on the bench.
             config RB_NET_ETHERNET_WIFI
-                bool "Ethernet, Wi-Fi when Ethernet is down"
+                bool "Ethernet, Wi-Fi when Ethernet is down (unused)"
                 help
                     Ethernet is used whenever it has an IP address. After
                     RB_NET_FALLBACK_S without one (cable out, no DHCP, W5500
@@ -1035,9 +1039,9 @@ menu "RB4107 configuration"
                     reconnects over the new interface each time. With no
                     RB_WIFI_SSID set this is the same as Ethernet only.
             config RB_NET_ETHERNET
-                bool "Ethernet (on-board W5500)"
+                bool "Ethernet (on-board W5500, unused)"
             config RB_NET_WIFI
-                bool "Wi-Fi station"
+                bool "Wi-Fi station (default)"
             config RB_NET_NONE
                 bool "none (local safety only)"
             config RB_NET_QEMU_OPENETH

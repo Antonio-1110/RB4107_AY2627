@@ -2,8 +2,8 @@
 
 /*
  * Controller network connectivity (TODO section 17), menuconfig RB_NET_TYPE:
- * W5500 Ethernet with Wi-Fi station as the fallback by default, or either one
- * alone. With the fallback, the state and IP are those of Ethernet while it
+ * Wi-Fi station by default (the controller is Wi-Fi only). The unused options
+ * are W5500 Ethernet alone or with Wi-Fi as the fallback. With the fallback, the state and IP are those of Ethernet while it
  * has an address, otherwise those of Wi-Fi.
  *
  * The network only carries telemetry. Nothing on the safety path waits for

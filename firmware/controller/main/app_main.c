@@ -3,7 +3,7 @@
  *
  *   C4002 + MLX90640 -> ESP32-C6 nodes (presence_node x2, thermal_node) -> ESP-NOW -> this ESP32-S3
  *     -> safety state machine -> buzzer + shutdown relay
- *     -> Ethernet -> Mosquitto (MacBook) -> Django subscriber
+ *     -> Wi-Fi -> Mosquitto (MacBook) -> Django subscriber
  *
  * This is the production S3 firmware and also covers:
  *   - section 27 (diagnostic mode): serial console, plus the simulated node

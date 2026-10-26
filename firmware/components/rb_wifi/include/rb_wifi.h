@@ -1,9 +1,9 @@
 #pragma once
 
 /*
- * Common Wi-Fi bring-up. ESP-NOW needs the Wi-Fi driver running even when
- * the controller uses Ethernet, and the Wi-Fi network option (section 17)
- * needs the same setup. This does it once, whoever asks first.
+ * Common Wi-Fi bring-up. ESP-NOW needs the Wi-Fi driver running, and the
+ * Wi-Fi network (section 17, the default) needs the same setup, as would the
+ * unused Ethernet options. This does it once, whoever asks first.
  */
 #include <stdint.h>
 #include "esp_err.h"

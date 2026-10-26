@@ -105,7 +105,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_VALVE_TRAVEL_MS` | Time the servo needs to move between positions (ms) | `1000` | 100 – 10000 |  |
 | `CONFIG_RB_VALVE_LATCH_CLOSED` | Stay closed after a shutdown until the valve node is reset | `n` |  |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO)
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO)
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -118,7 +118,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_S3_BOOT_BUTTON_GPIO` | BOOT button GPIO (-1 = none) | `0` | -1 – 48 |  |
 | `CONFIG_RB_S3_HEALTH_LOG_PERIOD_MS` | Controller health log period (ms) | `10000` | 1000 – 600000 |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Buzzer
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Buzzer
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -127,7 +127,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_BUZZER_DRIVE` (choice) | Buzzer type: `CONFIG_RB_BUZZER_DRIVE_GPIO` = active buzzer (GPIO level); `CONFIG_RB_BUZZER_DRIVE_PWM` = passive buzzer (LEDC PWM tone) | `CONFIG_RB_BUZZER_DRIVE_PWM` |  |  |
 | `CONFIG_RB_BUZZER_TONE_HZ` | Tone frequency (Hz) | `2700` | 200 – 10000 |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Shutdown relay
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Shutdown relay
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -137,7 +137,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_SHUTDOWN_BOOT_STATE` (choice) | Shutdown output at boot: `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` = released (appliance powered); `CONFIG_RB_SHUTDOWN_BOOT_ACTIVE` = active (appliance off until the controller is running) | `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` |  | ⚠ |
 | `CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS` | Read back and verify the relay output every (ms) | `1000` | 100 – 60000 |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Gas valve node
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Gas valve node
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -148,7 +148,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS` | Keep-open / command period (ms) | `1000` | 100 – 5000 |  |
 | `CONFIG_RB_CTRL_VALVE_STATUS_TIMEOUT_MS` | Warn when no VALVE_STATUS arrives for (ms) | `3000` | 500 – 60000 |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Time / RTC
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Time / RTC
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -156,7 +156,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_TIME_NTP_SERVER` | SNTP server (empty = don't sync over the network) | `"pool.ntp.org"` |  |  |
 | `CONFIG_RB_TIME_SET_RTC_FROM_BUILD` | If the RTC is invalid at boot, set it to the firmware build time | `n` |  |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Sensor node link
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Sensor node link
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -188,7 +188,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_CTRL_NODE_RESTART_LIMIT` | Raise node_restarting after this many node reboots (0 = off) | `3` | 0 – 8 |  |
 | `CONFIG_RB_CTRL_NODE_RESTART_WINDOW_S` | ... within this many seconds | `600` | 10 – 86400 |  |
 
-## Controller board (Waveshare ESP32-S3-ETH-8DI-8RO) → Tasks
+## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Tasks
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
@@ -201,7 +201,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | Option | Description | Default | Range | |
 |---|---|---|---|---|
-| `RB_NET_TYPE` (choice) | Controller network interface: `CONFIG_RB_NET_ETHERNET_WIFI` = Ethernet, Wi-Fi when Ethernet is down; `CONFIG_RB_NET_ETHERNET` = Ethernet (on-board W5500); `CONFIG_RB_NET_WIFI` = Wi-Fi station; `CONFIG_RB_NET_NONE` = none (local safety only); `CONFIG_RB_NET_QEMU_OPENETH` = QEMU emulated Ethernet (testing only, never on hardware) | `CONFIG_RB_NET_ETHERNET_WIFI` |  |  |
+| `RB_NET_TYPE` (choice) | Controller network interface: `CONFIG_RB_NET_ETHERNET_WIFI` = Ethernet, Wi-Fi when Ethernet is down (unused); `CONFIG_RB_NET_ETHERNET` = Ethernet (on-board W5500, unused); `CONFIG_RB_NET_WIFI` = Wi-Fi station (default); `CONFIG_RB_NET_NONE` = none (local safety only); `CONFIG_RB_NET_QEMU_OPENETH` = QEMU emulated Ethernet (testing only, never on hardware) | `CONFIG_RB_NET_WIFI` |  |  |
 | `CONFIG_RB_NET_USES_ETHERNET` |  | `y if RB_NET_ETHERNET || RB_NET_ETHERNET_WIFI` |  |  |
 | `CONFIG_RB_NET_USES_WIFI` |  | `y if RB_NET_WIFI || RB_NET_ETHERNET_WIFI` |  |  |
 | `CONFIG_RB_NET_FALLBACK_S` | Switch to Wi-Fi after Ethernet has had no IP address for (s) | `5` | 1 – 300 |  |
@@ -294,7 +294,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 
 | What | Options |
 |---|---|
-| GPIO assignments | `RB_C4002_*_GPIO`, `RB_MLX_S*_GPIO`, `RB_NODE_STATUS_LED_GPIO`, `RB_S3_I2C_*`, `RB_BUZZER_GPIO`, `RB_ETH_*_GPIO` |
+| GPIO assignments | `RB_C4002_*_GPIO`, `RB_MLX_S*_GPIO`, `RB_NODE_STATUS_LED_GPIO`, `RB_S3_I2C_*`, `RB_BUZZER_GPIO` (`RB_ETH_*_GPIO` only for the unused Ethernet options) |
 | Relay polarity | `RB_SHUTDOWN_POLARITY`, `RB_RELAY_ACTIVE_LEVEL`, `RB_SHUTDOWN_BOOT_STATE` |
 | ESP-NOW peer MAC and channel | `RB_NODE_CONTROLLER_MAC`, `RB_ESPNOW_CHANNEL`, `RB_ESPNOW_FOLLOW_CHANNEL` (nodes follow the controller to the Wi-Fi router's channel, see [setup.md](setup.md#broker)) |
 | Node IDs | `RB_NODE_ID` (each node; 1, 2 = presence, 3 = thermal), `RB_CTRL_PRESENCE_NODE_COUNT`, `RB_CTRL_PRESENCE_A_NODE_ID`, `RB_CTRL_PRESENCE_B_NODE_ID`, `RB_CTRL_THERMAL_NODE_ID` (controller) |
@@ -303,7 +303,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC` (also from the dashboard and saved, `RB_CTRL_REMOTE_COOKING_TEMP`), `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` (display only; the controller keeps it equal to the cooking temperature) |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
 | Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |
-| Network interface | `RB_NET_TYPE` (Ethernet with Wi-Fi fallback by default), `RB_NET_FALLBACK_S`, `RB_WIFI_SSID`, `RB_WIFI_PASSWORD` |
+| Network interface | `RB_NET_TYPE` (Wi-Fi station by default; the controller is Wi-Fi only), `RB_WIFI_SSID`, `RB_WIFI_PASSWORD` |
 | MQTT broker | `RB_BROKER_HOST`, `RB_BROKER_PORT`, `RB_MQTT_TOPIC_PREFIX`, `RB_MQTT_TELEMETRY_PERIOD_MS` |
 
 How to change values (menuconfig or a file): [setup.md](setup.md#changing-settings).

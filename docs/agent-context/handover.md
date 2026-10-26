@@ -20,14 +20,15 @@ Read this first when picking up the project without context, then
 C4002 #1 → ESP32-C6 presence node A (node ID 1) ─┐
 C4002 #2 → ESP32-C6 presence node B (node ID 2) ─┼─ ESP-NOW → ESP32-S3 controller
 MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── safety state machine → buzzer, shutdown relay
-                                                              └── Ethernet → Mosquitto (laptop) → django/ → frontend/
+                                                              └── Wi-Fi → Mosquitto (laptop) → django/ → frontend/
 ```
 
 - C6 boards: DFRobot DFR1117. S3 board: **Waveshare ESP32-S3-POE-ETH-8DI-8DO**
   (not the 8DI-8RO: no onboard relays). Its 8 outputs are opto-isolated
   Darlington sinks to GND (≤ 500 mA each) driven by a TCA9554 at 0x20, so the
   shutdown switches an external relay/contactor coil. Also PCF85063 RTC at
-  0x51 (no battery; time comes from SNTP), W5500 Ethernet, buzzer on GPIO46.
+  0x51 (no battery; time comes from SNTP), buzzer on GPIO46. The board has
+  a W5500 Ethernet chip, but the controller is Wi-Fi only (decided 2026-10-23).
   Code, Kconfig menus and issues #6–#9 still say "relay"; that is the
   external relay driven by an output.
 - The S3 must keep protecting the kitchen when MQTT, Django, the laptop or
@@ -72,7 +73,8 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
 - The node B build command is spelled out in [setup.md](../setup.md#firmware);
   a `$VAR` shortcut doesn't word-split in zsh.
 - ESP-NOW and Wi-Fi share the radio, so with Wi-Fi the ESP-NOW channel must
-  match the router on every board. Ethernet avoids this and is the default.
+  match the router on every board. The nodes find it themselves
+  (`RB_ESPNOW_FOLLOW_CHANNEL`).
 - DFRobot's Arduino C4002 example repeats the last reading when no new frame
   arrives. The ESP-IDF driver here doesn't; see `firmware/testing/c4002/README.md`.
 - Flash over UART, not JTAG.

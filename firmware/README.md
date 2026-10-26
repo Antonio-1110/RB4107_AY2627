@@ -16,7 +16,7 @@ firmware/
     ├── servo/        valve node: servo on its own
     ├── valve_link/   S3: wireless valve commands, without the safety system
     ├── rtc/          S3: real-time clock on its own
-    ├── network/      S3: Ethernet / Wi-Fi on its own
+    ├── network/      S3: Wi-Fi on its own
     └── unit_tests/   safety logic tests, on the PC or the S3
 ```
 
@@ -58,7 +58,7 @@ flashing one **replaces** the system firmware on that board; flash
 | [`testing/servo`](testing/servo) | valve node | servo pin, open/closed angles |
 | [`testing/valve_link`](testing/valve_link) | S3 | wireless valve node: keep-open, CLOSE, lost link |
 | [`testing/rtc`](testing/rtc) | S3 | RTC keeps time across power cycles |
-| [`testing/network`](testing/network) | S3 | Ethernet/Wi-Fi, IP address, reaching the MacBook |
+| [`testing/network`](testing/network) | S3 | Wi-Fi, IP address, reaching the MacBook |
 | [`testing/unit_tests`](testing/unit_tests) | PC or S3 | safety logic, protocol, JSON (no hardware needed) |
 
 ## Building

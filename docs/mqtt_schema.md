@@ -111,9 +111,9 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   presence node with a valid reading; it is `null` for the thermal node and
   for any node that is invalid, STALE or OFFLINE.
 - `thermal` is the thermal node's reading.
-- `espnow_channel` is the radio channel ESP-NOW uses right now: always
-  `RB_ESPNOW_CHANNEL` on Ethernet, the router's channel on Wi-Fi (the nodes
-  follow it). `null` if unknown.
+- `espnow_channel` is the radio channel ESP-NOW uses right now: the
+  router's channel on Wi-Fi (the nodes follow it), `RB_ESPNOW_CHANNEL` only
+  with the unused Ethernet options. `null` if unknown.
 - `safety.reset_required` is true while the supply is cut and latched: only an
   operator reset restores it. `warning_after_ms` and `shutdown_after_ms` are the
   timers in use (the test timers when `test_timers` is true);
