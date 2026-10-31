@@ -79,7 +79,7 @@ default if you want to show the live radar view.
 | Adding a node | node IDs by MAC address in `sdkconfig`, reflash to add one | provisioning without a rebuild | *checked*: `presence_node/sdkconfig.defaults` |
 | Dashboard and flashed settings | settings sent from the dashboard may differ from the flashed defaults; the presence filter is lost on reboot | one place that shows what is running and where it came from | partly built (the telemetry reports the source of each setting) |
 | Hardware-in-the-loop test | none | a repeatable end-to-end test with real sensors and a valve | *not built* |
-| Alerts to staff | Telegram message on buzzer and shutdown, sent from Django on the Mac ([telegram_alerts.md](telegram_alerts.md)); nothing if the Mac or internet is down | SMS for the critical alert, from a sender ID registered in Singapore's SMS Sender ID Registry (needs the operator's UEN, S$500 setup plus S$200 a year per ID; unregistered senders show as "Likely-SCAM"), sent from a server that is always on | *checked*: [SGNIC registry](https://prod.sgnic.sg/smsregistry); SMS *not built* |
+| Alerts to staff | Telegram message on buzzer and shutdown, with an Acknowledge button that records who responded, sent from Django on the Mac ([telegram_alerts.md](telegram_alerts.md)); nothing if the Mac or internet is down | SMS for the critical alert, from a sender ID registered in Singapore's SMS Sender ID Registry (needs the operator's UEN, S$500 setup plus S$200 a year per ID; unregistered senders show as "Likely-SCAM"), sent from a server that is always on | *checked*: [SGNIC registry](https://prod.sgnic.sg/smsregistry); SMS *not built* |
 
 ## Demo notes (things to know when presenting)
 

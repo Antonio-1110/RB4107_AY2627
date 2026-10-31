@@ -124,3 +124,22 @@ class Incident(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=["device", "started_at"], name="incident_device_started")]
+
+
+class TelegramAlert(models.Model):
+    """One Telegram alert (ingest/alerts.py) and who acknowledged it.
+
+    `messages` is the [chat_id, message_id] of each copy sent, so pressing
+    Acknowledge in one chat can update the message in every chat. Display only:
+    the controller never reads these. Never pruned (a few rows a day at most).
+    """
+    controller_id = models.CharField(max_length=128)
+    kind = models.CharField(max_length=16)  # a key of alerts.KINDS
+    text = models.TextField()
+    sent_at = models.DateTimeField()
+    messages = models.JSONField(default=list)
+    acked_at = models.DateTimeField(null=True, blank=True)
+    acked_by = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["controller_id", "sent_at"], name="tgalert_controller_sent")]
