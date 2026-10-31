@@ -91,33 +91,46 @@ static void test_kconfig_a_simmer_with_the_burner_off_is_left_alone(void)
 
 static void test_kconfig_a_hot_pan_on_low_gets_the_shorter_times(void)
 {
-    const outcome_t o = leave_and_watch(150.0f, 130.0f); /* heat still going in, between the tiers' temperatures */
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER1_WARNING_S, o.warning_s);
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER1_SHUTDOWN_S, o.shutdown_s);
+    const outcome_t o = leave_and_watch(150.0f, 130.0f); /* heat still going in: tier 3 (150 degC and up) */
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER_3_WARNING_S, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER_3_SHUTDOWN_S, o.shutdown_s);
 }
 
-static void test_kconfig_hot_oil_with_the_burner_on_gets_the_shortest_times(void)
+static void test_kconfig_hot_oil_with_the_burner_on_gets_shorter_times(void)
 {
-    const outcome_t o = leave_and_watch(220.0f, 210.0f);
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_WARNING_S, o.warning_s);
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S, o.shutdown_s);
+    const outcome_t o = leave_and_watch(220.0f, 210.0f); /* tier 4 */
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER_4_WARNING_S, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER_4_SHUTDOWN_S, o.shutdown_s);
+}
+
+static void test_kconfig_oil_past_its_smoke_point_gets_the_shortest_times(void)
+{
+    const outcome_t o = leave_and_watch(270.0f, 260.0f); /* tier 5 */
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER_5_WARNING_S, o.warning_s);
+    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER_5_SHUTDOWN_S, o.shutdown_s);
 }
 
 static void test_kconfig_hot_oil_turned_down_is_still_shut_down(void)
 {
     const outcome_t o = leave_and_watch(220.0f, 120.0f); /* falling, but settling hot: heat still going in */
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_WARNING_S, o.warning_s);
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S, o.shutdown_s);
+    /* The buzzer waits while the pan falls (falling hold, at most 90 s), then the shutdown follows. */
+    TEST_ASSERT_TRUE(o.warning_s >= CONFIG_RB_SAFETY_TIER_4_WARNING_S);
+    TEST_ASSERT_TRUE(o.warning_s <= CONFIG_RB_SAFETY_TIER_4_WARNING_S + 95);
+    TEST_ASSERT_TRUE(o.shutdown_s > o.warning_s);
+    TEST_ASSERT_EQUAL(-1, o.idle_s);
 }
 
-static void test_kconfig_hot_oil_with_the_burner_off_gets_a_buzzer_but_no_shutdown(void)
+static void test_kconfig_hot_oil_with_the_burner_off_is_left_alone(void)
 {
-    const outcome_t o = leave_and_watch(220.0f, 25.0f);
-    /* The buzzer comes at the tier's time: cooling can't be recognised that early. The gas is not cut
-     * for a burner that is already off, and the timeline ends when the pan is cold. */
-    TEST_ASSERT_UINT32_WITHIN(5, CONFIG_RB_SAFETY_TIER2_WARNING_S, o.warning_s);
-    TEST_ASSERT_EQUAL(-1, o.shutdown_s);
-    TEST_ASSERT_TRUE(o.idle_s > 0);
+    /* Switched off at tier 4 or 5: the pan falls at once, so the short buzzer waits (falling hold) until the
+     * trend sees it is only cooling (cooling hold). No buzzer, no shutdown; the timeline ends when it is cold. */
+    const float hot[] = {220.0f, 270.0f};
+    for (unsigned i = 0; i < sizeof(hot) / sizeof(hot[0]); i++) {
+        const outcome_t o = leave_and_watch(hot[i], 25.0f);
+        TEST_ASSERT_EQUAL(-1, o.warning_s);
+        TEST_ASSERT_EQUAL(-1, o.shutdown_s);
+        TEST_ASSERT_TRUE(o.idle_s > 0);
+    }
 }
 
 /* A hand waved at the radar (about 2 s of presence) must not cancel the unattended timers; it only stops the clock for those 2 s. */
@@ -148,7 +161,8 @@ void run_kconfig_tests(void)
     RUN_TEST(test_kconfig_a_simmer_gets_the_base_times);
     RUN_TEST(test_kconfig_a_simmer_with_the_burner_off_is_left_alone);
     RUN_TEST(test_kconfig_a_hot_pan_on_low_gets_the_shorter_times);
-    RUN_TEST(test_kconfig_hot_oil_with_the_burner_on_gets_the_shortest_times);
+    RUN_TEST(test_kconfig_hot_oil_with_the_burner_on_gets_shorter_times);
+    RUN_TEST(test_kconfig_oil_past_its_smoke_point_gets_the_shortest_times);
     RUN_TEST(test_kconfig_hot_oil_turned_down_is_still_shut_down);
-    RUN_TEST(test_kconfig_hot_oil_with_the_burner_off_gets_a_buzzer_but_no_shutdown);
+    RUN_TEST(test_kconfig_hot_oil_with_the_burner_off_is_left_alone);
 }

@@ -181,7 +181,7 @@ they leave sooner, the clock resumes from where it stopped.
 A pause postpones the buzzer and the shutdown while the pan keeps heating, so it
 has a **budget per timeline**: at most `RB_SAFETY_PAUSE_BUDGET_S` (30 s) in total
 and at most `RB_SAFETY_PAUSE_BUDGET_PCT` (25 %) of the shutdown time in force.
-For oil in the critical tier (120 s shutdown) that is at most 30 s of delay. The
+For oil in tier 5 (60 s shutdown) that is at most 15 s of delay. The
 budget starts over when the timeline is cancelled. 0 turns the pause off. The
 bounded "return hold" below still applies when a transition comes due just as
 someone appears. What is *not* done: telling a walker from a cook by the radar's
@@ -190,58 +190,99 @@ pause and the 5 s cancel do not depend on it.
 
 ## Temperature tiers: the hotter the pan, the shorter the time
 
-One flat time can't fit both a simmering pot and oil heading for its smoke
-point. NIST heated corn oil on an electric coil from cold and measured the time
-to auto-ignition as `460 s + 3.9 s per gram of oil` (50-150 g: 11 to 17
-minutes); the last stage, from smoking to ignition, lasted only 30-60 seconds,
-and ignition came at a pan-bottom temperature of 392 °C
+The countdown is set by how dangerous the pan is now, not by how long cooks
+usually step away (that varies from one canteen to the next, and we have no
+canteen data). Two inputs decide it: the hottest pixel, and how fast it is
+rising.
+
+**The anchor: 30 s of buzzer at the top.** NIST heated corn oil on an electric
+coil from cold: time to auto-ignition was `460 s + 3.9 s per gram of oil`
+(50-150 g: 11 to 17 minutes), ignition came at a pan-bottom temperature of
+392 °C, and the last stage, from visible smoke to ignition, lasted only 30-60 s
 ([NIST TN 2133](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2133.pdf)).
-Gas burners were not tested there and heat faster, and a pan that is already hot
-when the cook leaves has far less than that left. So the buzzer and shutdown
-times depend on how hot the pan is:
+So a pan at or past oil's smoke point (about 190-270 °C by oil) must give the
+cook at least that 30 s of warning, and the shutdown comes 30 s after it. Gas
+burners were not tested there and heat faster; a pan already hot when the cook
+leaves has far less than 11 minutes left.
+
+**The other tiers are a baseline.** The buzzer steps down evenly, 30 s per
+tier, from the loosest (a simmer) to the strictest, and the shutdown is always
+twice the buzzer:
 
 | Tier | Hottest pixel | Buzzer | Shutdown |
 |---|---|---|---|
-| normal | below 120 °C (a simmer, boiling water) | 180 s (the base time) | 300 s (the base time) |
-| elevated | 120 °C and up (sauté, shallow frying) | 60 s | 150 s |
-| critical | 200 °C and up, or rising 20 °C/min or faster above 150 °C | 30 s | 120 s |
+| 1 | below 100 °C (a simmer) | 150 s (the base time) | 300 s (the base time) |
+| 2 | 100 °C and up (boiling dry, gentle frying) | 120 s | 240 s |
+| 3 | 150 °C and up (shallow frying) | 90 s | 180 s |
+| 4 | 200 °C and up (hot oil, near the lowest smoke points) | 60 s | 120 s |
+| 5 | 250 °C and up (oil at or past its smoke point) | 30 s | 60 s |
 
-All of these are **placeholders** until they are tuned on real camera readings
-of hot oil. They are menuconfig values (`RB_SAFETY_TIER*`) and can be changed
-from the dashboard (Tuning, Rules; saved on the controller, see
-[remote_reset.md](remote_reset.md#temperature-tiers)). The camera reads shiny pans far too
-cold and tops out near 300 °C, so a pan may be hotter than the tier shows.
+The temperatures between tier 1 and tier 5 are evenly spaced estimates, not
+measurements. All of these are menuconfig values (`RB_SAFETY_TIER_*`), can be
+changed from the dashboard (Tuning, Rules; saved on the controller, see
+[remote_reset.md](remote_reset.md#temperature-tiers)), and are meant to be
+tuned on real camera readings of hot oil. The MLX90640 reads objects up to
+300 °C (datasheet); readings off bare shiny metal may be lower than the real
+temperature (low emissivity, not measured here), while oil and food read
+closer to true.
+
+**The rate: a pan heading for a tier gets it already.** A pan at 185 °C rising
+2 °C/s is under tier 4 (200 °C), but it reaches 245 °C in 30 s and 305 °C in
+60 s. Tier k applies when *temperature + rise rate × tier k's buzzer time*
+reaches tier k's temperature, so the buzzer sounds no later than the moment the
+pan would get there. The rate is measured over the last 30 s, as the median of
+the newer half of the window minus the median of the older half: one bad frame
+(a reflection, steam) can't fake a fast rise. Noise in it errs early (a buzzer
+too soon, never too late), and only a rise counts. Setting:
+`RB_SAFETY_TIER_RATE` (on), and the window on the Other settings card.
 
 How it behaves:
 
 - **Tiers only shorten.** The time in force is the smaller of the base time and
   the tier's, so a stall that sets short base times for a demo keeps them.
-- **A tier takes over after its temperature has held for 4 s** (a reflection
+- **A tier takes over after its condition has held for 4 s** (a reflection
   must not shorten the timers) and **gives way only 10 °C below its threshold,
   after 20 s**. A lost camera keeps the tier it had.
-- **The clock follows the limits in force.** If the pan gets hotter while
-  nobody is there, the limits get shorter at once: a person away for 100 s over
-  a simmer whose pan then heats to 230 °C gets the buzzer within seconds. The
-  buzzer still sounds at least **10 s before the shutdown** in that case.
-- **Shutdown after cooling can be recognised.** The shutdown time of the hot
-  tiers is later than the 1-2 minutes the cooling judgment needs. A hot pan whose
-  burner was just switched off therefore gets a **buzzer** at the tier's time
-  (cooling can't be recognised that early) but **not a shutdown**: the gas of a
-  burner that is already off is not cut. With the defaults, 220 °C with the
-  burner off buzzes at 30 s and then cools to idle; the same pan with the burner
-  turned down to 120 °C is shut down at 120 s. Both are tests.
-- **Cooking judgment and tiers are separate.** A pan only cooling holds due
-  transitions (see "Holds"); the tier decides when they are due.
+- **A stricter tier never restarts the countdown.** The clock counts from when
+  the person left; a stricter tier only lowers the limits, so the time already
+  away counts against them. A person away for 100 s over a simmer whose pan
+  then reaches 260 °C gets the buzzer within seconds. The buzzer still sounds at
+  least **10 s before the shutdown** in that case.
+- **Cooking judgment and tiers are separate.** The tier decides when the buzzer
+  and shutdown are due; a hold (below) decides whether a due one waits.
 
 ## Holds: a due buzzer or shutdown that waits
 
-A warning or shutdown that comes due can be held back, for two reasons, each
+A warning or shutdown that comes due can be held back, for three reasons, each
 with a bound:
 
 | Hold | When | How long |
 |---|---|---|
+| **falling** | the temperature is falling (2 °C/min or faster over the last 30 s) and the trend has not yet confirmed heat going in | until it stops falling or heat is confirmed (then it fires at once), or the trend sees it is only cooling (the cooling hold takes over); at most 90 s per countdown |
 | **cooling** | the pan is only cooling down (no heat going in) | until the trend flattens out hot (then it fires at once), or the pan drops below the cooking temperature (the timeline is cancelled); at most 4 τ of the profile, 1 h at most |
 | **return** | the radar sees someone right now and the return is being confirmed, but `presence_return_debounce_ms` has not passed | until it is confirmed (the timeline is cancelled), or the radar loses them (the held step fires at once); at most `return_debounce + gap` |
+
+**Why the falling hold.** A falling pan is moving away from danger, so a buzzer
+or shutdown that comes due then can wait until the controller knows more. It
+matters most at the hot tiers, whose times are shorter than the 1-2 minutes the
+cooling judgment needs: without it, a burner switched off at 260 °C would get
+the buzzer at 30 s and the gas cut at 60 s, for a stove that is already off.
+With it, that pan is held, then the cooling hold takes over, and it cools to
+idle without a buzzer. A burner turned down (still heating, settling lower) is
+held only until the trend confirms heat is going in, or the 90 s limit; cold
+food dropped into hot oil is held until the oil recovers and rises again. Heat
+counts as confirmed when the predicted settling temperature (T + τ × rate, see
+"Cooking judgment") is above the off temperature and has stopped moving (at
+most 8 °C/min). Setting: `RB_SAFETY_FALLING_HOLD` (on); the threshold and the
+limit are on the Other settings card.
+
+The cooling judgment needs the cookware profile to be roughly right. Measured
+in a simulation with the default "mixed" profile (τ 10 min), a burner switched
+off at 260 °C is held and cools to idle with a matching pan; with a heavy pan
+(τ 15 min) or a light one (τ 5 min) the trend does not settle on "cooling", so
+the buzzer comes once the falling hold's 90 s are used up and the shutdown
+follows 30 s later (about 2-3 min after leaving). Picking the right profile
+fixes it.
 
 The unattended clock keeps counting while a transition is held. After any hold,
 the buzzer sounds for **at least 30 s** before the shutdown, even if the shutdown
@@ -250,14 +291,14 @@ was due long ago, so the first thing someone nearby hears is the warning.
 The earlier rule "a fault never postpones a due shutdown" still applies in
 FAULT. The return hold is the one bounded exception for presence.
 
-The **buzzer and shutdown defaults are 3 min and 5 min** (`RB_SAFETY_WARNING_TIMEOUT_S`,
-`RB_SAFETY_SHUTDOWN_TIMEOUT_S`; they were 20 s and 40 s). That is long enough for
-the trend to be read (about 1-2 minutes) before the buzzer is due, which is what
-lets the demo show the timers behaving correctly for the situation.
+The **base buzzer and shutdown times are 2.5 min and 5 min** (tier 1,
+`RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`; they were 3 min
+and 5 min, and 20 s and 40 s before that). That is long enough for the trend to
+be read (about 1-2 minutes) before the buzzer is due.
 
 The trend can't be known without a working thermal camera: with the camera
-lost, heat counts as going in and nothing is held for cooling. The trend can be
-turned off in menuconfig (`RB_SAFETY_COOKING_TREND`).
+lost, heat counts as going in and nothing is held for cooling or falling. The
+trend can be turned off in menuconfig (`RB_SAFETY_COOKING_TREND`).
 
 ## Lost sensors: flags, not FAULT
 

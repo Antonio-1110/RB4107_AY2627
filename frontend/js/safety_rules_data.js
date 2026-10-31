@@ -148,24 +148,36 @@ export default {
     },
     {
      "id": "C3",
-     "when": "Hottest pixel at least {{RB_SAFETY_TIER1_TEMP_DC|120 °C}} for {{TIER_UP_PERSIST_MS|4 s}} (ELEVATED)",
-     "result": "Buzzer after {{RB_SAFETY_TIER1_WARNING_S|60 s}}, shutdown after {{RB_SAFETY_TIER1_SHUTDOWN_S|150 s}}, if shorter than the base times",
+     "when": "Hottest pixel below every hotter tier (tier 1: a simmer, boiling water)",
+     "result": "The base times: buzzer after {{RB_SAFETY_WARNING_TIMEOUT_S|150 s}}, shutdown after {{RB_SAFETY_SHUTDOWN_TIMEOUT_S|300 s}}",
      "code": "update_tier()"
     },
     {
      "id": "C4",
-     "when": "Hottest pixel at least {{RB_SAFETY_TIER2_TEMP_DC|200 °C}}, or rising {{RB_SAFETY_TIER2_RATE_DC_PER_MIN|20 °C/min}} above {{RB_SAFETY_TIER2_RATE_MIN_TEMP_DC|150 °C}}, for {{TIER_UP_PERSIST_MS|4 s}} (CRITICAL)",
-     "result": "Buzzer after {{RB_SAFETY_TIER2_WARNING_S|30 s}}, shutdown after {{RB_SAFETY_TIER2_SHUTDOWN_S|120 s}}, if shorter",
+     "when": "Hottest pixel at least {{RB_SAFETY_TIER_2_TEMP_DC|100 °C}} (tier 2), {{RB_SAFETY_TIER_3_TEMP_DC|150 °C}} (tier 3), {{RB_SAFETY_TIER_4_TEMP_DC|200 °C}} (tier 4) or {{RB_SAFETY_TIER_5_TEMP_DC|250 °C}} (tier 5), for {{TIER_UP_PERSIST_MS|4 s}}",
+     "result": "Buzzer / shutdown after {{RB_SAFETY_TIER_2_WARNING_S|120 s}} / {{RB_SAFETY_TIER_2_SHUTDOWN_S|240 s}} (tier 2), {{RB_SAFETY_TIER_3_WARNING_S|90 s}} / {{RB_SAFETY_TIER_3_SHUTDOWN_S|180 s}} (tier 3), {{RB_SAFETY_TIER_4_WARNING_S|60 s}} / {{RB_SAFETY_TIER_4_SHUTDOWN_S|120 s}} (tier 4), {{RB_SAFETY_TIER_5_WARNING_S|30 s}} / {{RB_SAFETY_TIER_5_SHUTDOWN_S|60 s}} (tier 5), if shorter than the base times. The hottest tier that applies wins",
      "code": "update_tier()"
     },
     {
      "id": "C5",
-     "when": "{{TIER_HYST_C|10 °C}} below the tier's threshold for {{TIER_DOWN_PERSIST_MS|20 s}}",
+     "when": "Rate rule ({{RB_SAFETY_TIER_RATE|on}} by default): the temperature, plus its rise over the last {{TIER_RATE_WINDOW_MS|30 s}} times a tier's buzzer time, reaches that tier's temperature, for {{TIER_UP_PERSIST_MS|4 s}}",
+     "result": "That tier already: the buzzer sounds no later than the moment the pan would get there. The rise is the median of the newer half of the window minus the median of the older half, so one bad frame fakes no rise. Only a rise counts",
+     "code": "tier_for()"
+    },
+    {
+     "id": "C6",
+     "when": "{{TIER_HYST_C|10 °C}} below the tier's threshold (and not heading back, C5) for {{TIER_DOWN_PERSIST_MS|20 s}}",
      "result": "Back to the lower tier",
      "code": "update_tier()"
     },
     {
-     "id": "C6",
+     "id": "C7",
+     "when": "The tier changes during a countdown",
+     "result": "The countdown is not restarted: the time already away counts against the new limits. If they are already passed the buzzer sounds at once, and the shutdown waits for {{LATE_WARNING_MIN_MS|10 s}} of buzzer",
+     "code": "evaluate()"
+    },
+    {
+     "id": "C8",
      "when": "Someone is seen during UNATTENDED or WARNING",
      "result": "The countdown stands still. At most {{RB_SAFETY_PAUSE_BUDGET_S|30 s}} per countdown, and at most {{RB_SAFETY_PAUSE_BUDGET_PCT|25 %}} of the shutdown time",
      "code": "pause_clock()"
@@ -199,6 +211,12 @@ export default {
      "when": "Someone returns: PRESENT for {{RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS|5 s}}, absent gaps under {{RB_SAFETY_PRESENCE_RETURN_GAP_MS|1 s}} forgiven, still present at the end",
      "result": "Return confirmed (used by T10, T13)",
      "code": "present_confirmed()"
+    },
+    {
+     "id": "D5",
+     "when": "A buzzer or shutdown comes due while the temperature is falling at least {{FALLING_RATE_C_PER_MIN|2 °C/min}} (over the last {{TIER_RATE_WINDOW_MS|30 s}}), and the trend has not confirmed heat going in (the prediction of D1 at least {{SETTLE_MARGIN_C|3 °C}} above the off temperature and moving at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}})",
+     "result": "It waits (falling hold; {{RB_SAFETY_FALLING_HOLD|on}} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {{FALLING_HOLD_MAX_MS|90 s}} at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead",
+     "code": "falling_hold()"
     }
    ]
   },
@@ -334,7 +352,7 @@ export default {
    ],
    "to": "WARNING",
    "reason": "unattended timeout",
-   "when": "Unattended for the warning time ({{RB_SAFETY_WARNING_TIMEOUT_S|180 s}}, shorter in a hot tier C3, C4) and no hold (D2, D3)"
+   "when": "Unattended for the warning time ({{RB_SAFETY_WARNING_TIMEOUT_S|150 s}}, shorter in a hotter tier C4, C5) and no hold (D2, D3, D5)"
   },
   {
    "id": "T13",
@@ -361,7 +379,7 @@ export default {
    ],
    "to": "SHUTDOWN",
    "reason": "shutdown timeout",
-   "when": "Unattended for the shutdown time ({{RB_SAFETY_SHUTDOWN_TIMEOUT_S|300 s}}, counted from {{RB_SAFETY_SHUTDOWN_TIMING|\"start of UNATTENDED (total unattended time)\"}}, shorter in a hot tier), no hold, and the buzzer has sounded at least {{WARNING_MIN_AFTER_HOLD_MS|30 s}} if a hold happened, or {{LATE_WARNING_MIN_MS|10 s}} if a tier made the shutdown due at once"
+   "when": "Unattended for the shutdown time ({{RB_SAFETY_SHUTDOWN_TIMEOUT_S|300 s}}, counted from {{RB_SAFETY_SHUTDOWN_TIMING|\"start of UNATTENDED (total unattended time)\"}}, shorter in a hotter tier), no hold (D2, D3, D5), and the buzzer has sounded at least {{WARNING_MIN_AFTER_HOLD_MS|30 s}} if a hold happened, or {{LATE_WARNING_MIN_MS|10 s}} if a tier made the shutdown due at once"
   },
   {
    "id": "T16",
@@ -608,6 +626,31 @@ export default {
    "group": "Temperature tiers"
   },
   {
+   "key": "tier_rate",
+   "kind": "BOOL",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "label": "A rising pan gets the tier it is heading for",
+   "source": "RB_SAFETY_TIER_RATE",
+   "options": [
+    "off",
+    "on"
+   ],
+   "group": "Temperature tiers"
+  },
+  {
+   "key": "tier_rate_window_ms",
+   "kind": "MS",
+   "min": 10000,
+   "max": 120000,
+   "default": 30000,
+   "label": "Rise or fall measured over the last",
+   "source": "TIER_RATE_WINDOW_MS",
+   "options": null,
+   "group": "Temperature tiers"
+  },
+  {
    "key": "trend_window_ms",
    "kind": "MS",
    "min": 10000,
@@ -705,6 +748,42 @@ export default {
    "source": "WARNING_MIN_AFTER_HOLD_MS",
    "options": null,
    "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "falling_hold",
+   "kind": "BOOL",
+   "min": 0,
+   "max": 1,
+   "default": 1,
+   "label": "Hold a due buzzer or shutdown while the pan is falling",
+   "source": "RB_SAFETY_FALLING_HOLD",
+   "options": [
+    "off",
+    "on"
+   ],
+   "group": "Falling hold"
+  },
+  {
+   "key": "falling_rate_dc_per_min",
+   "kind": "DC_PER_MIN",
+   "min": 1,
+   "max": 1000,
+   "default": 20,
+   "label": "Falling means at least",
+   "source": "FALLING_RATE_C_PER_MIN",
+   "options": null,
+   "group": "Falling hold"
+  },
+  {
+   "key": "falling_hold_max_ms",
+   "kind": "MS",
+   "min": 10000,
+   "max": 600000,
+   "default": 90000,
+   "label": "A falling hold lasts at most, per countdown",
+   "source": "FALLING_HOLD_MAX_MS",
+   "options": null,
+   "group": "Falling hold"
   }
  ]
 };

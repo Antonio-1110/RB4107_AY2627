@@ -92,14 +92,6 @@ enum {
     SEEN_FILTER = SEEN_ABSENCE | SEEN_RETURN | SEEN_GAP | SEEN_WARNING | SEEN_SHUTDOWN,
     SEEN_COOKING = 1024,
     SEEN_COOKWARE = 2048,
-    SEEN_T1_TEMP = 1 << 12,
-    SEEN_T1_WARN = 1 << 13,
-    SEEN_T1_STOP = 1 << 14,
-    SEEN_T2_TEMP = 1 << 15,
-    SEEN_T2_RATE = 1 << 16,
-    SEEN_T2_RATE_MIN = 1 << 17,
-    SEEN_T2_WARN = 1 << 18,
-    SEEN_T2_STOP = 1 << 19,
     SEEN_PAUSE_MS = 1 << 20,
     SEEN_PAUSE_PCT = 1 << 21,
     SEEN_FUSION = 1 << 22,
@@ -112,9 +104,27 @@ enum {
     SEEN_R_SPAN = 1 << 28,
     SEEN_R_ZONE = 1 << 29,
     SEEN_RADAR = SEEN_R_MODE | SEEN_R_GAP | SEEN_R_DWELL | SEEN_R_STILL | SEEN_R_WINDOW | SEEN_R_SPAN | SEEN_R_ZONE,
-    SEEN_TIERS = SEEN_T1_TEMP | SEEN_T1_WARN | SEEN_T1_STOP | SEEN_T2_TEMP | SEEN_T2_RATE | SEEN_T2_RATE_MIN | SEEN_T2_WARN |
-                 SEEN_T2_STOP,
 };
+
+/* The tiers command: tier<N>_temp_dc, tier<N>_warning_ms and tier<N>_shutdown_ms for N = 2..5 (tier 1 is the
+ * base times). Returns the bit of that key in tiers_seen (0 = not a tier key) and where its value goes. */
+#define TIER_FIELDS 3
+#define TIERS_SEEN_ALL ((1u << (RB_CTRL_TIERS * TIER_FIELDS)) - 1u)
+static unsigned tier_key(const char *key, int *tier, int *field)
+{
+    static const char *const SUFFIX[TIER_FIELDS] = {"_temp_dc", "_warning_ms", "_shutdown_ms"};
+    if (strncmp(key, "tier", 4) != 0 || key[4] < '2' || key[4] > '0' + RB_CTRL_TIERS + 1) {
+        return 0;
+    }
+    for (int f = 0; f < TIER_FIELDS; f++) {
+        if (strcmp(key + 5, SUFFIX[f]) == 0) {
+            *tier = key[4] - '2';
+            *field = f;
+            return 1u << (*tier * TIER_FIELDS + f);
+        }
+    }
+    return 0;
+}
 
 /* In esp_log_level_t order. */
 static const char *const LOG_LEVELS[] = {"none", "error", "warn", "info", "debug", "verbose"};
@@ -166,6 +176,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
     }
     unsigned seen = 0;
     uint32_t params_seen = 0; /* one bit per rb_params.def setting */
+    unsigned tiers_seen = 0;  /* one bit per tier key */
     if (!eat(&s, '}')) {
         do {
             char key[KEY_LEN];
@@ -182,7 +193,8 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                 return false;
             }
             unsigned bit;
-            int param;
+            int param, tier = 0, tier_field = 0;
+            unsigned tier_bit;
             if (strcmp(key, "schema_version") == 0) {
                 bit = SEEN_VERSION;
                 if (is_str || num != 2) {
@@ -287,28 +299,6 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->cooking_temp_dc = (uint16_t)num;
-            } else if (strcmp(key, "tier1_temp_dc") == 0 || strcmp(key, "tier2_temp_dc") == 0 ||
-                       strcmp(key, "tier2_rate_min_temp_dc") == 0) {
-                const bool one = key[4] == '1';
-                bit = one ? SEEN_T1_TEMP : (strcmp(key, "tier2_temp_dc") == 0 ? SEEN_T2_TEMP : SEEN_T2_RATE_MIN);
-                if (is_str || num > RB_CTRL_COOKING_TEMP_MAX_DC) {
-                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_COOKING_TEMP_MAX_DC);
-                    return false;
-                }
-                if (one) {
-                    out->tier1_temp_dc = (uint16_t)num;
-                } else if (bit == SEEN_T2_TEMP) {
-                    out->tier2_temp_dc = (uint16_t)num;
-                } else {
-                    out->tier2_rate_min_temp_dc = (uint16_t)num;
-                }
-            } else if (strcmp(key, "tier2_rate_dc_per_min") == 0) {
-                bit = SEEN_T2_RATE;
-                if (is_str || num > RB_CTRL_TIER_RATE_MAX_DC_PER_MIN) {
-                    fail(err, err_len, "%s must be an integer 0..%d", key, RB_CTRL_TIER_RATE_MAX_DC_PER_MIN);
-                    return false;
-                }
-                out->tier2_rate_dc_per_min = (uint16_t)num;
             } else if (strcmp(key, "pause_budget_ms") == 0) {
                 bit = SEEN_PAUSE_MS;
                 if (!filter_value(key, is_str, num, 0, 600000, &out->pause_budget_ms, err, err_len)) {
@@ -369,26 +359,6 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->radar_zone_max_cm = (uint16_t)num;
-            } else if (strcmp(key, "tier1_warning_ms") == 0) {
-                bit = SEEN_T1_WARN;
-                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier1_warning_ms, err, err_len)) {
-                    return false;
-                }
-            } else if (strcmp(key, "tier1_shutdown_ms") == 0) {
-                bit = SEEN_T1_STOP;
-                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier1_shutdown_ms, err, err_len)) {
-                    return false;
-                }
-            } else if (strcmp(key, "tier2_warning_ms") == 0) {
-                bit = SEEN_T2_WARN;
-                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier2_warning_ms, err, err_len)) {
-                    return false;
-                }
-            } else if (strcmp(key, "tier2_shutdown_ms") == 0) {
-                bit = SEEN_T2_STOP;
-                if (!filter_value(key, is_str, num, RB_CTRL_TIMEOUT_MIN_MS, RB_CTRL_TIMEOUT_MAX_MS, &out->tier2_shutdown_ms, err, err_len)) {
-                    return false;
-                }
             } else if (strcmp(key, "cookware") == 0) {
                 bit = SEEN_COOKWARE;
                 if (!is_str || (strcmp(str, "mixed") != 0 && strcmp(str, "light") != 0 && strcmp(str, "heavy") != 0 &&
@@ -417,6 +387,27 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                     return false;
                 }
                 out->log_level = (uint8_t)level;
+            } else if ((tier_bit = tier_key(key, &tier, &tier_field)) != 0) {
+                if (tier_field == 0 ? (is_str || num < 0 || num > RB_CTRL_COOKING_TEMP_MAX_DC)
+                                    : (is_str || num < RB_CTRL_TIMEOUT_MIN_MS || num > RB_CTRL_TIMEOUT_MAX_MS)) {
+                    fail(err, err_len, "%s must be an integer %ld..%ld", key,
+                         tier_field == 0 ? 0L : (long)RB_CTRL_TIMEOUT_MIN_MS,
+                         tier_field == 0 ? (long)RB_CTRL_COOKING_TEMP_MAX_DC : (long)RB_CTRL_TIMEOUT_MAX_MS);
+                    return false;
+                }
+                if (tiers_seen & tier_bit) {
+                    fail(err, err_len, "duplicate key '%s'", key);
+                    return false;
+                }
+                tiers_seen |= tier_bit;
+                if (tier_field == 0) {
+                    out->tier_temp_dc[tier] = (uint16_t)num;
+                } else if (tier_field == 1) {
+                    out->tier_warning_ms[tier] = (uint32_t)num;
+                } else {
+                    out->tier_shutdown_ms[tier] = (uint32_t)num;
+                }
+                bit = 0;
             } else if ((param = rb_params_find(key)) >= 0) {
                 if (is_str || (uint32_t)num < RB_PARAMS[param].min || (uint32_t)num > RB_PARAMS[param].max) {
                     fail(err, err_len, "%s must be an integer %lu..%lu", key, (unsigned long)RB_PARAMS[param].min,
@@ -467,8 +458,8 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
         fail(err, err_len, "cookware goes with the cookware action only, and it needs it");
         return false;
     }
-    if (out->action == RB_CTRL_ACTION_TIERS ? (seen & SEEN_TIERS) != SEEN_TIERS : (seen & SEEN_TIERS) != 0) {
-        fail(err, err_len, "tiers needs all eight tier values, other actions none");
+    if (out->action == RB_CTRL_ACTION_TIERS ? tiers_seen != TIERS_SEEN_ALL : tiers_seen != 0) {
+        fail(err, err_len, "tiers needs all twelve values (tier2..tier5 _temp_dc, _warning_ms, _shutdown_ms), other actions none");
         return false;
     }
     if (out->action == RB_CTRL_ACTION_RADAR_RULES ? (seen & SEEN_RADAR) != SEEN_RADAR : (seen & SEEN_RADAR) != 0) {

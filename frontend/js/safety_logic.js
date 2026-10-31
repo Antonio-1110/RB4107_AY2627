@@ -27,7 +27,6 @@ const num = (v) => typeof v === "number" && Number.isFinite(v);
 const trim = (v) => String(Math.round(v * 10) / 10);
 const secs = (v) => (num(v) ? `${trim(v)} s` : null);
 const degC = (v) => (num(v) ? `${trim(v)} °C` : null);
-const rate = (v) => (num(v) ? `${trim(v)} °C/min` : null);
 const from = (obj, ...keys) => keys.reduce((o, k) => (o && typeof o === "object" ? o[k] : undefined), obj);
 
 const FUSION = { all: "every working radar sees them", any: "either radar sees them" };
@@ -39,7 +38,8 @@ const RADAR_MODE = {
 const COOKWARE = { mixed: "mixed / unknown", light: "light pans", heavy: "heavy pans", liquid: "pots with liquid" };
 
 const pf = (key) => (v) => secs(from(v, "presence_filter", key));
-const tier = (t, key, fmt) => (v) => fmt(from(v, "tiers", t, key));
+const tierLevel = (v, n) => (from(v, "tiers", "levels") || []).find((t) => t && t.tier === n);
+const tier = (n, key, fmt) => (v) => fmt(from(tierLevel(v, n), key));
 const radar = (key) => (v) => secs(from(v, "radar_rules", key));
 const LIVE = {
   RB_SAFETY_HEAT_ON_DC: { tune: true, get: (v) => degC(v.cooking_on_c) },
@@ -62,14 +62,18 @@ const LIVE = {
         ? COOKWARE[v.cookware_profile] + (num(v.cookware_tau_s) ? ` (${trim(v.cookware_tau_s / 60)} min)` : "")
         : null,
   },
-  RB_SAFETY_TIER1_TEMP_DC: { tune: true, get: tier("elevated", "temp_c", degC) },
-  RB_SAFETY_TIER1_WARNING_S: { tune: true, get: tier("elevated", "warning_seconds", secs) },
-  RB_SAFETY_TIER1_SHUTDOWN_S: { tune: true, get: tier("elevated", "shutdown_seconds", secs) },
-  RB_SAFETY_TIER2_TEMP_DC: { tune: true, get: tier("critical", "temp_c", degC) },
-  RB_SAFETY_TIER2_RATE_DC_PER_MIN: { tune: true, get: tier("critical", "rate_c_per_min", rate) },
-  RB_SAFETY_TIER2_RATE_MIN_TEMP_DC: { tune: true, get: tier("critical", "rate_min_temp_c", degC) },
-  RB_SAFETY_TIER2_WARNING_S: { tune: true, get: tier("critical", "warning_seconds", secs) },
-  RB_SAFETY_TIER2_SHUTDOWN_S: { tune: true, get: tier("critical", "shutdown_seconds", secs) },
+  RB_SAFETY_TIER_2_TEMP_DC: { tune: true, get: tier(2, "temp_c", degC) },
+  RB_SAFETY_TIER_2_WARNING_S: { tune: true, get: tier(2, "warning_seconds", secs) },
+  RB_SAFETY_TIER_2_SHUTDOWN_S: { tune: true, get: tier(2, "shutdown_seconds", secs) },
+  RB_SAFETY_TIER_3_TEMP_DC: { tune: true, get: tier(3, "temp_c", degC) },
+  RB_SAFETY_TIER_3_WARNING_S: { tune: true, get: tier(3, "warning_seconds", secs) },
+  RB_SAFETY_TIER_3_SHUTDOWN_S: { tune: true, get: tier(3, "shutdown_seconds", secs) },
+  RB_SAFETY_TIER_4_TEMP_DC: { tune: true, get: tier(4, "temp_c", degC) },
+  RB_SAFETY_TIER_4_WARNING_S: { tune: true, get: tier(4, "warning_seconds", secs) },
+  RB_SAFETY_TIER_4_SHUTDOWN_S: { tune: true, get: tier(4, "shutdown_seconds", secs) },
+  RB_SAFETY_TIER_5_TEMP_DC: { tune: true, get: tier(5, "temp_c", degC) },
+  RB_SAFETY_TIER_5_WARNING_S: { tune: true, get: tier(5, "warning_seconds", secs) },
+  RB_SAFETY_TIER_5_SHUTDOWN_S: { tune: true, get: tier(5, "shutdown_seconds", secs) },
   RB_CTRL_RADAR_RULES: { tune: true, get: (v) => RADAR_MODE[from(v, "radar_rules", "mode")] || null },
   RB_CTRL_RADAR_DWELL_MS: { tune: true, get: radar("dwell_seconds") },
   RB_CTRL_RADAR_STATIONARY_MIN_MS: { tune: true, get: radar("stationary_min_seconds") },

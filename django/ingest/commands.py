@@ -187,10 +187,9 @@ def build_radar_rules_command(controller_id: str, body: dict) -> dict:
 
 
 TIER_TEMP_MAX_C = 300.0
-TIER_RATE_MAX_C_PER_MIN = 1000.0
 TIER_TIME_MIN_S, TIER_TIME_MAX_S = 1, 3600
-TIER_FIELDS = {"elevated": ("temp_c", "warning_s", "shutdown_s"),
-               "critical": ("temp_c", "rate_c_per_min", "rate_min_temp_c", "warning_s", "shutdown_s")}
+TIER_NUMBERS = (2, 3, 4, 5)  # tier 1 is the base times (presence filter and timers)
+TIER_FIELDS = ("temp_c", "warning_s", "shutdown_s")
 
 
 def _number(group, key, low, high, label):
@@ -201,34 +200,30 @@ def _number(group, key, low, high, label):
 
 
 def build_tiers_command(controller_id: str, body: dict) -> dict:
-    """{"elevated": {"temp_c", "warning_s", "shutdown_s"}, "critical": {"temp_c", "rate_c_per_min",
-    "rate_min_temp_c", "warning_s", "shutdown_s"}} sets the controller's temperature tiers (the hotter the
-    pan, the shorter the buzzer and shutdown times), which it saves; a temperature of 0 turns a tier off.
-    {"defaults": true} goes back to the menuconfig values. The controller also checks that a tier's
-    shutdown comes after its warning and that CRITICAL is not below ELEVATED."""
+    """{"levels": [{"temp_c", "warning_s", "shutdown_s"} x 4]} sets the controller's temperature tiers 2 to 5
+    (the hotter the pan, the shorter the buzzer and shutdown times; tier 1 is the base times), which it saves;
+    a temperature of 0 turns a tier off. {"defaults": true} goes back to the menuconfig values. The controller
+    also checks that a tier's shutdown comes after its warning and that no tier starts below the one before."""
     if not isinstance(body, dict):
         raise CommandError("body must be a JSON object")
     if body == {"defaults": True}:
         values, action = {}, "tiers_defaults"
     else:
-        if set(body) != set(TIER_FIELDS) or any(not isinstance(body[k], dict) or set(body[k]) != set(f)
-                                                for k, f in TIER_FIELDS.items()):
-            raise CommandError("send {elevated: {temp_c, warning_s, shutdown_s}, critical: {temp_c, rate_c_per_min, "
-                               "rate_min_temp_c, warning_s, shutdown_s}}, or {defaults: true}")
-        e, c = body["elevated"], body["critical"]
-        values = {
-            "tier1_temp_dc": round(_number(e, "temp_c", 0, TIER_TEMP_MAX_C, "elevated temp_c") * 10),
-            "tier1_warning_ms": round(_number(e, "warning_s", TIER_TIME_MIN_S, TIER_TIME_MAX_S, "elevated warning_s") * 1000),
-            "tier1_shutdown_ms": round(_number(e, "shutdown_s", TIER_TIME_MIN_S, TIER_TIME_MAX_S, "elevated shutdown_s") * 1000),
-            "tier2_temp_dc": round(_number(c, "temp_c", 0, TIER_TEMP_MAX_C, "critical temp_c") * 10),
-            "tier2_rate_dc_per_min": round(_number(c, "rate_c_per_min", 0, TIER_RATE_MAX_C_PER_MIN, "critical rate_c_per_min") * 10),
-            "tier2_rate_min_temp_dc": round(_number(c, "rate_min_temp_c", 0, TIER_TEMP_MAX_C, "critical rate_min_temp_c") * 10),
-            "tier2_warning_ms": round(_number(c, "warning_s", TIER_TIME_MIN_S, TIER_TIME_MAX_S, "critical warning_s") * 1000),
-            "tier2_shutdown_ms": round(_number(c, "shutdown_s", TIER_TIME_MIN_S, TIER_TIME_MAX_S, "critical shutdown_s") * 1000),
-        }
+        levels = body.get("levels")
+        if set(body) != {"levels"} or not isinstance(levels, list) or len(levels) != len(TIER_NUMBERS) or any(
+                not isinstance(level, dict) or set(level) != set(TIER_FIELDS) for level in levels):
+            raise CommandError("send {levels: [{temp_c, warning_s, shutdown_s} for tiers 2, 3, 4 and 5]}, or {defaults: true}")
+        values, below = {}, 0
+        for n, level in zip(TIER_NUMBERS, levels):
+            temp_dc = round(_number(level, "temp_c", 0, TIER_TEMP_MAX_C, f"tier {n} temp_c") * 10)
+            values[f"tier{n}_temp_dc"] = temp_dc
+            values[f"tier{n}_warning_ms"] = round(_number(level, "warning_s", TIER_TIME_MIN_S, TIER_TIME_MAX_S, f"tier {n} warning_s") * 1000)
+            values[f"tier{n}_shutdown_ms"] = round(_number(level, "shutdown_s", TIER_TIME_MIN_S, TIER_TIME_MAX_S, f"tier {n} shutdown_s") * 1000)
+            if temp_dc > 0:
+                if temp_dc < below:
+                    raise CommandError(f"tier {n} must not start below the tier before it")
+                below = temp_dc
         action = "tiers"
-        if values["tier1_temp_dc"] > 0 and values["tier2_temp_dc"] > 0 and values["tier2_temp_dc"] < values["tier1_temp_dc"]:
-            raise CommandError("critical must not start below elevated")
     command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
                "request_id": secrets.randbelow(65535) + 1, "action": action, **values}
     try:

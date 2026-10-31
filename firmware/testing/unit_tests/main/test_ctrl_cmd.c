@@ -164,27 +164,28 @@ static void test_bad_cookware_is_rejected(void)
 #undef CHEAD
 }
 
-#define TIERS_BODY "\"tier1_temp_dc\":1200,\"tier1_warning_ms\":60000,\"tier1_shutdown_ms\":150000," \
-                   "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500," \
-                   "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000"
+#define TIERS_REST "\"tier3_temp_dc\":1500,\"tier3_warning_ms\":90000,\"tier3_shutdown_ms\":180000," \
+                   "\"tier4_temp_dc\":2000,\"tier4_warning_ms\":60000,\"tier4_shutdown_ms\":120000," \
+                   "\"tier5_temp_dc\":2500,\"tier5_warning_ms\":30000,\"tier5_shutdown_ms\":60000"
+#define TIERS_BODY "\"tier2_temp_dc\":1000,\"tier2_warning_ms\":120000,\"tier2_shutdown_ms\":240000," TIERS_REST
 
 static void test_tiers_are_parsed(void)
 {
     rb_ctrl_cmd_t cmd;
-    char err[80];
+    char err[120];
     TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
                                    "\"request_id\":15,\"action\":\"tiers\"," TIERS_BODY "}",
                                    &cmd, err),
                              err);
     TEST_ASSERT_EQUAL(RB_CTRL_ACTION_TIERS, cmd.action);
-    TEST_ASSERT_EQUAL_UINT16(1200, cmd.tier1_temp_dc);
-    TEST_ASSERT_EQUAL_UINT32(60000, cmd.tier1_warning_ms);
-    TEST_ASSERT_EQUAL_UINT32(150000, cmd.tier1_shutdown_ms);
-    TEST_ASSERT_EQUAL_UINT16(2000, cmd.tier2_temp_dc);
-    TEST_ASSERT_EQUAL_UINT16(200, cmd.tier2_rate_dc_per_min);
-    TEST_ASSERT_EQUAL_UINT16(1500, cmd.tier2_rate_min_temp_dc);
-    TEST_ASSERT_EQUAL_UINT32(30000, cmd.tier2_warning_ms);
-    TEST_ASSERT_EQUAL_UINT32(120000, cmd.tier2_shutdown_ms);
+    TEST_ASSERT_EQUAL_UINT16(1000, cmd.tier_temp_dc[0]);
+    TEST_ASSERT_EQUAL_UINT32(120000, cmd.tier_warning_ms[0]);
+    TEST_ASSERT_EQUAL_UINT32(240000, cmd.tier_shutdown_ms[0]);
+    TEST_ASSERT_EQUAL_UINT16(1500, cmd.tier_temp_dc[1]);
+    TEST_ASSERT_EQUAL_UINT32(60000, cmd.tier_warning_ms[2]);
+    TEST_ASSERT_EQUAL_UINT16(2500, cmd.tier_temp_dc[3]);
+    TEST_ASSERT_EQUAL_UINT32(30000, cmd.tier_warning_ms[3]);
+    TEST_ASSERT_EQUAL_UINT32(60000, cmd.tier_shutdown_ms[3]);
     TEST_ASSERT_TRUE_MESSAGE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
                                    "\"request_id\":16,\"action\":\"tiers_defaults\"}",
                                    &cmd, err),
@@ -197,18 +198,18 @@ static void test_bad_tiers_are_rejected(void)
 #define THEAD "{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\",\"request_id\":1,"
     static const char *const bad[] = {
         THEAD "\"action\":\"tiers\"}",                                                  /* the values are missing */
-        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":1200}",                          /* only one of eight */
+        THEAD "\"action\":\"tiers\",\"tier2_temp_dc\":1000}",                          /* only one of twelve */
         THEAD "\"action\":\"reset\"," TIERS_BODY "}",                                  /* goes with its action only */
-        THEAD "\"action\":\"tiers_defaults\",\"tier1_temp_dc\":1200}",
-        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":3001,\"tier1_warning_ms\":60000,\"tier1_shutdown_ms\":150000,"
-            "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500,"
-            "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000}",                 /* temperature over the limit */
-        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":1200,\"tier1_warning_ms\":500,\"tier1_shutdown_ms\":150000,"
-            "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500,"
-            "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000}",                 /* under 1 s */
-        THEAD "\"action\":\"tiers\",\"tier1_temp_dc\":\"1200\",\"tier1_warning_ms\":60000,\"tier1_shutdown_ms\":150000,"
-            "\"tier2_temp_dc\":2000,\"tier2_rate_dc_per_min\":200,\"tier2_rate_min_temp_dc\":1500,"
-            "\"tier2_warning_ms\":30000,\"tier2_shutdown_ms\":120000}",                 /* a string */
+        THEAD "\"action\":\"tiers_defaults\",\"tier2_temp_dc\":1000}",
+        THEAD "\"action\":\"tiers\",\"tier2_temp_dc\":3001,\"tier2_warning_ms\":120000,\"tier2_shutdown_ms\":240000,"
+            TIERS_REST "}",                                                             /* temperature over the limit */
+        THEAD "\"action\":\"tiers\",\"tier2_temp_dc\":1000,\"tier2_warning_ms\":500,\"tier2_shutdown_ms\":240000,"
+            TIERS_REST "}",                                                             /* under 1 s */
+        THEAD "\"action\":\"tiers\",\"tier2_temp_dc\":\"1000\",\"tier2_warning_ms\":120000,\"tier2_shutdown_ms\":240000,"
+            TIERS_REST "}",                                                             /* a string */
+        THEAD "\"action\":\"tiers\"," TIERS_BODY ",\"tier1_temp_dc\":500}",            /* tier 1 is the base times */
+        THEAD "\"action\":\"tiers\"," TIERS_BODY ",\"tier6_temp_dc\":2800}",           /* there is no tier 6 */
+        THEAD "\"action\":\"tiers\"," TIERS_BODY ",\"tier5_temp_dc\":2500}",           /* duplicate */
     };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         rb_ctrl_cmd_t cmd;

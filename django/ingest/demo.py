@@ -25,14 +25,16 @@ TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
 SHUTDOWN_CYCLE_S = 600
 COOLING_CYCLE_S = 420
-# The firmware defaults: buzzer 3 min and shutdown 5 min after the person left.
-WARNING_S, SHUTDOWN_AFTER_S = 180, 300
-# The temperature tiers (firmware defaults): hotter pans get shorter times.
-TIERS = {"source": "menuconfig",
-         "elevated": {"temp_c": 120.0, "warning_ms": 60000, "shutdown_ms": 150000},
-         "critical": {"temp_c": 200.0, "rate_c_per_min": 20.0, "rate_min_temp_c": 150.0,
-                      "warning_ms": 30000, "shutdown_ms": 120000}}
-HOT_WARNING_S = 30
+# The firmware defaults: buzzer 2.5 min and shutdown 5 min after the person left (tier 1).
+WARNING_S, SHUTDOWN_AFTER_S = 150, 300
+# The temperature tiers 2..5 (firmware defaults): hotter pans get shorter times.
+TIERS = {"source": "menuconfig", "rate": True,
+         "levels": [{"tier": 2, "temp_c": 100.0, "warning_ms": 120000, "shutdown_ms": 240000},
+                    {"tier": 3, "temp_c": 150.0, "warning_ms": 90000, "shutdown_ms": 180000},
+                    {"tier": 4, "temp_c": 200.0, "warning_ms": 60000, "shutdown_ms": 120000},
+                    {"tier": 5, "temp_c": 250.0, "warning_ms": 30000, "shutdown_ms": 60000}]}
+HOT_TIER = TIERS["levels"][2]  # the hot_pan scenario's 200-225 °C: tier 4
+HOT_WARNING_S = HOT_TIER["warning_ms"] // 1000
 
 # network_loss: online, then silent (the dashboard marks it stale), then the
 # broker reports it offline (the controller's MQTT Last Will), then back.
@@ -67,7 +69,7 @@ def _pan_temperature(scenario, index, tick):
         return COOK_C + excess, -excess / 240 * 60
     if scenario == "hot_pan":  # oil in a pan, burner on, nobody there: 200-225 °C
         return 212 + math.sin(tick / 5 + index) * 8, math.cos(tick / 5 + index) * 2
-    base = 82 + (index * 7) % 20  # different dishes, a simmer to a gentle boil: 82-102 °C, the base-times tier
+    base = 78 + (index * 7) % 18  # different dishes, simmering: 74-99 °C, tier 1 (the base times)
     phase = tick / 5 + index
     return base + math.sin(phase) * 4, math.cos(phase) * 4 / (5 * TICK_S) * 60
 
@@ -79,7 +81,7 @@ def _timers(scenario, tick):
     if scenario in {"unattended", "fault_radars", "passing"}:  # left the stove 10 s to just before the buzzer
         unattended = 10 + seconds % (WARNING_S - 14)
         return unattended * 1000, unattended * 1000
-    if scenario == "hot_pan":  # hot oil: the buzzer comes after 30 s, not 3 min
+    if scenario == "hot_pan":  # hot oil: the buzzer comes after 60 s (tier 4), not 2.5 min
         unattended = 5 + seconds % (HOT_WARNING_S - 8)
         return unattended * 1000, unattended * 1000
     if scenario == "cooling":  # past the warning time, but held back while the pan only cools
@@ -150,9 +152,9 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                                        "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
                               cookware={"profile": "light", "tau_s": 300, "source": "menuconfig"},
                               hold="cooling" if scenario == "cooling" else "none",
-                              tier="critical" if scenario == "hot_pan" else "normal",
+                              tier="tier4" if scenario == "hot_pan" else "tier1",
                               effective_warning_ms=HOT_WARNING_S * 1000 if scenario == "hot_pan" else WARNING_S * 1000,
-                              effective_shutdown_ms=TIERS["critical"]["shutdown_ms"] if scenario == "hot_pan" else SHUTDOWN_AFTER_S * 1000,
+                              effective_shutdown_ms=HOT_TIER["shutdown_ms"] if scenario == "hot_pan" else SHUTDOWN_AFTER_S * 1000,
                               tiers=TIERS,
                               radar_rules={"mode": "observe", "quiet_gap_ms": 1500, "settle_window_ms": 4000, "source": "menuconfig", "dwell_ms": 4000, "stationary_min_ms": 1500,
                                            "settle_span_cm": 60, "zone_max_cm": 0},

@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 #define RB_JSON_SCHEMA_VERSION 2
+#define RB_JSON_TIERS 4 /* temperature tiers 2..5 in telemetry */
 
 typedef struct {
     const char *controller_id;
@@ -107,14 +108,13 @@ typedef struct {
         const char *cooking_phase;    /* "off" "checking" "heating" "holding" "cooling" (the temperature trend) */
         float trend_rate_c_per_min;   /* NAN = not enough data */
         float settle_c;               /* where the temperature is heading, NAN = unknown */
-        const char *hold;             /* "none" "return" "cooling": what holds a due buzzer/shutdown back */
-        const char *tier;             /* "normal" "elevated" "critical": the temperature tier in force */
+        const char *hold;             /* "none" "return" "cooling" "falling": what holds a due buzzer/shutdown back */
+        const char *tier;             /* "tier1" ... "tier5": the temperature tier in force (tier1 = the base times) */
         uint32_t effective_warning_ms;   /* the times in force now (warning_after_ms / shutdown_after_ms are the base times) */
         uint32_t effective_shutdown_ms;
-        float tier1_temp_c;           /* <= 0: tiers off */
-        uint32_t tier1_warning_ms, tier1_shutdown_ms;
-        float tier2_temp_c, tier2_rate_c_per_min, tier2_rate_min_temp_c;
-        uint32_t tier2_warning_ms, tier2_shutdown_ms;
+        float tier_temp_c[RB_JSON_TIERS];    /* tiers 2..5; <= 0: that tier off (all off: tiers null) */
+        uint32_t tier_warning_ms[RB_JSON_TIERS], tier_shutdown_ms[RB_JSON_TIERS];
+        bool tier_rate;               /* a rising pan gets the tier it is heading for */
         bool tiers_remote;            /* tier settings set from the dashboard */
         const char *radar_rules;      /* "off" "observe" "enforce" (placeholder rules) */
         uint32_t radar_quiet_gap_ms, radar_dwell_ms, radar_stationary_min_ms, radar_settle_window_ms;

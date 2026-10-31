@@ -31,7 +31,10 @@ const limits = (values) => ({
   warn: number(values.effective_warning_seconds) ? values.effective_warning_seconds : values.warning_after_seconds,
   stop: number(values.effective_shutdown_seconds) ? values.effective_shutdown_seconds : values.shutdown_after_seconds,
 });
-const TIER_LABEL = { elevated: "hot pan", critical: "hot oil range" };
+// Temperature tiers: "tier1" is the base times, "tier2" to "tier5" hotter pans with shorter times.
+const TIER_LABEL = { tier2: "tier 2, hot", tier3: "tier 3, frying", tier4: "tier 4, hot oil", tier5: "tier 5, oil at its smoke point" };
+const shortTier = (tier) => Boolean(TIER_LABEL[tier]);
+const strictTier = (tier) => tier === "tier4" || tier === "tier5";
 
 function nodeStatus(sensor) {
   if (sensor.valid && sensor.link === "ONLINE") return ["OK", "normal"];
@@ -47,12 +50,12 @@ function renderFlags(values) {
     const [label, style] = nodeStatus(sensor);
     host.append(make("span", `${name} · ${sensor.role} · ${label}`, `state-badge ${style}`));
   }
-  if (values.tier && values.tier !== "normal") {
+  if (shortTier(values.tier)) {
     host.append(
       make(
         "span",
-        `Temperature tier: ${TIER_LABEL[values.tier] || values.tier} · shorter limits (buzzer ${seconds0(limits(values).warn)}, shutdown ${seconds0(limits(values).stop)})`,
-        `state-badge ${values.tier === "critical" ? "critical" : "warning"}`,
+        `Temperature ${TIER_LABEL[values.tier]} · shorter limits (buzzer ${seconds0(limits(values).warn)}, shutdown ${seconds0(limits(values).stop)})`,
+        `state-badge ${strictTier(values.tier) ? "critical" : "warning"}`,
       ),
     );
   }
@@ -101,7 +104,7 @@ function phase(values, age, elapsed) {
     }
     const toWarn = number(warnAt) && number(unattended) ? warnAt - unattended : null;
     out.fill = total && number(position) ? position / total : 0;
-    if (values.hold === "cooling" || values.hold === "return") {
+    if (values.hold === "cooling" || values.hold === "return" || values.hold === "falling") {
       // A due buzzer or shutdown is being held back for a reason that the controller reports.
       out.style = "cd-run";
       out.clock = null;
@@ -113,6 +116,12 @@ function phase(values, age, elapsed) {
           `${number(values.cooking_settle_c) ? values.cooking_settle_c.toFixed(0) + " °C" : "the room temperature"}. ` +
           "The next step comes when the trend flattens out hot, or it ends when the pan drops below the cooking temperature.";
         out.label = "held: cooling";
+      } else if (values.hold === "falling") {
+        out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the temperature falls`;
+        out.detail =
+          "The pan is getting cooler, so it is moving away from danger. The next step comes at once if it rises " +
+          "again or the trend shows heat is still going in (a lowered flame), and after 90 s at most.";
+        out.label = "held: falling";
       } else {
         out.title = `${state === "warning" ? "Warning" : "Unattended"}: held, a return is being confirmed`;
         out.detail = "The radar sees someone and is confirming that they are really back. At most a few seconds.";
@@ -128,9 +137,9 @@ function phase(values, age, elapsed) {
       out.label = "until shutdown";
     } else {
       out.style = "cd-run";
-      out.title = values.tier === "critical" ? "Unattended: hot oil range, short limits" : "Unattended: timer running";
+      out.title = strictTier(values.tier) ? `Unattended: ${TIER_LABEL[values.tier]}, short limits` : "Unattended: timer running";
       out.detail =
-        values.tier && values.tier !== "normal"
+        shortTier(values.tier)
           ? `The pan is hot (${TIER_LABEL[values.tier]}), so the limits are short: buzzer after ${seconds0(warnAt)}, shutdown after ${seconds0(stopAt)}. A person returning for the "return after" time cancels it.`
           : "Cooking and no one confirmed at the stove. A person returning for the \"return after\" time cancels it.";
       out.clock = toWarn;
@@ -244,15 +253,19 @@ function liveLines(values, age, elapsed) {
     "cd-timer-live",
     number(values.unattended_seconds)
       ? `Timer: ${["unattended", "warning"].includes(values.safety_state) ? `unattended ${s1(runningValue(values.unattended_seconds, age("unattended_seconds"), values.paused !== true, elapsed))}${values.paused === true ? " (paused)" : ""}` : "not running"} · buzzer at ${seconds0(limits(values).warn)}, shutdown at ${seconds0(limits(values).stop)}` +
-          (values.tier && values.tier !== "normal" ? ` (${TIER_LABEL[values.tier]})` : "")
+          (shortTier(values.tier) ? ` (${TIER_LABEL[values.tier]})` : "")
       : "Timer: not reported",
   );
   const tiers = values.tiers;
   set(
     "cd-timer-tiers",
-    tiers && tiers.elevated && tiers.critical
-      ? `By temperature: below ${tiers.elevated.temp_c} °C the base times · ${tiers.elevated.temp_c} °C and up: buzzer ${seconds0(tiers.elevated.warning_seconds)}, shutdown ${seconds0(tiers.elevated.shutdown_seconds)} · ` +
-          `${tiers.critical.temp_c} °C and up${number(tiers.critical.rate_c_per_min) && tiers.critical.rate_c_per_min > 0 ? `, or rising ${tiers.critical.rate_c_per_min} °C/min above ${tiers.critical.rate_min_temp_c} °C` : ""}: buzzer ${seconds0(tiers.critical.warning_seconds)}, shutdown ${seconds0(tiers.critical.shutdown_seconds)}`
+    tiers && Array.isArray(tiers.levels) && tiers.levels.length
+      ? "By temperature: tier 1 the base times · " +
+          tiers.levels
+            .filter((t) => number(t.temp_c) && t.temp_c > 0)
+            .map((t) => `tier ${t.tier} from ${t.temp_c} °C: ${seconds0(t.warning_seconds)} / ${seconds0(t.shutdown_seconds)}`)
+            .join(" · ") +
+          (tiers.rate ? " · a rising pan already gets the tier it reaches within that tier's buzzer time" : "")
       : "",
   );
 }
