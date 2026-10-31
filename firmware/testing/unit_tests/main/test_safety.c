@@ -925,17 +925,15 @@ static safety_config_t tier_config(bool trend)
 {
     safety_config_t cfg = th_default_config();
     cfg.cooling_policy = SAFETY_COOLING_RETURN_TO_IDLE;
-    cfg.warning_timeout_ms = 180000;
+    cfg.warning_timeout_ms = 150000; /* tier 1: the base times */
     cfg.shutdown_timeout_ms = 300000;
     cfg.absence_debounce_ms = 1000;
-    cfg.tier1_temp_c = 120.0f;
-    cfg.tier1_warning_ms = 60000;
-    cfg.tier1_shutdown_ms = 150000;
-    cfg.tier2_temp_c = 200.0f;
-    cfg.tier2_rate_c_per_min = 20.0f;
-    cfg.tier2_rate_min_temp_c = 150.0f;
-    cfg.tier2_warning_ms = 30000;
-    cfg.tier2_shutdown_ms = 120000;
+    cfg.tiers[0] = (safety_tier_cfg_t){100.0f, 120000, 240000};
+    cfg.tiers[1] = (safety_tier_cfg_t){150.0f, 90000, 180000};
+    cfg.tiers[2] = (safety_tier_cfg_t){200.0f, 60000, 120000};
+    cfg.tiers[3] = (safety_tier_cfg_t){250.0f, 30000, 60000};
+    cfg.tier_rate = trend;
+    cfg.falling_hold = trend;
     cfg.cookware = SAFETY_COOKWARE_MIXED;
     cfg.cookware_tau_s = trend ? safety_cookware_tau_s(SAFETY_COOKWARE_MIXED) : 0.0f;
     return cfg;
@@ -964,28 +962,21 @@ static void leave_and_time(float temp_c, bool trend, uint32_t *warning_s, uint32
     *shutdown_s = h.sm.state == SAFETY_SHUTDOWN ? (h.now - t0) / 1000 : 0;
 }
 
-static void test_a_simmering_pot_gets_the_base_times(void)
+static void test_each_tier_gets_its_times(void)
 {
-    uint32_t w, s;
-    leave_and_time(95.0f, true, &w, &s);
-    TEST_ASSERT_UINT32_WITHIN(3, 180, w);
-    TEST_ASSERT_UINT32_WITHIN(3, 300, s);
-}
-
-static void test_a_hot_pan_gets_shorter_times(void)
-{
-    uint32_t w, s;
-    leave_and_time(150.0f, true, &w, &s);
-    TEST_ASSERT_UINT32_WITHIN(3, 60, w);
-    TEST_ASSERT_UINT32_WITHIN(3, 150, s);
-}
-
-static void test_oil_near_its_smoke_point_gets_the_shortest_times(void)
-{
-    uint32_t w, s;
-    leave_and_time(220.0f, true, &w, &s);
-    TEST_ASSERT_UINT32_WITHIN(3, 30, w);
-    TEST_ASSERT_UINT32_WITHIN(3, 120, s);
+    const struct { float temp_c; uint32_t warning_s, shutdown_s; } cases[] = {
+        {95.0f, 150, 300},  /* tier 1: a simmer, the base times */
+        {120.0f, 120, 240}, /* tier 2 */
+        {170.0f, 90, 180},  /* tier 3 */
+        {220.0f, 60, 120},  /* tier 4 */
+        {270.0f, 30, 60},   /* tier 5: the strictest */
+    };
+    for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        uint32_t w, s;
+        leave_and_time(cases[i].temp_c, true, &w, &s);
+        TEST_ASSERT_UINT32_WITHIN(3, cases[i].warning_s, w);
+        TEST_ASSERT_UINT32_WITHIN(3, cases[i].shutdown_s, s);
+    }
 }
 
 static void test_tiers_never_lengthen_the_base_times(void)
@@ -1005,6 +996,7 @@ static void test_tiers_never_lengthen_the_base_times(void)
     TEST_ASSERT_EQUAL_UINT32(10000, h.sm.eff_warning_ms);
 }
 
+/* A stricter tier does not restart the clock: the time already away counts against its shorter limit. */
 static void test_a_pan_that_heats_up_while_nobody_is_there_shortens_the_time(void)
 {
     th_t h;
@@ -1017,43 +1009,96 @@ static void test_a_pan_that_heats_up_while_nobody_is_there_shortens_the_time(voi
     h.in.presence = RB_FALSE;
     run_curve(&h, 100000, constant_temp); /* 100 s away at a simmer: base times, nothing yet */
     TH_EXPECT(&h, SAFETY_UNATTENDED);
-    const_temp_c = 230.0f; /* the pot boiled dry and the oil/pan is heading up */
+    const_temp_c = 260.0f; /* the pot boiled dry and the pan is heading up */
     run_curve(&h, 3000, constant_temp);
     TH_EXPECT(&h, SAFETY_UNATTENDED); /* not before the temperature has held for a few seconds */
     run_curve(&h, 3000, constant_temp);
-    TH_EXPECT(&h, SAFETY_WARNING); /* 100 s away is long past the 30 s limit of that tier */
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    TH_EXPECT(&h, SAFETY_WARNING); /* 100 s away is long past the 30 s limit of tier 5 */
+    TEST_ASSERT_EQUAL(SAFETY_TIER_5, h.sm.tier);
+    TEST_ASSERT_TRUE(safety_unattended_ms(&h.sm, h.now) > 100000); /* the clock kept its time */
     run_curve(&h, 8000, constant_temp);
-    TH_EXPECT(&h, SAFETY_WARNING); /* the buzzer still sounds before the shutdown, which is due at 120 s */
-    run_curve(&h, 16000, constant_temp);
+    TH_EXPECT(&h, SAFETY_WARNING); /* the shutdown (due at 60 s) still waits for 10 s of buzzer */
+    run_curve(&h, 4000, constant_temp);
     TH_EXPECT(&h, SAFETY_SHUTDOWN);
+}
+
+static void test_a_middle_tier_counts_the_time_already_away(void)
+{
+    th_t h;
+    const safety_config_t cfg = tier_config(false);
+    th_start(&h, &cfg, 0);
+    const_temp_c = 95.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 30000, constant_temp);
+    h.in.presence = RB_FALSE;
+    run_curve(&h, 40000, constant_temp); /* 40 s away at tier 1 */
+    const_temp_c = 170.0f;                /* tier 3: buzzer at 90 s of the same timeline, not 40 + 90 */
+    run_curve(&h, 45000, constant_temp);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    run_curve(&h, 7000, constant_temp);
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_UINT32_WITHIN(2000, 91000, safety_unattended_ms(&h.sm, h.now));
 }
 
 static float spike_curve(float t) { return t > 50.0f && t < 52.0f ? 250.0f : 95.0f; }
 
 static void test_a_two_second_spike_does_not_shorten_the_time(void)
 {
-    th_t h;
-    const safety_config_t cfg = tier_config(false);
-    th_start(&h, &cfg, 0);
-    th_cook(&h);
-    curve_start(&h);
-    run_curve(&h, 80000, spike_curve);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_NORMAL, h.sm.tier);
+    for (int rate = 0; rate <= 1; rate++) { /* also with the rate rule: one bad frame fakes no fast rise */
+        th_t h;
+        const safety_config_t cfg = tier_config(rate != 0);
+        th_start(&h, &cfg, 0);
+        th_cook(&h);
+        curve_start(&h);
+        for (int i = 0; i < 80; i++) {
+            run_curve(&h, 1000, spike_curve);
+            TEST_ASSERT_EQUAL(SAFETY_TIER_1, h.sm.tier);
+        }
+    }
 }
 
-static float ramp_30_per_min(float t) { return 130.0f + 0.5f * t; }
+/* At 185 degC rising 2 degC/s: below tier 4 (200) and tier 5 (250), but 30 s from 245 and 60 s from 305. */
+static float ramp_2_per_s(float t) { return t < 60.0f ? 120.0f : 120.0f + 2.0f * (t - 60.0f); }
 
-static void test_rising_fast_toward_the_smoke_point_counts_as_critical(void)
+static void test_rising_fast_counts_as_the_tier_it_is_heading_for(void)
 {
     th_t h;
     const safety_config_t cfg = tier_config(true);
     th_start(&h, &cfg, 0);
     th_cook(&h);
     curve_start(&h);
-    run_curve(&h, 110000, ramp_30_per_min); /* 185 degC now, rising 30 degC/min: below 200 but heading there */
+    run_curve(&h, 92500, ramp_2_per_s); /* 185 degC */
     TEST_ASSERT_TRUE(h.in.cooking_temp_c < 200.0f);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    TEST_ASSERT_TRUE(h.sm.fast_rate_c_per_min > 100.0f);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_4, h.sm.tier); /* within 60 s of 200 degC */
+    run_curve(&h, 15000, ramp_2_per_s); /* 215 degC: 30 s from 275 */
+    TEST_ASSERT_EQUAL(SAFETY_TIER_5, h.sm.tier);
+}
+
+static void test_without_the_rate_rule_only_the_temperature_counts(void)
+{
+    th_t h;
+    safety_config_t cfg = tier_config(true);
+    cfg.tier_rate = false;
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 92500, ramp_2_per_s);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_3, h.sm.tier);
+}
+
+static float ramp_slow(float t) { return 150.0f + 0.1f * t; } /* 6 degC/min: far from the next tier */
+
+static void test_a_slow_rise_keeps_the_temperature_tier(void)
+{
+    th_t h;
+    const safety_config_t cfg = tier_config(true);
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 200000, ramp_slow); /* 170 degC rising 6 degC/min: 60 s from 176, not 200 */
+    TEST_ASSERT_EQUAL(SAFETY_TIER_3, h.sm.tier);
 }
 
 static void test_a_tier_gives_way_only_well_below_its_temperature(void)
@@ -1065,15 +1110,15 @@ static void test_a_tier_gives_way_only_well_below_its_temperature(void)
     th_cook(&h);
     curve_start(&h);
     run_curve(&h, 20000, constant_temp);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_4, h.sm.tier);
     const_temp_c = 195.0f; /* only 5 degC under the threshold: stays */
     run_curve(&h, 60000, constant_temp);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
-    const_temp_c = 150.0f; /* well below: after a while it drops to the next tier */
+    TEST_ASSERT_EQUAL(SAFETY_TIER_4, h.sm.tier);
+    const_temp_c = 175.0f; /* well below: after a while it drops to the next tier */
     run_curve(&h, 15000, constant_temp);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_4, h.sm.tier);
     run_curve(&h, 10000, constant_temp);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_ELEVATED, h.sm.tier);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_3, h.sm.tier);
 }
 
 static void test_a_lost_camera_keeps_the_tier(void)
@@ -1081,7 +1126,7 @@ static void test_a_lost_camera_keeps_the_tier(void)
     th_t h;
     const safety_config_t cfg = tier_config(false);
     th_start(&h, &cfg, 0);
-    const_temp_c = 220.0f;
+    const_temp_c = 270.0f;
     th_cook(&h);
     curve_start(&h);
     run_curve(&h, 20000, constant_temp);
@@ -1095,15 +1140,131 @@ static void test_tier_config_is_checked(void)
 {
     safety_config_t cfg = tier_config(false);
     TEST_ASSERT_TRUE(safety_config_valid(&cfg));
-    cfg.tier2_shutdown_ms = cfg.tier2_warning_ms; /* shutdown not after the warning */
+    cfg.tiers[3].shutdown_ms = cfg.tiers[3].warning_ms; /* shutdown not after the warning */
     TEST_ASSERT_FALSE(safety_config_valid(&cfg));
     cfg = tier_config(false);
-    cfg.tier2_temp_c = 100.0f; /* CRITICAL below ELEVATED */
+    cfg.tiers[2].temp_c = 140.0f; /* tier 4 below tier 3 */
     TEST_ASSERT_FALSE(safety_config_valid(&cfg));
     cfg = tier_config(false);
-    cfg.tier1_temp_c = 0.0f; /* tiers off */
-    cfg.tier2_temp_c = 0.0f;
+    cfg.tiers[1].temp_c = 0.0f; /* a tier in the middle off: fine */
     TEST_ASSERT_TRUE(safety_config_valid(&cfg));
+    for (int k = 0; k < SAFETY_HOT_TIERS; k++) {
+        cfg.tiers[k].temp_c = 0.0f; /* all tiers off */
+    }
+    TEST_ASSERT_TRUE(safety_config_valid(&cfg));
+}
+
+/* ---- falling hold: a falling temperature waits until the trend knows ---- */
+
+/* The person leaves a 260 degC pan and switches the burner off: it cools with the mixed profile's 10 min. */
+static float off_from_260(float t) { return 25.0f + 235.0f * expf(-t / 600.0f); }
+
+static void test_switching_off_a_hot_pan_holds_the_short_tier(void)
+{
+    th_t h;
+    const safety_config_t cfg = tier_config(true);
+    th_start(&h, &cfg, 0);
+    const_temp_c = 260.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 200000, constant_temp);
+    h.in.presence = RB_FALSE;
+    curve_start(&h);
+    bool saw_falling = false;
+    for (int s = 0; s < 1200 && h.sm.state != SAFETY_IDLE; s++) {
+        run_curve(&h, 1000, off_from_260);
+        saw_falling = saw_falling || h.sm.hold == SAFETY_HOLD_FALLING;
+        TEST_ASSERT_TRUE(h.sm.state != SAFETY_SHUTDOWN); /* never cuts a stove that is already off */
+    }
+    TEST_ASSERT_TRUE(saw_falling);
+}
+
+static void test_food_dropped_in_hot_oil_waits_then_buzzes_when_it_recovers(void)
+{
+    th_t h;
+    const safety_config_t cfg = tier_config(true);
+    th_start(&h, &cfg, 0);
+    const_temp_c = 220.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 200000, constant_temp);
+    h.in.presence = RB_FALSE;
+    run_curve(&h, 40000, constant_temp); /* 40 s away at tier 4 (buzzer at 60 s) */
+    /* Cold food goes in just before the buzzer: the oil drops, then the burner brings it back. */
+    for (int s = 0; s < 40; s++) {
+        h.in.cooking_temp_c = 220.0f - 1.5f * (float)s;
+        th_run(&h, 1000);
+    }
+    TH_EXPECT(&h, SAFETY_UNATTENDED); /* due at 60 s, held while falling (it may look like cooling by now) */
+    TEST_ASSERT_TRUE(h.sm.hold == SAFETY_HOLD_FALLING || h.sm.hold == SAFETY_HOLD_COOLING);
+    for (int s = 0; s < 30 && h.sm.state == SAFETY_UNATTENDED; s++) {
+        h.in.cooking_temp_c = 160.0f + 2.0f * (float)s; /* recovering */
+        th_run(&h, 1000);
+    }
+    TH_EXPECT(&h, SAFETY_WARNING); /* rising again: the held buzzer comes at once */
+}
+
+static void test_a_falling_hold_is_bounded(void)
+{
+    th_t h;
+    safety_config_t cfg = tier_config(true);
+    cfg.cookware_tau_s = 0.0f; /* no settling estimate: only the limit ends the hold */
+    th_start(&h, &cfg, 0);
+    const_temp_c = 220.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 100000, constant_temp);
+    h.in.presence = RB_FALSE;
+    uint32_t held_from = 0;
+    for (int s = 0; s < 300 && h.sm.state != SAFETY_WARNING; s++) { /* falls slowly, 3 degC/min, for ever */
+        h.in.cooking_temp_c = 220.0f - 0.05f * (float)s;
+        th_run(&h, 1000);
+        if (held_from == 0 && h.sm.hold == SAFETY_HOLD_FALLING) held_from = h.now;
+    }
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_TRUE(held_from != 0);
+    TEST_ASSERT_UINT32_WITHIN(2000, 90000, h.now - held_from);
+}
+
+static void test_falling_hold_off_buzzes_on_time(void)
+{
+    th_t h;
+    safety_config_t cfg = tier_config(true);
+    cfg.falling_hold = false;
+    cfg.cookware_tau_s = 0.0f;
+    th_start(&h, &cfg, 0);
+    const_temp_c = 220.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 100000, constant_temp);
+    h.in.presence = RB_FALSE;
+    for (int s = 0; s < 62; s++) {
+        h.in.cooking_temp_c = 220.0f - 0.05f * (float)s;
+        th_run(&h, 1000);
+    }
+    TH_EXPECT(&h, SAFETY_WARNING);
+}
+
+static void test_a_lowered_flame_buzzes_once_heat_is_confirmed(void)
+{
+    th_t h;
+    const safety_config_t cfg = tier_config(true);
+    th_start(&h, &cfg, 0);
+    const_temp_c = 220.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 200000, constant_temp);
+    h.in.presence = RB_FALSE;
+    /* Turned down: settles at 160 degC with the pan's 10 min. Tier 4 at first, buzzer due at 60 s. */
+    curve_start(&h);
+    uint32_t warned_at = 0;
+    for (int s = 0; s < 300 && warned_at == 0; s++) {
+        h.in.cooking_temp_c = 160.0f + 60.0f * expf(-(float)s / 600.0f);
+        th_run(&h, 1000);
+        if (h.sm.state == SAFETY_WARNING) warned_at = s;
+    }
+    TEST_ASSERT_TRUE(warned_at >= 60);       /* held while falling ... */
+    TEST_ASSERT_TRUE(warned_at <= 60 + 92);  /* ... at most the falling limit */
 }
 
 /* ---- fine tuning from the config (rb_params.def): 0 = the built-in value ---- */
@@ -1119,6 +1280,9 @@ static void test_built_in_tuning_is_filled_in(void)
     TEST_ASSERT_EQUAL_UINT16(12, cfg.trend_min_samples);
     TEST_ASSERT_EQUAL_FLOAT(4.0f, cfg.cooling_hold_taus);
     TEST_ASSERT_EQUAL_UINT32(30000, cfg.warning_min_after_hold_ms);
+    TEST_ASSERT_EQUAL_UINT32(30000, cfg.tier_rate_window_ms);
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, cfg.falling_rate_c_per_min);
+    TEST_ASSERT_EQUAL_UINT32(90000, cfg.falling_hold_max_ms);
     TEST_ASSERT_TRUE(safety_config_valid(&cfg));
     cfg.tier_hyst_c = 3.0f; /* a value already set stays */
     safety_config_fill_defaults(&cfg);
@@ -1136,12 +1300,12 @@ static void test_tuned_tier_timing_is_used(void)
     th_cook(&h);
     curve_start(&h);
     run_curve(&h, 52000, spike_curve);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
-    const_temp_c = 195.0f;
+    TEST_ASSERT_EQUAL(SAFETY_TIER_5, h.sm.tier);
+    const_temp_c = 195.0f; /* 3 degC under tier 4's 200, more than the tuned 2 degC: gives way to tier 3 */
     run_curve(&h, 4000, constant_temp);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_CRITICAL, h.sm.tier);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_5, h.sm.tier);
     run_curve(&h, 2000, constant_temp);
-    TEST_ASSERT_EQUAL(SAFETY_TIER_ELEVATED, h.sm.tier);
+    TEST_ASSERT_EQUAL(SAFETY_TIER_3, h.sm.tier);
 }
 
 static void test_tuning_config_is_checked(void)
@@ -1154,6 +1318,12 @@ static void test_tuning_config_is_checked(void)
     TEST_ASSERT_FALSE(safety_config_valid(&cfg));
     cfg = th_default_config();
     cfg.settle_margin_c = -1.0f;
+    TEST_ASSERT_FALSE(safety_config_valid(&cfg));
+    cfg = th_default_config();
+    cfg.tier_rate_window_ms = 200000; /* longer than the rate's sample buffer */
+    TEST_ASSERT_FALSE(safety_config_valid(&cfg));
+    cfg = th_default_config();
+    cfg.falling_rate_c_per_min = -1.0f;
     TEST_ASSERT_FALSE(safety_config_valid(&cfg));
 }
 
@@ -1330,16 +1500,22 @@ void run_safety_tests(void)
     RUN_TEST(test_shutdown_waits_for_a_return_in_progress);
     RUN_TEST(test_long_return_holds_the_warning_until_it_is_confirmed);
     RUN_TEST(test_sparse_blips_do_not_hold_a_due_warning);
-    RUN_TEST(test_a_simmering_pot_gets_the_base_times);
-    RUN_TEST(test_a_hot_pan_gets_shorter_times);
-    RUN_TEST(test_oil_near_its_smoke_point_gets_the_shortest_times);
+    RUN_TEST(test_each_tier_gets_its_times);
     RUN_TEST(test_tiers_never_lengthen_the_base_times);
     RUN_TEST(test_a_pan_that_heats_up_while_nobody_is_there_shortens_the_time);
+    RUN_TEST(test_a_middle_tier_counts_the_time_already_away);
     RUN_TEST(test_a_two_second_spike_does_not_shorten_the_time);
-    RUN_TEST(test_rising_fast_toward_the_smoke_point_counts_as_critical);
+    RUN_TEST(test_rising_fast_counts_as_the_tier_it_is_heading_for);
+    RUN_TEST(test_without_the_rate_rule_only_the_temperature_counts);
+    RUN_TEST(test_a_slow_rise_keeps_the_temperature_tier);
     RUN_TEST(test_a_tier_gives_way_only_well_below_its_temperature);
     RUN_TEST(test_a_lost_camera_keeps_the_tier);
     RUN_TEST(test_tier_config_is_checked);
+    RUN_TEST(test_switching_off_a_hot_pan_holds_the_short_tier);
+    RUN_TEST(test_food_dropped_in_hot_oil_waits_then_buzzes_when_it_recovers);
+    RUN_TEST(test_a_falling_hold_is_bounded);
+    RUN_TEST(test_falling_hold_off_buzzes_on_time);
+    RUN_TEST(test_a_lowered_flame_buzzes_once_heat_is_confirmed);
     RUN_TEST(test_built_in_tuning_is_filled_in);
     RUN_TEST(test_tuned_tier_timing_is_used);
     RUN_TEST(test_tuning_config_is_checked);

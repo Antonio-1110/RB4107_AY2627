@@ -48,18 +48,14 @@ static rb_telemetry_t sample(void)
                    .cooking_phase = "cooling",
                    .trend_rate_c_per_min = -12.34f,
                    .settle_c = NAN,
-                   .hold = "cooling",
-                   .tier = "critical",
+                   .hold = "falling",
+                   .tier = "tier5",
                    .effective_warning_ms = 30000,
                    .effective_shutdown_ms = 120000,
-                   .tier1_temp_c = 120.0f,
-                   .tier1_warning_ms = 60000,
-                   .tier1_shutdown_ms = 150000,
-                   .tier2_temp_c = 200.0f,
-                   .tier2_rate_c_per_min = 20.0f,
-                   .tier2_rate_min_temp_c = 150.0f,
-                   .tier2_warning_ms = 30000,
-                   .tier2_shutdown_ms = 120000,
+                   .tier_temp_c = {100.0f, 150.0f, 200.0f, 250.0f},
+                   .tier_warning_ms = {120000, 90000, 60000, 30000},
+                   .tier_shutdown_ms = {240000, 180000, 120000, 60000},
+                   .tier_rate = true,
                    .tiers_remote = true,
                    .paused = true,
                    .pause_used_ms = 3000,
@@ -124,11 +120,13 @@ static void test_unknown_values_are_null(void)
                                      "\"cooking\":{\"active\":true,\"phase\":\"cooling\",\"rate_c_per_min\":-12.34,"
                                      "\"settle_c\":null,\"on_c\":55.5,\"off_c\":45.5,\"source\":\"dashboard\"},"
                                      "\"cookware\":{\"profile\":\"liquid\",\"tau_s\":2400,\"source\":\"dashboard\"}}"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"hold\":\"cooling\",\"tier\":\"critical\",\"effective_warning_ms\":30000,"
-                                     "\"effective_shutdown_ms\":120000,\"tiers\":{\"elevated\":{\"temp_c\":120.0,"
-                                     "\"warning_ms\":60000,\"shutdown_ms\":150000},\"critical\":{\"temp_c\":200.0,"
-                                     "\"rate_c_per_min\":20.0,\"rate_min_temp_c\":150.0,\"warning_ms\":30000,"
-                                     "\"shutdown_ms\":120000},\"source\":\"dashboard\"},\"paused\":true,\"pause_used_ms\":3000,\"pause_budget_ms\":30000,"
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"hold\":\"falling\",\"tier\":\"tier5\",\"effective_warning_ms\":30000,"
+                                     "\"effective_shutdown_ms\":120000,\"tiers\":{\"levels\":["
+                                     "{\"tier\":2,\"temp_c\":100.0,\"warning_ms\":120000,\"shutdown_ms\":240000},"
+                                     "{\"tier\":3,\"temp_c\":150.0,\"warning_ms\":90000,\"shutdown_ms\":180000},"
+                                     "{\"tier\":4,\"temp_c\":200.0,\"warning_ms\":60000,\"shutdown_ms\":120000},"
+                                     "{\"tier\":5,\"temp_c\":250.0,\"warning_ms\":30000,\"shutdown_ms\":60000}],"
+                                     "\"rate\":true,\"source\":\"dashboard\"},\"paused\":true,\"pause_used_ms\":3000,\"pause_budget_ms\":30000,"
                                      "\"presence_unknown\":true,\"thermal_lost\":false,"
                                      "\"absent_ms\":400,\"returning_ms\":0,"));
 

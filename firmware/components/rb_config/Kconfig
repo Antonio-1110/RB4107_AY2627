@@ -927,11 +927,11 @@ menu "RB4107 configuration"
                 depends on RB_SAFETY_TEMP_TIERS
                 help
                     A "tiers" command on <prefix>/controller/command replaces
-                    the RB_SAFETY_TIER* values (the buzzer and shutdown times
-                    for hotter pans). Saved on the controller, so it survives a
+                    the RB_SAFETY_TIER_* values (the buzzer and shutdown times
+                    of tiers 2 to 5). Saved on the controller, so it survives a
                     reboot, until the dashboard sends "tiers_defaults". The
                     controller refuses inconsistent values (a shutdown not
-                    after its warning, CRITICAL below ELEVATED).
+                    after its warning, a tier below the one before it).
 
             config RB_CTRL_REMOTE_PARAMS
                 bool "Accept the other safety settings from the dashboard"
@@ -1392,29 +1392,32 @@ menu "RB4107 configuration"
         config RB_SAFETY_WARNING_TIMEOUT_S
             int "Unattended time before WARNING (s)"
             range 1 3600
-            default 180
+            default 150
             help
-                3 minutes. Long enough for the controller to read the
-                temperature trend (about 1-2 minutes) and tell a pan that is
-                only cooling from one that still has heat going in, so the
-                demo shows the timers behaving correctly for the situation, not
-                just running. The dashboard can change it until the next
-                reboot; the diagnostic console's accelerated test timers are
-                much shorter.
+                2.5 minutes: tier 1, the loosest of the five temperature tiers
+                (a simmer, boiling water; see "Shorter buzzer and shutdown
+                times for hotter pans" below). Long enough for the controller
+                to read the temperature trend (about 1-2 minutes) and tell a
+                pan that is only cooling from one that still has heat going
+                in. The dashboard can change it until the next reboot; the
+                diagnostic console's accelerated test timers are much shorter.
 
         config RB_SAFETY_SHUTDOWN_TIMEOUT_S
             int "Shutdown timeout (s)"
             range 1 3600
             default 300
             help
-                5 minutes. Meaning depends on "Shutdown timeout counts from"
-                below. The dashboard can change it until the next reboot.
+                5 minutes, twice the warning time (tier 1). Meaning depends on
+                "Shutdown timeout counts from" below. The dashboard can change
+                it until the next reboot.
 
         choice RB_SAFETY_SHUTDOWN_TIMING
             prompt "Shutdown timeout counts from"
             default RB_SAFETY_SHUTDOWN_FROM_UNATTENDED
             help
-                OPEN QUESTION: is 90 s total unattended time or 90 s after the warning?
+                Whether the shutdown time is the total time away (the default:
+                buzzer and shutdown both count from when the person left) or
+                the time after the buzzer started.
             config RB_SAFETY_SHUTDOWN_FROM_UNATTENDED
                 bool "start of UNATTENDED (total unattended time)"
             config RB_SAFETY_SHUTDOWN_FROM_WARNING
@@ -1462,70 +1465,117 @@ menu "RB4107 configuration"
             bool "Shorter buzzer and shutdown times for hotter pans"
             default y
             help
-                The base times above fit a simmering pot. A pan with hot oil
-                heading for its smoke point has far less time before it can
-                ignite (docs/safety_state_machine.md, "Temperature tiers"), so
-                two hotter tiers use their own, shorter times. A tier never
-                gives more time than the base times. The values are
-                placeholders until they are tuned on real camera readings of
-                hot oil.
+                Five tiers. Tier 1 is the base times above (a simmer, boiling
+                water); tiers 2 to 5 are hotter and use their own, shorter
+                times, down to a 30 s buzzer for a pan near oil's smoke point
+                (docs/safety_state_machine.md, "Temperature tiers"). The
+                buzzer steps down 30 s per tier and the shutdown is twice the
+                buzzer. A tier never gives more time than the base times, and
+                a stricter tier never restarts the countdown. The values are a
+                baseline, to be tuned on real camera readings. Every tier must
+                start at or above the one before it; 0 turns a tier off.
 
         if RB_SAFETY_TEMP_TIERS
 
-            config RB_SAFETY_TIER1_TEMP_DC
-                int "ELEVATED from a hottest-pixel temperature of (0.1 degC)"
+            config RB_SAFETY_TIER_2_TEMP_DC
+                int "Tier 2 from a hottest-pixel temperature of (0.1 degC)"
                 range 0 3000
-                default 1200
+                default 1000
                 help
-                    Sauté and shallow-frying range. 0 turns this tier off.
+                    Frying at a moderate heat, or a pot that has boiled dry and is
+                    heating past 100 degC.
 
-            config RB_SAFETY_TIER1_WARNING_S
-                int "ELEVATED: unattended time before WARNING (s)"
-                range 1 3600
-                default 60
-
-            config RB_SAFETY_TIER1_SHUTDOWN_S
-                int "ELEVATED: shutdown time (s, counted like the base shutdown time)"
-                range 1 3600
-                default 150
-                help
-                    Keep it later than about 1.5 minutes: the cooling judgment
-                    needs that long to recognise a hot pan whose burner was
-                    just switched off, and a shutdown before that would cut
-                    the gas of a stove that is already off.
-
-            config RB_SAFETY_TIER2_TEMP_DC
-                int "CRITICAL from a hottest-pixel temperature of (0.1 degC)"
-                range 0 3000
-                default 2000
-                help
-                    Oil heading for its smoke point (about 190-270 degC by oil).
-                    NIST measured auto-ignition of corn oil at a pan-bottom
-                    temperature of 392 degC, and the last stage before it lasts
-                    only 30-60 s. The camera reads shiny pans too cold, and the
-                    sensor tops out near 300 degC.
-
-            config RB_SAFETY_TIER2_RATE_DC_PER_MIN
-                int "... or when rising at least this fast above the next setting (0.1 degC/min, 0 = off)"
-                range 0 10000
-                default 200
-
-            config RB_SAFETY_TIER2_RATE_MIN_TEMP_DC
-                int "... the lowest temperature at which the rising-fast rule applies (0.1 degC)"
-                range 0 3000
-                default 1500
-
-            config RB_SAFETY_TIER2_WARNING_S
-                int "CRITICAL: unattended time before WARNING (s)"
-                range 1 3600
-                default 30
-
-            config RB_SAFETY_TIER2_SHUTDOWN_S
-                int "CRITICAL: shutdown time (s, counted like the base shutdown time)"
+            config RB_SAFETY_TIER_2_WARNING_S
+                int "Tier 2: unattended time before WARNING (s)"
                 range 1 3600
                 default 120
 
+            config RB_SAFETY_TIER_2_SHUTDOWN_S
+                int "Tier 2: shutdown time (s, counted like the base shutdown time)"
+                range 1 3600
+                default 240
+
+            config RB_SAFETY_TIER_3_TEMP_DC
+                int "Tier 3 from a hottest-pixel temperature of (0.1 degC)"
+                range 0 3000
+                default 1500
+                help
+                    Shallow frying, sautéing.
+
+            config RB_SAFETY_TIER_3_WARNING_S
+                int "Tier 3: unattended time before WARNING (s)"
+                range 1 3600
+                default 90
+
+            config RB_SAFETY_TIER_3_SHUTDOWN_S
+                int "Tier 3: shutdown time (s, counted like the base shutdown time)"
+                range 1 3600
+                default 180
+
+            config RB_SAFETY_TIER_4_TEMP_DC
+                int "Tier 4 from a hottest-pixel temperature of (0.1 degC)"
+                range 0 3000
+                default 2000
+                help
+                    Hot oil, getting near the lowest smoke points (about 190 degC).
+
+            config RB_SAFETY_TIER_4_WARNING_S
+                int "Tier 4: unattended time before WARNING (s)"
+                range 1 3600
+                default 60
+
+            config RB_SAFETY_TIER_4_SHUTDOWN_S
+                int "Tier 4: shutdown time (s, counted like the base shutdown time)"
+                range 1 3600
+                default 120
+
+            config RB_SAFETY_TIER_5_TEMP_DC
+                int "Tier 5 from a hottest-pixel temperature of (0.1 degC)"
+                range 0 3000
+                default 2500
+                help
+                    Oil at or past its smoke point (about 190-270 degC by oil). NIST
+                    measured auto-ignition of corn oil at a pan-bottom temperature of
+                    392 degC, with only 30-60 s from smoking to ignition: the buzzer
+                    gives the cook that much warning, and the shutdown comes 30 s
+                    after it. The MLX90640 reads objects up to 300 degC (datasheet).
+
+            config RB_SAFETY_TIER_5_WARNING_S
+                int "Tier 5: unattended time before WARNING (s)"
+                range 1 3600
+                default 30
+
+            config RB_SAFETY_TIER_5_SHUTDOWN_S
+                int "Tier 5: shutdown time (s, counted like the base shutdown time)"
+                range 1 3600
+                default 60
+
+            config RB_SAFETY_TIER_RATE
+                bool "Also use the tier a rising pan is heading for"
+                default y
+                help
+                    A pan that will reach a tier's temperature within that
+                    tier's buzzer time, at its rise over the last 30 s, gets
+                    that tier already: 185 degC rising 2 degC/s is 30 s from
+                    245 degC and 60 s from 305 degC, so it gets tier 4 now.
+                    The buzzer then sounds no later than the moment the pan
+                    would get there. Only a rise counts. Off: the temperature
+                    alone decides.
+
         endif
+
+        config RB_SAFETY_FALLING_HOLD
+            bool "Hold a due buzzer or shutdown while the temperature is falling"
+            default y
+            help
+                A falling pan is moving away from danger. A buzzer or shutdown
+                that comes due while the temperature falls (2 degC/min or
+                faster over the last 30 s) waits until it stops falling, the
+                trend confirms heat is still going in (a lowered flame), or
+                90 s have passed in this countdown. A burner switched off at a
+                hot tier is then not shut off before the cooling judgment
+                (above) has recognised it. Off: only a pan the trend already
+                knows is cooling holds them.
 
         choice RB_SAFETY_COOKWARE
             prompt "Cookware profile (how fast the pans lose heat)"

@@ -78,6 +78,15 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 #define COOLING_HOLD_TAUS 4.0f         /* ... nor longer than 4 time constants: a pan still hot after that is not just cooling */
 /* After a hold, the buzzer sounds at least this long before the shutdown, even if the shutdown was due long ago. */
 #define WARNING_MIN_AFTER_HOLD_MS 30000u /* buzzer before the shutdown after any hold */
+/*
+ * The rate the tiers and the falling hold look at: a robust fit over a short window, so a pan heading for a
+ * hotter tier is caught soon. Noise in it errs early (a buzzer too soon, never too late): it only ever picks a
+ * stricter tier, and a falling hold it starts ends as soon as the pan rises again.
+ */
+#define TIER_RATE_WINDOW_MS 30000u       /* rate for the tiers and the falling hold fitted over the last 30 s */
+#define FALLING_RATE_C_PER_MIN 2.0f      /* falling at least this fast counts as falling */
+#define FALLING_HOLD_MAX_MS 90000u       /* a falling hold lasts at most this long per timeline */
+#define SAFETY_FAST_RATE_MAX 64          /* samples in that window at most: up to 126 s */
 /* The config's value for a tunable above, or the built-in one when it is left 0. */
 #define TUNED(field, builtin) (sm->cfg.field > 0 ? sm->cfg.field : (builtin))
 
@@ -102,6 +111,9 @@ void safety_config_fill_defaults(safety_config_t *cfg)
     FILL(cooling_hold_max_ms, COOLING_HOLD_MAX_MS);
     FILL(cooling_hold_taus, COOLING_HOLD_TAUS);
     FILL(warning_min_after_hold_ms, WARNING_MIN_AFTER_HOLD_MS);
+    FILL(tier_rate_window_ms, TIER_RATE_WINDOW_MS);
+    FILL(falling_rate_c_per_min, FALLING_RATE_C_PER_MIN);
+    FILL(falling_hold_max_ms, FALLING_HOLD_MAX_MS);
 #undef FILL
 }
 
@@ -123,26 +135,32 @@ bool safety_config_valid(const safety_config_t *cfg)
     if (cfg->pause_budget_pct > 100) {
         return false;
     }
-    if (cfg->trend_window_ms > SAFETY_TREND_MAX * TREND_SAMPLE_MS || cfg->trend_min_samples > SAFETY_TREND_MAX) {
+    if (cfg->trend_window_ms > SAFETY_TREND_MAX * TREND_SAMPLE_MS || cfg->trend_min_samples > SAFETY_TREND_MAX ||
+        cfg->tier_rate_window_ms > (SAFETY_FAST_RATE_MAX - 1) * TREND_SAMPLE_MS) {
         return false; /* more history than the trend buffer holds */
     }
     if (!isfinite(cfg->tier_hyst_c) || !isfinite(cfg->settle_margin_c) || !isfinite(cfg->settle_max_drift_c_per_min) ||
         !isfinite(cfg->settle_exit_drift_c_per_min) || !isfinite(cfg->cooling_hold_taus) || cfg->tier_hyst_c < 0.0f ||
         cfg->settle_margin_c < 0.0f || cfg->settle_max_drift_c_per_min < 0.0f || cfg->settle_exit_drift_c_per_min < 0.0f ||
-        cfg->cooling_hold_taus < 0.0f) {
+        cfg->cooling_hold_taus < 0.0f || !isfinite(cfg->falling_rate_c_per_min) || cfg->falling_rate_c_per_min < 0.0f) {
         return false;
     }
-    if (!isfinite(cfg->tier1_temp_c) || !isfinite(cfg->tier2_temp_c) || !isfinite(cfg->tier2_rate_c_per_min) ||
-        !isfinite(cfg->tier2_rate_min_temp_c) || cfg->tier2_rate_c_per_min < 0.0f) {
-        return false;
-    }
-    if (cfg->tier1_temp_c > 0.0f && cfg->tier2_temp_c > 0.0f && cfg->tier2_temp_c < cfg->tier1_temp_c) {
-        return false; /* CRITICAL must not start below ELEVATED */
-    }
-    if (cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_UNATTENDED_START &&
-        ((cfg->tier1_temp_c > 0.0f && cfg->tier1_shutdown_ms <= cfg->tier1_warning_ms) ||
-         (cfg->tier2_temp_c > 0.0f && cfg->tier2_shutdown_ms <= cfg->tier2_warning_ms))) {
-        return false; /* a tier's shutdown would come before (or with) its warning */
+    float below_c = 0.0f; /* the temperature of the last tier that is on */
+    for (int k = 0; k < SAFETY_HOT_TIERS; k++) {
+        const safety_tier_cfg_t *t = &cfg->tiers[k];
+        if (!isfinite(t->temp_c)) {
+            return false;
+        }
+        if (t->temp_c <= 0.0f) {
+            continue; /* this tier is off */
+        }
+        if (t->temp_c < below_c || t->warning_ms == 0 || t->shutdown_ms == 0) {
+            return false; /* a hotter tier must not start below a cooler one */
+        }
+        if (cfg->shutdown_timing == SAFETY_SHUTDOWN_AFTER_UNATTENDED_START && t->shutdown_ms <= t->warning_ms) {
+            return false; /* a tier's shutdown would come before (or with) its warning */
+        }
+        below_c = t->temp_c;
     }
     return true;
 }
@@ -159,6 +177,7 @@ static void clear_unattended(safety_sm_t *sm)
     sm->warning_started = false;
     sm->held_once = false;
     sm->late_warning = false;
+    sm->falling_hold_started = false;
     sm->pause_used_ms = 0;
     sm->paused = false;
 }
@@ -171,6 +190,7 @@ static void trend_clear(safety_sm_t *sm)
     sm->trend_count = 0;
     sm->trend_last_ms = 0;
     sm->trend_rate_c_per_min = NAN;
+    sm->fast_rate_c_per_min = NAN;
     sm->settle_c = NAN;
     sm->settle_drift_c_per_min = NAN;
     sm->settle_count = 0;
@@ -229,14 +249,66 @@ static void trend_push(safety_sm_t *sm, uint32_t now_ms, float temp_c)
  * -(T - T_settle) / tau). A pan that is only cooling settles near the room
  * temperature; a pan with heat going in settles somewhere hot.
  */
+/* Median of n values (n <= SAFETY_FAST_RATE_MAX), sorting them in place. */
+static float median(float *v, int n)
+{
+    for (int a = 1; a < n; a++) { /* insertion sort: n is small */
+        const float x = v[a];
+        int b = a - 1;
+        for (; b >= 0 && v[b] > x; b--) {
+            v[b + 1] = v[b];
+        }
+        v[b + 1] = x;
+    }
+    return n % 2 ? v[n / 2] : 0.5f * (v[n / 2 - 1] + v[n / 2]);
+}
+
+/*
+ * The short-window rate for the tiers and the falling hold, over the last tier_rate_window_ms once that much
+ * history is there (NAN until then): the median temperature of the newer half of the window minus that of the
+ * older half, over the time between them. Medians, so one bad frame (a reflection, steam) can't fake a
+ * fast rise or fall the way it would in a least-squares fit.
+ */
+static void fast_rate_update(safety_sm_t *sm, uint32_t now_ms)
+{
+    const uint32_t window = TUNED(tier_rate_window_ms, TIER_RATE_WINDOW_MS);
+    float age_s[SAFETY_FAST_RATE_MAX], temp_c[SAFETY_FAST_RATE_MAX]; /* newest first */
+    int n = 0;
+    uint32_t oldest_age = 0;
+    for (uint16_t k = 0; k < sm->trend_count && n < SAFETY_FAST_RATE_MAX; k++) {
+        const uint16_t idx = (uint16_t)((sm->trend_head + SAFETY_TREND_MAX - 1 - k) % SAFETY_TREND_MAX);
+        const uint32_t age = (uint32_t)(now_ms - sm->trend_t_ms[idx]);
+        if (age > window) {
+            break;
+        }
+        age_s[n] = (float)age / 1000.0f;
+        temp_c[n] = sm->trend_c[idx];
+        n++;
+        oldest_age = age;
+    }
+    /* The window must be (nearly) full: one sample period short is enough. */
+    if (n < 4 || oldest_age + TREND_SAMPLE_MS < window) {
+        return;
+    }
+    const int half = n / 2; /* newer half: [0, half), older half: [n - half, n) */
+    const float new_c = median(temp_c, half), new_age = median(age_s, half);
+    const float old_c = median(temp_c + n - half, half), old_age = median(age_s + n - half, half);
+    if (old_age - new_age <= 0.0f) {
+        return;
+    }
+    sm->fast_rate_c_per_min = (new_c - old_c) / (old_age - new_age) * 60.0f;
+}
+
 static void trend_update(safety_sm_t *sm, uint32_t now_ms)
 {
     const uint32_t window = TUNED(trend_window_ms, TREND_DEFAULT_WINDOW_MS);
     sm->trend_rate_c_per_min = NAN;
+    sm->fast_rate_c_per_min = NAN;
     sm->settle_c = NAN;
     if (sm->trend_count == 0 || elapsed(now_ms, sm->trend_last_ms, TREND_STALE_MS)) {
         return;
     }
+    fast_rate_update(sm, now_ms);
     double n = 0, sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0; /* weighted sums */
     uint32_t oldest_age = 0;
     for (uint16_t k = 0; k < sm->trend_count; k++) {
@@ -328,6 +400,37 @@ static uint32_t cooling_hold_max_ms(const safety_sm_t *sm)
     return by_tau_ms < (float)max_ms ? (uint32_t)by_tau_ms : max_ms;
 }
 
+/*
+ * The trend is sure heat is still going in: the pan is heading somewhere above the off temperature, and that
+ * estimate has stopped moving (a lowered flame). Right after a burner is switched off the estimate is still
+ * falling fast, so this is not believed yet.
+ */
+static bool heat_confirmed(const safety_sm_t *sm)
+{
+    return isfinite(sm->settle_c) && isfinite(sm->settle_drift_c_per_min) &&
+           sm->settle_c >= sm->cfg.heat_off_temp_c + TUNED(settle_margin_c, SETTLE_MARGIN_C) &&
+           fabsf(sm->settle_drift_c_per_min) <= TUNED(settle_max_drift_c_per_min, SETTLE_MAX_DRIFT_C_PER_MIN);
+}
+
+/*
+ * FALLING: the temperature is falling, so the pan is moving away from danger, but the trend can't tell yet
+ * whether it is only cooling (a cooling hold follows) or settling lower with heat still going in. The step
+ * waits until the temperature rises again, heat is confirmed, or falling_hold_max_ms is used up. That limit
+ * counts from the first falling hold of the timeline, so falling on and off can't stretch it.
+ */
+static bool falling_hold(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
+{
+    if (!sm->cfg.falling_hold || !sm->heat_active || !in->thermal_valid || !isfinite(sm->fast_rate_c_per_min) ||
+        sm->fast_rate_c_per_min > -TUNED(falling_rate_c_per_min, FALLING_RATE_C_PER_MIN) || heat_confirmed(sm)) {
+        return false;
+    }
+    if (!sm->falling_hold_started) {
+        sm->falling_hold_started = true;
+        sm->falling_hold_since_ms = now;
+    }
+    return !elapsed(now, sm->falling_hold_since_ms, TUNED(falling_hold_max_ms, FALLING_HOLD_MAX_MS));
+}
+
 static safety_hold_t hold_reason(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now, bool due, bool person_returned)
 {
     if (!due) {
@@ -336,6 +439,9 @@ static safety_hold_t hold_reason(safety_sm_t *sm, const safety_inputs_t *in, uin
     }
     if (sm->heat_active && sm->cooling && !elapsed(now, sm->cooling_since_ms, cooling_hold_max_ms(sm))) {
         return SAFETY_HOLD_COOLING;
+    }
+    if (falling_hold(sm, in, now)) {
+        return SAFETY_HOLD_FALLING;
     }
     const bool pending = in->presence == RB_TRUE && sm->present_timing && !person_returned;
     if (!pending) {
@@ -352,30 +458,39 @@ static safety_hold_t hold_reason(safety_sm_t *sm, const safety_inputs_t *in, uin
 
 /* ---- temperature tiers ---- */
 
+/*
+ * The hottest tier the pan is in, or heading for: tier k applies when the temperature, plus the rate times
+ * tier k's warning time, reaches tier k's threshold (minus hyst_c when checking whether to give way). Only a
+ * rising rate counts, so a falling pan is judged on its temperature alone.
+ */
 static safety_tier_t tier_for(const safety_config_t *cfg, float temp_c, float rate_c_per_min, float hyst_c)
 {
-    const bool rising_hot = cfg->tier2_rate_c_per_min > 0.0f && isfinite(rate_c_per_min) &&
-                            rate_c_per_min >= cfg->tier2_rate_c_per_min && temp_c >= cfg->tier2_rate_min_temp_c - hyst_c;
-    if (cfg->tier2_temp_c > 0.0f && (temp_c >= cfg->tier2_temp_c - hyst_c || rising_hot)) {
-        return SAFETY_TIER_CRITICAL;
+    const bool use_rate = cfg->tier_rate && isfinite(rate_c_per_min) && rate_c_per_min > 0.0f;
+    safety_tier_t tier = SAFETY_TIER_1;
+    for (int k = 0; k < SAFETY_HOT_TIERS; k++) {
+        const safety_tier_cfg_t *t = &cfg->tiers[k];
+        if (t->temp_c <= 0.0f) {
+            continue;
+        }
+        const float ahead_c = use_rate ? temp_c + rate_c_per_min * (float)t->warning_ms / 60000.0f : temp_c;
+        if (ahead_c >= t->temp_c - hyst_c) {
+            tier = (safety_tier_t)(SAFETY_TIER_2 + k);
+        }
     }
-    if (cfg->tier1_temp_c > 0.0f && temp_c >= cfg->tier1_temp_c - hyst_c) {
-        return SAFETY_TIER_ELEVATED;
-    }
-    return SAFETY_TIER_NORMAL;
+    return tier;
 }
 
 static void update_tier(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)
 {
     if (!sm->heat_active) {
-        sm->tier = SAFETY_TIER_NORMAL;
-        sm->tier_pending = SAFETY_TIER_NORMAL;
+        sm->tier = SAFETY_TIER_1;
+        sm->tier_pending = SAFETY_TIER_1;
         return;
     }
     if (!in->thermal_valid || !isfinite(in->cooking_temp_c)) {
         return; /* camera away: keep the tier we had (hot oil does not become safe because the camera stopped) */
     }
-    const float t = in->cooking_temp_c, rate = sm->trend_rate_c_per_min;
+    const float t = in->cooking_temp_c, rate = sm->fast_rate_c_per_min;
     const safety_tier_t up = tier_for(&sm->cfg, t, rate, 0.0f), down = tier_for(&sm->cfg, t, rate, TUNED(tier_hyst_c, TIER_HYST_C));
     safety_tier_t target = sm->tier;
     uint32_t persist = 0;
@@ -400,14 +515,10 @@ static void update_tier(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now
 static void apply_tier(const safety_sm_t *sm, uint32_t *warning_ms, uint32_t *shutdown_ms)
 {
     const safety_config_t *cfg = &sm->cfg;
-    uint32_t w = 0, s = 0;
-    if (sm->tier == SAFETY_TIER_CRITICAL) {
-        w = cfg->tier2_warning_ms;
-        s = cfg->tier2_shutdown_ms;
-    } else if (sm->tier == SAFETY_TIER_ELEVATED) {
-        w = cfg->tier1_warning_ms;
-        s = cfg->tier1_shutdown_ms;
+    if (sm->tier <= SAFETY_TIER_1 || sm->tier >= SAFETY_TIER_COUNT) {
+        return;
     }
+    const uint32_t w = cfg->tiers[sm->tier - SAFETY_TIER_2].warning_ms, s = cfg->tiers[sm->tier - SAFETY_TIER_2].shutdown_ms;
     if (w == 0 || s == 0) {
         return;
     }
@@ -543,6 +654,7 @@ void safety_init(safety_sm_t *sm, const safety_config_t *cfg, safety_transition_
     sm->outputs = STATE_OUTPUTS[SAFETY_BOOT];
     sm->last_reason = "init";
     sm->trend_rate_c_per_min = NAN;
+    sm->fast_rate_c_per_min = NAN;
     sm->settle_c = NAN;
 }
 
@@ -876,7 +988,7 @@ const char *safety_state_name(safety_state_t state)
 
 const char *safety_tier_name(safety_tier_t tier)
 {
-    static const char *const names[] = {"normal", "elevated", "critical"};
+    static const char *const names[SAFETY_TIER_COUNT] = {"tier1", "tier2", "tier3", "tier4", "tier5"};
     return (unsigned)tier < sizeof(names) / sizeof(names[0]) ? names[tier] : "?";
 }
 
@@ -888,7 +1000,7 @@ const char *safety_heat_phase_name(safety_heat_phase_t phase)
 
 const char *safety_hold_name(safety_hold_t hold)
 {
-    static const char *const names[] = {"none", "return", "cooling"};
+    static const char *const names[] = {"none", "return", "cooling", "falling"};
     return (unsigned)hold < sizeof(names) / sizeof(names[0]) ? names[hold] : "?";
 }
 

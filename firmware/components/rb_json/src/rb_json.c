@@ -91,38 +91,37 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_key(w, "hold");
     rb_json_str(w, t->safety.hold != NULL ? t->safety.hold : "none");
     rb_json_key(w, "tier");
-    rb_json_str(w, t->safety.tier != NULL ? t->safety.tier : "normal");
+    rb_json_str(w, t->safety.tier != NULL ? t->safety.tier : "tier1");
     rb_json_key(w, "effective_warning_ms");
     rb_json_int(w, t->safety.effective_warning_ms);
     rb_json_key(w, "effective_shutdown_ms");
     rb_json_int(w, t->safety.effective_shutdown_ms);
     rb_json_key(w, "tiers");
-    if (t->safety.tier1_temp_c <= 0.0f && t->safety.tier2_temp_c <= 0.0f) {
+    bool any_tier = false;
+    for (int k = 0; k < RB_JSON_TIERS; k++) {
+        any_tier = any_tier || t->safety.tier_temp_c[k] > 0.0f;
+    }
+    if (!any_tier) {
         rb_json_null(w);
     } else {
         rb_json_obj_begin(w);
-        rb_json_key(w, "elevated");
-        rb_json_obj_begin(w);
-        rb_json_key(w, "temp_c");
-        rb_json_num(w, t->safety.tier1_temp_c, 1);
-        rb_json_key(w, "warning_ms");
-        rb_json_int(w, t->safety.tier1_warning_ms);
-        rb_json_key(w, "shutdown_ms");
-        rb_json_int(w, t->safety.tier1_shutdown_ms);
-        rb_json_obj_end(w);
-        rb_json_key(w, "critical");
-        rb_json_obj_begin(w);
-        rb_json_key(w, "temp_c");
-        rb_json_num(w, t->safety.tier2_temp_c, 1);
-        rb_json_key(w, "rate_c_per_min");
-        rb_json_num(w, t->safety.tier2_rate_c_per_min, 1);
-        rb_json_key(w, "rate_min_temp_c");
-        rb_json_num(w, t->safety.tier2_rate_min_temp_c, 1);
-        rb_json_key(w, "warning_ms");
-        rb_json_int(w, t->safety.tier2_warning_ms);
-        rb_json_key(w, "shutdown_ms");
-        rb_json_int(w, t->safety.tier2_shutdown_ms);
-        rb_json_obj_end(w);
+        rb_json_key(w, "levels"); /* tiers 2..5; tier 1 is the base times */
+        rb_json_arr_begin(w);
+        for (int k = 0; k < RB_JSON_TIERS; k++) {
+            rb_json_obj_begin(w);
+            rb_json_key(w, "tier");
+            rb_json_int(w, (uint32_t)(k + 2));
+            rb_json_key(w, "temp_c");
+            rb_json_num(w, t->safety.tier_temp_c[k], 1);
+            rb_json_key(w, "warning_ms");
+            rb_json_int(w, t->safety.tier_warning_ms[k]);
+            rb_json_key(w, "shutdown_ms");
+            rb_json_int(w, t->safety.tier_shutdown_ms[k]);
+            rb_json_obj_end(w);
+        }
+        rb_json_arr_end(w);
+        rb_json_key(w, "rate");
+        rb_json_bool(w, t->safety.tier_rate);
         rb_json_key(w, "source");
         rb_json_str(w, t->safety.tiers_remote ? "dashboard" : "menuconfig");
         rb_json_obj_end(w);

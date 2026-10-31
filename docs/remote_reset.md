@@ -152,20 +152,25 @@ set that doesn't fit together and keeps the ones in use, saves the rest in NVS
 The Timer rule (Tuning → Rules) also holds the **temperature tiers**: from which
 hottest-pixel temperature the buzzer and shutdown come sooner, and how soon (see
 [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time)).
-Eight fields: for *elevated* the temperature and the two times, for *critical*
-the temperature, the "or rising this fast, above this temperature" rule and the
-two times. **Apply tiers** calls `POST /api/devices/<id>/tiers/` with
+Tier 1 is the base times above; tiers 2 to 5 have three fields each: the
+temperature and the two times. **Apply tiers** calls
+`POST /api/devices/<id>/tiers/` with
 
 ```json
-{"elevated": {"temp_c": 120, "warning_s": 60, "shutdown_s": 150},
- "critical": {"temp_c": 200, "rate_c_per_min": 20, "rate_min_temp_c": 150, "warning_s": 30, "shutdown_s": 120}}
+{"levels": [{"temp_c": 100, "warning_s": 120, "shutdown_s": 240},
+            {"temp_c": 150, "warning_s": 90, "shutdown_s": 180},
+            {"temp_c": 200, "warning_s": 60, "shutdown_s": 120},
+            {"temp_c": 250, "warning_s": 30, "shutdown_s": 60}]}
 ```
 
 or `{"defaults": true}` for the menuconfig values. A temperature of 0 turns a
-tier off. Limits: temperatures 0-300 °C, times 1-3600 s, rate 0-1000 °C/min.
-The controller keeps the values in NVS (they survive a reboot), refuses an
-inconsistent set (a shutdown not after its warning, critical starting below
-elevated) and keeps the ones in use, and reports the result as `safety.tiers`
+tier off. Limits: temperatures 0-300 °C, times 1-3600 s. Whether a rising pan
+gets the tier it is heading for, and over how long its rise is measured, are on
+the Other settings card (`tier_rate`, `tier_rate_window_ms`).
+The controller keeps the values in NVS (they survive a reboot; tiers saved by
+firmware before the five tiers are ignored), refuses an inconsistent set (a
+shutdown not after its warning, a tier starting below the one before it) and
+keeps the ones in use, and reports the result as `safety.tiers`
 with `source` `dashboard` or `menuconfig`. Menuconfig: `RB_CTRL_REMOTE_TIERS`.
 A tier never gives more time than the base times.
 

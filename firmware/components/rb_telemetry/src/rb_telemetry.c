@@ -167,14 +167,13 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.tier = safety_tier_name(snap->tier);
     t->safety.effective_warning_ms = snap->eff_warning_ms;
     t->safety.effective_shutdown_ms = snap->eff_shutdown_ms;
-    t->safety.tier1_temp_c = snap->tiers.tier1_temp_c;
-    t->safety.tier1_warning_ms = snap->tiers.tier1_warning_ms;
-    t->safety.tier1_shutdown_ms = snap->tiers.tier1_shutdown_ms;
-    t->safety.tier2_temp_c = snap->tiers.tier2_temp_c;
-    t->safety.tier2_rate_c_per_min = snap->tiers.tier2_rate_c_per_min;
-    t->safety.tier2_rate_min_temp_c = snap->tiers.tier2_rate_min_temp_c;
-    t->safety.tier2_warning_ms = snap->tiers.tier2_warning_ms;
-    t->safety.tier2_shutdown_ms = snap->tiers.tier2_shutdown_ms;
+    _Static_assert(RB_JSON_TIERS == SAFETY_HOT_TIERS, "telemetry carries tiers 2..5");
+    for (int k = 0; k < SAFETY_HOT_TIERS; k++) {
+        t->safety.tier_temp_c[k] = snap->tiers.tiers[k].temp_c;
+        t->safety.tier_warning_ms[k] = snap->tiers.tiers[k].warning_ms;
+        t->safety.tier_shutdown_ms[k] = snap->tiers.tiers[k].shutdown_ms;
+    }
+    t->safety.tier_rate = snap->tiers.tier_rate;
     t->safety.tiers_remote = snap->tiers_remote;
     static const char *param_keys[RB_PARAM_COUNT];
     for (int i = 0; i < RB_PARAM_COUNT; i++) {

@@ -67,12 +67,13 @@ def _cooking_trend(safety):
     cookware = safety.get("cookware") if isinstance(safety.get("cookware"), dict) else {}
     tiers = safety.get("tiers") if isinstance(safety.get("tiers"), dict) else None
     if tiers:
-        def tier(name):
-            t = tiers.get(name) or {}
-            return {"temp_c": finite(t.get("temp_c")), "rate_c_per_min": finite(t.get("rate_c_per_min")),
-                    "rate_min_temp_c": finite(t.get("rate_min_temp_c")),
-                    "warning_seconds": _seconds(t.get("warning_ms")), "shutdown_seconds": _seconds(t.get("shutdown_ms"))}
-        tiers = {"elevated": tier("elevated"), "critical": tier("critical")}
+        # Firmware since 2026-10-31: tiers 2..5 in "levels" (tier 1 is the base times), and whether a rising pan
+        # gets the tier it is heading for ("rate"). Older firmware reported elevated/critical: not shown.
+        levels = tiers.get("levels") if isinstance(tiers.get("levels"), list) else []
+        tiers = {"levels": [{"tier": t.get("tier"), "temp_c": finite(t.get("temp_c")),
+                             "warning_seconds": _seconds(t.get("warning_ms")), "shutdown_seconds": _seconds(t.get("shutdown_ms"))}
+                            for t in levels if isinstance(t, dict)],
+                 "rate": tiers.get("rate") if isinstance(tiers.get("rate"), bool) else None} if levels else None
     return {"tiers_source": tiers_source(safety.get("tiers")), "tier": safety.get("tier"), "effective_warning_seconds": _seconds(safety.get("effective_warning_ms")),
             "effective_shutdown_seconds": _seconds(safety.get("effective_shutdown_ms")), "tiers": tiers,
             "cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),

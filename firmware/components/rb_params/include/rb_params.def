@@ -71,6 +71,11 @@ RB_PARAM(tier_hyst_dc, DC, 1, 500, TIER_HYST_C, "", "A cooler tier also needs th
 RB_PARAM(late_warning_min_ms, MS, 1000, 300000, LATE_WARNING_MIN_MS, "",
          "Buzzer before a shutdown that was already due",
          t->safety.late_warning_min_ms, t->safety.late_warning_min_ms = v)
+RB_PARAM(tier_rate, BOOL, 0, 1, RB_SAFETY_TIER_RATE, "off|on", "A rising pan gets the tier it is heading for",
+         t->safety.tier_rate, t->safety.tier_rate = v != 0)
+RB_PARAM(tier_rate_window_ms, MS, 10000, 120000, TIER_RATE_WINDOW_MS, "",
+         "Rise or fall measured over the last",
+         t->safety.tier_rate_window_ms, t->safety.tier_rate_window_ms = v)
 
 /* Temperature trend and the cooling hold */
 RB_PARAM(trend_window_ms, MS, 10000, 250000, TREND_DEFAULT_WINDOW_MS, "", "Trend window",
@@ -94,3 +99,11 @@ RB_PARAM(cooling_hold_taus_x10, TENTHS, 1, 200, COOLING_HOLD_TAUS, "", "A coolin
 RB_PARAM(warning_min_after_hold_ms, MS, 1000, 600000, WARNING_MIN_AFTER_HOLD_MS, "",
          "Buzzer before the shutdown after any hold",
          t->safety.warning_min_after_hold_ms, t->safety.warning_min_after_hold_ms = v)
+
+/* Falling hold */
+RB_PARAM(falling_hold, BOOL, 0, 1, RB_SAFETY_FALLING_HOLD, "off|on", "Hold a due buzzer or shutdown while the pan is falling",
+         t->safety.falling_hold, t->safety.falling_hold = v != 0)
+RB_PARAM(falling_rate_dc_per_min, DC_PER_MIN, 1, 1000, FALLING_RATE_C_PER_MIN, "", "Falling means at least",
+         (uint32_t)lroundf(t->safety.falling_rate_c_per_min * 10.0f), t->safety.falling_rate_c_per_min = v / 10.0f)
+RB_PARAM(falling_hold_max_ms, MS, 10000, 600000, FALLING_HOLD_MAX_MS, "", "A falling hold lasts at most, per countdown",
+         t->safety.falling_hold_max_ms, t->safety.falling_hold_max_ms = v)

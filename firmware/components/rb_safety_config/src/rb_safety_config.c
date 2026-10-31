@@ -35,14 +35,23 @@ safety_config_t rb_safety_config_from_kconfig(void)
         .pause_budget_ms = CONFIG_RB_SAFETY_PAUSE_BUDGET_S * 1000u,
         .pause_budget_pct = CONFIG_RB_SAFETY_PAUSE_BUDGET_PCT,
 #if CONFIG_RB_SAFETY_TEMP_TIERS
-        .tier1_temp_c = CONFIG_RB_SAFETY_TIER1_TEMP_DC / 10.0f,
-        .tier1_warning_ms = CONFIG_RB_SAFETY_TIER1_WARNING_S * 1000u,
-        .tier1_shutdown_ms = CONFIG_RB_SAFETY_TIER1_SHUTDOWN_S * 1000u,
-        .tier2_temp_c = CONFIG_RB_SAFETY_TIER2_TEMP_DC / 10.0f,
-        .tier2_rate_c_per_min = CONFIG_RB_SAFETY_TIER2_RATE_DC_PER_MIN / 10.0f,
-        .tier2_rate_min_temp_c = CONFIG_RB_SAFETY_TIER2_RATE_MIN_TEMP_DC / 10.0f,
-        .tier2_warning_ms = CONFIG_RB_SAFETY_TIER2_WARNING_S * 1000u,
-        .tier2_shutdown_ms = CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S * 1000u,
+        .tiers =
+            {
+                {CONFIG_RB_SAFETY_TIER_2_TEMP_DC / 10.0f, CONFIG_RB_SAFETY_TIER_2_WARNING_S * 1000u,
+                 CONFIG_RB_SAFETY_TIER_2_SHUTDOWN_S * 1000u},
+                {CONFIG_RB_SAFETY_TIER_3_TEMP_DC / 10.0f, CONFIG_RB_SAFETY_TIER_3_WARNING_S * 1000u,
+                 CONFIG_RB_SAFETY_TIER_3_SHUTDOWN_S * 1000u},
+                {CONFIG_RB_SAFETY_TIER_4_TEMP_DC / 10.0f, CONFIG_RB_SAFETY_TIER_4_WARNING_S * 1000u,
+                 CONFIG_RB_SAFETY_TIER_4_SHUTDOWN_S * 1000u},
+                {CONFIG_RB_SAFETY_TIER_5_TEMP_DC / 10.0f, CONFIG_RB_SAFETY_TIER_5_WARNING_S * 1000u,
+                 CONFIG_RB_SAFETY_TIER_5_SHUTDOWN_S * 1000u},
+            },
+#if CONFIG_RB_SAFETY_TIER_RATE
+        .tier_rate = true,
+#endif
+#endif
+#if CONFIG_RB_SAFETY_FALLING_HOLD
+        .falling_hold = true,
 #endif
 #if CONFIG_RB_SAFETY_COOKING_TREND
 #if CONFIG_RB_SAFETY_COOKWARE_LIGHT
