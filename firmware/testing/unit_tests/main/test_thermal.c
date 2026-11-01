@@ -48,6 +48,27 @@ static void test_rate_of_change(void)
     TEST_ASSERT_FLOAT_WITHIN(0.05f, 3.0f, r.temp_rate_c_per_min);
 }
 
+/* The room temperature is the 10th-percentile pixel: the pan and a few cold pixels don't move it. */
+static void test_room_temperature_is_the_10th_percentile(void)
+{
+    thermal_rate_tracker_t tr;
+    thermal_rate_reset(&tr);
+    thermal_reading_t r;
+    for (int i = 0; i < THERMAL_PIXELS; i++) {
+        frame[i] = 30.0f + (float)(i % 100) * 0.1f; /* 30.0 .. 39.9 degC, evenly spread */
+    }
+    for (int i = 0; i < 40; i++) {
+        frame[i * 7] = 5.0f;     /* 40 cold pixels (5 %): a window, a cold drink */
+        frame[i * 7 + 3] = 250.0f; /* 40 pixels of hot pan */
+    }
+    TEST_ASSERT_TRUE(thermal_features_compute(frame, 0, &CFG, &tr, &r, NULL));
+    TEST_ASSERT_FLOAT_WITHIN(0.6f, 30.5f, r.ambient_c);
+    fill(28.0f);
+    frame[100] = NAN; /* invalid pixels are left out */
+    TEST_ASSERT_TRUE(thermal_features_compute(frame, 0, &CFG, &tr, &r, NULL));
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, 28.0f, r.ambient_c);
+}
+
 static void test_invalid_frames(void)
 {
     thermal_rate_tracker_t tr;
@@ -72,5 +93,6 @@ void run_thermal_tests(void)
 {
     RUN_TEST(test_features);
     RUN_TEST(test_rate_of_change);
+    RUN_TEST(test_room_temperature_is_the_10th_percentile);
     RUN_TEST(test_invalid_frames);
 }

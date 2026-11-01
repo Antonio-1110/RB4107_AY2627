@@ -1,4 +1,4 @@
-# RB4107 ESP-NOW protocol (v2)
+# RB4107 ESP-NOW protocol (v3)
 
 Sensor nodes (ESP32-C6) → controller (ESP32-S3), plus the optional wireless
 valve node in both directions and C4002 tuning messages between the controller
@@ -51,7 +51,7 @@ packet.
 | Offset | Size | Field | Notes |
 |---|---|---|---|
 | 0 | 2 | magic | `0x52 0x42` ("RB") |
-| 2 | 1 | protocol_version | `2` |
+| 2 | 1 | protocol_version | `3` |
 | 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE, `10` THERMAL_FRAME, `11` THERMAL_CONFIG |
 | 4 | 1 | node_role | `1` presence, `2` thermal, `3` valve, `4` controller |
 | 5 | 4 | node_id | `CONFIG_RB_NODE_ID` of the sender |
@@ -74,7 +74,7 @@ reading is the radar's raw state: the radar holds nothing back (disappear delay
 | 20 | 4 | timestamp | node ms of the reading |
 | 24 | 2 | CRC | |
 
-## THERMAL_DATA (type 2, 36 bytes total)
+## THERMAL_DATA (type 2, 38 bytes total)
 
 | Offset | Size | Field | Encoding |
 |---|---|---|---|
@@ -82,11 +82,16 @@ reading is the radar's raw state: the radar holds nothing back (disappear delay
 | 18 | 2 | max temp | int16, 0.01 °C |
 | 20 | 2 | min temp | int16, 0.01 °C |
 | 22 | 2 | mean temp | int16, 0.01 °C |
-| 24 | 2 | hot-region temp | int16, 0.01 °C |
-| 26 | 2 | temp rate | int16, 0.01 °C/min |
-| 28 | 2 | pixels above threshold | uint16 |
-| 30 | 4 | timestamp | node ms of the frame |
-| 34 | 2 | CRC | |
+| 24 | 2 | room temp | int16, 0.01 °C: 10th percentile of the valid pixels (added in v3) |
+| 26 | 2 | hot-region temp | int16, 0.01 °C |
+| 28 | 2 | temp rate | int16, 0.01 °C/min |
+| 30 | 2 | pixels above threshold | uint16 |
+| 32 | 4 | timestamp | node ms of the frame |
+| 36 | 2 | CRC | |
+
+The room temperature (v3) is what the controller's cooling judgment compares
+the pan with (see [safety_rules.md](safety_rules.md), D2 and D5). Version 3
+changed this layout, so every board needs reflashing together.
 
 Temperatures use `INT16_MIN` (`0x8000`) for "unknown" and saturate at
 ±327.67 °C. The safety logic only ever uses these values; the picture

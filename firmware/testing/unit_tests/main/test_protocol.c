@@ -54,7 +54,7 @@ static void test_thermal_data_roundtrip(void)
     rb_packet_t tx = {.type = RB_MSG_THERMAL_DATA, .role = RB_NODE_ROLE_THERMAL, .node_id = 3, .sequence = 7,
                       .uptime_ms = 5000};
     tx.body.thermal = (thermal_reading_t){.valid = true, .max_temp_c = 250.25f, .min_temp_c = -10.5f,
-                                          .mean_temp_c = 30.0f, .hot_region_temp_c = 200.0f,
+                                          .mean_temp_c = 30.0f, .ambient_c = 33.5f, .hot_region_temp_c = 200.0f,
                                           .temp_rate_c_per_min = NAN, .pixels_above_threshold = 65,
                                           .timestamp_ms = 98000};
     uint8_t buf[RB_PKT_MAX_LEN];
@@ -66,6 +66,8 @@ static void test_thermal_data_roundtrip(void)
     TEST_ASSERT_TRUE(rx.body.thermal.valid);
     TEST_ASSERT_FLOAT_WITHIN(0.006f, 250.25f, rx.body.thermal.max_temp_c);
     TEST_ASSERT_FLOAT_WITHIN(0.006f, -10.5f, rx.body.thermal.min_temp_c);
+    TEST_ASSERT_FLOAT_WITHIN(0.006f, 30.0f, rx.body.thermal.mean_temp_c);
+    TEST_ASSERT_FLOAT_WITHIN(0.006f, 33.5f, rx.body.thermal.ambient_c);
     TEST_ASSERT_FLOAT_WITHIN(0.006f, 200.0f, rx.body.thermal.hot_region_temp_c);
     TEST_ASSERT_TRUE(isnan(rx.body.thermal.temp_rate_c_per_min));
     TEST_ASSERT_EQUAL_UINT16(65, rx.body.thermal.pixels_above_threshold);

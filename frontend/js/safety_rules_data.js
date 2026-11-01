@@ -127,6 +127,12 @@ export default {
      "when": "The dashboard sets a new cooking temperature",
      "result": "The off temperature moves with it, keeping the menuconfig gap ({{RB_SAFETY_HEAT_ON_DC|50 °C}} - {{RB_SAFETY_HEAT_OFF_DC|40 °C}})",
      "code": "apply_cooking_temp()"
+    },
+    {
+     "id": "B5",
+     "when": "Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame)",
+     "result": "The room temperature in use, kept between {{ROOM_MIN_C|30 °C}} and {{ROOM_MAX_C|45 °C}}; {{ROOM_FALLBACK_C|38 °C}} without a camera reading. D1 and D5 compare the pan with it",
+     "code": "room_update()"
     }
    ]
   },
@@ -190,8 +196,8 @@ export default {
    "rows": [
     {
      "id": "D1",
-     "when": "Cooling: over the last {{TREND_DEFAULT_WINDOW_MS|120 s}} (at least {{TREND_MIN_SAMPLES|12}} samples over {{TREND_MIN_SPAN_MS|60 s}}) the predicted settling temperature T + tau x rate is more than {{SETTLE_MARGIN_C|3 °C}} below the off temperature, and it rose at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}} over the last minute. tau comes from the cookware profile ({{RB_SAFETY_COOKWARE|\"mixed / unknown (10 min)\"}})",
-     "result": "The pan counts as only cooling. Ends when the prediction is back {{SETTLE_MARGIN_C|3 °C}} above the off temperature or climbs faster than {{SETTLE_EXIT_DRIFT_C_PER_MIN|16 °C/min}}. With too little data, a lost camera or the trend judgment turned off (it is {{RB_SAFETY_COOKING_TREND|on}} by default), heat counts as going in",
+     "when": "Cooling: a straight line fitted to the hot region (the mean around the hottest pixel) over the last {{TREND_DEFAULT_WINDOW_MS|120 s}} (at least {{TREND_MIN_SAMPLES|12}} samples over {{TREND_MIN_SPAN_MS|60 s}}; recent samples count more, and samples a first fit misses by over {{TREND_OUTLIER_MADS|3}} robust SDs, at least {{TREND_OUTLIER_MIN_C|0.5 °C}}, are left out) shows the pan falling at least as fast as cooling alone would make a pan that settles {{SETTLE_MARGIN_C|3 °C}} below the only-cooling line fall: (T - line + margin) / tau. The rate must be clear of that by {{TREND_CONFIDENCE|2}} standard errors of the fit. The line is {{ROOM_MARGIN_C|10 °C}} above the room temperature (B5), but never above the cooking temperature: Newton cooling settles at the room. T + tau x rate (where it is heading) also rose at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}} over the last minute. tau comes from the cookware profile ({{RB_SAFETY_COOKWARE|\"mixed / unknown (10 min)\"}})",
+     "result": "The pan counts as only cooling. Ends when it falls slower than a pan settling {{SETTLE_MARGIN_C|3 °C}} above the line would, or T + tau x rate climbs faster than {{SETTLE_EXIT_DRIFT_C_PER_MIN|16 °C/min}} plus its own noise ({{TREND_CONFIDENCE|2}} x 1.4 x tau x the rate's standard error). With too little data, a lost camera or the trend judgment turned off (it is {{RB_SAFETY_COOKING_TREND|on}} by default), heat counts as going in",
      "code": "judge_heat()"
     },
     {
@@ -214,7 +220,7 @@ export default {
     },
     {
      "id": "D5",
-     "when": "A buzzer or shutdown comes due while the temperature is falling at least {{FALLING_RATE_C_PER_MIN|2 °C/min}} (over the last {{TIER_RATE_WINDOW_MS|30 s}}), and the trend has not confirmed heat going in (the prediction of D1 at least {{SETTLE_MARGIN_C|3 °C}} above the off temperature and moving at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}})",
+     "when": "A buzzer or shutdown comes due while the temperature is falling (over the last {{TIER_RATE_WINDOW_MS|30 s}}) by at least {{FALLING_SHARE_PCT_PER_MIN|2}} % per minute of its heat above the room (B5), and at least {{FALLING_RATE_C_PER_MIN|1 °C/min}}; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the fit of D1 falling slower than a pan settling {{SETTLE_MARGIN_C|3 °C}} above the only-cooling line would, and T + tau x rate moving at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}})",
      "result": "It waits (falling hold; {{RB_SAFETY_FALLING_HOLD|on}} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {{FALLING_HOLD_MAX_MS|90 s}} at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead",
      "code": "falling_hold()"
     }
@@ -684,12 +690,45 @@ export default {
    "group": "Temperature trend and the cooling hold"
   },
   {
+   "key": "trend_outlier_mads_x10",
+   "kind": "TENTHS",
+   "min": 5,
+   "max": 200,
+   "default": 30,
+   "label": "Trend leaves out samples this many robust SDs off",
+   "source": "TREND_OUTLIER_MADS",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_outlier_min_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 1000,
+   "default": 5,
+   "label": "... but never samples closer than",
+   "source": "TREND_OUTLIER_MIN_C",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_confidence_x10",
+   "kind": "TENTHS",
+   "min": 1,
+   "max": 100,
+   "default": 20,
+   "label": "Hold as cooling only this many standard errors clear",
+   "source": "TREND_CONFIDENCE",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
    "key": "settle_margin_dc",
    "kind": "DC",
    "min": 1,
    "max": 500,
    "default": 30,
-   "label": "Cooling margin around the off temperature",
+   "label": "Cooling margin around the only-cooling line",
    "source": "SETTLE_MARGIN_C",
    "options": null,
    "group": "Temperature trend and the cooling hold"
@@ -764,12 +803,23 @@ export default {
    "group": "Falling hold"
   },
   {
+   "key": "falling_share_pct_x10",
+   "kind": "TENTHS",
+   "min": 1,
+   "max": 500,
+   "default": 20,
+   "label": "Falling means losing this % of the heat above the room per minute",
+   "source": "FALLING_SHARE_PCT_PER_MIN",
+   "options": null,
+   "group": "Falling hold"
+  },
+  {
    "key": "falling_rate_dc_per_min",
    "kind": "DC_PER_MIN",
    "min": 1,
    "max": 1000,
-   "default": 20,
-   "label": "Falling means at least",
+   "default": 10,
+   "label": "... and falling at least",
    "source": "FALLING_RATE_C_PER_MIN",
    "options": null,
    "group": "Falling hold"
@@ -784,6 +834,50 @@ export default {
    "source": "FALLING_HOLD_MAX_MS",
    "options": null,
    "group": "Falling hold"
+  },
+  {
+   "key": "room_min_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 600,
+   "default": 300,
+   "label": "Room temperature is at least",
+   "source": "ROOM_MIN_C",
+   "options": null,
+   "group": "The room temperature"
+  },
+  {
+   "key": "room_max_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 800,
+   "default": 450,
+   "label": "Room temperature is at most",
+   "source": "ROOM_MAX_C",
+   "options": null,
+   "group": "The room temperature"
+  },
+  {
+   "key": "room_fallback_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 800,
+   "default": 380,
+   "label": "Room temperature without a camera reading",
+   "source": "ROOM_FALLBACK_C",
+   "options": null,
+   "group": "The room temperature"
+  },
+  {
+   "key": "room_margin_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 500,
+   "default": 100,
+   "label": "Only cooling = heading for less than this above the room",
+   "source": "ROOM_MARGIN_C",
+   "options": null,
+   "group": "The room temperature"
   }
  ]
 };

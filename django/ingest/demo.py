@@ -123,7 +123,7 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
     data = {
         "schema_version": 2, "type": "telemetry", "controller_id": controller_id,
         "timestamp": timezone.now().isoformat(), "uptime_ms": 120000 + tick * TICK_S * 1000,
-        "sequence": tick * 2 + 1, "protocol_version": 2, "simulation": True,
+        "sequence": tick * 2 + 1, "protocol_version": 3, "simulation": True,
         "presence_state": presence, "nearby": "PRESENT" if scenario == "passing" else presence,
         "nodes": [
             {"sensor_node": "node_01", "role": "presence", **radar},
@@ -149,7 +149,9 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                                                "attendance_source": "menuconfig", "source": "menuconfig"},
                               cooking={"active": temp >= 40.0, "phase": phase, "rate_c_per_min": round(rate, 2),
                                        "settle_c": COOK_C if phase == "cooling" else round(temp, 1),
-                                       "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
+                                       "rate_err_c_per_min": 0.1,
+                                       "cool_rate_c_per_min": round((temp - 37.0) / 300 * 60, 2) if temp > 37.0 else None,
+                                       "room_c": 30.0, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
                               cookware={"profile": "light", "tau_s": 300, "source": "menuconfig"},
                               hold="cooling" if scenario == "cooling" else "none",
                               tier="tier4" if scenario == "hot_pan" else "tier1",

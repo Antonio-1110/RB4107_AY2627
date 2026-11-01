@@ -70,7 +70,7 @@ Check any capture with `tools/diagnostics/validate_json.py`.
                                  "attendance_source": "menuconfig",
                                  "source": "menuconfig"},
              "cooking": {"active": true, "phase": "holding", "rate_c_per_min": 0.1, "settle_c": 98.7,
-                         "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
+                         "room_c": 31.5, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
              "cookware": {"profile": "mixed", "tau_s": 600, "source": "menuconfig"},
              "params": {"shutdown_timing": 0, "cooling_policy": 1, "fault_shutdown_ms": 90000, "...": 0},
              "params_source": "menuconfig"},
@@ -90,10 +90,14 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   a rising pan gets the tier it is heading for (`rate`; `null` if tiers are off).
   `hold` is what holds a due step back: `none`, `return`, `cooling` or `falling`. See [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time).
   `cooking.phase` is the judgment from the temperature trend (`off`, `checking`,
-  `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min` and where the
-  temperature is heading (`settle_c`); `cookware` is the profile that sets the
+  `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min`, its standard
+  error `rate_err_c_per_min`, the fall `cool_rate_c_per_min` that counts as only
+  cooling, and where the temperature is heading (`settle_c`, noisy, used only to
+  check the profile fits), against the room temperature in use
+  (`room_c`: the thermal camera's 10th-percentile pixel, kept between 30 and 45 °C,
+  38 °C without a reading); `cookware` is the profile that sets the
   cooling time constant; `hold` says why a due buzzer or shutdown is held back
-  (`none`, `return`, `cooling`). See
+  (`none`, `return`, `cooling`, `falling`). See
   [safety_state_machine.md](safety_state_machine.md#holds-a-due-buzzer-or-shutdown-that-waits).
   The controller publishes `controller/state` immediately whenever presence,
   cooking or one of these flags changes (at most every 200 ms), in addition to

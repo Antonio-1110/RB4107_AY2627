@@ -101,15 +101,35 @@ fire hazard: oil fires start when a pan keeps being heated unattended
 The decision uses the **trend**, not the absolute temperature, so it also works
 for a shiny pan that reads too cold:
 
-1. Every 2 s the S3 stores the hottest pixel. A least-squares fit over the last
-   2 minutes gives the rate (needs at least 12 samples over 60 s; until then the
-   phase is *checking* and heat counts as going in).
-2. From the cooling law (T falls toward its settling temperature as `e^(−t/τ)`),
-   it works out where the temperature is heading: `T_settle = T + τ × rate`.
-3. If `T_settle` is below the cooking-off temperature (40 °C, with a 3 °C
-   hysteresis), the pan is **cooling**: nothing is keeping it hot. Otherwise heat
-   is going in: **holding** (steady or settling hot: a lowered flame, a simmer,
-   boiling water at 100 °C) or **heating** (rising faster than 0.5 °C/min).
+1. Every 2 s the S3 stores the **hot region** (the mean of the 3×3 pixels
+   around the hottest one; the tiers still use the hottest pixel itself). A
+   weighted least-squares line over the last 2 minutes gives the rate (needs at
+   least 12 samples over 60 s; until then the phase is *checking* and heat counts
+   as going in). The fit runs twice: the second leaves out samples the first
+   missed by more than 3 robust standard deviations (stirring, steam, a
+   reflection), so one jump can't swing it. The residuals give the rate's
+   standard error.
+2. From the cooling law, a pan with nothing keeping it hot falls at
+   `(T − room) / τ`. The pan is **cooling** when it falls at least as fast as a
+   pan settling 3 °C below the *cooling line* would, and the rate is clear of
+   that by 2 standard errors. The line is 10 °C above the **room temperature**,
+   never above the cooking temperature. This is the same test as
+   `T + τ × rate < line`, but it compares rates, so the noise in the rate is not
+   multiplied by τ (40 min × 0.5 °C/min of noise would be ±20 °C on a
+   prediction). Otherwise heat is going in: **holding** (steady or settling hot:
+   a lowered flame, a simmer, boiling water at 100 °C) or **heating** (rising
+   faster than 0.5 °C/min).
+3. Holding back a buzzer needs that confidence; letting go of a hold does not.
+   The hold ends as soon as the pan falls slower than a pan settling 3 °C above
+   the line would.
+
+**The room temperature** is measured, not assumed: the thermal node sends the
+10th-percentile pixel of each frame (the pan and a few cold pixels, such as a
+window or a cold drink, don't move it). The controller keeps it between 30 °C
+and 45 °C and uses 38 °C when the camera has no reading. In a 30 °C room the
+cooling line is 40 °C, the same as the old off-temperature line; in a hot
+kitchen it moves up with the room, so a pan cooling to a 40 °C room is no longer
+mistaken for heat going in. The numbers are on the Other settings card.
 
 τ comes from the **cookware profile**, chosen per stall on the dashboard
 (Tuning → Rules) and saved on the controller. The values are engineering
@@ -129,8 +149,11 @@ Extremes (searing pans, very large stock pots, deep fryers) are not profiled.
 the pan: for a pan that is only cooling it stays put near the room temperature.
 If the profile's τ is longer than the pan's, the estimate climbs as a lowered
 flame's warm-up tail relaxes. So "cooling" is only believed while the estimate
-has not risen by more than 8 °C over the last minute (and is dropped if it rises
-by more than 16 °C/min). A profile that fits the pan holds the timers for a
+has not risen by more than 8 °C over the last minute, and is dropped if it rises
+by more than 16 °C/min plus its own noise (2 × 1.4 × τ × the rate's standard
+error: about 18 °C/min for a pot on the liquid profile). Without that noise
+allowance, a pot cooling on the bench (63 °C, room 33 °C, liquid profile) lost
+its hold every minute and buzzed on time; with it, it is held and ends idle. A profile that fits the pan holds the timers for a
 cooling pan; a profile that does not simply falls back to the normal timers.
 
 What a wrong profile costs, simulated on model cooling curves (not measured on
@@ -258,7 +281,7 @@ with a bound:
 
 | Hold | When | How long |
 |---|---|---|
-| **falling** | the temperature is falling (2 °C/min or faster over the last 30 s) and the trend has not yet confirmed heat going in | until it stops falling or heat is confirmed (then it fires at once), or the trend sees it is only cooling (the cooling hold takes over); at most 90 s per countdown |
+| **falling** | the temperature is falling over the last 30 s by at least 2 % per minute of its heat above the room (and at least 1 °C/min), and the trend has not yet confirmed heat going in | until it stops falling or heat is confirmed (then it fires at once), or the trend sees it is only cooling (the cooling hold takes over); at most 90 s per countdown |
 | **cooling** | the pan is only cooling down (no heat going in) | until the trend flattens out hot (then it fires at once), or the pan drops below the cooking temperature (the timeline is cancelled); at most 4 τ of the profile, 1 h at most |
 | **return** | the radar sees someone right now and the return is being confirmed, but `presence_return_debounce_ms` has not passed | until it is confirmed (the timeline is cancelled), or the radar loses them (the held step fires at once); at most `return_debounce + gap` |
 
@@ -272,9 +295,20 @@ idle without a buzzer. A burner turned down (still heating, settling lower) is
 held only until the trend confirms heat is going in, or the 90 s limit; cold
 food dropped into hot oil is held until the oil recovers and rises again. Heat
 counts as confirmed when the predicted settling temperature (T + τ × rate, see
-"Cooking judgment") is above the off temperature and has stopped moving (at
-most 8 °C/min). Setting: `RB_SAFETY_FALLING_HOLD` (on); the threshold and the
+"Cooking judgment") is above the cooling line and has stopped moving (at
+most 8 °C/min). Setting: `RB_SAFETY_FALLING_HOLD` (on); the thresholds and the
 limit are on the Other settings card.
+
+**Why "falling" is relative to the room.** A pan loses heat in proportion to how
+far it is above the room (Newton's law: rate = (T − room) / τ). Near the room
+even a switched-off pan falls slowly: a heavy pan (τ 15 min) at 60 °C in a 30 °C
+room falls only 2 °C/min, while at 220 °C it falls about 13 °C/min. A fixed
+threshold is therefore too strict near the room and too loose when hot. Losing
+2 % of the heat above the room per minute is the cooling of a pan with τ = 50
+min, slower than every profile (the slowest, liquid, is 40 min), so any
+switched-off pan counts as falling. A pan at 220 °C falling only 3 °C/min (1.6 %)
+is a lowered flame, not a switched-off burner, and is not held. The 1 °C/min
+floor keeps camera noise near the room from counting as a fall.
 
 The cooling judgment needs the cookware profile to be roughly right. Measured
 in a simulation with the default "mixed" profile (τ 10 min), a burner switched

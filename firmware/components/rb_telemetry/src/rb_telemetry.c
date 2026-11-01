@@ -163,6 +163,9 @@ static void build_telemetry(rb_telemetry_t *t, const rb_snapshot_t *snap, rb_jso
     t->safety.cooking_phase = safety_heat_phase_name(snap->heat_phase);
     t->safety.trend_rate_c_per_min = snap->trend_rate_c_per_min;
     t->safety.settle_c = snap->settle_c;
+    t->safety.trend_rate_err_c_per_min = snap->trend_rate_err_c_per_min;
+    t->safety.cool_rate_c_per_min = snap->cool_rate_c_per_min;
+    t->safety.room_c = snap->room_c;
     t->safety.hold = safety_hold_name(snap->hold);
     t->safety.tier = safety_tier_name(snap->tier);
     t->safety.effective_warning_ms = snap->eff_warning_ms;

@@ -27,6 +27,7 @@ void th_start(th_t *h, const safety_config_t *cfg, uint32_t t0)
 {
     TEST_ASSERT_TRUE(safety_config_valid(cfg));
     h->now = t0;
+    h->own_trend_temp = false;
     safety_init(&h->sm, cfg, NULL, NULL, h->now);
     h->in = (safety_inputs_t){
         .presence = RB_TRUE,
@@ -43,6 +44,9 @@ void th_run(th_t *h, uint32_t ms)
 {
     for (uint32_t end = h->now + ms; (int32_t)(end - h->now) > 0;) {
         h->now += TH_STEP_MS;
+        if (!h->own_trend_temp) {
+            h->in.trend_temp_c = h->in.cooking_temp_c; /* the hot region follows the hottest pixel unless a test sets it */
+        }
         h->out = *safety_step(&h->sm, &h->in, h->now);
     }
 }
@@ -1216,14 +1220,193 @@ static void test_a_falling_hold_is_bounded(void)
     run_curve(&h, 100000, constant_temp);
     h.in.presence = RB_FALSE;
     uint32_t held_from = 0;
-    for (int s = 0; s < 300 && h.sm.state != SAFETY_WARNING; s++) { /* falls slowly, 3 degC/min, for ever */
-        h.in.cooking_temp_c = 220.0f - 0.05f * (float)s;
+    for (int s = 0; s < 300 && h.sm.state != SAFETY_WARNING; s++) { /* falls 6 degC/min, for ever */
+        h.in.cooking_temp_c = 220.0f - 0.1f * (float)s;
         th_run(&h, 1000);
         if (held_from == 0 && h.sm.hold == SAFETY_HOLD_FALLING) held_from = h.now;
     }
     TH_EXPECT(&h, SAFETY_WARNING);
     TEST_ASSERT_TRUE(held_from != 0);
     TEST_ASSERT_UINT32_WITHIN(2000, 90000, h.now - held_from);
+}
+
+/* ---- the room temperature (B5) in the cooling judgment (D1) and the falling hold (D5) ---- */
+
+static void test_room_temperature_is_clamped_with_a_fallback(void)
+{
+    th_t h;
+    const safety_config_t cfg = th_default_config();
+    th_start(&h, &cfg, 0);
+    h.in.thermal_valid = true;
+    h.in.cooking_temp_c = 25.0f;
+    const float seen[] = {20.0f, 50.0f, 36.0f, NAN};
+    const float used[] = {30.0f, 45.0f, 36.0f, 38.0f};
+    for (int k = 0; k < 4; k++) {
+        h.in.ambient_c = seen[k];
+        th_run(&h, TH_STEP_MS);
+        TEST_ASSERT_EQUAL_FLOAT(used[k], h.sm.room_c);
+    }
+    h.in.ambient_c = 36.0f;
+    h.in.thermal_valid = false; /* no camera reading: the fallback */
+    th_run(&h, TH_STEP_MS);
+    TEST_ASSERT_EQUAL_FLOAT(38.0f, h.sm.room_c);
+}
+
+/* Burner off in a hot kitchen: a light pan cooling to a 44 degC room. */
+static float off_light_hot_room(float t) { return 44.0f + 106.0f * expf(-t / 300.0f); }
+
+/*
+ * The pan heads for 44 degC, above the off temperature (40 degC). Judged against the off temperature (as before
+ * the room was measured) it never looked like only cooling; judged against the 44 degC room it is in, it is.
+ */
+static void test_a_pan_cooling_to_a_hot_room_is_held(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    h.in.ambient_c = 44.0f;
+    cook_then_leave(&h);
+    for (int minute = 0; minute < 15; minute++) { /* the cooling hold lasts up to 4 tau = 20 min */
+        run_curve(&h, 60000, off_light_hot_room);
+        TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING && h.sm.state != SAFETY_SHUTDOWN);
+    }
+    TEST_ASSERT_EQUAL(SAFETY_HEAT_COOLING, h.sm.heat_phase);
+    TEST_ASSERT_FLOAT_WITHIN(3.0f, 44.0f, h.sm.settle_c);
+    h.in.cooking_temp_c = 39.0f; /* below the off temperature: the timeline is cancelled */
+    th_run(&h, 5000);
+    TH_EXPECT(&h, SAFETY_IDLE);
+}
+
+/* 1.5 degC/min at 65 degC in a 30 degC room is 4 % of the heat above the room per minute: falling. */
+static void test_a_slow_fall_near_the_room_counts_as_falling(void)
+{
+    th_t h;
+    safety_config_t cfg = tier_config(true);
+    cfg.cookware_tau_s = 0.0f; /* only the falling hold */
+    th_start(&h, &cfg, 0);
+    h.in.ambient_c = 30.0f;
+    const_temp_c = 65.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 100000, constant_temp);
+    h.in.presence = RB_FALSE;
+    bool held = false;
+    for (int s = 0; s < 170; s++) { /* the buzzer is due at 150 s */
+        h.in.cooking_temp_c = 65.0f - 0.025f * (float)s;
+        th_run(&h, 1000);
+        held = held || h.sm.hold == SAFETY_HOLD_FALLING;
+    }
+    TEST_ASSERT_TRUE(held);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+}
+
+/* 3 degC/min at 220 degC is under 2 % of the heat above the room per minute: a lowered flame, not a fall. */
+static void test_a_slow_fall_at_a_hot_tier_is_not_held(void)
+{
+    th_t h;
+    safety_config_t cfg = tier_config(true);
+    cfg.cookware_tau_s = 0.0f;
+    th_start(&h, &cfg, 0);
+    h.in.ambient_c = 30.0f;
+    const_temp_c = 220.0f;
+    th_cook(&h);
+    curve_start(&h);
+    run_curve(&h, 100000, constant_temp);
+    h.in.presence = RB_FALSE;
+    uint32_t t0 = h.now, buzz_s = 0;
+    for (int s = 0; s < 90 && buzz_s == 0; s++) {
+        h.in.cooking_temp_c = 220.0f - 0.05f * (float)s;
+        th_run(&h, 1000);
+        TEST_ASSERT_TRUE(h.sm.hold != SAFETY_HOLD_FALLING);
+        if (h.sm.state == SAFETY_WARNING) buzz_s = (h.now - t0) / 1000;
+    }
+    TEST_ASSERT_UINT32_WITHIN(3, 61, buzz_s); /* tier 4: 60 s (plus the 1 s absence debounce) */
+}
+
+/* ---- the trend fit: jumps, noise and the bench case ---- */
+
+/* Deterministic noise in [-1, 1]. */
+static uint32_t s_noise = 1;
+static float noise(void)
+{
+    s_noise = s_noise * 1664525u + 1013904223u;
+    return (float)(s_noise >> 8) / (float)(1u << 23) - 1.0f;
+}
+
+/* A light pan switched off, as the hot region sees it, with a 60 degC jump (steam, a reflection) every 20 s. */
+static float off_light_with_jumps(float t)
+{
+    return off_light(t) + ((int)t % 20 == 10 ? 60.0f : 0.0f);
+}
+
+static void test_jumps_do_not_swing_the_trend(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    for (int minute = 0; minute < 6; minute++) {
+        run_curve(&h, 60000, off_light_with_jumps);
+        TEST_ASSERT_TRUE(h.sm.state != SAFETY_WARNING && h.sm.state != SAFETY_SHUTDOWN);
+    }
+    TEST_ASSERT_EQUAL(SAFETY_HEAT_COOLING, h.sm.heat_phase);
+    const float t = (float)(h.now - s_curve_t0) / 1000.0f;
+    const float true_rate = -125.0f / 300.0f * expf(-t / 300.0f) * 60.0f;
+    TEST_ASSERT_FLOAT_WITHIN(1.5f, true_rate, h.sm.trend_rate_c_per_min); /* a straight line on a curve: a little steep */
+}
+
+/* Holding a buzzer back needs a clear trend: a pan read with +-15 degC of noise is never held as cooling. */
+static void test_a_noisy_trend_holds_nothing(void)
+{
+    th_t h;
+    const safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIGHT);
+    th_start(&h, &cfg, 0);
+    cook_then_leave(&h);
+    h.own_trend_temp = true;
+    s_noise = 7;
+    bool held = false;
+    for (uint32_t t0 = h.now; h.now - t0 < 130000;) {
+        const float t = (float)(h.now - t0) / 1000.0f;
+        h.in.cooking_temp_c = 150.0f - 0.2f * t;            /* falls 12 degC/min, not like a light pan off */
+        h.in.trend_temp_c = h.in.cooking_temp_c + 15.0f * noise();
+        th_run(&h, TH_STEP_MS);
+        held = held || h.sm.hold == SAFETY_HOLD_COOLING;
+    }
+    TEST_ASSERT_FALSE(held);
+    TEST_ASSERT_TRUE(h.sm.trend_rate_err_c_per_min > 1.0f); /* the fit knows it is unsure */
+}
+
+/*
+ * The bench case (2026-11-01): cooking temperature 59 degC, a pot on the liquid profile (tau 40 min) cooling with
+ * tau about 23 min from 63 degC in a 33 degC room, read with +-1 degC of noise. Its prediction read "heading for
+ * 9 degC" and the buzzer came on time. Judged by rates against the room, it is only cooling: no buzzer, and the
+ * timeline ends below the off temperature.
+ */
+static float constant_temp_63(float t) { (void)t; return 63.0f + noise(); }
+static float bench_pot(float t) { return 33.0f + 30.0f * expf(-t / 1380.0f) + noise(); }
+
+static void test_the_bench_pot_is_held_as_cooling(void)
+{
+    th_t h;
+    safety_config_t cfg = cookware_config(SAFETY_COOKWARE_LIQUID);
+    cfg.heat_on_temp_c = 59.0f;
+    cfg.heat_off_temp_c = 49.0f;
+    th_start(&h, &cfg, 0);
+    h.in.ambient_c = 33.0f;
+    s_noise = 3;
+    h.in.cooking_temp_c = 63.0f;
+    th_run(&h, TH_STEP_MS);
+    curve_start(&h);
+    run_curve(&h, 150000, constant_temp_63);
+    h.in.presence = RB_FALSE;
+    curve_start(&h);
+    bool buzzed = false;
+    while (h.sm.state != SAFETY_IDLE && h.now - s_curve_t0 < 900000) {
+        run_curve(&h, 1000, bench_pot);
+        buzzed = buzzed || h.sm.state == SAFETY_WARNING || h.sm.state == SAFETY_SHUTDOWN;
+    }
+    TEST_ASSERT_FALSE(buzzed);
+    TH_EXPECT(&h, SAFETY_IDLE); /* below 49 degC after about 12 min */
 }
 
 static void test_falling_hold_off_buzzes_on_time(void)
@@ -1281,7 +1464,15 @@ static void test_built_in_tuning_is_filled_in(void)
     TEST_ASSERT_EQUAL_FLOAT(4.0f, cfg.cooling_hold_taus);
     TEST_ASSERT_EQUAL_UINT32(30000, cfg.warning_min_after_hold_ms);
     TEST_ASSERT_EQUAL_UINT32(30000, cfg.tier_rate_window_ms);
-    TEST_ASSERT_EQUAL_FLOAT(2.0f, cfg.falling_rate_c_per_min);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, cfg.falling_rate_c_per_min);
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, cfg.falling_share_pct_per_min);
+    TEST_ASSERT_EQUAL_FLOAT(30.0f, cfg.room_min_c);
+    TEST_ASSERT_EQUAL_FLOAT(45.0f, cfg.room_max_c);
+    TEST_ASSERT_EQUAL_FLOAT(38.0f, cfg.room_fallback_c);
+    TEST_ASSERT_EQUAL_FLOAT(10.0f, cfg.room_margin_c);
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, cfg.trend_confidence);
+    TEST_ASSERT_EQUAL_FLOAT(3.0f, cfg.trend_outlier_mads);
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, cfg.trend_outlier_min_c);
     TEST_ASSERT_EQUAL_UINT32(90000, cfg.falling_hold_max_ms);
     TEST_ASSERT_TRUE(safety_config_valid(&cfg));
     cfg.tier_hyst_c = 3.0f; /* a value already set stays */
@@ -1514,6 +1705,13 @@ void run_safety_tests(void)
     RUN_TEST(test_switching_off_a_hot_pan_holds_the_short_tier);
     RUN_TEST(test_food_dropped_in_hot_oil_waits_then_buzzes_when_it_recovers);
     RUN_TEST(test_a_falling_hold_is_bounded);
+    RUN_TEST(test_room_temperature_is_clamped_with_a_fallback);
+    RUN_TEST(test_a_pan_cooling_to_a_hot_room_is_held);
+    RUN_TEST(test_a_slow_fall_near_the_room_counts_as_falling);
+    RUN_TEST(test_a_slow_fall_at_a_hot_tier_is_not_held);
+    RUN_TEST(test_jumps_do_not_swing_the_trend);
+    RUN_TEST(test_a_noisy_trend_holds_nothing);
+    RUN_TEST(test_the_bench_pot_is_held_as_cooling);
     RUN_TEST(test_falling_hold_off_buzzes_on_time);
     RUN_TEST(test_a_lowered_flame_buzzes_once_heat_is_confirmed);
     RUN_TEST(test_built_in_tuning_is_filled_in);

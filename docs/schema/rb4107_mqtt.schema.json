@@ -186,7 +186,10 @@
                 "active": {"type": "boolean", "description": "cooking detected by the thermal camera (the heat detector's state)"},
                 "phase": {"enum": ["off", "checking", "heating", "holding", "cooling"], "description": "from the temperature trend: heating/holding = heat is going in, cooling = heading for the room temperature, checking = not enough data yet (counts as heat going in)"},
                 "rate_c_per_min": {"$ref": "#/$defs/nullable_number", "description": "fitted rate of the hottest pixel over the last two minutes"},
-                "settle_c": {"$ref": "#/$defs/nullable_number", "description": "where the temperature is heading: T + tau * rate"},
+                "rate_err_c_per_min": {"$ref": "#/$defs/nullable_number", "description": "standard error of rate_c_per_min"},
+                "cool_rate_c_per_min": {"$ref": "#/$defs/nullable_number", "description": "the pan counts as only cooling when it falls at least this fast (degC/min), clear by the confidence band"},
+                "settle_c": {"$ref": "#/$defs/nullable_number", "description": "where the temperature is heading: T + tau * rate (only used to check the profile fits; noisy)"},
+                "room_c": {"$ref": "#/$defs/nullable_number", "description": "the room temperature the cooling judgment uses: the thermal camera's 10th-percentile pixel, clamped, or the fallback"},
                 "on_c": {"$ref": "#/$defs/nullable_number"},
                 "off_c": {"$ref": "#/$defs/nullable_number"},
                 "source": {"enum": ["menuconfig", "dashboard"]}
@@ -496,15 +499,23 @@
         "trend_window_ms": {"type": "integer", "minimum": 10000, "maximum": 250000, "description": "params: Trend window (ms)"},
         "trend_min_span_ms": {"type": "integer", "minimum": 10000, "maximum": 250000, "description": "params: Trend needs at least this much history (ms)"},
         "trend_min_samples": {"type": "integer", "minimum": 3, "maximum": 128, "description": "params: Trend needs at least this many samples (one per 2 s) (count)"},
-        "settle_margin_dc": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: Cooling margin around the off temperature (dc)"},
+        "trend_outlier_mads_x10": {"type": "integer", "minimum": 5, "maximum": 200, "description": "params: Trend leaves out samples this many robust SDs off (tenths)"},
+        "trend_outlier_min_dc": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: ... but never samples closer than (dc)"},
+        "trend_confidence_x10": {"type": "integer", "minimum": 1, "maximum": 100, "description": "params: Hold as cooling only this many standard errors clear (tenths)"},
+        "settle_margin_dc": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: Cooling margin around the only-cooling line (dc)"},
         "settle_max_drift_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: Prediction may climb this fast to start a cooling hold (dc per min)"},
         "settle_exit_drift_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: A cooling hold ends when the prediction climbs faster than (dc per min)"},
         "cooling_hold_max_ms": {"type": "integer", "minimum": 60000, "maximum": 14400000, "description": "params: A cooling hold lasts at most (ms)"},
         "cooling_hold_taus_x10": {"type": "integer", "minimum": 1, "maximum": 200, "description": "params: A cooling hold lasts at most this many time constants (tenths)"},
         "warning_min_after_hold_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "description": "params: Buzzer before the shutdown after any hold (ms)"},
         "falling_hold": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Hold a due buzzer or shutdown while the pan is falling (0 = off, 1 = on)"},
-        "falling_rate_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: Falling means at least (dc per min)"},
-        "falling_hold_max_ms": {"type": "integer", "minimum": 10000, "maximum": 600000, "description": "params: A falling hold lasts at most, per countdown (ms)"}
+        "falling_share_pct_x10": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: Falling means losing this % of the heat above the room per minute (tenths)"},
+        "falling_rate_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: ... and falling at least (dc per min)"},
+        "falling_hold_max_ms": {"type": "integer", "minimum": 10000, "maximum": 600000, "description": "params: A falling hold lasts at most, per countdown (ms)"},
+        "room_min_dc": {"type": "integer", "minimum": 1, "maximum": 600, "description": "params: Room temperature is at least (dc)"},
+        "room_max_dc": {"type": "integer", "minimum": 1, "maximum": 800, "description": "params: Room temperature is at most (dc)"},
+        "room_fallback_dc": {"type": "integer", "minimum": 1, "maximum": 800, "description": "params: Room temperature without a camera reading (dc)"},
+        "room_margin_dc": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: Only cooling = heading for less than this above the room (dc)"}
       },
       "allOf": [
         {

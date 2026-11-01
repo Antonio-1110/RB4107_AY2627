@@ -11,6 +11,7 @@ typedef struct {
     safety_inputs_t in;
     safety_outputs_t out;
     uint32_t now;
+    bool own_trend_temp; /* false: th_run copies cooking_temp_c into trend_temp_c */
 } th_t;
 
 safety_config_t th_default_config(void);

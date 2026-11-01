@@ -233,7 +233,15 @@ typedef struct {
     float cooling_hold_taus;                /* ... nor longer than this many time constants */
     uint32_t warning_min_after_hold_ms;     /* buzzer before the shutdown after any hold */
     uint32_t tier_rate_window_ms;           /* the rate the tiers and the falling hold use is fitted over this */
-    float falling_rate_c_per_min;           /* falling at least this fast counts as falling */
+    float falling_rate_c_per_min;           /* falling needs at least this rate ... */
+    float falling_share_pct_per_min;        /* ... and losing this percentage of the heat above the room per minute */
+    float room_min_c;                       /* the room temperature (the thermal node's 10th-percentile pixel) is */
+    float room_max_c;                       /* kept between these, */
+    float room_fallback_c;                  /* and is this when the node has no reading */
+    float room_margin_c;                    /* heading for less than this above the room = only cooling */
+    float trend_confidence;                 /* the cooling judgment decides only this many standard errors clear */
+    float trend_outlier_mads;               /* the trend's second fit leaves out samples this many robust SDs off ... */
+    float trend_outlier_min_c;              /* ... but never closer than this */
     uint32_t falling_hold_max_ms;           /* a falling hold lasts at most this long per timeline */
 
     safety_timing_hook_t timing_hook;
@@ -245,6 +253,9 @@ struct safety_inputs {
     bool thermal_valid;
     float cooking_temp_c;                   /* hottest pixel: compared with heat_on/heat_off_temp_c */
     float temp_rate_c_per_min;              /* the thermal node's hot-region rate */
+    float ambient_c;                        /* the thermal node's room estimate (NAN = none: the fallback is used) */
+    float trend_temp_c;                     /* the hot region (mean around the hottest pixel) for the cooling trend;
+                                               NAN = use cooking_temp_c */
     safety_selftest_t self_test;            /* must stay PASS after SELF_TEST, otherwise FAULT */
     bool reset_request;                     /* operator reset / acknowledge (e.g. button) */
     bool safety_fault;                      /* any other safety-relevant fault (fault manager) */
@@ -264,22 +275,27 @@ typedef struct {
 
     bool heat_active;                 /* heat detector state (with hysteresis) */
 
-    /* Trend of the hottest pixel: samples every 2 s, regression over trend_window_ms. */
+    /* Trend: samples every 2 s; the cooling judgment fits a median slope over trend_window_ms. */
     uint32_t trend_t_ms[SAFETY_TREND_MAX];
-    float trend_c[SAFETY_TREND_MAX];
+    float trend_c[SAFETY_TREND_MAX];         /* hottest pixel: the fast rate (tiers, falling hold) */
+    float trend_region_c[SAFETY_TREND_MAX];  /* hot region: the cooling judgment */
     uint16_t trend_head;              /* next slot to write */
     uint16_t trend_count;
     uint32_t trend_last_ms;
-    float trend_rate_c_per_min;       /* NAN until there is enough data */
+    float trend_rate_c_per_min;       /* median-slope rate of the hot region; NAN until there is enough data */
+    float trend_rate_err_c_per_min;   /* its standard error */
+    float trend_level_c;              /* the hot region's temperature now, from the same fit */
+    float cool_rate_c_per_min;        /* the pan must fall at least this fast to count as only cooling; NAN = unknown */
     float fast_rate_c_per_min;        /* the rate over the short tier_rate_window_ms: tiers and falling hold; NAN if unknown */
     float settle_c;                   /* T + tau * rate: where it is heading; NAN if unknown */
+    float room_c;                     /* the room temperature in use (clamped, or the fallback) */
     float settle_drift_c_per_min;     /* how much settle_c rose over the last minute; NAN if unknown */
     uint32_t settle_t_ms[SAFETY_SETTLE_HIST];
     float settle_hist_c[SAFETY_SETTLE_HIST];
     uint8_t settle_head;
     uint8_t settle_count;
     uint32_t settle_last_ms;
-    bool cooling;                     /* latched: heading below the cooking temperature, no heat going in */
+    bool cooling;                     /* latched: heading for the room, no heat going in */
     uint32_t cooling_since_ms;
     safety_heat_phase_t heat_phase;
     safety_hold_t hold;               /* what is holding a due transition right now */
