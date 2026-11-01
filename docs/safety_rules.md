@@ -44,6 +44,7 @@ reasons behind the rules are in [safety_state_machine.md](safety_state_machine.m
 | B2 | Not cooking, above the off temperature and rising at least the heat-on rate (**0 °C/min**; 0 = this rule is off) | Cooking | `safety_step()` in `safety/src/safety.c` |
 | B3 | Cooking, and the hottest pixel falls below the off temperature **40 °C** | Not cooking | `safety_step()` in `safety/src/safety.c` |
 | B4 | The dashboard sets a new cooking temperature | The off temperature moves with it, keeping the menuconfig gap (**50 °C** - **40 °C**) | `apply_cooking_temp()` in `rb_controller/src/rb_controller.c` |
+| B5 | Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame) | The room temperature in use, kept between **30 °C** and **45 °C**; **38 °C** without a camera reading. D1 and D5 compare the pan with it | `room_update()` in `safety/src/safety.c` |
 
 ## C. Timers
 
@@ -51,19 +52,22 @@ reasons behind the rules are in [safety_state_machine.md](safety_state_machine.m
 |---|---|---|---|
 | C1 | First ABSENT reading | The absence count starts. A presence blip does not restart it; only a confirmed return (D4) stops it | `safety_step()` in `safety/src/safety.c` |
 | C2 | Entering UNATTENDED | The countdown is counted from when the absence began, never from before cooking started | `on_enter()` in `safety/src/safety.c` |
-| C3 | Hottest pixel at least **120 °C** for **4 s** (ELEVATED) | Buzzer after **60 s**, shutdown after **150 s**, if shorter than the base times | `update_tier()` in `safety/src/safety.c` |
-| C4 | Hottest pixel at least **200 °C**, or rising **20 °C/min** above **150 °C**, for **4 s** (CRITICAL) | Buzzer after **30 s**, shutdown after **120 s**, if shorter | `update_tier()` in `safety/src/safety.c` |
-| C5 | **10 °C** below the tier's threshold for **20 s** | Back to the lower tier | `update_tier()` in `safety/src/safety.c` |
-| C6 | Someone is seen during UNATTENDED or WARNING | The countdown stands still. At most **30 s** per countdown, and at most **25 %** of the shutdown time | `pause_clock()` in `safety/src/safety.c` |
+| C3 | Hottest pixel below every hotter tier (tier 1: a simmer, boiling water) | The base times: buzzer after **150 s**, shutdown after **300 s** | `update_tier()` in `safety/src/safety.c` |
+| C4 | Hottest pixel at least **100 °C** (tier 2), **150 °C** (tier 3), **200 °C** (tier 4) or **250 °C** (tier 5), for **4 s** | Buzzer / shutdown after **120 s** / **240 s** (tier 2), **90 s** / **180 s** (tier 3), **60 s** / **120 s** (tier 4), **30 s** / **60 s** (tier 5), if shorter than the base times. The hottest tier that applies wins | `update_tier()` in `safety/src/safety.c` |
+| C5 | Rate rule (**on** by default): the temperature, plus its rise over the last **30 s** times a tier's buzzer time, reaches that tier's temperature, for **4 s** | That tier already: the buzzer sounds no later than the moment the pan would get there. The rise is the median of the newer half of the window minus the median of the older half, so one bad frame fakes no rise. Only a rise counts | `tier_for()` in `safety/src/safety.c` |
+| C6 | **10 °C** below the tier's threshold (and not heading back, C5) for **20 s** | Back to the lower tier | `update_tier()` in `safety/src/safety.c` |
+| C7 | The tier changes during a countdown | The countdown is not restarted: the time already away counts against the new limits. If they are already passed the buzzer sounds at once, and the shutdown waits for **10 s** of buzzer | `evaluate()` in `safety/src/safety.c` |
+| C8 | Someone is seen during UNATTENDED or WARNING | The countdown stands still. At most **30 s** per countdown, and at most **25 %** of the shutdown time | `pause_clock()` in `safety/src/safety.c` |
 
 ## D. Holds and returns
 
 | # | When | Result | Code |
 |---|---|---|---|
-| D1 | Cooling: over the last **120 s** (at least **12** samples over **60 s**) the predicted settling temperature T + tau x rate is more than **3 °C** below the off temperature, and it rose at most **8 °C/min** over the last minute. tau comes from the cookware profile (**"mixed / unknown (10 min)"**) | The pan counts as only cooling. Ends when the prediction is back **3 °C** above the off temperature or climbs faster than **16 °C/min**. With too little data, a lost camera or the trend judgment turned off (it is **on** by default), heat counts as going in | `judge_heat()` in `safety/src/safety.c` |
+| D1 | Cooling: a straight line fitted to the hot region (the mean around the hottest pixel) over the last **120 s** (at least **12** samples over **60 s**; recent samples count more, and samples a first fit misses by over **3** robust SDs, at least **0.5 °C**, are left out) shows the pan falling at least as fast as cooling alone would make a pan that settles **3 °C** below the only-cooling line fall: (T - line + margin) / tau. The rate must be clear of that by **2** standard errors of the fit. The line is **10 °C** above the room temperature (B5), but never above the cooking temperature: Newton cooling settles at the room. T + tau x rate (where it is heading) also rose at most **8 °C/min** over the last minute. tau comes from the cookware profile (**"mixed / unknown (10 min)"**) | The pan counts as only cooling. Ends when it falls slower than a pan settling **3 °C** above the line would, or T + tau x rate climbs faster than **16 °C/min** plus its own noise (**2** x 1.4 x tau x the rate's standard error). With too little data, a lost camera or the trend judgment turned off (it is **on** by default), heat counts as going in | `judge_heat()` in `safety/src/safety.c` |
 | D2 | A buzzer or shutdown comes due while the pan is only cooling (D1) | It waits (cooling hold), at most **4** tau and never over **3600 s**. The countdown keeps counting; a buzzer already sounding keeps sounding | `hold_reason()` in `safety/src/safety.c` |
 | D3 | A step comes due while someone is seen but not yet confirmed (D4) | It waits (return hold), at most **5 s** + **1 s** | `hold_reason()` in `safety/src/safety.c` |
 | D4 | Someone returns: PRESENT for **5 s**, absent gaps under **1 s** forgiven, still present at the end | Return confirmed (used by T10, T13) | `present_confirmed()` in `safety/src/safety.c` |
+| D5 | A buzzer or shutdown comes due while the temperature is falling (over the last **30 s**) by at least **2** % per minute of its heat above the room (B5), and at least **1 °C/min**; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the fit of D1 falling slower than a pan settling **3 °C** above the only-cooling line would, and T + tau x rate moving at most **8 °C/min**) | It waits (falling hold; **on** by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after **90 s** at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead | `falling_hold()` in `safety/src/safety.c` |
 
 ## T. State transitions
 
@@ -82,10 +86,10 @@ Checked on every step in this order; the first rule of the current state that ho
 | T09 | MONITORING | ABSENT for **1 s** (C1) | **UNATTENDED** | person absent |
 | T10 | UNATTENDED | Return confirmed (D4). The countdown is cancelled | **MONITORING** | person returned |
 | T11 | UNATTENDED | Not cooking (B3), with the cooling policy **"return to IDLE and cancel the timers"**. The countdown is cancelled | **IDLE** | heating stopped while unattended |
-| T12 | UNATTENDED | Unattended for the warning time (**180 s**, shorter in a hot tier C3, C4) and no hold (D2, D3) | **WARNING** | unattended timeout |
+| T12 | UNATTENDED | Unattended for the warning time (**150 s**, shorter in a hotter tier C4, C5) and no hold (D2, D3, D5) | **WARNING** | unattended timeout |
 | T13 | WARNING | Return confirmed (D4). The warning exit is **"return to MONITORING"**; if it is changed to acknowledge, a reset is needed as well | **MONITORING** | person returned during warning |
 | T14 | WARNING | Not cooking (B3), with the cooling policy **"return to IDLE and cancel the timers"**. The countdown is cancelled | **IDLE** | heating stopped during warning |
-| T15 | WARNING | Unattended for the shutdown time (**300 s**, counted from **"start of UNATTENDED (total unattended time)"**, shorter in a hot tier), no hold, and the buzzer has sounded at least **30 s** if a hold happened, or **10 s** if a tier made the shutdown due at once | **SHUTDOWN** | shutdown timeout |
+| T15 | WARNING | Unattended for the shutdown time (**300 s**, counted from **"start of UNATTENDED (total unattended time)"**, shorter in a hotter tier), no hold (D2, D3, D5), and the buzzer has sounded at least **30 s** if a hold happened, or **10 s** if a tier made the shutdown due at once | **SHUTDOWN** | shutdown timeout |
 | T16 | SHUTDOWN | Operator reset (dashboard button or console reset). Nothing else leaves SHUTDOWN; a reboot also clears it. All timing starts over | **IDLE** | operator reset |
 | T17 | FAULT | Fault cleared, not cooking | **IDLE** | fault cleared, no heating |
 | T18 | FAULT | Fault cleared, cooking, PRESENT | **MONITORING** | fault cleared, person present |
@@ -121,6 +125,7 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `RB_SAFETY_COOKING_TREND` | y | Judge from the temperature trend whether heat is going in |
 | `RB_SAFETY_COOKWARE` | mixed / unknown (10 min) | Cookware profile (how fast the pans lose heat) |
 | `RB_SAFETY_COOLING` | return to IDLE and cancel the timers | Pan drops below the cooking temperature while UNATTENDED/WARNING |
+| `RB_SAFETY_FALLING_HOLD` | y | Hold a due buzzer or shutdown while the temperature is falling |
 | `RB_SAFETY_FAULT_SHUTDOWN_S` | 90 | Shut down after this long in FAULT (s, 0 = never) |
 | `RB_SAFETY_HEAT_OFF_DC` | 400 | Cooking over below hottest-pixel temperature (0.1 degC) |
 | `RB_SAFETY_HEAT_ON_DC` | 500 | Cooking detected at hottest-pixel temperature (0.1 degC) |
@@ -133,16 +138,21 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `RB_SAFETY_SHUTDOWN_TIMEOUT_S` | 300 | Shutdown timeout (s) |
 | `RB_SAFETY_SHUTDOWN_TIMING` | start of UNATTENDED (total unattended time) | Shutdown timeout counts from |
 | `RB_SAFETY_TEMP_TIERS` | y | Shorter buzzer and shutdown times for hotter pans |
-| `RB_SAFETY_TIER1_SHUTDOWN_S` | 150 | ELEVATED: shutdown time (s, counted like the base shutdown time) |
-| `RB_SAFETY_TIER1_TEMP_DC` | 1200 | ELEVATED from a hottest-pixel temperature of (0.1 degC) |
-| `RB_SAFETY_TIER1_WARNING_S` | 60 | ELEVATED: unattended time before WARNING (s) |
-| `RB_SAFETY_TIER2_RATE_DC_PER_MIN` | 200 | ... or when rising at least this fast above the next setting (0.1 degC/min, 0 = off) |
-| `RB_SAFETY_TIER2_RATE_MIN_TEMP_DC` | 1500 | ... the lowest temperature at which the rising-fast rule applies (0.1 degC) |
-| `RB_SAFETY_TIER2_SHUTDOWN_S` | 120 | CRITICAL: shutdown time (s, counted like the base shutdown time) |
-| `RB_SAFETY_TIER2_TEMP_DC` | 2000 | CRITICAL from a hottest-pixel temperature of (0.1 degC) |
-| `RB_SAFETY_TIER2_WARNING_S` | 30 | CRITICAL: unattended time before WARNING (s) |
+| `RB_SAFETY_TIER_2_SHUTDOWN_S` | 240 | Tier 2: shutdown time (s, counted like the base shutdown time) |
+| `RB_SAFETY_TIER_2_TEMP_DC` | 1000 | Tier 2 from a hottest-pixel temperature of (0.1 degC) |
+| `RB_SAFETY_TIER_2_WARNING_S` | 120 | Tier 2: unattended time before WARNING (s) |
+| `RB_SAFETY_TIER_3_SHUTDOWN_S` | 180 | Tier 3: shutdown time (s, counted like the base shutdown time) |
+| `RB_SAFETY_TIER_3_TEMP_DC` | 1500 | Tier 3 from a hottest-pixel temperature of (0.1 degC) |
+| `RB_SAFETY_TIER_3_WARNING_S` | 90 | Tier 3: unattended time before WARNING (s) |
+| `RB_SAFETY_TIER_4_SHUTDOWN_S` | 120 | Tier 4: shutdown time (s, counted like the base shutdown time) |
+| `RB_SAFETY_TIER_4_TEMP_DC` | 2000 | Tier 4 from a hottest-pixel temperature of (0.1 degC) |
+| `RB_SAFETY_TIER_4_WARNING_S` | 60 | Tier 4: unattended time before WARNING (s) |
+| `RB_SAFETY_TIER_5_SHUTDOWN_S` | 60 | Tier 5: shutdown time (s, counted like the base shutdown time) |
+| `RB_SAFETY_TIER_5_TEMP_DC` | 2500 | Tier 5 from a hottest-pixel temperature of (0.1 degC) |
+| `RB_SAFETY_TIER_5_WARNING_S` | 30 | Tier 5: unattended time before WARNING (s) |
+| `RB_SAFETY_TIER_RATE` | y | Also use the tier a rising pan is heading for |
 | `RB_SAFETY_WARNING_EXIT` | return to MONITORING | Person returns during WARNING |
-| `RB_SAFETY_WARNING_TIMEOUT_S` | 180 | Unattended time before WARNING (s) |
+| `RB_SAFETY_WARNING_TIMEOUT_S` | 150 | Unattended time before WARNING (s) |
 | `RB_SHUTDOWN_VERIFY_PERIOD_MS` | 1000 | Read back and verify the relay output every (ms) |
 
 ## Fixed constants in safety.c
@@ -159,8 +169,15 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `TREND_DEFAULT_WINDOW_MS` | 120000 | regression window when the config leaves it 0 |
 | `TREND_MIN_SPAN_MS` | 60000 | needs at least this much history ... |
 | `TREND_MIN_SAMPLES` | 12 | ... and this many samples |
+| `TREND_CONFIDENCE` | 2.0 |  |
+| `TREND_OUTLIER_MADS` | 3.0 | a sample this many robust SDs off the first fit is left out of the second |
+| `TREND_OUTLIER_MIN_C` | 0.5 | ... but never one closer than this |
 | `TREND_HALF_LIFE_MS` | 30000.0 | recent samples count more: a pan that was steady and now cools shows up sooner |
 | `SETTLE_MARGIN_C` | 3.0 | hysteresis on the cooling decision |
+| `ROOM_MIN_C` | 30.0 |  |
+| `ROOM_MAX_C` | 45.0 |  |
+| `ROOM_FALLBACK_C` | 38.0 |  |
+| `ROOM_MARGIN_C` | 10.0 |  |
 | `SETTLE_HIST_SAMPLE_MS` | 5000 | the settling estimate is remembered every 5 s ... |
 | `SETTLE_DRIFT_WINDOW_MS` | 60000 | ... and its rise measured over a minute |
 | `SETTLE_MAX_DRIFT_C_PER_MIN` | 8.0 | to start believing "cooling" |
@@ -169,6 +186,11 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `COOLING_HOLD_MAX_MS` | 3600000 | a cooling hold never lasts longer than an hour ... |
 | `COOLING_HOLD_TAUS` | 4.0 | ... nor longer than 4 time constants: a pan still hot after that is not just cooling |
 | `WARNING_MIN_AFTER_HOLD_MS` | 30000 | buzzer before the shutdown after any hold |
+| `TIER_RATE_WINDOW_MS` | 30000 | rate for the tiers and the falling hold fitted over the last 30 s |
+| `FALLING_SHARE_PCT_PER_MIN` | 2.0 | falling = losing at least this share of the heat above the room per minute |
+| `FALLING_RATE_C_PER_MIN` | 1.0 | ... and at least this fast |
+| `FALLING_HOLD_MAX_MS` | 90000 | a falling hold lasts at most this long per timeline |
+| `SAFETY_FAST_RATE_MAX` | 64 | samples in that window at most: up to 126 s |
 
 ## Changing them from the dashboard
 
@@ -196,12 +218,25 @@ them until **Defaults** is pressed.
 | A cooler tier takes over after holding | `tier_down_persist_ms` | 20 s | 0.1 s to 600 s |
 | A cooler tier also needs the pan this far below its threshold | `tier_hyst_dc` | 10 °C | 0.1 °C to 50 °C |
 | Buzzer before a shutdown that was already due | `late_warning_min_ms` | 10 s | 1 s to 300 s |
+| A rising pan gets the tier it is heading for | `tier_rate` | on | off / on |
+| Rise or fall measured over the last | `tier_rate_window_ms` | 30 s | 10 s to 120 s |
 | Trend window | `trend_window_ms` | 120 s | 10 s to 250 s |
 | Trend needs at least this much history | `trend_min_span_ms` | 60 s | 10 s to 250 s |
 | Trend needs at least this many samples (one per 2 s) | `trend_min_samples` | 12 | 3 to 128 |
-| Cooling margin around the off temperature | `settle_margin_dc` | 3 °C | 0.1 °C to 50 °C |
+| Trend leaves out samples this many robust SDs off | `trend_outlier_mads_x10` | 3 | 0.5 to 20 |
+| ... but never samples closer than | `trend_outlier_min_dc` | 0.5 °C | 0.1 °C to 100 °C |
+| Hold as cooling only this many standard errors clear | `trend_confidence_x10` | 2 | 0.1 to 10 |
+| Cooling margin around the only-cooling line | `settle_margin_dc` | 3 °C | 0.1 °C to 50 °C |
 | Prediction may climb this fast to start a cooling hold | `settle_max_drift_dc_per_min` | 8 °C/min | 0.1 °C/min to 100 °C/min |
 | A cooling hold ends when the prediction climbs faster than | `settle_exit_drift_dc_per_min` | 16 °C/min | 0.1 °C/min to 100 °C/min |
 | A cooling hold lasts at most | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
 | A cooling hold lasts at most this many time constants | `cooling_hold_taus_x10` | 4 | 0.1 to 20 |
 | Buzzer before the shutdown after any hold | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |
+| Hold a due buzzer or shutdown while the pan is falling | `falling_hold` | on | off / on |
+| Falling means losing this % of the heat above the room per minute | `falling_share_pct_x10` | 2 | 0.1 to 50 |
+| ... and falling at least | `falling_rate_dc_per_min` | 1 °C/min | 0.1 °C/min to 100 °C/min |
+| A falling hold lasts at most, per countdown | `falling_hold_max_ms` | 90 s | 10 s to 600 s |
+| Room temperature is at least | `room_min_dc` | 30 °C | 0.1 °C to 60 °C |
+| Room temperature is at most | `room_max_dc` | 45 °C | 0.1 °C to 80 °C |
+| Room temperature without a camera reading | `room_fallback_dc` | 38 °C | 0.1 °C to 80 °C |
+| Only cooling = heading for less than this above the room | `room_margin_dc` | 10 °C | 0.1 °C to 50 °C |

@@ -62,7 +62,7 @@ frontend/
 | `safety.presence_unknown`, `safety.thermal_lost` | `presence_unknown`, `thermal_lost` (`null` from older firmware) | The sensor flags: shown as badges in the Countdown card, never turned into a fault by the backend |
 | `safety.cooking.active` | `cooking_active` | The heat detector's state, as the controller sees it |
 | `safety.tier`, `safety.effective_warning_ms` / `effective_shutdown_ms`, `safety.tiers` | `tier`, `effective_warning_seconds`, `effective_shutdown_seconds`, `tiers` (`null` from older firmware) | The temperature tier in force and the buzzer and shutdown times it gives. The Countdown card draws its clock, bar and marks from the times in force, shows a tier chip, and Tuning > Rules lists the tiers |
-| `safety.hold`, `safety.cooking.phase` / `rate_c_per_min` / `settle_c`, `safety.cookware` | `hold`, `cooking_phase`, `cooking_rate_c_per_min`, `cooking_settle_c`, `cookware_profile`, `cookware_tau_s`, `cookware_source` (`null` from older firmware) | The cooking judgment: shown in the Countdown card ("held while the pan cools", the Cooking tile) and the cookware profile selector in Tuning → Rules |
+| `safety.hold`, `safety.cooking.phase` / `rate_c_per_min` / `rate_err_c_per_min` / `cool_rate_c_per_min` / `settle_c` / `room_c`, `safety.cookware` | `hold`, `cooking_phase`, `cooking_rate_c_per_min`, `cooking_rate_err_c_per_min`, `cooking_cool_rate_c_per_min`, `cooking_settle_c`, `cooking_room_c`, `cookware_profile`, `cookware_tau_s`, `cookware_source` (`null` from older firmware) | The cooking judgment: shown in the Countdown card ("held while the pan cools", the Cooking tile) and the cookware profile selector in Tuning → Rules |
 | `safety.absent_ms`, `safety.returning_ms`, `safety.state_ms` | `absent_seconds`, `returning_seconds`, `state_seconds` | Progress of the absence / return debounce and time in the current state. The Countdown card advances its clock from them between reports and freezes it ("last known") when the controller goes quiet; the backend never advances a timer |
 | `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
 | `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
@@ -80,10 +80,32 @@ WARNING and UNATTENDED remain in summary, tiles, table and stall detail without
 a sticky warning banner. Missing or invalid thermal values stay null. The
 warning and shutdown times shown are the ones the controller reports.
 
-Display severity (`ingest/locations.py`, `classify_display_state`) uses only
-the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
-UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
-BOOT/SELF_TEST show as "controller starting".
+### Stall status
+
+Every controller gets exactly one status, worked out by Django
+(`classify_display_state()` in `ingest/locations.py`, tests in
+`ingest/tests/test_stall_status.py`). The rules are checked in order and the
+first one that matches wins:
+
+| # | Status | When |
+|---|---|---|
+| 1 | **Critical** | The supply is cut: relay isolated or state SHUTDOWN. Kept even when the data is last known, because the cut is latched |
+| 2 | **Warning** | State WARNING or UNATTENDED, or the warning buzzer. Kept when last known |
+| 3 | **Fault** | Anything that leaves the stall unprotected or out of sight: **F1** the controller reports FAULT; **F2** the controller is not online (offline by Last Will, no message for `RB4107_DEVICE_STALE_SECONDS` = 15 s, never heard, or the MQTT monitor is down); **F3** its safety state is older than 15 s; **F4** a sensor node it lists is not working (link STALE, OFFLINE or NEVER_SEEN, or an invalid reading); **F5** it lists no sensor nodes |
+| 4 | **Unknown** | Online and every node working, but the controller is starting (BOOT, SELF_TEST) or reports a state the dashboard doesn't know |
+| 5 | **Normal** | IDLE or MONITORING, buzzer off, fresh data, every listed node working |
+
+A stall with several controllers shows the worst one (critical, warning,
+fault, unknown, normal). Each stall is counted in exactly one summary card, so
+the cards add up to the total; there is no separate connectivity card, an
+offline stall is a fault. A fault lists all its reasons on the stall page; the
+title names the first (for example SENSOR NODES DOWN, CONTROLLER OFFLINE). If
+the dashboard itself loses Django, every stall that wasn't critical or warning
+turns into a fault ("dashboard can't reach the server").
+
+This is display only. The firmware keeps its own rules (`safety_rules.md`): a
+lost sensor node does not put the controller's state machine in FAULT (rules
+A4, A8), so a controller can report IDLE while the dashboard shows Fault.
 
 ## Monitor and Tuning modes
 
@@ -256,7 +278,7 @@ Edit `django/locations.json`, keyed by the firmware's `controller_id`
 and its stall names are fictional. Each demo stall plays the scenario in its
 `demo_scenario`: `monitoring`, `unattended`, `warning`, `shutdown` (supply
 cut, cooling down), `idle`, `fault_radars` (both radars invalid),
-`fault_node_offline` (one radar node unplugged: FAULT, as in the firmware) or
+`fault_node_offline` (one radar node unplugged: a Fault on the dashboard) or
 `network_loss` (online, then stale, then offline by Last Will, then back,
 every 2 minutes). Simulated stalls are tagged SIMULATED.
 Unknown IDs are accepted and displayed as unassigned locations.

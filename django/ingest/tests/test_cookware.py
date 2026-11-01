@@ -77,12 +77,21 @@ class CookingTrendTelemetryTest(TestCase):
         handle(parse("rb4107/controller/state",
                      json.dumps(demo_telemetry("controller_01", boot_id="b00t", scenario="hot_pan")).encode()))
         values = self.client.get("/api/devices/controller_01/latest/").json()["values"]
-        self.assertEqual(values["tier"], "critical")
-        self.assertEqual(values["effective_warning_seconds"], 30)
+        self.assertEqual(values["tier"], "tier4")
+        self.assertEqual(values["effective_warning_seconds"], 60)
         self.assertEqual(values["effective_shutdown_seconds"], 120)
-        self.assertEqual(values["tiers"]["elevated"]["temp_c"], 120.0)
-        self.assertEqual(values["tiers"]["critical"]["shutdown_seconds"], 120)
-        self.assertEqual(values["tiers"]["critical"]["rate_c_per_min"], 20.0)
+        self.assertEqual([t["tier"] for t in values["tiers"]["levels"]], [2, 3, 4, 5])
+        self.assertEqual(values["tiers"]["levels"][0]["temp_c"], 100.0)
+        self.assertEqual(values["tiers"]["levels"][3]["warning_seconds"], 30)
+        self.assertEqual(values["tiers"]["levels"][3]["shutdown_seconds"], 60)
+        self.assertTrue(values["tiers"]["rate"])
+
+    def test_older_firmware_tiers_are_not_shown(self):
+        data = demo_telemetry("controller_01", boot_id="b00t")
+        data["safety"]["tiers"] = {"elevated": {"temp_c": 120.0, "warning_ms": 60000, "shutdown_ms": 150000},
+                                   "source": "menuconfig"}
+        fields = normalize(parse("rb4107/controller/state", json.dumps(data).encode()))
+        self.assertIsNone(fields["tiers"])
 
     def test_older_firmware_reports_none(self):
         data = demo_telemetry("controller_01", boot_id="b00t")
@@ -99,8 +108,10 @@ class CookingTrendTelemetryTest(TestCase):
 
 class TiersCommandTest(TestCase):
     URL = "/api/devices/controller_01/tiers/"
-    GOOD = {"elevated": {"temp_c": 120, "warning_s": 60, "shutdown_s": 150},
-            "critical": {"temp_c": 200, "rate_c_per_min": 20, "rate_min_temp_c": 150, "warning_s": 30, "shutdown_s": 120}}
+    GOOD = {"levels": [{"temp_c": 100, "warning_s": 120, "shutdown_s": 240},
+                       {"temp_c": 150, "warning_s": 90, "shutdown_s": 180},
+                       {"temp_c": 200, "warning_s": 60, "shutdown_s": 120},
+                       {"temp_c": 250, "warning_s": 30, "shutdown_s": 60}]}
 
     def setUp(self):
         worker_status(True)
@@ -117,38 +128,38 @@ class TiersCommandTest(TestCase):
         topic, command = publish.call_args.args
         self.assertEqual(topic, "rb4107/controller/command")
         self.assertEqual(command["action"], "tiers")
-        self.assertEqual((command["tier1_temp_dc"], command["tier1_warning_ms"], command["tier1_shutdown_ms"]), (1200, 60000, 150000))
-        self.assertEqual((command["tier2_temp_dc"], command["tier2_rate_dc_per_min"], command["tier2_rate_min_temp_dc"]), (2000, 200, 1500))
-        self.assertEqual((command["tier2_warning_ms"], command["tier2_shutdown_ms"]), (30000, 120000))
+        self.assertEqual((command["tier2_temp_dc"], command["tier2_warning_ms"], command["tier2_shutdown_ms"]), (1000, 120000, 240000))
+        self.assertEqual((command["tier5_temp_dc"], command["tier5_warning_ms"], command["tier5_shutdown_ms"]), (2500, 30000, 60000))
+        self.assertFalse(any(key.startswith("tier1_") for key in command))
         validation.check_command(command)
 
     @mock.patch("ingest.commands.publish")
     def test_a_tier_can_be_switched_off_with_a_zero_temperature(self, publish):
         body = json.loads(json.dumps(self.GOOD))
-        body["critical"]["temp_c"] = 0
-        body["critical"]["rate_c_per_min"] = 0
+        body["levels"][1]["temp_c"] = 0  # tier 3 off: tier 4 may still start above tier 2
         self.assertEqual(self.post(body).status_code, 202)
-        self.assertEqual(publish.call_args.args[1]["tier2_temp_dc"], 0)
+        self.assertEqual(publish.call_args.args[1]["tier3_temp_dc"], 0)
 
     @mock.patch("ingest.commands.publish")
     def test_defaults(self, publish):
         self.assertEqual(self.post({"defaults": True}).status_code, 202)
         command = publish.call_args.args[1]
         self.assertEqual(command["action"], "tiers_defaults")
-        self.assertNotIn("tier1_temp_dc", command)
+        self.assertNotIn("tier2_temp_dc", command)
         validation.check_command(command)
 
     @mock.patch("ingest.commands.publish")
     def test_bad_values_are_refused(self, publish):
-        def changed(group, key, value):
+        def changed(level, key, value):
             body = json.loads(json.dumps(self.GOOD))
-            body[group][key] = value
+            body["levels"][level][key] = value
             return body
-        bad = [{}, {"defaults": False}, [1], {"elevated": self.GOOD["elevated"]},
-               changed("elevated", "temp_c", -1), changed("elevated", "temp_c", 301),
-               changed("critical", "warning_s", 0), changed("critical", "shutdown_s", 3601),
-               changed("critical", "rate_c_per_min", 1001), changed("elevated", "warning_s", "60"),
-               changed("critical", "temp_c", True), changed("critical", "temp_c", 100),  # critical below elevated
+        bad = [{}, {"defaults": False}, [1], {"levels": self.GOOD["levels"][:3]},
+               {"levels": self.GOOD["levels"] + [self.GOOD["levels"][3]]},
+               changed(0, "temp_c", -1), changed(0, "temp_c", 301),
+               changed(3, "warning_s", 0), changed(3, "shutdown_s", 3601), changed(0, "warning_s", "60"),
+               changed(3, "temp_c", True), changed(3, "temp_c", 190),  # tier 5 below tier 4
+               changed(1, "rate_c_per_min", 20),  # no such field any more
                {**self.GOOD, "extra": 1}]
         for body in bad:
             with self.subTest(body=body):
@@ -157,7 +168,7 @@ class TiersCommandTest(TestCase):
 
     def test_the_schema_refuses_tier_values_on_another_action(self):
         command = {"schema_version": 2, "type": "controller_command", "controller_id": "c", "request_id": 1,
-                   "action": "reset", "tier1_temp_dc": 1200}
+                   "action": "reset", "tier2_temp_dc": 1000}
         with self.assertRaises(validation.InvalidMessage):
             validation.check_command(command)
 

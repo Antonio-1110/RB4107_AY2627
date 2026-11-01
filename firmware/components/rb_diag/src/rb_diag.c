@@ -156,7 +156,8 @@ static int cmd_mqtt(int argc, char **argv)
     rb_telemetry_stats_t t;
     rb_telemetry_get_stats(&t);
     const esp_ip4_addr_t ip = rb_net_ip();
-    printf("network: %s %s, IP " IPSTR "\n", rb_net_interface_name(), rb_net_state_name(rb_net_state()), IP2STR(&ip));
+    printf("network: %s %s, IP " IPSTR ", SSID '%s'\n", rb_net_interface_name(), rb_net_state_name(rb_net_state()),
+           IP2STR(&ip), rb_net_wifi_ssid());
     printf("mqtt: %s (broker %s), published=%" PRIu32 " dropped=%" PRIu32 " connects=%" PRIu32
            " disconnects=%" PRIu32 " | telemetry periodic=%" PRIu32 " events=%" PRIu32 "\n",
            rb_mqtt_state_name(rb_mqtt_state()), rb_mqtt_broker_uri(), m.published, m.dropped, m.connects,

@@ -154,7 +154,7 @@ static void set_cookware(const rb_ctrl_cmd_t *cmd)
 
 #if CONFIG_RB_CTRL_REMOTE_TIERS
 typedef struct {
-    uint8_t version; /* 1 */
+    uint8_t version; /* 2: tiers 2..5 (version 1, two tiers, is ignored) */
     rb_tiers_t tiers;
 } saved_tiers_t;
 
@@ -166,12 +166,13 @@ static void tiers_load(void)
     }
     saved_tiers_t saved;
     size_t len = sizeof(saved);
-    if (nvs_get_blob(h, NVS_KEY_TIERS, &saved, &len) == ESP_OK && len == sizeof(saved) && saved.version == 1) {
+    if (nvs_get_blob(h, NVS_KEY_TIERS, &saved, &len) == ESP_OK && len == sizeof(saved) && saved.version == 2) {
         rb_controller_set_tiers(&saved.tiers);
-        ESP_LOGW(TAG, "temperature tiers saved from the dashboard: from %.0f C %lu/%lu s, from %.0f C %lu/%lu s",
-                 (double)saved.tiers.tier1_temp_c, (unsigned long)(saved.tiers.tier1_warning_ms / 1000),
-                 (unsigned long)(saved.tiers.tier1_shutdown_ms / 1000), (double)saved.tiers.tier2_temp_c,
-                 (unsigned long)(saved.tiers.tier2_warning_ms / 1000), (unsigned long)(saved.tiers.tier2_shutdown_ms / 1000));
+        ESP_LOGW(TAG, "temperature tiers saved from the dashboard: tiers 2-5 from %.0f / %.0f / %.0f / %.0f C",
+                 (double)saved.tiers.tiers[0].temp_c, (double)saved.tiers.tiers[1].temp_c,
+                 (double)saved.tiers.tiers[2].temp_c, (double)saved.tiers.tiers[3].temp_c);
+    } else if (len > 0 && len != sizeof(saved)) {
+        ESP_LOGW(TAG, "temperature tiers saved by an older firmware ignored: the menuconfig tiers are used");
     }
     nvs_close(h);
 }
@@ -191,7 +192,7 @@ static void tiers_save(const rb_tiers_t *tiers)
             err = ESP_OK;
         }
     } else {
-        const saved_tiers_t saved = {.version = 1, .tiers = *tiers};
+        const saved_tiers_t saved = {.version = 2, .tiers = *tiers};
         err = nvs_set_blob(h, NVS_KEY_TIERS, &saved, sizeof(saved));
     }
     if (err == ESP_OK) {
@@ -212,16 +213,15 @@ static void set_tiers(const rb_ctrl_cmd_t *cmd)
         tiers_save(NULL);
         return;
     }
-    const rb_tiers_t tiers = {
-        .tier1_temp_c = cmd->tier1_temp_dc / 10.0f,
-        .tier1_warning_ms = cmd->tier1_warning_ms,
-        .tier1_shutdown_ms = cmd->tier1_shutdown_ms,
-        .tier2_temp_c = cmd->tier2_temp_dc / 10.0f,
-        .tier2_rate_c_per_min = cmd->tier2_rate_dc_per_min / 10.0f,
-        .tier2_rate_min_temp_c = cmd->tier2_rate_min_temp_dc / 10.0f,
-        .tier2_warning_ms = cmd->tier2_warning_ms,
-        .tier2_shutdown_ms = cmd->tier2_shutdown_ms,
-    };
+    _Static_assert(RB_CTRL_TIERS == SAFETY_HOT_TIERS, "the command carries tiers 2..5");
+    rb_tiers_t tiers;
+    for (int k = 0; k < SAFETY_HOT_TIERS; k++) {
+        tiers.tiers[k] = (safety_tier_cfg_t){
+            .temp_c = cmd->tier_temp_dc[k] / 10.0f,
+            .warning_ms = cmd->tier_warning_ms[k],
+            .shutdown_ms = cmd->tier_shutdown_ms[k],
+        };
+    }
     ESP_LOGW(TAG, "temperature tiers from the dashboard (request %u)", (unsigned)cmd->request_id);
     rb_controller_set_tiers(&tiers); /* the safety task refuses inconsistent values and keeps the ones in use */
     tiers_save(&tiers);

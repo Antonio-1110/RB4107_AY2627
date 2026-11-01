@@ -226,6 +226,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|---|---|---|
 | `CONFIG_RB_WIFI_SSID` | SSID | `""` |  |  |
 | `CONFIG_RB_WIFI_PASSWORD` | Password | `""` |  |  |
+| `CONFIG_RB_WIFI_SSID_2` | Backup SSID (empty = none, e.g. a phone hotspot) | `""` |  |  |
+| `CONFIG_RB_WIFI_PASSWORD_2` | Backup password | `""` |  |  |
+| `CONFIG_RB_WIFI_SWITCH_AFTER` | Switch to the other network after this many failed attempts | `3` | 1 – 20 |  |
 | `CONFIG_RB_WIFI_MAX_BACKOFF_MS` | Longest reconnect back-off (ms) | `16000` | 1000 – 300000 |  |
 
 ## MQTT broker (MacBook)
@@ -234,6 +237,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|---|---|---|
 | `CONFIG_RB_BROKER_HOST` | Broker host (MacBook LAN IP or hostname) | `""` |  |  |
 | `CONFIG_RB_BROKER_FALLBACK_HOST` | Fallback broker host (empty = none) | `""` |  |  |
+| `CONFIG_RB_BROKER_FALLBACK_HOST_2` | Second fallback broker host, e.g. on the hotspot (empty = none) | `""` |  |  |
 | `CONFIG_RB_BROKER_PORT` | Broker port | `1883` | 1 – 65535 |  |
 | `CONFIG_RB_MQTT_CONTROLLER_ID` | Controller ID (MQTT client ID and JSON controller_id) | `"controller_01"` |  |  |
 | `CONFIG_RB_MQTT_TOPIC_PREFIX` | Topic prefix | `"rb4107"` |  |  |
@@ -273,21 +277,27 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_SAFETY_PAUSE_BUDGET_S` | Pause budget per timeline (s, 0 = never pause) | `30` | 0 – 600 |  |
 | `CONFIG_RB_SAFETY_PAUSE_BUDGET_PCT` | ... and at most this share of the shutdown time (%) | `25` | 0 – 100 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_GAP_MS` | Gaps shorter than this (ms) don't restart the presence count | `1000` | 0 – 10000 |  |
-| `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `180` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_WARNING_TIMEOUT_S` | Unattended time before WARNING (s) | `150` | 1 – 3600 |  |
 | `CONFIG_RB_SAFETY_SHUTDOWN_TIMEOUT_S` | Shutdown timeout (s) | `300` | 1 – 3600 |  |
-| `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  | ⚠ |
+| `RB_SAFETY_SHUTDOWN_TIMING` (choice) | Shutdown timeout counts from: `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` = start of UNATTENDED (total unattended time); `CONFIG_RB_SAFETY_SHUTDOWN_FROM_WARNING` = start of WARNING | `CONFIG_RB_SAFETY_SHUTDOWN_FROM_UNATTENDED` |  |  |
 | `RB_SAFETY_WARNING_EXIT` (choice) | Person returns during WARNING: `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` = return to MONITORING; `CONFIG_RB_SAFETY_WARNING_EXIT_ACK` = stay in WARNING until the person acknowledges (reset input) | `CONFIG_RB_SAFETY_WARNING_EXIT_PRESENCE` |  | ⚠ |
 | `RB_SAFETY_COOLING` (choice) | Pan drops below the cooking temperature while UNATTENDED/WARNING: `CONFIG_RB_SAFETY_COOLING_KEEP_TIMERS` = keep the timers running (old behaviour: shuts a cold stove off); `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` = return to IDLE and cancel the timers | `CONFIG_RB_SAFETY_COOLING_RETURN_TO_IDLE` |  |  |
 | `CONFIG_RB_SAFETY_COOKING_TREND` | Judge from the temperature trend whether heat is going in | `y` |  |  |
 | `CONFIG_RB_SAFETY_TEMP_TIERS` | Shorter buzzer and shutdown times for hotter pans | `y` |  |  |
-| `CONFIG_RB_SAFETY_TIER1_TEMP_DC` | ELEVATED from a hottest-pixel temperature of (0.1 degC) | `1200` | 0 – 3000 |  |
-| `CONFIG_RB_SAFETY_TIER1_WARNING_S` | ELEVATED: unattended time before WARNING (s) | `60` | 1 – 3600 |  |
-| `CONFIG_RB_SAFETY_TIER1_SHUTDOWN_S` | ELEVATED: shutdown time (s, counted like the base shutdown time) | `150` | 1 – 3600 |  |
-| `CONFIG_RB_SAFETY_TIER2_TEMP_DC` | CRITICAL from a hottest-pixel temperature of (0.1 degC) | `2000` | 0 – 3000 |  |
-| `CONFIG_RB_SAFETY_TIER2_RATE_DC_PER_MIN` | ... or when rising at least this fast above the next setting (0.1 degC/min, 0 = off) | `200` | 0 – 10000 |  |
-| `CONFIG_RB_SAFETY_TIER2_RATE_MIN_TEMP_DC` | ... the lowest temperature at which the rising-fast rule applies (0.1 degC) | `1500` | 0 – 3000 |  |
-| `CONFIG_RB_SAFETY_TIER2_WARNING_S` | CRITICAL: unattended time before WARNING (s) | `30` | 1 – 3600 |  |
-| `CONFIG_RB_SAFETY_TIER2_SHUTDOWN_S` | CRITICAL: shutdown time (s, counted like the base shutdown time) | `120` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_2_TEMP_DC` | Tier 2 from a hottest-pixel temperature of (0.1 degC) | `1000` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER_2_WARNING_S` | Tier 2: unattended time before WARNING (s) | `120` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_2_SHUTDOWN_S` | Tier 2: shutdown time (s, counted like the base shutdown time) | `240` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_3_TEMP_DC` | Tier 3 from a hottest-pixel temperature of (0.1 degC) | `1500` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER_3_WARNING_S` | Tier 3: unattended time before WARNING (s) | `90` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_3_SHUTDOWN_S` | Tier 3: shutdown time (s, counted like the base shutdown time) | `180` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_4_TEMP_DC` | Tier 4 from a hottest-pixel temperature of (0.1 degC) | `2000` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER_4_WARNING_S` | Tier 4: unattended time before WARNING (s) | `60` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_4_SHUTDOWN_S` | Tier 4: shutdown time (s, counted like the base shutdown time) | `120` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_5_TEMP_DC` | Tier 5 from a hottest-pixel temperature of (0.1 degC) | `2500` | 0 – 3000 |  |
+| `CONFIG_RB_SAFETY_TIER_5_WARNING_S` | Tier 5: unattended time before WARNING (s) | `30` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_5_SHUTDOWN_S` | Tier 5: shutdown time (s, counted like the base shutdown time) | `60` | 1 – 3600 |  |
+| `CONFIG_RB_SAFETY_TIER_RATE` | Also use the tier a rising pan is heading for | `y` |  |  |
+| `CONFIG_RB_SAFETY_FALLING_HOLD` | Hold a due buzzer or shutdown while the temperature is falling | `y` |  |  |
 | `RB_SAFETY_COOKWARE` (choice) | Cookware profile (how fast the pans lose heat): `CONFIG_RB_SAFETY_COOKWARE_MIXED` = mixed / unknown (10 min); `CONFIG_RB_SAFETY_COOKWARE_LIGHT` = light pans: woks, thin aluminium or stainless (5 min); `CONFIG_RB_SAFETY_COOKWARE_HEAVY` = heavy pans: cast iron, thick clad (15 min); `CONFIG_RB_SAFETY_COOKWARE_LIQUID` = pots with liquid: soup, stock, boiling water (40 min) | `CONFIG_RB_SAFETY_COOKWARE_MIXED` |  |  |
 | `CONFIG_RB_SAFETY_FAULT_SHUTDOWN_S` | Shut down after this long in FAULT (s, 0 = never) | `90` | 0 – 3600 | ⚠ |
 ## Quick index
@@ -303,8 +313,8 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC` (also from the dashboard and saved, `RB_CTRL_REMOTE_COOKING_TEMP`), `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` (display only; the controller keeps it equal to the cooking temperature) |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
 | Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |
-| Network interface | `RB_NET_TYPE` (Wi-Fi station by default; the controller is Wi-Fi only), `RB_WIFI_SSID`, `RB_WIFI_PASSWORD` |
-| MQTT broker | `RB_BROKER_HOST`, `RB_BROKER_PORT`, `RB_MQTT_TOPIC_PREFIX`, `RB_MQTT_TELEMETRY_PERIOD_MS` |
+| Network interface | `RB_NET_TYPE` (Wi-Fi station by default; the controller is Wi-Fi only), `RB_WIFI_SSID`, `RB_WIFI_PASSWORD`, backup network `RB_WIFI_SSID_2`, `RB_WIFI_PASSWORD_2`, `RB_WIFI_SWITCH_AFTER` (see [setup.md](setup.md#phone-hotspot-as-a-backup)) |
+| MQTT broker | `RB_BROKER_HOST`, `RB_BROKER_FALLBACK_HOST`, `RB_BROKER_FALLBACK_HOST_2`, `RB_BROKER_PORT`, `RB_MQTT_TOPIC_PREFIX`, `RB_MQTT_TELEMETRY_PERIOD_MS` |
 
 How to change values (menuconfig or a file): [setup.md](setup.md#changing-settings).
 Django settings are environment variables: [`django/README.md`](../django/README.md#configuration-environment-variables).

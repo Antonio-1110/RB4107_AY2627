@@ -1,24 +1,21 @@
 "use strict";
-// Temperature tiers in the Timer rule (Tuning > Rules): the hotter the pan, the shorter the buzzer and
-// shutdown times (docs/safety_state_machine.md). The controller checks the values, saves them and
-// answers with tiers / tiers_source in its telemetry.
+// Temperature tiers 2 to 5 in the Timer rule (Tuning > Rules): the hotter the pan, the shorter the buzzer
+// and shutdown times; tier 1 is the base times (docs/safety_state_machine.md). The controller checks the
+// values, saves them and answers with tiers / tiers_source in its telemetry.
 
 import { sendTiers } from "./api.js";
 import { $ } from "./dom.js";
 import { number } from "./format.js";
 
 const ANSWER_WAIT_MS = 15000;
-// [input id, group, key in the telemetry's seconds form, key sent]
-const FIELDS = [
-  ["tr-e-temp", "elevated", "temp_c", "temp_c"],
-  ["tr-e-warn", "elevated", "warning_seconds", "warning_s"],
-  ["tr-e-stop", "elevated", "shutdown_seconds", "shutdown_s"],
-  ["tr-c-temp", "critical", "temp_c", "temp_c"],
-  ["tr-c-rate", "critical", "rate_c_per_min", "rate_c_per_min"],
-  ["tr-c-ratemin", "critical", "rate_min_temp_c", "rate_min_temp_c"],
-  ["tr-c-warn", "critical", "warning_seconds", "warning_s"],
-  ["tr-c-stop", "critical", "shutdown_seconds", "shutdown_s"],
-];
+const TIERS = [2, 3, 4, 5];
+// [input id, tier, key in the telemetry's seconds form, key sent]
+const FIELDS = TIERS.flatMap((n) => [
+  [`tr-${n}-temp`, n, "temp_c", "temp_c"],
+  [`tr-${n}-warn`, n, "warning_seconds", "warning_s"],
+  [`tr-${n}-stop`, n, "shutdown_seconds", "shutdown_s"],
+]);
+const level = (tiers, n) => ((tiers && tiers.levels) || []).find((t) => t && t.tier === n) || {};
 
 let deviceId = "",
   edited = false,
@@ -33,14 +30,15 @@ function setStatus(text, style = "") {
 }
 
 const describe = (t, source) =>
-  `elevated from ${t.elevated.temp_c} °C: ${t.elevated.warning_seconds}/${t.elevated.shutdown_seconds} s; ` +
-  `critical from ${t.critical.temp_c} °C: ${t.critical.warning_seconds}/${t.critical.shutdown_seconds} s ` +
-  `(${source === "dashboard" ? "set from the dashboard" : "menuconfig"})`;
+  TIERS.map((n) => level(t, n))
+    .filter((l) => number(l.temp_c) && l.temp_c > 0)
+    .map((l) => `tier ${l.tier} from ${l.temp_c} °C: ${l.warning_seconds}/${l.shutdown_seconds} s`)
+    .join("; ") + ` (${source === "dashboard" ? "set from the dashboard" : "menuconfig"})`;
 
 function answered(values) {
   if (pending.expect === "menuconfig") return values.tiers_source === "menuconfig";
   if (values.tiers_source !== "dashboard" || !values.tiers) return false;
-  return FIELDS.every(([id, group, key]) => Math.abs(values.tiers[group][key] - pending.expect[id]) < 0.06);
+  return FIELDS.every(([id, n, key]) => Math.abs(level(values.tiers, n)[key] - pending.expect[id]) < 0.06);
 }
 
 export function renderTiers(device) {
@@ -52,12 +50,12 @@ export function renderTiers(device) {
     setStatus("Waiting for the controller.");
   }
   const values = device.values || {},
-    tiers = values.tiers,
+    tiers = values.tiers && Array.isArray(values.tiers.levels) ? values.tiers : null,
     reachable = device.connection !== "offline";
   countsFrom = values.shutdown_counts_from;
   if (tiers && !edited) {
-    for (const [id, group, key] of FIELDS) {
-      const v = tiers[group][key];
+    for (const [id, n, key] of FIELDS) {
+      const v = level(tiers, n)[key];
       $(id).value = number(v) ? String(Math.round(v * 10) / 10) : "";
     }
   }
@@ -70,7 +68,7 @@ export function renderTiers(device) {
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       pending = null;
       setStatus(
-        "The controller didn't report the change. It refuses inconsistent values (a shutdown not after its warning, critical below elevated) " +
+        "The controller didn't report the change. It refuses inconsistent values (a shutdown not after its warning, a tier below the one before it) " +
           'and needs "Accept the temperature tiers from the dashboard" on in menuconfig.',
         "bad",
       );
@@ -118,28 +116,33 @@ for (const [id] of FIELDS)
   });
 
 $("tr-apply").addEventListener("click", () => {
-  const body = { elevated: {}, critical: {} },
+  const levels = TIERS.map(() => ({})),
     expect = {};
-  for (const [id, group, , sentKey] of FIELDS) {
+  for (const [id, n, , sentKey] of FIELDS) {
     const input = $(id),
       value = Number(input.value);
     if (input.value === "" || !Number.isFinite(value) || value < Number(input.min) || value > Number(input.max)) {
-      setStatus(`${input.parentElement.firstChild.textContent.trim()} (${group}) must be ${input.min}–${input.max}.`, "bad");
+      setStatus(`${input.parentElement.firstChild.textContent.trim()} (tier ${n}) must be ${input.min}–${input.max}.`, "bad");
       return;
     }
-    body[group][sentKey] = value;
+    levels[TIERS.indexOf(n)][sentKey] = value;
     expect[id] = value;
   }
-  const { elevated: e, critical: c } = body;
-  if (e.temp_c > 0 && c.temp_c > 0 && c.temp_c < e.temp_c) {
-    setStatus("Critical must not start below elevated.", "bad");
-    return;
+  let below = 0;
+  for (const [k, l] of levels.entries()) {
+    if (l.temp_c > 0) {
+      if (l.temp_c < below) {
+        setStatus(`Tier ${TIERS[k]} must not start below the tier before it.`, "bad");
+        return;
+      }
+      below = l.temp_c;
+    }
+    if (countsFrom === "UNATTENDED" && l.shutdown_s <= l.warning_s) {
+      setStatus(`In tier ${TIERS[k]} the shutdown must come after the buzzer (both count from when the person left).`, "bad");
+      return;
+    }
   }
-  if (countsFrom === "UNATTENDED" && (e.shutdown_s <= e.warning_s || c.shutdown_s <= c.warning_s)) {
-    setStatus("In each tier the shutdown must come after the buzzer (both count from when the person left).", "bad");
-    return;
-  }
-  send(body, expect);
+  send({ levels }, expect);
 });
 
 $("tr-defaults").addEventListener("click", () => {

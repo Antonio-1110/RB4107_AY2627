@@ -303,14 +303,7 @@ static void safety_task(void *arg)
             const bool next_tiers_on = new_tiers ? pending_tiers_on : tiers_on;
             const rb_tiers_t next_tiers = new_tiers ? pending_tiers : tiers;
             if (next_tiers_on) {
-                next.tier1_temp_c = next_tiers.tier1_temp_c;
-                next.tier1_warning_ms = next_tiers.tier1_warning_ms;
-                next.tier1_shutdown_ms = next_tiers.tier1_shutdown_ms;
-                next.tier2_temp_c = next_tiers.tier2_temp_c;
-                next.tier2_rate_c_per_min = next_tiers.tier2_rate_c_per_min;
-                next.tier2_rate_min_temp_c = next_tiers.tier2_rate_min_temp_c;
-                next.tier2_warning_ms = next_tiers.tier2_warning_ms;
-                next.tier2_shutdown_ms = next_tiers.tier2_shutdown_ms;
+                memcpy(next.tiers, next_tiers.tiers, sizeof(next.tiers));
             }
             const safety_cookware_t next_cookware = new_cookware ? pending_cookware : cookware;
             if (next_cookware != SAFETY_COOKWARE_COUNT && next.cookware_tau_s > 0.0f) {
@@ -365,11 +358,13 @@ static void safety_task(void *arg)
                 tiers_on = next_tiers_on;
                 tiers = next_tiers;
                 if (new_tiers) {
-                    ESP_LOGW(TAG, "temperature tiers (%s): from %.0f C %lu/%lu s, from %.0f C %lu/%lu s",
-                             tiers_on ? "dashboard" : "menuconfig", (double)next.tier1_temp_c,
-                             (unsigned long)(next.tier1_warning_ms / 1000), (unsigned long)(next.tier1_shutdown_ms / 1000),
-                             (double)next.tier2_temp_c, (unsigned long)(next.tier2_warning_ms / 1000),
-                             (unsigned long)(next.tier2_shutdown_ms / 1000));
+                    ESP_LOGW(TAG, "temperature tiers (%s): base %lu/%lu s", tiers_on ? "dashboard" : "menuconfig",
+                             (unsigned long)(next.warning_timeout_ms / 1000), (unsigned long)(next.shutdown_timeout_ms / 1000));
+                    for (int k = 0; k < SAFETY_HOT_TIERS; k++) {
+                        ESP_LOGW(TAG, "  tier %d from %.0f C: %lu/%lu s", k + 2, (double)next.tiers[k].temp_c,
+                                 (unsigned long)(next.tiers[k].warning_ms / 1000),
+                                 (unsigned long)(next.tiers[k].shutdown_ms / 1000));
+                    }
                 }
                 if (new_cookware) {
                     ESP_LOGW(TAG, "cookware profile (%s): %s, tau %.0f s",
@@ -428,6 +423,8 @@ static void safety_task(void *arg)
             .thermal_valid = ni.thermal_valid,
             .cooking_temp_c = ni.max_temp_c,
             .temp_rate_c_per_min = ni.temp_rate_c_per_min,
+            .ambient_c = ni.ambient_c,
+            .trend_temp_c = ni.hot_region_temp_c,
             .self_test = s_hooks.self_test != NULL ? s_hooks.self_test(s_hooks.ctx) : SAFETY_SELFTEST_PASS,
             .reset_request = reset,
             .safety_fault = s_hooks.safety_fault_active != NULL && s_hooks.safety_fault_active(s_hooks.ctx),
@@ -490,6 +487,9 @@ static void safety_task(void *arg)
             s_snapshot.heat_phase = sm.heat_phase;
             s_snapshot.trend_rate_c_per_min = sm.trend_rate_c_per_min;
             s_snapshot.settle_c = sm.settle_c;
+            s_snapshot.trend_rate_err_c_per_min = sm.trend_rate_err_c_per_min;
+            s_snapshot.cool_rate_c_per_min = sm.cool_rate_c_per_min;
+            s_snapshot.room_c = sm.room_c;
             s_snapshot.hold = sm.hold;
             s_snapshot.tier = sm.tier;
             s_snapshot.eff_warning_ms = sm.eff_warning_ms;

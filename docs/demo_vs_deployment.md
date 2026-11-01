@@ -36,8 +36,8 @@ measured it; *not checked* means it is an assumption.
 
 | Topic | Demo | Deployment | Evidence |
 |---|---|---|---|
-| Time from leaving to buzzer and shutdown | **temperature tiers** (built): a simmer gets 3 min / 5 min, a hot pan 60 s / 150 s, oil from 200 °C or rising fast 30 s / 120 s; the tier values are placeholders | tier values tuned on real camera readings of hot oil, per stove type (gas heats faster than the electric coil NIST used), and per camera under-read of shiny cookware | NIST TN 2133 (electric coil, corn oil, 9.7-26 cm pans, from cold): time to auto-ignition = 460 s + 3.9 s per gram of oil (50-150 g: 11 to 17 min); the last stage, smoking to ignition, lasts only 30-60 s; pan bottom 330 °C = start of the transition, 392 °C = ignition ([report](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2133.pdf)). Gas burners were not tested there and heat faster; a pan already hot when the cook leaves has far less than 11 min left |
-| Cooking temperature | 50 °C on, 40 °C off: detects "someone is cooking", not a hazard | separate hazard tiers above it (smoke point about 190-270 °C by oil, flash about 300-330 °C, auto-ignition about 390 °C); the camera reads shiny pans far too cold and tops out at 300 °C | placeholders *checked*; oil figures from [Culinary Lore](https://culinarylore.com/food-science:kitchen-fire-safety-when-does-cooking-oil-catch-fire) and NIST |
+| Time from leaving to buzzer and shutdown | **five temperature tiers** (built): buzzer 150 / 120 / 90 / 60 / 30 s from below 100 / 100 / 150 / 200 / 250 °C, shutdown twice the buzzer; a rising pan gets the tier it reaches within that tier's buzzer time; a falling pan holds a due step for up to 90 s; a baseline, anchored on 30 s of buzzer at the smoke point | tier values tuned on real camera readings of hot oil, per stove type (gas heats faster than the electric coil NIST used), and per camera under-read of shiny cookware | NIST TN 2133 (electric coil, corn oil, 9.7-26 cm pans, from cold): time to auto-ignition = 460 s + 3.9 s per gram of oil (50-150 g: 11 to 17 min); the last stage, smoking to ignition, lasts only 30-60 s; pan bottom 330 °C = start of the transition, 392 °C = ignition ([report](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2133.pdf)). Gas burners were not tested there and heat faster; a pan already hot when the cook leaves has far less than 11 min left |
+| Cooking temperature | 50 °C on, 40 °C off: detects "someone is cooking", not a hazard | separate hazard tiers above it (smoke point about 190-270 °C by oil, flash about 300-330 °C, auto-ignition about 390 °C); bare shiny metal may read low (emissivity, not measured here) and the camera tops out at 300 °C (datasheet) | placeholders *checked*; oil figures from [Culinary Lore](https://culinarylore.com/food-science:kitchen-fire-safety-when-does-cooking-oil-catch-fire) and NIST |
 
 ## Sensing and the cooking judgment
 
@@ -83,13 +83,14 @@ default if you want to show the live radar view.
 
 ## Demo notes (things to know when presenting)
 
-- **The timers depend on the temperature of the pan.** A simmering pot (below 120 °C)
-  gets the base times below, a hot pan (120 °C and up) 60 s / 150 s, and oil from
-  200 °C or heating fast 30 s / 120 s. The dashboard's "hot_pan" demo scenario shows
-  the shortest tier. The tier values are placeholders.
-- **The base timers are 3 min to the buzzer and 5 min to the shutdown**
+- **The timers depend on the temperature of the pan, and on how fast it rises.**
+  Five tiers: a simmer (below 100 °C) gets the base times below, then 120 / 90 / 60 /
+  30 s to the buzzer from 100 / 150 / 200 / 250 °C, the shutdown at twice that. A pan
+  rising fast gets the tier it is heading for. The dashboard's "hot_pan" demo scenario
+  shows tier 4. The tier values are a baseline.
+- **The base timers are 2.5 min to the buzzer and 5 min to the shutdown**
   (`RB_SAFETY_WARNING_TIMEOUT_S` and `RB_SAFETY_SHUTDOWN_TIMEOUT_S`; they were
-  20 s and 40 s). The cooking judgment needs about 1-2 minutes of temperature
+  3 min / 5 min, and 20 s / 40 s before that). The cooking judgment needs about 1-2 minutes of temperature
   history, so the buzzer has to come later than that for the demo to show the
   timers behaving correctly for the situation. Both can be changed from the
   dashboard (Tuning, Rules) until the controller reboots.

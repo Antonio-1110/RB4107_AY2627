@@ -34,6 +34,9 @@ const char *rb_net_state_name(rb_net_state_t state);
 /* "Ethernet" or "Wi-Fi": the interface the state and IP belong to. */
 const char *rb_net_interface_name(void);
 
+/* SSID of the stored Wi-Fi network in use or being tried ("" without Wi-Fi). */
+const char *rb_net_wifi_ssid(void);
+
 /* IPv4 address (0.0.0.0 if not connected). */
 esp_ip4_addr_t rb_net_ip(void);
 

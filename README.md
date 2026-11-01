@@ -20,7 +20,7 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 1. Each sensor node reads one sensor and sends the readings to the controller
    over ESP-NOW.
 2. The controller combines the two radars and runs the safety state machine:
-   `IDLE → MONITORING → UNATTENDED → WARNING (buzzer, 3 min) → SHUTDOWN (relay, 5 min)`.
+   `IDLE → MONITORING → UNATTENDED → WARNING (buzzer, 2.5 min) → SHUTDOWN (relay, 5 min)`, shorter for hotter pans (down to 30 s / 60 s).
    Those are the times for a simmering pot; the hotter the pan, the shorter they
    get (hot oil: buzzer after 30 s, shutdown after 2 min; see
    [docs/safety_state_machine.md](docs/safety_state_machine.md)).

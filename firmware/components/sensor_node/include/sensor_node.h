@@ -235,6 +235,7 @@ typedef struct {
     float hot_region_temp_c;      /* NAN unless thermal_valid */
     float max_temp_c;
     float temp_rate_c_per_min;
+    float ambient_c;              /* the thermal node's room estimate, NAN if none */
     uint16_t pixels_above_threshold;
 } node_inputs_t;
 

@@ -33,6 +33,7 @@ typedef struct {
     float max_temp_c;
     float min_temp_c;
     float mean_temp_c;
+    float ambient_c;             /* 10th percentile of the valid pixels: the room around the pan */
     float hot_region_temp_c;     /* mean of the region around the hottest pixel */
     float temp_rate_c_per_min;   /* rate of change of hot_region_temp_c */
     uint16_t pixels_above_threshold;
