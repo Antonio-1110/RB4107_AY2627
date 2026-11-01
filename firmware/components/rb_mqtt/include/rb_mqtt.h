@@ -37,6 +37,7 @@ typedef void (*rb_mqtt_rx_cb_t)(const char *topic, const char *data, size_t len,
 typedef struct {
     char uri[96];              /* mqtt://host:port */
     char fallback_uri[96];     /* tried in turn with uri after a failed attempt; "" = none */
+    char fallback2_uri[96];    /* third in the rotation (e.g. MacBook on the backup Wi-Fi); "" = none */
     const char *client_id;
     const char *status_topic;  /* retained online/offline status (Last Will) */
     const char *online_payload;

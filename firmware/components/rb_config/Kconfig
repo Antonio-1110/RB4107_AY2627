@@ -1131,6 +1131,35 @@ menu "RB4107 configuration"
                 help
                     Stored in sdkconfig, which is git-ignored. Never commit it.
 
+            config RB_WIFI_SSID_2
+                string "Backup SSID (empty = none, e.g. a phone hotspot)"
+                default ""
+                help
+                    A second network, such as a phone hotspot when the router
+                    is not there. The controller joins one network at a time:
+                    it starts on RB_WIFI_SSID and, after RB_WIFI_SWITCH_AFTER
+                    failed attempts in a row, tries this one, alternating
+                    until one works. On a phone hotspot the S3 needs 2.4 GHz
+                    (iPhone: Personal Hotspot > Maximize Compatibility). The
+                    nodes follow the hotspot's channel on their own. Set
+                    RB_BROKER_FALLBACK_HOST_2 for the MacBook's IP there.
+
+            config RB_WIFI_PASSWORD_2
+                string "Backup password"
+                default ""
+                help
+                    Stored in sdkconfig, which is git-ignored. Never commit it.
+
+            config RB_WIFI_SWITCH_AFTER
+                int "Switch to the other network after this many failed attempts"
+                range 1 20
+                default 3
+                help
+                    Only used with a backup SSID. Counts attempts in a row
+                    that ended without an IP address (network not found,
+                    wrong password, dropped). The count restarts once an IP
+                    address is obtained.
+
             config RB_WIFI_MAX_BACKOFF_MS
                 int "Longest reconnect back-off (ms)"
                 range 1000 300000
@@ -1162,6 +1191,18 @@ menu "RB4107 configuration"
                 connection attempt the controller switches to the other one.
                 For example the MacBook's .local name as the host and its
                 usual LAN IP here.
+
+        config RB_BROKER_FALLBACK_HOST_2
+            string "Second fallback broker host, e.g. on the hotspot (empty = none)"
+            default ""
+            help
+                Joins the rotation with RB_BROKER_HOST and
+                RB_BROKER_FALLBACK_HOST: after each failed connection attempt
+                the controller tries the next one. Meant for the MacBook's IP
+                on the backup Wi-Fi (RB_WIFI_SSID_2), where its usual IP is
+                different. On an iPhone hotspot the network is 172.20.10.x;
+                run tools/mqtt/lan_ip.sh on the Mac while it is on the
+                hotspot to see its IP.
 
         config RB_BROKER_PORT
             int "Broker port"
