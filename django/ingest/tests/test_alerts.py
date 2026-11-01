@@ -64,6 +64,13 @@ class TelegramAlertTest(TestCase):
         self.assertIn("controller_01", text)
         self.assertIn("Unattended for: 5 s", text)
 
+    def test_text_says_where_the_stall_is(self, call):
+        alerts.notify(event("shutdown"))
+        lines = call.call_args.args[1]["text"].splitlines()
+        # locations.json's bench entry: placeholder building and level are left out.
+        self.assertEqual(lines[1], "Location: RB4107 test bench, Integration bench")
+        self.assertTrue(lines[2].startswith("Stall: "))
+
     def test_unattended_and_faults_are_off_by_default(self, call):
         alerts.notify(event("state_change", state="UNATTENDED"))
         alerts.notify(event("fault_raised"))
@@ -206,6 +213,19 @@ class AcknowledgeTest(TestCase):
         stop.wait.assert_called_once_with(alerts.RETRY_S)
         self.assertEqual(call.call_count, 2)
         self.assertIn("no internet", logs.output[0])
+
+
+class LocationLineTest(SimpleTestCase):
+    def test_full_location(self):
+        place = {"site_name": "Changi Airport", "building": "Terminal 2", "level": "Level 3",
+                 "area": "Public F&B cluster"}
+        self.assertEqual(alerts.location_line(place),
+                         "Location: Changi Airport, Terminal 2, Level 3, Public F&B cluster")
+
+    def test_controller_missing_from_the_catalogue(self):
+        from ingest.locations import unknown_location
+        self.assertEqual(alerts.location_line(unknown_location("controller_09")),
+                         "Location: not set (add it to the location catalogue)")
 
 
 class TelegramCallTest(SimpleTestCase):

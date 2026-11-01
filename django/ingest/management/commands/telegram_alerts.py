@@ -8,6 +8,7 @@ alerts and who acknowledged them.
 """
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db import DatabaseError
 
 from django.utils import timezone
 
@@ -42,7 +43,10 @@ class Command(BaseCommand):
         if unknown:
             self.stdout.write(f"unknown events ignored: {', '.join(sorted(unknown))} "
                               f"(choose from {', '.join(alerts.KINDS)})")
-        recent = TelegramAlert.objects.order_by("-sent_at")[:10]
+        try:
+            recent = list(TelegramAlert.objects.order_by("-sent_at")[:10])
+        except DatabaseError:
+            raise CommandError("The database has no alert table yet. Run: python manage.py migrate") from None
         if recent:
             self.stdout.write("latest alerts:")
         for alert in recent:

@@ -80,10 +80,26 @@ def _too_old(msg: Message) -> bool:
     return (datetime.now(timezone.utc) - sent).total_seconds() > settings.RB4107_ALERT_MAX_AGE_S
 
 
+# Catalogue values that mean "not filled in" (locations.json placeholders and
+# locations.unknown_location()); left out of the Location line.
+PLACEHOLDERS = ("configure", "unknown", "unassigned", "location incomplete", "not configured", "not deployed")
+
+
+def location_line(place: dict) -> str:
+    """Where the stall is, from the location catalogue: site, building, level, area."""
+    parts = []
+    for key in ("site_name", "building", "level", "area"):
+        value = str(place.get(key) or "").strip()
+        if value and not value.lower().startswith(PLACEHOLDERS) and value not in parts:
+            parts.append(value)
+    return "Location: " + (", ".join(parts) or "not set (add it to the location catalogue)")
+
+
 def alert_text(msg: Message, kind: str) -> str:
     d, safety = msg.data, msg.data["safety"]
     place = location_for(d["controller_id"])
     lines = [f"⚠️ {KINDS[kind][1]}",
+             location_line(place),
              f"Stall: {place['stall_name']} ({d['controller_id']})"]
     if safety["unattended_ms"]:
         lines.append(f"Unattended for: {round(safety['unattended_ms'] / 1000)} s")
