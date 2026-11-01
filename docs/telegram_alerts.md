@@ -10,6 +10,7 @@ Stall: Controller 01 — test bench (controller_01)
 Unattended for: 300 s
 Reason: shutdown timeout
 Check the stall, then press Reset shutdown on the dashboard.
+Time: 21:01:31, 1 Nov 2026
 [ ✅ Acknowledge alert ]
 ```
 
@@ -107,7 +108,9 @@ the other chats still get it. The stall name comes from the location
 catalogue (`RB4107_LOCATION_CATALOG_FILE`): the Location line is its
 `site_name`, `building`, `level` and `area`, leaving out placeholders such as
 "Configure actual building". Fill these in for each real controller in
-`django/locations.json`.
+`django/locations.json`. The Time line is when the controller says it
+happened, in Django's time zone (`DJANGO_TIME_ZONE`, default `Asia/Singapore`),
+or when Django received it if the controller doesn't have the time yet.
 
 ### The Acknowledge button
 

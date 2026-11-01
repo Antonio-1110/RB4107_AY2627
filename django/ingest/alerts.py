@@ -65,18 +65,24 @@ def alert_kind(msg: Message) -> str | None:
     return None
 
 
-def _too_old(msg: Message) -> bool:
-    """A QoS 1 event the broker held while the subscriber was down. Only
-    checkable when the controller had the time (timestamp is null before SNTP)."""
+def _event_time(msg: Message) -> datetime | None:
+    """When the controller says the event happened; None before it has the time (SNTP)."""
     stamp = msg.data.get("timestamp")
-    if not stamp or settings.RB4107_ALERT_MAX_AGE_S <= 0:
-        return False
+    if not stamp:
+        return None
     try:
         sent = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     except ValueError:
+        return None
+    return sent if sent.tzinfo else sent.replace(tzinfo=timezone.utc)
+
+
+def _too_old(msg: Message) -> bool:
+    """A QoS 1 event the broker held while the subscriber was down. Only
+    checkable when the controller had the time (timestamp is null before SNTP)."""
+    sent = _event_time(msg)
+    if sent is None or settings.RB4107_ALERT_MAX_AGE_S <= 0:
         return False
-    if sent.tzinfo is None:
-        sent = sent.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - sent).total_seconds() > settings.RB4107_ALERT_MAX_AGE_S
 
 
@@ -107,8 +113,9 @@ def alert_text(msg: Message, kind: str) -> str:
         lines.append(f"Reason: {safety['reason']}")
     if kind == "shutdown":
         lines.append("Check the stall, then press Reset shutdown on the dashboard.")
-    if d.get("timestamp"):
-        lines.append(f"Time: {d['timestamp']}")
+    # Local time (DJANGO_TIME_ZONE); when Django got it if the controller has no clock yet.
+    at = dj_timezone.localtime(_event_time(msg) or dj_timezone.now())
+    lines.append(f"Time: {at:%H:%M:%S}, {at.day} {at:%b %Y}")
     return "\n".join(lines)
 
 

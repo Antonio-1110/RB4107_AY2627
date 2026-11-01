@@ -71,6 +71,14 @@ class TelegramAlertTest(TestCase):
         self.assertEqual(lines[1], "Location: RB4107 test bench, Integration bench")
         self.assertTrue(lines[2].startswith("Stall: "))
 
+    @override_settings(TIME_ZONE="Asia/Singapore")
+    def test_time_is_local_and_readable(self, call):
+        stamp = (datetime.now(timezone.utc) - timedelta(minutes=1)).replace(microsecond=0)
+        alerts.notify(event("shutdown", timestamp=stamp.isoformat()))
+        local = stamp + timedelta(hours=8)  # Singapore is UTC+8
+        self.assertEqual(call.call_args.args[1]["text"].splitlines()[-1],
+                         f"Time: {local:%H:%M:%S}, {local.day} {local:%b %Y}")
+
     def test_unattended_and_faults_are_off_by_default(self, call):
         alerts.notify(event("state_change", state="UNATTENDED"))
         alerts.notify(event("fault_raised"))
