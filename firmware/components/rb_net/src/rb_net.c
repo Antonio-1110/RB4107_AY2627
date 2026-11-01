@@ -184,6 +184,40 @@ static esp_timer_handle_t s_channel_timer;
 static uint32_t s_backoff_ms = 1000;
 static uint8_t s_channel = CONFIG_RB_ESPNOW_CHANNEL;
 
+/*
+ * Up to two stored networks (RB_WIFI_SSID and the optional RB_WIFI_SSID_2).
+ * A station joins one access point at a time: it starts on the first and,
+ * after RB_WIFI_SWITCH_AFTER failed attempts in a row without an IP address,
+ * moves to the other, alternating until one works. It stays on whichever
+ * works until that one fails in the same way.
+ */
+typedef struct {
+    const char *ssid;
+    const char *password;
+} wifi_network_t;
+
+static const wifi_network_t s_networks[] = {
+    {CONFIG_RB_WIFI_SSID, CONFIG_RB_WIFI_PASSWORD},
+    {CONFIG_RB_WIFI_SSID_2, CONFIG_RB_WIFI_PASSWORD_2},
+};
+static size_t s_network;     /* index into s_networks */
+static uint32_t s_failures;  /* failed attempts on s_network since the last IP address */
+
+static size_t network_count(void)
+{
+    return CONFIG_RB_WIFI_SSID_2[0] != '\0' ? 2 : 1;
+}
+
+static esp_err_t apply_network(size_t index)
+{
+    wifi_config_t cfg = {0};
+    strlcpy((char *)cfg.sta.ssid, s_networks[index].ssid, sizeof(cfg.sta.ssid));
+    strlcpy((char *)cfg.sta.password, s_networks[index].password, sizeof(cfg.sta.password));
+    s_network = index;
+    s_failures = 0;
+    return esp_wifi_set_config(WIFI_IF_STA, &cfg);
+}
+
 static void retry_connect(void *arg)
 {
     esp_wifi_connect();
@@ -236,9 +270,19 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
         watch_channel(NULL);
         update();
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
+        const wifi_event_sta_disconnected_t *event = data;
         iface_set(&s_wifi, RB_NET_DOWN);
         update();
-        ESP_LOGW(TAG, "Wi-Fi disconnected; retrying in %lu ms", (unsigned long)s_backoff_ms);
+        if (network_count() > 1 && ++s_failures >= CONFIG_RB_WIFI_SWITCH_AFTER) {
+            const size_t next = (s_network + 1) % network_count();
+            ESP_LOGW(TAG, "Wi-Fi '%s' failed %lu times (last reason %d): switching to '%s'", s_networks[s_network].ssid,
+                     (unsigned long)s_failures, event->reason, s_networks[next].ssid);
+            if (apply_network(next) == ESP_OK) {
+                s_backoff_ms = 1000;
+            }
+        }
+        ESP_LOGW(TAG, "Wi-Fi '%s' disconnected (reason %d); retrying in %lu ms", s_networks[s_network].ssid,
+                 event->reason, (unsigned long)s_backoff_ms);
         esp_timer_stop(s_retry_timer);
         esp_timer_start_once(s_retry_timer, (uint64_t)s_backoff_ms * 1000);
         /* 1, 2, 4 ... up to the longest, then start over: a slow router is retried soon again. */
@@ -259,17 +303,19 @@ static esp_err_t wifi_setup(void)
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi_event, NULL), TAG, "events");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_got_ip, &s_wifi), TAG, "ip");
 
-    wifi_config_t cfg = {0};
-    strlcpy((char *)cfg.sta.ssid, CONFIG_RB_WIFI_SSID, sizeof(cfg.sta.ssid));
-    strlcpy((char *)cfg.sta.password, CONFIG_RB_WIFI_PASSWORD, sizeof(cfg.sta.password));
-    return esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    if (network_count() > 1) {
+        ESP_LOGI(TAG, "Wi-Fi networks: '%s', backup '%s' (switch after %d failed attempts)", CONFIG_RB_WIFI_SSID,
+                 CONFIG_RB_WIFI_SSID_2, CONFIG_RB_WIFI_SWITCH_AFTER);
+    }
+    return apply_network(0);
 }
 
 static void wifi_join(void)
 {
     s_backoff_ms = 1000;
     iface_set(&s_wifi, RB_NET_DOWN);
-    ESP_LOGI(TAG, "connecting to Wi-Fi '%s'", CONFIG_RB_WIFI_SSID);
+    s_failures = 0;
+    ESP_LOGI(TAG, "connecting to Wi-Fi '%s'", s_networks[s_network].ssid);
     esp_wifi_connect();
 }
 
@@ -359,6 +405,12 @@ static void on_got_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     const ip_event_got_ip_t *event = data;
     iface_set(iface, RB_NET_CONNECTED);
     iface->ip = event->ip_info.ip;
+#if CONFIG_RB_NET_USES_WIFI
+    if (iface == &s_wifi) {
+        s_failures = 0;
+        ESP_LOGI(TAG, "on Wi-Fi network '%s'", s_networks[s_network].ssid);
+    }
+#endif
     ESP_LOGI(TAG, "%s connected: IP " IPSTR " gateway " IPSTR, iface->name, IP2STR(&event->ip_info.ip),
              IP2STR(&event->ip_info.gw));
     if (iface == &s_eth) {
@@ -402,6 +454,15 @@ const char *rb_net_state_name(rb_net_state_t state)
 {
     static const char *const names[] = {"DISABLED", "DOWN", "LINK_UP", "CONNECTED"};
     return (unsigned)state < sizeof(names) / sizeof(names[0]) ? names[state] : "?";
+}
+
+const char *rb_net_wifi_ssid(void)
+{
+#if CONFIG_RB_NET_USES_WIFI
+    return s_networks[s_network].ssid;
+#else
+    return "";
+#endif
 }
 
 const char *rb_net_interface_name(void)

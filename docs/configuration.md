@@ -226,6 +226,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|---|---|---|
 | `CONFIG_RB_WIFI_SSID` | SSID | `""` |  |  |
 | `CONFIG_RB_WIFI_PASSWORD` | Password | `""` |  |  |
+| `CONFIG_RB_WIFI_SSID_2` | Backup SSID (empty = none, e.g. a phone hotspot) | `""` |  |  |
+| `CONFIG_RB_WIFI_PASSWORD_2` | Backup password | `""` |  |  |
+| `CONFIG_RB_WIFI_SWITCH_AFTER` | Switch to the other network after this many failed attempts | `3` | 1 – 20 |  |
 | `CONFIG_RB_WIFI_MAX_BACKOFF_MS` | Longest reconnect back-off (ms) | `16000` | 1000 – 300000 |  |
 
 ## MQTT broker (MacBook)
@@ -234,6 +237,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|---|---|---|
 | `CONFIG_RB_BROKER_HOST` | Broker host (MacBook LAN IP or hostname) | `""` |  |  |
 | `CONFIG_RB_BROKER_FALLBACK_HOST` | Fallback broker host (empty = none) | `""` |  |  |
+| `CONFIG_RB_BROKER_FALLBACK_HOST_2` | Second fallback broker host, e.g. on the hotspot (empty = none) | `""` |  |  |
 | `CONFIG_RB_BROKER_PORT` | Broker port | `1883` | 1 – 65535 |  |
 | `CONFIG_RB_MQTT_CONTROLLER_ID` | Controller ID (MQTT client ID and JSON controller_id) | `"controller_01"` |  |  |
 | `CONFIG_RB_MQTT_TOPIC_PREFIX` | Topic prefix | `"rb4107"` |  |  |
@@ -308,9 +312,9 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | Presence debounce | `RB_SAFETY_ABSENCE_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS` (also live from the dashboard, `RB_CTRL_REMOTE_PRESENCE_FILTER`). The S3 is the only place that debounces: the C4002's own disappear delay and lock time are fixed at 0 s and 0.2 s |
 | Temperature thresholds | `RB_SAFETY_HEAT_ON_DC` (also from the dashboard and saved, `RB_CTRL_REMOTE_COOKING_TEMP`), `RB_SAFETY_HEAT_OFF_DC`, `RB_THERMAL_HOT_PIXEL_THRESHOLD_DC` (display only; the controller keeps it equal to the cooking temperature) |
 | Temperature-rate thresholds | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN`, `RB_THERMAL_RATE_WINDOW_S` |
-| Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING`; temperature tiers `RB_SAFETY_TIER_2..5_*`, `RB_SAFETY_TIER_RATE`, `RB_SAFETY_FALLING_HOLD` |
-| Network interface | `RB_NET_TYPE` (Wi-Fi station by default; the controller is Wi-Fi only), `RB_WIFI_SSID`, `RB_WIFI_PASSWORD` |
-| MQTT broker | `RB_BROKER_HOST`, `RB_BROKER_PORT`, `RB_MQTT_TOPIC_PREFIX`, `RB_MQTT_TELEMETRY_PERIOD_MS` |
+| Warning / shutdown timeout | `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMING` |
+| Network interface | `RB_NET_TYPE` (Wi-Fi station by default; the controller is Wi-Fi only), `RB_WIFI_SSID`, `RB_WIFI_PASSWORD`, backup network `RB_WIFI_SSID_2`, `RB_WIFI_PASSWORD_2`, `RB_WIFI_SWITCH_AFTER` (see [setup.md](setup.md#phone-hotspot-as-a-backup)) |
+| MQTT broker | `RB_BROKER_HOST`, `RB_BROKER_FALLBACK_HOST`, `RB_BROKER_FALLBACK_HOST_2`, `RB_BROKER_PORT`, `RB_MQTT_TOPIC_PREFIX`, `RB_MQTT_TELEMETRY_PERIOD_MS` |
 
 How to change values (menuconfig or a file): [setup.md](setup.md#changing-settings).
 Django settings are environment variables: [`django/README.md`](../django/README.md#configuration-environment-variables).

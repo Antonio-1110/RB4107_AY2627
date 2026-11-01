@@ -98,6 +98,30 @@ takes about a second, also when the router changes channel later. It needs
 `RB_NODE_CONTROLLER_MAC` set on every node; a node sending to broadcast stays
 on `RB_ESPNOW_CHANNEL`, which must then match the router.
 
+### Phone hotspot as a backup
+
+For a site without the router, store the hotspot as a second network in
+menuconfig → RB4107 configuration → Network:
+
+| Setting | Value |
+|---|---|
+| `RB_WIFI_SSID_2`, `RB_WIFI_PASSWORD_2` | the hotspot's name and password |
+| `RB_BROKER_FALLBACK_HOST_2` | the Mac's IP on the hotspot (`tools/mqtt/lan_ip.sh` while on it; usually `172.20.10.x` on an iPhone) |
+
+The controller joins one network at a time. It starts on `RB_WIFI_SSID`, and
+after `RB_WIFI_SWITCH_AFTER` (3) failed attempts in a row it tries the
+hotspot, alternating until one works (log `switching to '<ssid>'`; the `mqtt`
+console command shows the SSID in use). With the router missing that takes
+about 10–20 s after boot. It stays on the hotspot until the hotspot fails, so
+reboot it to go back to the router. The broker is tried as `RB_BROKER_HOST`
+(the `.local` name, which normally works on a hotspot too), then each
+fallback IP in turn.
+
+On the phone: the S3 only does 2.4 GHz, so on an iPhone turn on Personal
+Hotspot → **Maximize Compatibility**, and keep the Mac joined to the hotspot
+too (it runs the broker). The hotspot picks its own channel; the nodes
+follow it as above.
+
 ## Backend and dashboard
 
 First time only:
