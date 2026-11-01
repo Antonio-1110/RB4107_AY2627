@@ -4,7 +4,8 @@ import math
 from collections import defaultdict
 from django.conf import settings
 
-SEVERITY_RANK = {"critical": 5, "warning": 4, "fault": 3, "normal": 2, "unknown": 1}
+# Worst first. Unknown outranks normal: a stall is normal only if all its controllers are.
+SEVERITY_RANK = {"critical": 5, "warning": 4, "fault": 3, "unknown": 2, "normal": 1}
 CONNECTION_RANK = {"monitor_unavailable": 5, "offline": 4, "stale": 3, "unknown": 2, "online": 1}
 
 
@@ -47,8 +48,62 @@ def location_for(device_id, catalog=None):
     return result
 
 
+# The stall status rule (docs/dashboard.md, "Stall status"). Each controller
+# gets exactly one level; the first rule that matches wins:
+#   1. critical  the supply is cut (relay isolated or SHUTDOWN), even last known
+#   2. warning   WARNING / UNATTENDED or the warning buzzer, even last known
+#   3. fault     anything that leaves the stall unprotected or unseen:
+#                F1 the controller reports FAULT,
+#                F2 the controller is not online (offline, stale, never heard,
+#                   or the MQTT monitor is down),
+#                F3 its safety state is older than the stale window,
+#                F4 a sensor node it lists is not working (link not ONLINE or
+#                   reading invalid),
+#                F5 it lists no sensor nodes at all
+#   4. unknown   online and working, but starting up (BOOT, SELF_TEST) or a
+#                state the dashboard doesn't know
+#   5. normal    IDLE or MONITORING, buzzer off, fresh, every node working
+# A stall shows its worst controller (SEVERITY_RANK). Display only: the
+# firmware's own safety logic is docs/safety_rules.md.
+NOT_ONLINE_TITLE = {"offline": "CONTROLLER OFFLINE", "stale": "CONTROLLER NOT REPORTING",
+                    "unknown": "CONTROLLER NEVER HEARD", "monitor_unavailable": "MONITOR UNAVAILABLE"}
+
+
+def node_problems(device):
+    """Sensor nodes the controller lists that it can't use right now, as
+    "node_01 offline" texts. A node whose link wasn't refreshed by the last
+    telemetry (older than the stale window) is no longer configured: skipped."""
+    sensors = device["values"].get("sensors")
+    if not isinstance(sensors, dict):
+        return []
+    ages = device["field_age_seconds"]
+    problems = []
+    for name, sensor in sorted(sensors.items()):
+        if not isinstance(sensor, dict) or "link" not in sensor:
+            continue
+        link_age = ages.get(f"sensors.{name}.link")
+        if link_age is not None and link_age > device["stale_after_seconds"]:
+            continue
+        link = sensor["link"]
+        if link != "ONLINE":
+            problems.append(f"{name} {str(link).lower().replace('_', ' ')}")
+        elif sensor.get("valid") is False:
+            problems.append(f"{name} invalid reading")
+    return problems
+
+
+def listed_nodes(device):
+    sensors = device["values"].get("sensors")
+    if not isinstance(sensors, dict):
+        return 0
+    ages = device["field_age_seconds"]
+    return sum(1 for name, sensor in sensors.items() if isinstance(sensor, dict) and "link" in sensor and
+               not ((ages.get(f"sensors.{name}.link") or 0) > device["stale_after_seconds"]))
+
+
 def classify_display_state(device):
-    """Classify reported states for the UI; never performs cooking safety logic.
+    """Classify a controller for the UI (the stall status rule above); never
+    performs cooking safety logic.
 
     The values come from normalization.py, i.e. the firmware's schema-v2 enums
     in lower case: safety_state is boot, self_test, idle, monitoring,
@@ -59,29 +114,56 @@ def classify_display_state(device):
     safety = values.get("safety_state")
     alarm = values.get("alarm_state")
     relay = values.get("relay_state")
+    connection = device["connection"]
+    source = "safety_state"
+    reasons = []
     if relay == "isolated" or safety == "shutdown":
         level, title = "critical", "SUPPLY ISOLATED"
         source = "relay_state" if relay == "isolated" else "safety_state"
     elif safety == "warning" or alarm == "warning":
         level, title = "warning", "UNATTENDED COOKING WARNING"
         source = "safety_state" if safety == "warning" else "alarm_state"
-    elif safety == "fault" or alarm == "fault":
-        level, title = "fault", "SAFETY SYSTEM FAULT"
-        source = "safety_state" if safety == "fault" else "alarm_state"
     elif safety == "unattended":
-        level, title, source = "warning", "UNATTENDED — TIMER RUNNING", "safety_state"
-    elif safety in {"idle", "monitoring"} and alarm in {None, "clear"}:
-        level, title, source = "normal", "NORMAL", "safety_state"
-    elif safety in {"boot", "self_test"}:
-        level, title, source = "unknown", "CONTROLLER STARTING", "safety_state"
+        level, title = "warning", "UNATTENDED — TIMER RUNNING"
     else:
-        level, title, source = "unknown", "UNKNOWN STATE", "safety_state"
+        level = None
     source_age = device["field_age_seconds"].get(source)
-    last_known = device["connection"] != "online" or source_age is None or source_age > device["stale_after_seconds"]
-    if level == "normal" and last_known:
-        level, title = "unknown", "LAST-KNOWN NORMAL — NOT CURRENT"
+    last_known = connection != "online" or source_age is None or source_age > device["stale_after_seconds"]
+    if level is None:
+        nodes = node_problems(device)
+        if safety == "fault" or alarm == "fault":
+            reasons.append("controller reports a safety fault")
+        if connection != "online":
+            reasons.append(f"controller {connection.replace('_', ' ')}")
+        elif last_known:
+            reasons.append("safety state not current")
+        if connection == "online" and not last_known:
+            reasons += [f"sensor {text}" for text in nodes]
+            if not nodes and listed_nodes(device) == 0:
+                reasons.append("no sensor nodes reported")
+        if reasons:
+            level = "fault"
+            if safety == "fault" or alarm == "fault":
+                title = "SAFETY SYSTEM FAULT"
+                if alarm == "fault" and safety != "fault":
+                    source = "alarm_state"
+            elif connection != "online":
+                title = NOT_ONLINE_TITLE.get(connection, "CONTROLLER NOT ONLINE")
+            elif last_known:
+                title = "SAFETY STATE NOT CURRENT"
+            elif nodes:
+                title = "SENSOR NODE DOWN" if len(nodes) == 1 else "SENSOR NODES DOWN"
+            else:
+                title = "NO SENSOR NODES"
+        elif safety in {"idle", "monitoring"} and alarm in {None, "clear"}:
+            level, title = "normal", "NORMAL"
+        elif safety in {"boot", "self_test"}:
+            level, title = "unknown", "CONTROLLER STARTING"
+        else:
+            level, title = "unknown", "UNKNOWN STATE"
     return {"level": level, "title": title, "active": level in {"critical", "warning", "fault"},
-            "source_field": source, "freshness_seconds": source_age, "last_known": last_known}
+            "reasons": reasons, "source_field": source, "freshness_seconds": source_age,
+            "last_known": last_known}
 
 
 # Active cooking. The firmware decides it: cooking starts when the thermal
@@ -191,28 +273,19 @@ def aggregate_stalls(devices):
                                             item["location"]["level"], item["stall_name"]))
 
 
-ACTIVE_SEVERITIES = {"critical", "warning", "fault"}
-
-
-# Each stall lands in exactly one summary card, so the cards add up to the
-# total. An active alarm keeps its severity even when the stall is offline
-# (last known); otherwise an offline / stale stall is a connectivity issue,
-# and "unknown" is left for online stalls whose controller state is unknown.
+# Each stall lands in exactly one summary card: its status (the stall status
+# rule above), so the cards add up to the total. Offline or stale stalls are
+# faults; there is no separate connectivity card.
 def summary_bucket(stall):
-    if stall["severity"] in ACTIVE_SEVERITIES:
-        return stall["severity"]
-    if stall["connection"] != "online":
-        return "connectivity_issues"
     return stall["severity"]
 
 
 def fleet_summary(stalls):
     summary = {"total": len(stalls), "critical": 0, "warning": 0, "fault": 0,
-               "normal": 0, "unknown": 0, "connectivity_issues": 0, "cooking": 0}
+               "normal": 0, "unknown": 0, "cooking": 0}
     for stall in stalls:
         summary["cooking"] += stall["cooking"]["active"]
-        bucket = summary_bucket(stall)
-        summary[bucket] = summary.get(bucket, 0) + 1
+        summary[summary_bucket(stall)] += 1
     return summary
 
 

@@ -80,10 +80,32 @@ WARNING and UNATTENDED remain in summary, tiles, table and stall detail without
 a sticky warning banner. Missing or invalid thermal values stay null. The
 warning and shutdown times shown are the ones the controller reports.
 
-Display severity (`ingest/locations.py`, `classify_display_state`) uses only
-the firmware's states: SHUTDOWN or an isolated supply is critical, WARNING and
-UNATTENDED are warnings, FAULT is a fault, IDLE and MONITORING are normal, and
-BOOT/SELF_TEST show as "controller starting".
+### Stall status
+
+Every controller gets exactly one status, worked out by Django
+(`classify_display_state()` in `ingest/locations.py`, tests in
+`ingest/tests/test_stall_status.py`). The rules are checked in order and the
+first one that matches wins:
+
+| # | Status | When |
+|---|---|---|
+| 1 | **Critical** | The supply is cut: relay isolated or state SHUTDOWN. Kept even when the data is last known, because the cut is latched |
+| 2 | **Warning** | State WARNING or UNATTENDED, or the warning buzzer. Kept when last known |
+| 3 | **Fault** | Anything that leaves the stall unprotected or out of sight: **F1** the controller reports FAULT; **F2** the controller is not online (offline by Last Will, no message for `RB4107_DEVICE_STALE_SECONDS` = 15 s, never heard, or the MQTT monitor is down); **F3** its safety state is older than 15 s; **F4** a sensor node it lists is not working (link STALE, OFFLINE or NEVER_SEEN, or an invalid reading); **F5** it lists no sensor nodes |
+| 4 | **Unknown** | Online and every node working, but the controller is starting (BOOT, SELF_TEST) or reports a state the dashboard doesn't know |
+| 5 | **Normal** | IDLE or MONITORING, buzzer off, fresh data, every listed node working |
+
+A stall with several controllers shows the worst one (critical, warning,
+fault, unknown, normal). Each stall is counted in exactly one summary card, so
+the cards add up to the total; there is no separate connectivity card, an
+offline stall is a fault. A fault lists all its reasons on the stall page; the
+title names the first (for example SENSOR NODES DOWN, CONTROLLER OFFLINE). If
+the dashboard itself loses Django, every stall that wasn't critical or warning
+turns into a fault ("dashboard can't reach the server").
+
+This is display only. The firmware keeps its own rules (`safety_rules.md`): a
+lost sensor node does not put the controller's state machine in FAULT (rules
+A4, A8), so a controller can report IDLE while the dashboard shows Fault.
 
 ## Monitor and Tuning modes
 
@@ -256,7 +278,7 @@ Edit `django/locations.json`, keyed by the firmware's `controller_id`
 and its stall names are fictional. Each demo stall plays the scenario in its
 `demo_scenario`: `monitoring`, `unattended`, `warning`, `shutdown` (supply
 cut, cooling down), `idle`, `fault_radars` (both radars invalid),
-`fault_node_offline` (one radar node unplugged: FAULT, as in the firmware) or
+`fault_node_offline` (one radar node unplugged: a Fault on the dashboard) or
 `network_loss` (online, then stale, then offline by Last Will, then back,
 every 2 minutes). Simulated stalls are tagged SIMULATED.
 Unknown IDs are accepted and displayed as unassigned locations.

@@ -75,10 +75,6 @@
             <p>Unknown state</p>
             <strong id="summary-unknown">0</strong>
           </article>
-          <article class="summary-card offline">
-            <p>Connectivity issue</p>
-            <strong id="summary-connectivity">0</strong>
-          </article>
           <article class="summary-card normal">
             <p>Normal</p>
             <strong id="summary-normal">0</strong>
@@ -112,7 +108,6 @@
               <option value="critical">Critical</option>
               <option value="warning">Warning</option>
               <option value="fault">Fault</option>
-              <option value="connectivity">Connectivity issue</option>
               <option value="normal">Normal</option>
               <option value="unknown">Unknown</option>
             </select></label
@@ -137,7 +132,7 @@
           <div class="section-heading">
             <div>
               <h2>All-stall status</h2>
-              <p class="muted">Safety severity and connectivity are shown independently.</p>
+              <p class="muted">Status follows the stall status rule: an offline controller or sensor node is a fault.</p>
             </div>
           </div>
           <div class="table-scroll">
