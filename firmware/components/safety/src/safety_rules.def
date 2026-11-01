@@ -82,15 +82,21 @@ SAFETY_SIGNAL(C2, "safety/src/safety.c", on_enter,
     "Entering UNATTENDED",
     "The countdown is counted from when the absence began, never from before cooking started")
 SAFETY_SIGNAL(C3, "safety/src/safety.c", update_tier,
-    "Hottest pixel at least {RB_SAFETY_TIER1_TEMP_DC} for {TIER_UP_PERSIST_MS} (ELEVATED)",
-    "Buzzer after {RB_SAFETY_TIER1_WARNING_S}, shutdown after {RB_SAFETY_TIER1_SHUTDOWN_S}, if shorter than the base times")
+    "Hottest pixel below every hotter tier (tier 1: a simmer, boiling water)",
+    "The base times: buzzer after {RB_SAFETY_WARNING_TIMEOUT_S}, shutdown after {RB_SAFETY_SHUTDOWN_TIMEOUT_S}")
 SAFETY_SIGNAL(C4, "safety/src/safety.c", update_tier,
-    "Hottest pixel at least {RB_SAFETY_TIER2_TEMP_DC}, or rising {RB_SAFETY_TIER2_RATE_DC_PER_MIN} above {RB_SAFETY_TIER2_RATE_MIN_TEMP_DC}, for {TIER_UP_PERSIST_MS} (CRITICAL)",
-    "Buzzer after {RB_SAFETY_TIER2_WARNING_S}, shutdown after {RB_SAFETY_TIER2_SHUTDOWN_S}, if shorter")
-SAFETY_SIGNAL(C5, "safety/src/safety.c", update_tier,
-    "{TIER_HYST_C} below the tier's threshold for {TIER_DOWN_PERSIST_MS}",
+    "Hottest pixel at least {RB_SAFETY_TIER_2_TEMP_DC} (tier 2), {RB_SAFETY_TIER_3_TEMP_DC} (tier 3), {RB_SAFETY_TIER_4_TEMP_DC} (tier 4) or {RB_SAFETY_TIER_5_TEMP_DC} (tier 5), for {TIER_UP_PERSIST_MS}",
+    "Buzzer / shutdown after {RB_SAFETY_TIER_2_WARNING_S} / {RB_SAFETY_TIER_2_SHUTDOWN_S} (tier 2), {RB_SAFETY_TIER_3_WARNING_S} / {RB_SAFETY_TIER_3_SHUTDOWN_S} (tier 3), {RB_SAFETY_TIER_4_WARNING_S} / {RB_SAFETY_TIER_4_SHUTDOWN_S} (tier 4), {RB_SAFETY_TIER_5_WARNING_S} / {RB_SAFETY_TIER_5_SHUTDOWN_S} (tier 5), if shorter than the base times. The hottest tier that applies wins")
+SAFETY_SIGNAL(C5, "safety/src/safety.c", tier_for,
+    "Rate rule ({RB_SAFETY_TIER_RATE} by default): the temperature, plus its rise over the last {TIER_RATE_WINDOW_MS} times a tier's buzzer time, reaches that tier's temperature, for {TIER_UP_PERSIST_MS}",
+    "That tier already: the buzzer sounds no later than the moment the pan would get there. The rise is the median of the newer half of the window minus the median of the older half, so one bad frame fakes no rise. Only a rise counts")
+SAFETY_SIGNAL(C6, "safety/src/safety.c", update_tier,
+    "{TIER_HYST_C} below the tier's threshold (and not heading back, C5) for {TIER_DOWN_PERSIST_MS}",
     "Back to the lower tier")
-SAFETY_SIGNAL(C6, "safety/src/safety.c", pause_clock,
+SAFETY_SIGNAL(C7, "safety/src/safety.c", evaluate,
+    "The tier changes during a countdown",
+    "The countdown is not restarted: the time already away counts against the new limits. If they are already passed the buzzer sounds at once, and the shutdown waits for {LATE_WARNING_MIN_MS} of buzzer")
+SAFETY_SIGNAL(C8, "safety/src/safety.c", pause_clock,
     "Someone is seen during UNATTENDED or WARNING",
     "The countdown stands still. At most {RB_SAFETY_PAUSE_BUDGET_S} per countdown, and at most {RB_SAFETY_PAUSE_BUDGET_PCT} of the shutdown time")
 
@@ -107,6 +113,9 @@ SAFETY_SIGNAL(D3, "safety/src/safety.c", hold_reason,
 SAFETY_SIGNAL(D4, "safety/src/safety.c", present_confirmed,
     "Someone returns: PRESENT for {RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS}, absent gaps under {RB_SAFETY_PRESENCE_RETURN_GAP_MS} forgiven, still present at the end",
     "Return confirmed (used by T10, T13)")
+SAFETY_SIGNAL(D5, "safety/src/safety.c", falling_hold,
+    "A buzzer or shutdown comes due while the temperature is falling at least {FALLING_RATE_C_PER_MIN} (over the last {TIER_RATE_WINDOW_MS}), and the trend has not confirmed heat going in (the prediction of D1 at least {SETTLE_MARGIN_C} above the off temperature and moving at most {SETTLE_MAX_DRIFT_C_PER_MIN})",
+    "It waits (falling hold; {RB_SAFETY_FALLING_HOLD} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {FALLING_HOLD_MAX_MS} at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead")
 
 /* ---- T. state transitions, in the order they are checked ---- */
 SAFETY_RULE(T01, ST(SAFETY_BOOT), g_always, SAFETY_SELF_TEST, NULL, "boot complete",
@@ -134,13 +143,13 @@ SAFETY_RULE(T10, ST(SAFETY_UNATTENDED), g_person_returned, SAFETY_MONITORING, NU
 SAFETY_RULE(T11, ST(SAFETY_UNATTENDED), g_cooled_down, SAFETY_IDLE, NULL, "heating stopped while unattended",
     "Not cooking (B3), with the cooling policy {RB_SAFETY_COOLING}. The countdown is cancelled")
 SAFETY_RULE(T12, ST(SAFETY_UNATTENDED), g_warning_unheld, SAFETY_WARNING, a_note_late_warning, "unattended timeout",
-    "Unattended for the warning time ({RB_SAFETY_WARNING_TIMEOUT_S}, shorter in a hot tier C3, C4) and no hold (D2, D3)")
+    "Unattended for the warning time ({RB_SAFETY_WARNING_TIMEOUT_S}, shorter in a hotter tier C4, C5) and no hold (D2, D3, D5)")
 SAFETY_RULE(T13, ST(SAFETY_WARNING), g_warning_exit, SAFETY_MONITORING, NULL, "person returned during warning",
     "Return confirmed (D4). The warning exit is {RB_SAFETY_WARNING_EXIT}; if it is changed to acknowledge, a reset is needed as well")
 SAFETY_RULE(T14, ST(SAFETY_WARNING), g_cooled_down, SAFETY_IDLE, NULL, "heating stopped during warning",
     "Not cooking (B3), with the cooling policy {RB_SAFETY_COOLING}. The countdown is cancelled")
 SAFETY_RULE(T15, ST(SAFETY_WARNING), g_shutdown_unheld, SAFETY_SHUTDOWN, NULL, "shutdown timeout",
-    "Unattended for the shutdown time ({RB_SAFETY_SHUTDOWN_TIMEOUT_S}, counted from {RB_SAFETY_SHUTDOWN_TIMING}, shorter in a hot tier), no hold, and the buzzer has sounded at least {WARNING_MIN_AFTER_HOLD_MS} if a hold happened, or {LATE_WARNING_MIN_MS} if a tier made the shutdown due at once")
+    "Unattended for the shutdown time ({RB_SAFETY_SHUTDOWN_TIMEOUT_S}, counted from {RB_SAFETY_SHUTDOWN_TIMING}, shorter in a hotter tier), no hold (D2, D3, D5), and the buzzer has sounded at least {WARNING_MIN_AFTER_HOLD_MS} if a hold happened, or {LATE_WARNING_MIN_MS} if a tier made the shutdown due at once")
 SAFETY_RULE(T16, ST(SAFETY_SHUTDOWN), g_reset, SAFETY_IDLE, NULL, "operator reset",
     "Operator reset (dashboard button or console reset). Nothing else leaves SHUTDOWN; a reboot also clears it. All timing starts over")
 SAFETY_RULE(T17, ST(SAFETY_FAULT), g_fault_cleared_not_cooking, SAFETY_IDLE, NULL, "fault cleared, no heating",

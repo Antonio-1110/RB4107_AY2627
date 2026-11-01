@@ -491,36 +491,50 @@
             </div>
             <p class="muted small" id="cd-timer-tiers" data-show="tuning"></p>
             <div class="tr-block" data-show="tuning">
-              <p class="eyebrow">TEMPERATURE TIERS (hottest pixel)</p>
+              <p class="eyebrow">TEMPERATURE TIERS (hottest pixel; tier 1 = the times above)</p>
               <div class="tuning-grid presence-filter-grid">
                 <label
-                  >Elevated from (°C)<input id="tr-e-temp" type="number" min="0" max="300" step="1"
+                  >Tier 2 from (°C)<input id="tr-2-temp" type="number" min="0" max="300" step="1"
                 /></label>
                 <label
-                  >Buzzer after (s)<input id="tr-e-warn" type="number" min="1" max="3600" step="1"
+                  >Buzzer after (s)<input id="tr-2-warn" type="number" min="1" max="3600" step="1"
                 /></label>
                 <label
-                  >Shut down after (s)<input id="tr-e-stop" type="number" min="1" max="3600" step="1"
+                  >Shut down after (s)<input id="tr-2-stop" type="number" min="1" max="3600" step="1"
                 /></label>
                 <label
-                  >Critical from (°C)<input id="tr-c-temp" type="number" min="0" max="300" step="1"
+                  >Tier 3 from (°C)<input id="tr-3-temp" type="number" min="0" max="300" step="1"
                 /></label>
                 <label
-                  >Buzzer after (s)<input id="tr-c-warn" type="number" min="1" max="3600" step="1"
+                  >Buzzer after (s)<input id="tr-3-warn" type="number" min="1" max="3600" step="1"
                 /></label>
                 <label
-                  >Shut down after (s)<input id="tr-c-stop" type="number" min="1" max="3600" step="1"
+                  >Shut down after (s)<input id="tr-3-stop" type="number" min="1" max="3600" step="1"
                 /></label>
                 <label
-                  >... or rising (°C/min)<input id="tr-c-rate" type="number" min="0" max="1000" step="1"
+                  >Tier 4 from (°C)<input id="tr-4-temp" type="number" min="0" max="300" step="1"
                 /></label>
                 <label
-                  >... above (°C)<input id="tr-c-ratemin" type="number" min="0" max="300" step="1"
+                  >Buzzer after (s)<input id="tr-4-warn" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >Shut down after (s)<input id="tr-4-stop" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >Tier 5 from (°C)<input id="tr-5-temp" type="number" min="0" max="300" step="1"
+                /></label>
+                <label
+                  >Buzzer after (s)<input id="tr-5-warn" type="number" min="1" max="3600" step="1"
+                /></label>
+                <label
+                  >Shut down after (s)<input id="tr-5-stop" type="number" min="1" max="3600" step="1"
                 /></label>
               </div>
               <p class="muted small">
-                A temperature of 0 turns a tier off. A tier only ever shortens the base times. Saved
-                on the controller.
+                A temperature of 0 turns a tier off; each tier must start at or above the one before it. A tier
+                only ever shortens the base times, and a pan rising fast enough to reach a tier within its buzzer
+                time already gets it ("A rising pan gets the tier it is heading for" in Other settings). Saved on
+                the controller.
               </p>
               <div class="reset-actions">
                 <button id="tr-apply" class="primary-button" type="button" disabled>Apply tiers</button>

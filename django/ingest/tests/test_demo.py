@@ -39,18 +39,18 @@ class DemoScenarioTests(SimpleTestCase):
         self.assertEqual(state("idle")["presence_state"], "ABSENT")
         # The timers stay inside their state's window while counting.
         for tick in range(0, 120, 7):
-            self.assertLess(state("unattended", tick)["safety"]["unattended_ms"], 180000)
-            self.assertTrue(180000 <= state("warning", tick)["safety"]["unattended_ms"] < 300000)
+            self.assertLess(state("unattended", tick)["safety"]["unattended_ms"], 150000)
+            self.assertTrue(150000 <= state("warning", tick)["safety"]["unattended_ms"] < 300000)
         # Hot oil: the temperature tier gives much shorter limits than the simmering pots.
         hot = state("hot_pan")
-        self.assertEqual(hot["safety"]["tier"], "critical")
-        self.assertEqual(hot["safety"]["effective_warning_ms"], 30000)
+        self.assertEqual(hot["safety"]["tier"], "tier4")
+        self.assertEqual(hot["safety"]["effective_warning_ms"], 60000)
         self.assertGreaterEqual(hot["thermal"]["max_c"], 200.0)
         for tick in range(0, 60, 3):
-            self.assertLess(state("hot_pan", tick)["safety"]["unattended_ms"], 30000)
+            self.assertLess(state("hot_pan", tick)["safety"]["unattended_ms"], 60000)
         for scenario in ("monitoring", "unattended", "warning", "cooling", "idle"):
-            self.assertEqual(state(scenario)["safety"]["tier"], "normal")
-            self.assertEqual(state(scenario)["safety"]["effective_warning_ms"], 180000)
+            self.assertEqual(state(scenario)["safety"]["tier"], "tier1")
+            self.assertEqual(state(scenario)["safety"]["effective_warning_ms"], 150000)
         # After the supply is cut the stove cools down.
         hot, later = state("shutdown", 0)["thermal"], state("shutdown", 150)["thermal"]
         self.assertGreater(hot["max_c"], later["max_c"])

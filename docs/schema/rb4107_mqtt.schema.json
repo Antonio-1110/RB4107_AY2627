@@ -110,8 +110,8 @@
             "shutdown_after_ms": {"type": "integer", "minimum": 0, "description": "configured time before SHUTDOWN, counted from shutdown_counts_from"},
             "shutdown_counts_from": {"enum": ["UNATTENDED", "WARNING"]},
             "test_timers": {"type": "boolean"},
-            "hold": {"enum": ["none", "return", "cooling"], "description": "what holds a due buzzer or shutdown back right now: return = the radar sees someone and the return is being confirmed (bounded); cooling = the pan is only cooling down (at most 4 cookware time constants)"},
-            "tier": {"enum": ["normal", "elevated", "critical"], "description": "temperature tier in force: the hotter the pan, the shorter the buzzer and shutdown times. normal = the base times (warning_after_ms / shutdown_after_ms)"},
+            "hold": {"enum": ["none", "return", "cooling", "falling"], "description": "what holds a due buzzer or shutdown back right now: return = the radar sees someone and the return is being confirmed (bounded); cooling = the pan is only cooling down (at most 4 cookware time constants); falling = the temperature is falling and the trend has not confirmed heat going in yet (at most falling_hold_max_ms per countdown)"},
+            "tier": {"enum": ["tier1", "tier2", "tier3", "tier4", "tier5", "normal", "elevated", "critical"], "description": "temperature tier in force: the hotter the pan (or the tier a rising pan is heading for), the shorter the buzzer and shutdown times. tier1 = the base times (warning_after_ms / shutdown_after_ms). normal/elevated/critical: firmware before 2026-10-31 (three tiers)"},
             "effective_warning_ms": {"type": "integer", "minimum": 0, "description": "the buzzer time in force now (base, tier and timing hook applied); never longer than warning_after_ms"},
             "effective_shutdown_ms": {"type": "integer", "minimum": 0, "description": "the shutdown time in force now, counted like shutdown_after_ms"},
             "tiers": {
@@ -119,14 +119,14 @@
                 {"type": "null"},
                 {
                   "type": "object",
-                  "description": "the tier settings: elevated from temp_c; critical from temp_c, or rising at least rate_c_per_min above rate_min_temp_c. Times count like the base times. A tier with temp_c <= 0 is off",
-                  "required": ["elevated", "critical"],
+                  "description": "tiers 2 to 5 (tier 1 is the base times): tier N from temp_c, or when rising fast enough to reach it within its warning time (rate). Times count like the base times. A tier with temp_c <= 0 is off. Firmware before 2026-10-31 sent elevated/critical objects instead of levels",
                   "properties": {
                     "source": {"enum": ["menuconfig", "dashboard"], "description": "dashboard = set from the dashboard and saved on the controller"},
-                    "elevated": {"type": "object", "required": ["temp_c", "warning_ms", "shutdown_ms"],
-                                 "properties": {"temp_c": {"$ref": "#/$defs/nullable_number"}, "warning_ms": {"type": "integer", "minimum": 0}, "shutdown_ms": {"type": "integer", "minimum": 0}}},
-                    "critical": {"type": "object", "required": ["temp_c", "warning_ms", "shutdown_ms"],
-                                 "properties": {"temp_c": {"$ref": "#/$defs/nullable_number"}, "rate_c_per_min": {"$ref": "#/$defs/nullable_number"}, "rate_min_temp_c": {"$ref": "#/$defs/nullable_number"}, "warning_ms": {"type": "integer", "minimum": 0}, "shutdown_ms": {"type": "integer", "minimum": 0}}}
+                    "rate": {"type": "boolean", "description": "a rising pan gets the tier it is heading for"},
+                    "levels": {"type": "array", "minItems": 4, "maxItems": 4,
+                               "items": {"type": "object", "required": ["tier", "temp_c", "warning_ms", "shutdown_ms"],
+                                         "properties": {"tier": {"type": "integer", "minimum": 2, "maximum": 5}, "temp_c": {"$ref": "#/$defs/nullable_number"},
+                                                        "warning_ms": {"type": "integer", "minimum": 0}, "shutdown_ms": {"type": "integer", "minimum": 0}}}}
                   }
                 }
               ]
@@ -432,7 +432,7 @@
       }
     },
     "controller_command": {
-      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set the temperature tiers (buzzer and shutdown times for hotter pans), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values; params = set every other safety setting (the keys marked params: below, all of them, from firmware/components/rb_params/include/rb_params.def), saved on the controller; params_defaults = back to the menuconfig and built-in values; log_level = set one tag's log level (log_tag, \"*\" = the default) until reboot, as the console's log command; log_level_defaults = back to the menuconfig log levels (docs/remote_reset.md, docs/logging.md).",
+      "description": "Dashboard -> controller on rb4107/controller/command (published by Django, not retained). reset = operator reset / acknowledge, as the console's reset command; presence_filter = change the presence filter and the warning/shutdown times until reboot; presence_filter_defaults = back to the menuconfig values; cooking_temp = set the cooking temperature (0.1 degC; cooking when the hottest pixel reaches it), saved on the controller and also sent to the thermal node as its hot-pixel threshold; cooking_temp_defaults = back to the menuconfig value; cookware = pick the cookware profile (mixed, light, heavy, liquid), saved on the controller; cookware_defaults = back to the menuconfig profile; tiers = set temperature tiers 2 to 5 (buzzer and shutdown times for hotter pans; tier 1 is the base times), saved on the controller; tiers_defaults = back to the menuconfig tiers; attendance = set who counts as at the stove (every working radar or either) and the pause budget, saved on the controller; attendance_defaults = back to the menuconfig values; radar_rules = set the radar state and distance rules (mode and episode numbers), saved on the controller; radar_rules_defaults = back to the menuconfig values; params = set every other safety setting (the keys marked params: below, all of them, from firmware/components/rb_params/include/rb_params.def), saved on the controller; params_defaults = back to the menuconfig and built-in values; log_level = set one tag's log level (log_tag, \"*\" = the default) until reboot, as the console's log command; log_level_defaults = back to the menuconfig log levels (docs/remote_reset.md, docs/logging.md).",
       "type": "object",
       "required": ["schema_version", "type", "controller_id", "request_id", "action"],
       "additionalProperties": false,
@@ -457,14 +457,18 @@
         "pause_budget_pct": {"type": "integer", "minimum": 0, "maximum": 100},
         "presence_fusion": {"enum": ["all", "any"]},
         "cookware": {"enum": ["mixed", "light", "heavy", "liquid"]},
-        "tier1_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
-        "tier1_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
-        "tier1_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "tier2_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
-        "tier2_rate_dc_per_min": {"type": "integer", "minimum": 0, "maximum": 10000},
-        "tier2_rate_min_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
         "tier2_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "tier2_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier3_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "tier3_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier3_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier4_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "tier4_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier4_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier5_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
+        "tier5_warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
+        "tier5_shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "absence_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_ms": {"type": "integer", "minimum": 0, "maximum": 10000},
         "return_gap_ms": {"type": "integer", "minimum": 0, "maximum": 5000},
@@ -487,6 +491,8 @@
         "tier_down_persist_ms": {"type": "integer", "minimum": 100, "maximum": 600000, "description": "params: A cooler tier takes over after holding (ms)"},
         "tier_hyst_dc": {"type": "integer", "minimum": 1, "maximum": 500, "description": "params: A cooler tier also needs the pan this far below its threshold (dc)"},
         "late_warning_min_ms": {"type": "integer", "minimum": 1000, "maximum": 300000, "description": "params: Buzzer before a shutdown that was already due (ms)"},
+        "tier_rate": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: A rising pan gets the tier it is heading for (0 = off, 1 = on)"},
+        "tier_rate_window_ms": {"type": "integer", "minimum": 10000, "maximum": 120000, "description": "params: Rise or fall measured over the last (ms)"},
         "trend_window_ms": {"type": "integer", "minimum": 10000, "maximum": 250000, "description": "params: Trend window (ms)"},
         "trend_min_span_ms": {"type": "integer", "minimum": 10000, "maximum": 250000, "description": "params: Trend needs at least this much history (ms)"},
         "trend_min_samples": {"type": "integer", "minimum": 3, "maximum": 128, "description": "params: Trend needs at least this many samples (one per 2 s) (count)"},
@@ -495,7 +501,10 @@
         "settle_exit_drift_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: A cooling hold ends when the prediction climbs faster than (dc per min)"},
         "cooling_hold_max_ms": {"type": "integer", "minimum": 60000, "maximum": 14400000, "description": "params: A cooling hold lasts at most (ms)"},
         "cooling_hold_taus_x10": {"type": "integer", "minimum": 1, "maximum": 200, "description": "params: A cooling hold lasts at most this many time constants (tenths)"},
-        "warning_min_after_hold_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "description": "params: Buzzer before the shutdown after any hold (ms)"}
+        "warning_min_after_hold_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "description": "params: Buzzer before the shutdown after any hold (ms)"},
+        "falling_hold": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Hold a due buzzer or shutdown while the pan is falling (0 = off, 1 = on)"},
+        "falling_rate_dc_per_min": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "params: Falling means at least (dc per min)"},
+        "falling_hold_max_ms": {"type": "integer", "minimum": 10000, "maximum": 600000, "description": "params: A falling hold lasts at most, per countdown (ms)"}
       },
       "allOf": [
         {
@@ -527,11 +536,8 @@
         },
         {
           "if": {"properties": {"action": {"const": "tiers"}}},
-          "then": {"required": ["tier1_temp_dc", "tier1_warning_ms", "tier1_shutdown_ms", "tier2_temp_dc", "tier2_rate_dc_per_min",
-                                "tier2_rate_min_temp_dc", "tier2_warning_ms", "tier2_shutdown_ms"]},
-          "else": {"not": {"anyOf": [{"required": ["tier1_temp_dc"]}, {"required": ["tier1_warning_ms"]}, {"required": ["tier1_shutdown_ms"]},
-                                     {"required": ["tier2_temp_dc"]}, {"required": ["tier2_rate_dc_per_min"]}, {"required": ["tier2_rate_min_temp_dc"]},
-                                     {"required": ["tier2_warning_ms"]}, {"required": ["tier2_shutdown_ms"]}]}}
+          "then": {"required": ["tier2_temp_dc", "tier2_warning_ms", "tier2_shutdown_ms", "tier3_temp_dc", "tier3_warning_ms", "tier3_shutdown_ms", "tier4_temp_dc", "tier4_warning_ms", "tier4_shutdown_ms", "tier5_temp_dc", "tier5_warning_ms", "tier5_shutdown_ms"]},
+          "else": {"not": {"anyOf": [{"required": ["tier2_temp_dc"]}, {"required": ["tier2_warning_ms"]}, {"required": ["tier2_shutdown_ms"]}, {"required": ["tier3_temp_dc"]}, {"required": ["tier3_warning_ms"]}, {"required": ["tier3_shutdown_ms"]}, {"required": ["tier4_temp_dc"]}, {"required": ["tier4_warning_ms"]}, {"required": ["tier4_shutdown_ms"]}, {"required": ["tier5_temp_dc"]}, {"required": ["tier5_warning_ms"]}, {"required": ["tier5_shutdown_ms"]}]}}
         },
         {
           "if": {"properties": {"action": {"const": "cookware"}}},

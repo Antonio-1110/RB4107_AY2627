@@ -106,22 +106,34 @@ typedef enum {
     SAFETY_HOLD_NONE = 0,
     SAFETY_HOLD_RETURN,       /* the radar sees someone and the return is being confirmed (bounded) */
     SAFETY_HOLD_COOLING,      /* the pan is cooling down: the timers wait for a plateau or for it to end */
+    SAFETY_HOLD_FALLING,      /* the temperature is falling and the trend can't tell yet whether heat is going in */
 } safety_hold_t;
 
 /*
- * Temperature tiers: how hot the pan is decides how long the person may be away. The
- * timers only ever get shorter (a tier can't give more time than the base timers).
- * NORMAL = the base warning/shutdown times (a simmer, boiling water); ELEVATED and
- * CRITICAL use their own, shorter ones. See docs/safety_state_machine.md.
+ * Temperature tiers: how hot the pan is, or how fast it is heading there, decides how long the person may be
+ * away. Tier 1 = the base warning/shutdown times (a simmer, boiling water); tiers 2 to 5 are hotter and use
+ * their own, shorter times. The timers only ever get shorter (a tier can't give more time than the base
+ * timers). See docs/safety_state_machine.md.
  */
 typedef enum {
-    SAFETY_TIER_NORMAL = 0,
-    SAFETY_TIER_ELEVATED,   /* hot (sauté, shallow frying) */
-    SAFETY_TIER_CRITICAL,   /* oil heading for its smoke point */
+    SAFETY_TIER_1 = 0,      /* the base times */
+    SAFETY_TIER_2,
+    SAFETY_TIER_3,
+    SAFETY_TIER_4,
+    SAFETY_TIER_5,          /* the strictest */
     SAFETY_TIER_COUNT,
 } safety_tier_t;
 
-const char *safety_tier_name(safety_tier_t tier); /* "normal" "elevated" "critical" */
+#define SAFETY_HOT_TIERS (SAFETY_TIER_COUNT - 1) /* tiers 2..5, which have their own settings */
+
+/* One hotter tier. Off while temp_c <= 0. */
+typedef struct {
+    float temp_c;           /* from this hottest-pixel temperature (or heading there, see tier_rate) */
+    uint32_t warning_ms;    /* unattended time before WARNING */
+    uint32_t shutdown_ms;   /* shutdown time, counted like the base shutdown time */
+} safety_tier_cfg_t;
+
+const char *safety_tier_name(safety_tier_t tier); /* "tier1" ... "tier5" */
 
 /* Buzzer requests. The buzzer driver maps them to patterns. */
 typedef enum {
@@ -179,18 +191,20 @@ typedef struct {
                                                SAFETY_TREND_MAX samples of 2 s */
 
     /*
-     * Temperature tiers. A tier is off while its temperature is <= 0. Times are measured like the
-     * base ones (from the start of UNATTENDED; with shutdown_timing = AFTER_WARNING_START the
-     * shutdown counts from the start of the warning, i.e. tier shutdown minus tier warning).
+     * Temperature tiers 2..5 (tiers[0] is tier 2), in rising order of temperature. Times are measured like
+     * the base ones (from the start of UNATTENDED; with shutdown_timing = AFTER_WARNING_START the shutdown
+     * counts from the start of the warning, i.e. tier shutdown minus tier warning).
+     * tier_rate: a pan rising fast enough to reach a tier's temperature within that tier's warning time
+     * gets that tier already (temperature + rate x warning time >= the tier's temperature).
      */
-    float tier1_temp_c;                     /* ELEVATED from this hottest-pixel temperature */
-    uint32_t tier1_warning_ms;
-    uint32_t tier1_shutdown_ms;
-    float tier2_temp_c;                     /* CRITICAL from this temperature ... */
-    float tier2_rate_c_per_min;             /* ... or rising at least this fast above tier2_rate_min_temp_c (0 = off) */
-    float tier2_rate_min_temp_c;
-    uint32_t tier2_warning_ms;
-    uint32_t tier2_shutdown_ms;
+    safety_tier_cfg_t tiers[SAFETY_HOT_TIERS];
+    bool tier_rate;
+
+    /*
+     * Falling hold: a warning or shutdown that comes due while the temperature is falling waits, until it
+     * rises again, the trend is sure heat is still going in, or falling_hold_max_ms (per timeline) is used up.
+     */
+    bool falling_hold;
 
     /*
      * Pause: while someone is at the stove (presence TRUE) on an unattended timeline, the clock stops, so only
@@ -218,6 +232,9 @@ typedef struct {
     uint32_t cooling_hold_max_ms;           /* a cooling hold never lasts longer than this ... */
     float cooling_hold_taus;                /* ... nor longer than this many time constants */
     uint32_t warning_min_after_hold_ms;     /* buzzer before the shutdown after any hold */
+    uint32_t tier_rate_window_ms;           /* the rate the tiers and the falling hold use is fitted over this */
+    float falling_rate_c_per_min;           /* falling at least this fast counts as falling */
+    uint32_t falling_hold_max_ms;           /* a falling hold lasts at most this long per timeline */
 
     safety_timing_hook_t timing_hook;
     void *timing_hook_ctx;
@@ -254,6 +271,7 @@ typedef struct {
     uint16_t trend_count;
     uint32_t trend_last_ms;
     float trend_rate_c_per_min;       /* NAN until there is enough data */
+    float fast_rate_c_per_min;        /* the rate over the short tier_rate_window_ms: tiers and falling hold; NAN if unknown */
     float settle_c;                   /* T + tau * rate: where it is heading; NAN if unknown */
     float settle_drift_c_per_min;     /* how much settle_c rose over the last minute; NAN if unknown */
     uint32_t settle_t_ms[SAFETY_SETTLE_HIST];
@@ -267,6 +285,8 @@ typedef struct {
     safety_hold_t hold;               /* what is holding a due transition right now */
     bool held_once;                   /* a transition was held on this timeline: WARNING lasts a minimum time */
     bool late_warning;                /* the shutdown was already due when the warning came (a tier got shorter) */
+    bool falling_hold_started;        /* a falling hold happened on this timeline ... */
+    uint32_t falling_hold_since_ms;   /* ... starting then (its limit counts from the first one) */
 
     bool paused;                      /* the clock is stopped because someone is at the stove */
     uint32_t pause_used_ms;           /* time paused on this timeline */
@@ -337,7 +357,7 @@ uint32_t safety_pause_budget_ms(const safety_sm_t *sm);
 
 const char *safety_state_name(safety_state_t state);
 const char *safety_heat_phase_name(safety_heat_phase_t phase); /* "off" "checking" "heating" "holding" "cooling" */
-const char *safety_hold_name(safety_hold_t hold);              /* "none" "return" "cooling" */
+const char *safety_hold_name(safety_hold_t hold);              /* "none" "return" "cooling" "falling" */
 const char *safety_buzzer_name(safety_buzzer_t buzzer);
 
 #ifdef __cplusplus

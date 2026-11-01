@@ -89,7 +89,7 @@ see: while the radar holds a target for 1 s, the S3's own 1 s absence debounce
 starts 1 s late, and the lock time makes the radar blind to someone who steps
 back in. Both are settable again because a hold of 0 may make a **still person**
 flicker to "none" (the radar may need a moment to confirm a stationary target;
-not confirmed for the C4002). Keep them small: against 180 s / 300 s timers a
+not confirmed for the C4002). Keep them small: against 150 s / 300 s timers a
 1-2 s hold costs about 1 %. To test: raise the hold on one node (0, 1, 2 s),
 stand still at the stove and watch for orange cells in the live view.
 
