@@ -55,6 +55,34 @@ labelled "Likely-SCAM"; see
 events, and the last 10 alerts with who acknowledged each one and how long it
 took (or `NOT acknowledged`).
 
+## Try it without hardware
+
+With `tools/run_dev.sh` running (and the alerts set up as above), in a second
+terminal, from `django/` with the virtualenv active:
+
+```bash
+python manage.py simulate_alert
+```
+
+It plays one incident on `controller_01`, sped up: 10 s of cooking with the
+person there, then they leave; the buzzer after 20 s (a "Buzzer sounding"
+alert), the shutdown after 40 s (a "Cooker SHUT DOWN" alert), and a reset 60 s
+later. Watch the stall on the dashboard and press **Acknowledge** in Telegram;
+`python manage.py telegram_alerts` then lists both alerts with who
+acknowledged them. Each run is a new incident in the stall's history.
+
+| Option | Default | |
+|---|---|---|
+| `--controller` | `controller_01` | which stall; its Location line comes from the location catalogue |
+| `--warning-after` / `--shutdown-after` | `20` / `40` | seconds unattended before the buzzer / shutdown (real defaults 180 / 300) |
+| `--reset-after` | `60` | seconds shut down before the reset; `0` stays shut down until Ctrl-C |
+| `--direct` | off | no broker: feeds Django directly and polls the button itself. Stop the MQTT subscriber first |
+
+Its messages are marked `"simulation": true`. Don't run it for a stall whose
+real controller is online. A stall from `locations.demo.json` that
+`run_dev.sh --demo` already simulates works for the alerts, but the dashboard
+will flick between the two.
+
 ## Settings (`django/.env`)
 
 | Variable | Default | |
