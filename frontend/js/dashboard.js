@@ -202,12 +202,11 @@ function renderGlobalAlerts() {
   }
   for (const [key, card] of existing) if (!keep.has(key)) card.remove();
 }
-// Mirrors summary_bucket() in django/ingest/locations.py: each stall is in
-// exactly one summary card. Active alarms keep their severity when offline;
-// other offline / stale stalls are connectivity issues.
+// Each stall is in exactly one summary card: its status, which Django works
+// out with the stall status rule (classify_display_state() in
+// django/ingest/locations.py, docs/dashboard.md). Offline or stale stalls are
+// faults there, so there is no separate connectivity bucket.
 function summaryBucket(stall) {
-  if (["critical", "warning", "fault"].includes(stall.severity)) return stall.severity;
-  if (stall.connection !== "online") return "connectivity";
   return stall.severity;
 }
 function renderSummary() {
@@ -219,7 +218,6 @@ function renderSummary() {
     ["summary-warning", "warning"],
     ["summary-fault", "fault"],
     ["summary-unknown", "unknown"],
-    ["summary-connectivity", "connectivity_issues"],
     ["summary-normal", "normal"],
   ])
     set(id, summary[key] || 0);
@@ -404,7 +402,7 @@ function renderRoster(stalls) {
       .append(
         makeBadge(
           human(stall.connection),
-          stall.connection === "online" ? "normal" : "connectivity",
+          stall.connection === "online" ? "normal" : "fault",
         ),
       );
     row.insertCell().textContent = when(stall.last_seen_at);
@@ -433,9 +431,11 @@ function renderDetailAlert(device) {
   const title = make("strong", state.title);
   const text = make(
     "p",
-    state.last_known
-      ? "This is a last-known active state. Current safety cannot be confirmed because telemetry is not fresh."
-      : "Local ESP32 safety action is active. Respond at the physical location; once the stove is checked, a latched shutdown can be reset from System status.",
+    state.level === "fault" && state.reasons?.length
+      ? `Not protected or not visible: ${state.reasons.join(", ")}. Check the controller and its sensor nodes.`
+      : state.last_known
+        ? "This is a last-known active state. Current safety cannot be confirmed because telemetry is not fresh."
+        : "Local ESP32 safety action is active. Respond at the physical location; once the stove is checked, a latched shutdown can be reset from System status.",
   );
   host.append(title, text);
 }
@@ -811,31 +811,41 @@ function updateSystemStatus() {
         : "The MQTT monitoring path is unavailable. Existing values are last known; local ESP32 protection remains independent.",
   );
 }
+// The dashboard lost the server: nothing is current any more. By the stall
+// status rule a stall we can't see is a fault, unless its last known state was
+// worse (critical or warning), which is kept and marked last known.
+const UNREACHABLE = "DASHBOARD CAN'T REACH THE SERVER";
+function unreachableState(state) {
+  if (state.level === "critical" || state.level === "warning")
+    return { ...state, last_known: true };
+  return {
+    ...state,
+    level: "fault",
+    title: UNREACHABLE,
+    active: true,
+    last_known: true,
+    reasons: ["dashboard can't reach the server", ...(state.reasons || [])],
+  };
+}
 function markFleetLastKnown() {
   fleet.devices = fleet.devices.map((device) => ({
     ...device,
     connection: "unknown",
     cooking: { ...device.cooking, last_known: true },
-    display_state: {
-      ...device.display_state,
-      last_known: true,
-      level: device.display_state.level === "normal" ? "unknown" : device.display_state.level,
-      title:
-        device.display_state.level === "normal"
-          ? "LAST-KNOWN NORMAL — NOT CURRENT"
-          : device.display_state.title,
-    },
+    display_state: unreachableState(device.display_state),
   }));
-  fleet.stalls = fleet.stalls.map((stall) => ({
-    ...stall,
-    connection: "unknown",
-    cooking: { ...stall.cooking, last_known: true },
-    temperature_fresh: false,
-    state_last_known: true,
-    severity: stall.severity === "normal" ? "unknown" : stall.severity,
-    state_title:
-      stall.severity === "normal" ? "LAST-KNOWN NORMAL — NOT CURRENT" : stall.state_title,
-  }));
+  fleet.stalls = fleet.stalls.map((stall) => {
+    const kept = stall.severity === "critical" || stall.severity === "warning";
+    return {
+      ...stall,
+      connection: "unknown",
+      cooking: { ...stall.cooking, last_known: true },
+      temperature_fresh: false,
+      state_last_known: true,
+      severity: kept ? stall.severity : "fault",
+      state_title: kept ? stall.state_title : UNREACHABLE,
+    };
+  });
   fleet.alerts = fleet.alerts.map((alert) => ({
     ...alert,
     connection: "unknown",
@@ -848,14 +858,9 @@ function markFleetLastKnown() {
     fault: 0,
     unknown: 0,
     normal: 0,
-    connectivity_issues: 0,
     cooking: fleet.stalls.filter((stall) => stall.cooking.active).length,
   };
-  for (const stall of fleet.stalls) {
-    const bucket = summaryBucket(stall);
-    const key = bucket === "connectivity" ? "connectivity_issues" : bucket;
-    summary[key] = (summary[key] || 0) + 1;
-  }
+  for (const stall of fleet.stalls) summary[summaryBucket(stall)] += 1;
   fleet.summary = summary;
 }
 async function refresh(forceHistory = false) {

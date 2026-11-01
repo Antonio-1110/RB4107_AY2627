@@ -277,8 +277,7 @@ p {
   background: var(--tint-orange);
   color: var(--on-orange);
 }
-.state-badge.unknown,
-.state-badge.connectivity {
+.state-badge.unknown {
   background: var(--tint-info);
   color: var(--muted);
 }
@@ -409,7 +408,7 @@ p {
 }
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -450,9 +449,6 @@ p {
 }
 .summary-card.unknown {
   border-left-color: #8c9ba2;
-}
-.summary-card.offline {
-  border-left-color: #677984;
 }
 .summary-card.normal {
   border-left-color: var(--green);
