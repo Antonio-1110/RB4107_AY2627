@@ -16,7 +16,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
-from ingest import handlers, retention
+from ingest import alerts, handlers, retention
 from ingest.subscriber import Subscriber
 from ingest.storage import record_rejection, worker_status
 
@@ -52,6 +52,10 @@ class Command(BaseCommand):
         worker_status(False)
         reporter = threading.Thread(target=self._report, args=(subscriber, stop, options["stats_interval"]), daemon=True)
         reporter.start()
+        if alerts.enabled():
+            # Acknowledge-button presses on Telegram alerts. Daemon: a long poll
+            # can take ~25 s to return, so it is not waited for on shutdown.
+            threading.Thread(target=alerts.poll_acks, args=(stop,), name="telegram-acks", daemon=True).start()
         try:
             subscriber.run_forever()
         finally:
