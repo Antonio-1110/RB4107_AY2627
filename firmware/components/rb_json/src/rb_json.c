@@ -190,6 +190,8 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_num(w, t->safety.trend_rate_c_per_min, 2);
     rb_json_key(w, "settle_c");
     rb_json_num(w, t->safety.settle_c, 1);
+    rb_json_key(w, "room_c");
+    rb_json_num(w, t->safety.room_c, 1);
     rb_json_key(w, "on_c");
     rb_json_num(w, t->safety.cooking_on_c, 1);
     rb_json_key(w, "off_c");

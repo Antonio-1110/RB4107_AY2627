@@ -413,6 +413,7 @@ void node_set_inputs(const node_set_t *set, node_inputs_t *out)
     out->hot_region_temp_c = th->sensor_ok ? t->hot_region_temp_c : NAN;
     out->max_temp_c = th->sensor_ok ? t->max_temp_c : NAN;
     out->temp_rate_c_per_min = th->sensor_ok ? t->temp_rate_c_per_min : NAN;
+    out->ambient_c = th->sensor_ok ? t->ambient_c : NAN;
     out->pixels_above_threshold = th->sensor_ok ? t->pixels_above_threshold : 0;
 }
 

@@ -26,6 +26,43 @@ static void rate_push(thermal_rate_tracker_t *tr, uint32_t now_ms, float temp_c,
     }
 }
 
+/*
+ * The k-th smallest of v[0..n) (0-based), reordering v (Hoare quickselect). Used for the room
+ * temperature: the 10th percentile of the frame, so the pan and a few cold pixels (a window, a
+ * cold drink) don't move it.
+ */
+static float kth_smallest(float *v, int n, int k)
+{
+    int lo = 0, hi = n - 1;
+    while (lo < hi) {
+        const float pivot = v[(lo + hi) / 2];
+        int i = lo, j = hi;
+        while (i <= j) {
+            while (v[i] < pivot) {
+                i++;
+            }
+            while (v[j] > pivot) {
+                j--;
+            }
+            if (i <= j) {
+                const float t = v[i];
+                v[i] = v[j];
+                v[j] = t;
+                i++;
+                j--;
+            }
+        }
+        if (k <= j) {
+            hi = j;
+        } else if (k >= i) {
+            lo = i;
+        } else {
+            return v[k];
+        }
+    }
+    return v[k];
+}
+
 static float rate_estimate(const thermal_rate_tracker_t *tr, uint32_t now_ms, float temp_now, uint32_t window_ms)
 {
     if (tr->count == 0) {
@@ -52,7 +89,9 @@ bool thermal_features_compute(const float frame[THERMAL_PIXELS], uint32_t now_ms
     memset(out, 0, sizeof(*out));
     out->timestamp_ms = now_ms;
     out->temp_rate_c_per_min = NAN;
+    out->ambient_c = NAN;
 
+    static float valid_px[THERMAL_PIXELS]; /* one frame at a time: static keeps 3 KB off the task stack */
     uint16_t invalid = 0;
     uint16_t above = 0;
     uint16_t counted = 0;
@@ -67,6 +106,7 @@ bool thermal_features_compute(const float frame[THERMAL_PIXELS], uint32_t now_ms
             invalid++;
             continue;
         }
+        valid_px[counted] = t;
         counted++;
         sum += t;
         if (t > max_c) {
@@ -113,6 +153,7 @@ bool thermal_features_compute(const float frame[THERMAL_PIXELS], uint32_t now_ms
     out->max_temp_c = max_c;
     out->min_temp_c = min_c;
     out->mean_temp_c = sum / (float)counted;
+    out->ambient_c = kth_smallest(valid_px, counted, counted / 10);
     out->hot_region_temp_c = region_sum / (float)region_n;
     out->pixels_above_threshold = above;
     out->temp_rate_c_per_min = rate_estimate(tracker, now_ms, out->hot_region_temp_c, cfg->rate_window_ms);

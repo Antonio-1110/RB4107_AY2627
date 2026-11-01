@@ -44,6 +44,7 @@ reasons behind the rules are in [safety_state_machine.md](safety_state_machine.m
 | B2 | Not cooking, above the off temperature and rising at least the heat-on rate (**0 °C/min**; 0 = this rule is off) | Cooking | `safety_step()` in `safety/src/safety.c` |
 | B3 | Cooking, and the hottest pixel falls below the off temperature **40 °C** | Not cooking | `safety_step()` in `safety/src/safety.c` |
 | B4 | The dashboard sets a new cooking temperature | The off temperature moves with it, keeping the menuconfig gap (**50 °C** - **40 °C**) | `apply_cooking_temp()` in `rb_controller/src/rb_controller.c` |
+| B5 | Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame) | The room temperature in use, kept between **30 °C** and **45 °C**; **38 °C** without a camera reading. D1 and D5 compare the pan with it | `room_update()` in `safety/src/safety.c` |
 
 ## C. Timers
 
@@ -62,11 +63,11 @@ reasons behind the rules are in [safety_state_machine.md](safety_state_machine.m
 
 | # | When | Result | Code |
 |---|---|---|---|
-| D1 | Cooling: over the last **120 s** (at least **12** samples over **60 s**) the predicted settling temperature T + tau x rate is more than **3 °C** below the off temperature, and it rose at most **8 °C/min** over the last minute. tau comes from the cookware profile (**"mixed / unknown (10 min)"**) | The pan counts as only cooling. Ends when the prediction is back **3 °C** above the off temperature or climbs faster than **16 °C/min**. With too little data, a lost camera or the trend judgment turned off (it is **on** by default), heat counts as going in | `judge_heat()` in `safety/src/safety.c` |
+| D1 | Cooling: over the last **120 s** (at least **12** samples over **60 s**) the predicted settling temperature T + tau x rate is more than **3 °C** below the only-cooling line, and it rose at most **8 °C/min** over the last minute. The line is **10 °C** above the room temperature (B5), but never above the cooking temperature: Newton cooling settles at the room, so a pan heading there has no heat going in. tau comes from the cookware profile (**"mixed / unknown (10 min)"**) | The pan counts as only cooling. Ends when the prediction is back **3 °C** above the line or climbs faster than **16 °C/min**. With too little data, a lost camera or the trend judgment turned off (it is **on** by default), heat counts as going in | `judge_heat()` in `safety/src/safety.c` |
 | D2 | A buzzer or shutdown comes due while the pan is only cooling (D1) | It waits (cooling hold), at most **4** tau and never over **3600 s**. The countdown keeps counting; a buzzer already sounding keeps sounding | `hold_reason()` in `safety/src/safety.c` |
 | D3 | A step comes due while someone is seen but not yet confirmed (D4) | It waits (return hold), at most **5 s** + **1 s** | `hold_reason()` in `safety/src/safety.c` |
 | D4 | Someone returns: PRESENT for **5 s**, absent gaps under **1 s** forgiven, still present at the end | Return confirmed (used by T10, T13) | `present_confirmed()` in `safety/src/safety.c` |
-| D5 | A buzzer or shutdown comes due while the temperature is falling at least **2 °C/min** (over the last **30 s**), and the trend has not confirmed heat going in (the prediction of D1 at least **3 °C** above the off temperature and moving at most **8 °C/min**) | It waits (falling hold; **on** by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after **90 s** at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead | `falling_hold()` in `safety/src/safety.c` |
+| D5 | A buzzer or shutdown comes due while the temperature is falling (over the last **30 s**) by at least **2** % per minute of its heat above the room (B5), and at least **1 °C/min**; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the prediction of D1 at least **3 °C** above the only-cooling line and moving at most **8 °C/min**) | It waits (falling hold; **on** by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after **90 s** at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead | `falling_hold()` in `safety/src/safety.c` |
 
 ## T. State transitions
 
@@ -170,6 +171,10 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `TREND_MIN_SAMPLES` | 12 | ... and this many samples |
 | `TREND_HALF_LIFE_MS` | 30000.0 | recent samples count more: a pan that was steady and now cools shows up sooner |
 | `SETTLE_MARGIN_C` | 3.0 | hysteresis on the cooling decision |
+| `ROOM_MIN_C` | 30.0 |  |
+| `ROOM_MAX_C` | 45.0 |  |
+| `ROOM_FALLBACK_C` | 38.0 |  |
+| `ROOM_MARGIN_C` | 10.0 |  |
 | `SETTLE_HIST_SAMPLE_MS` | 5000 | the settling estimate is remembered every 5 s ... |
 | `SETTLE_DRIFT_WINDOW_MS` | 60000 | ... and its rise measured over a minute |
 | `SETTLE_MAX_DRIFT_C_PER_MIN` | 8.0 | to start believing "cooling" |
@@ -179,7 +184,8 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `COOLING_HOLD_TAUS` | 4.0 | ... nor longer than 4 time constants: a pan still hot after that is not just cooling |
 | `WARNING_MIN_AFTER_HOLD_MS` | 30000 | buzzer before the shutdown after any hold |
 | `TIER_RATE_WINDOW_MS` | 30000 | rate for the tiers and the falling hold fitted over the last 30 s |
-| `FALLING_RATE_C_PER_MIN` | 2.0 | falling at least this fast counts as falling |
+| `FALLING_SHARE_PCT_PER_MIN` | 2.0 | falling = losing at least this share of the heat above the room per minute |
+| `FALLING_RATE_C_PER_MIN` | 1.0 | ... and at least this fast |
 | `FALLING_HOLD_MAX_MS` | 90000 | a falling hold lasts at most this long per timeline |
 | `SAFETY_FAST_RATE_MAX` | 64 | samples in that window at most: up to 126 s |
 
@@ -214,12 +220,17 @@ them until **Defaults** is pressed.
 | Trend window | `trend_window_ms` | 120 s | 10 s to 250 s |
 | Trend needs at least this much history | `trend_min_span_ms` | 60 s | 10 s to 250 s |
 | Trend needs at least this many samples (one per 2 s) | `trend_min_samples` | 12 | 3 to 128 |
-| Cooling margin around the off temperature | `settle_margin_dc` | 3 °C | 0.1 °C to 50 °C |
+| Cooling margin around the only-cooling line | `settle_margin_dc` | 3 °C | 0.1 °C to 50 °C |
 | Prediction may climb this fast to start a cooling hold | `settle_max_drift_dc_per_min` | 8 °C/min | 0.1 °C/min to 100 °C/min |
 | A cooling hold ends when the prediction climbs faster than | `settle_exit_drift_dc_per_min` | 16 °C/min | 0.1 °C/min to 100 °C/min |
 | A cooling hold lasts at most | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
 | A cooling hold lasts at most this many time constants | `cooling_hold_taus_x10` | 4 | 0.1 to 20 |
 | Buzzer before the shutdown after any hold | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |
 | Hold a due buzzer or shutdown while the pan is falling | `falling_hold` | on | off / on |
-| Falling means at least | `falling_rate_dc_per_min` | 2 °C/min | 0.1 °C/min to 100 °C/min |
+| Falling means losing this % of the heat above the room per minute | `falling_share_pct_x10` | 2 | 0.1 to 50 |
+| ... and falling at least | `falling_rate_dc_per_min` | 1 °C/min | 0.1 °C/min to 100 °C/min |
 | A falling hold lasts at most, per countdown | `falling_hold_max_ms` | 90 s | 10 s to 600 s |
+| Room temperature is at least | `room_min_dc` | 30 °C | 0.1 °C to 60 °C |
+| Room temperature is at most | `room_max_dc` | 45 °C | 0.1 °C to 80 °C |
+| Room temperature without a camera reading | `room_fallback_dc` | 38 °C | 0.1 °C to 80 °C |
+| Only cooling = heading for less than this above the room | `room_margin_dc` | 10 °C | 0.1 °C to 50 °C |

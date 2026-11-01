@@ -229,6 +229,7 @@ size_t rb_protocol_encode(const rb_packet_t *pkt, uint8_t *buf, size_t buf_len)
         put_u16(&w, (uint16_t)to_centi(t->max_temp_c));
         put_u16(&w, (uint16_t)to_centi(t->min_temp_c));
         put_u16(&w, (uint16_t)to_centi(t->mean_temp_c));
+        put_u16(&w, (uint16_t)to_centi(t->ambient_c));
         put_u16(&w, (uint16_t)to_centi(t->hot_region_temp_c));
         put_u16(&w, (uint16_t)to_centi(t->temp_rate_c_per_min));
         put_u16(&w, t->pixels_above_threshold);
@@ -382,6 +383,7 @@ rb_decode_result_t rb_protocol_decode(const uint8_t *buf, size_t len, rb_packet_
         t->max_temp_c = from_centi((int16_t)get_u16(&r));
         t->min_temp_c = from_centi((int16_t)get_u16(&r));
         t->mean_temp_c = from_centi((int16_t)get_u16(&r));
+        t->ambient_c = from_centi((int16_t)get_u16(&r));
         t->hot_region_temp_c = from_centi((int16_t)get_u16(&r));
         t->temp_rate_c_per_min = from_centi((int16_t)get_u16(&r));
         t->pixels_above_threshold = get_u16(&r);

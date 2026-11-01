@@ -253,7 +253,7 @@
    "min": 1,
    "max": 500,
    "default": 30,
-   "label": "Cooling margin around the off temperature",
+   "label": "Cooling margin around the only-cooling line",
    "source": "SETTLE_MARGIN_C",
    "options": null,
    "group": "Temperature trend and the cooling hold"
@@ -328,12 +328,23 @@
    "group": "Falling hold"
   },
   {
+   "key": "falling_share_pct_x10",
+   "kind": "TENTHS",
+   "min": 1,
+   "max": 500,
+   "default": 20,
+   "label": "Falling means losing this % of the heat above the room per minute",
+   "source": "FALLING_SHARE_PCT_PER_MIN",
+   "options": null,
+   "group": "Falling hold"
+  },
+  {
    "key": "falling_rate_dc_per_min",
    "kind": "DC_PER_MIN",
    "min": 1,
    "max": 1000,
-   "default": 20,
-   "label": "Falling means at least",
+   "default": 10,
+   "label": "... and falling at least",
    "source": "FALLING_RATE_C_PER_MIN",
    "options": null,
    "group": "Falling hold"
@@ -348,6 +359,50 @@
    "source": "FALLING_HOLD_MAX_MS",
    "options": null,
    "group": "Falling hold"
+  },
+  {
+   "key": "room_min_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 600,
+   "default": 300,
+   "label": "Room temperature is at least",
+   "source": "ROOM_MIN_C",
+   "options": null,
+   "group": "The room temperature"
+  },
+  {
+   "key": "room_max_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 800,
+   "default": 450,
+   "label": "Room temperature is at most",
+   "source": "ROOM_MAX_C",
+   "options": null,
+   "group": "The room temperature"
+  },
+  {
+   "key": "room_fallback_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 800,
+   "default": 380,
+   "label": "Room temperature without a camera reading",
+   "source": "ROOM_FALLBACK_C",
+   "options": null,
+   "group": "The room temperature"
+  },
+  {
+   "key": "room_margin_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 500,
+   "default": 100,
+   "label": "Only cooling = heading for less than this above the room",
+   "source": "ROOM_MARGIN_C",
+   "options": null,
+   "group": "The room temperature"
   }
  ]
 }

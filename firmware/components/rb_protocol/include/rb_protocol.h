@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#define RB_PROTOCOL_VERSION 2u
+#define RB_PROTOCOL_VERSION 3u
 #define RB_PROTOCOL_MAGIC 0x4252u /* "RB", sent as 0x52 0x42 */
 
 /* ESP-NOW v1 payload limit (ESP_NOW_MAX_DATA_LEN). Checked again against the IDF header in rb_espnow. */
@@ -133,7 +133,7 @@ typedef enum {
 #define RB_HEADER_LEN 17u
 #define RB_CRC_LEN 2u
 #define RB_BODY_PRESENCE_DATA_LEN 7u
-#define RB_BODY_THERMAL_DATA_LEN 17u
+#define RB_BODY_THERMAL_DATA_LEN 19u
 #define RB_BODY_HEARTBEAT_LEN 10u
 #define RB_BODY_SENSOR_FAULT_LEN 8u
 #define RB_BODY_VALVE_COMMAND_LEN 5u

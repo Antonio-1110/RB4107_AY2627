@@ -5,7 +5,7 @@
 #include <string.h>
 
 #define KEY_LEN 32 /* the longest key in rb_params.def fits */
-_Static_assert(RB_PARAM_COUNT <= 32, "params_seen has one bit per setting");
+_Static_assert(RB_PARAM_COUNT <= 64, "params_seen has one bit per setting");
 #define STR_LEN 40
 
 typedef struct {
@@ -175,7 +175,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
         return false;
     }
     unsigned seen = 0;
-    uint32_t params_seen = 0; /* one bit per rb_params.def setting */
+    uint64_t params_seen = 0; /* one bit per rb_params.def setting */
     unsigned tiers_seen = 0;  /* one bit per tier key */
     if (!eat(&s, '}')) {
         do {
@@ -414,11 +414,11 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
                          (unsigned long)RB_PARAMS[param].max);
                     return false;
                 }
-                if (params_seen & (1u << param)) {
+                if (params_seen & ((uint64_t)1 << param)) {
                     fail(err, err_len, "duplicate key '%s'", key);
                     return false;
                 }
-                params_seen |= 1u << param;
+                params_seen |= (uint64_t)1 << param;
                 out->params.v[param] = (uint32_t)num;
                 bit = 0;
             } else {
@@ -476,7 +476,7 @@ bool rb_ctrl_cmd_parse(const char *json, size_t len, rb_ctrl_cmd_t *out, char *e
         fail(err, err_len, "log_level needs log_tag and log_level, other actions none");
         return false;
     }
-    const uint32_t all_params = RB_PARAM_COUNT == 32 ? UINT32_MAX : (1u << RB_PARAM_COUNT) - 1u;
+    const uint64_t all_params = RB_PARAM_COUNT == 64 ? UINT64_MAX : ((uint64_t)1 << RB_PARAM_COUNT) - 1u;
     if (out->action == RB_CTRL_ACTION_PARAMS ? params_seen != all_params : params_seen != 0) {
         fail(err, err_len, "params needs every setting of rb_params.def, other actions none");
         return false;

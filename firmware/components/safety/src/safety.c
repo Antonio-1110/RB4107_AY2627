@@ -63,6 +63,15 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 #define TREND_HALF_LIFE_MS 30000.0f    /* recent samples count more: a pan that was steady and now cools shows up sooner */
 #define SETTLE_MARGIN_C 3.0f           /* hysteresis on the cooling decision */
 /*
+ * The room: the thermal node's 10th-percentile pixel, kept between ROOM_MIN_C and ROOM_MAX_C (a cold window or
+ * a hot oven wall in view must not move it far), and ROOM_FALLBACK_C when the node has no reading. A pan heading
+ * for less than ROOM_MARGIN_C above the room is only cooling (never above the cooking temperature, though).
+ */
+#define ROOM_MIN_C 30.0f
+#define ROOM_MAX_C 45.0f
+#define ROOM_FALLBACK_C 38.0f
+#define ROOM_MARGIN_C 10.0f
+/*
  * "Cooling" is only believed when the settling estimate is stable. T + tau * rate is exact
  * when the profile matches the pan: it stays put at about the room temperature. If the
  * profile's tau is longer than the pan's real one (a lowered flame whose warm-up tail is
@@ -84,7 +93,15 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
  * stricter tier, and a falling hold it starts ends as soon as the pan rises again.
  */
 #define TIER_RATE_WINDOW_MS 30000u       /* rate for the tiers and the falling hold fitted over the last 30 s */
-#define FALLING_RATE_C_PER_MIN 2.0f      /* falling at least this fast counts as falling */
+/*
+ * Falling is judged against the room, like Newton cooling itself: a pan loses heat in proportion to how far it
+ * is above the room, so near the room even a switched-off pan falls slowly. Falling means losing at least
+ * FALLING_SHARE_PCT_PER_MIN percent of the heat above the room per minute (2 %/min = a time constant of 50 min,
+ * slower than every cookware profile, so any switched-off pan counts), and never less than
+ * FALLING_RATE_C_PER_MIN, so camera noise near the room is not taken for a fall.
+ */
+#define FALLING_SHARE_PCT_PER_MIN 2.0f   /* falling = losing at least this share of the heat above the room per minute */
+#define FALLING_RATE_C_PER_MIN 1.0f      /* ... and at least this fast */
 #define FALLING_HOLD_MAX_MS 90000u       /* a falling hold lasts at most this long per timeline */
 #define SAFETY_FAST_RATE_MAX 64          /* samples in that window at most: up to 126 s */
 /* The config's value for a tunable above, or the built-in one when it is left 0. */
@@ -113,6 +130,11 @@ void safety_config_fill_defaults(safety_config_t *cfg)
     FILL(warning_min_after_hold_ms, WARNING_MIN_AFTER_HOLD_MS);
     FILL(tier_rate_window_ms, TIER_RATE_WINDOW_MS);
     FILL(falling_rate_c_per_min, FALLING_RATE_C_PER_MIN);
+    FILL(falling_share_pct_per_min, FALLING_SHARE_PCT_PER_MIN);
+    FILL(room_min_c, ROOM_MIN_C);
+    FILL(room_max_c, ROOM_MAX_C);
+    FILL(room_fallback_c, ROOM_FALLBACK_C);
+    FILL(room_margin_c, ROOM_MARGIN_C);
     FILL(falling_hold_max_ms, FALLING_HOLD_MAX_MS);
 #undef FILL
 }
@@ -143,6 +165,11 @@ bool safety_config_valid(const safety_config_t *cfg)
         !isfinite(cfg->settle_exit_drift_c_per_min) || !isfinite(cfg->cooling_hold_taus) || cfg->tier_hyst_c < 0.0f ||
         cfg->settle_margin_c < 0.0f || cfg->settle_max_drift_c_per_min < 0.0f || cfg->settle_exit_drift_c_per_min < 0.0f ||
         cfg->cooling_hold_taus < 0.0f || !isfinite(cfg->falling_rate_c_per_min) || cfg->falling_rate_c_per_min < 0.0f) {
+        return false;
+    }
+    if (!isfinite(cfg->falling_share_pct_per_min) || !isfinite(cfg->room_min_c) || !isfinite(cfg->room_max_c) ||
+        !isfinite(cfg->room_fallback_c) || !isfinite(cfg->room_margin_c) || cfg->falling_share_pct_per_min < 0.0f ||
+        cfg->room_margin_c < 0.0f || (cfg->room_min_c > 0.0f && cfg->room_max_c > 0.0f && cfg->room_min_c > cfg->room_max_c)) {
         return false;
     }
     float below_c = 0.0f; /* the temperature of the last tier that is on */
@@ -341,9 +368,28 @@ static void trend_update(safety_sm_t *sm, uint32_t now_ms)
     }
 }
 
+/* The room temperature: the thermal node's estimate, clamped, or the fallback without one. */
+static void room_update(safety_sm_t *sm, const safety_inputs_t *in)
+{
+    const float lo = TUNED(room_min_c, ROOM_MIN_C), hi = TUNED(room_max_c, ROOM_MAX_C);
+    const float c = in->thermal_valid && isfinite(in->ambient_c) ? in->ambient_c : TUNED(room_fallback_c, ROOM_FALLBACK_C);
+    sm->room_c = c < lo ? lo : (c > hi ? hi : c);
+}
+
+/*
+ * Where "only cooling" ends: a pan heading for less than room_margin_c above the room has no heat going in
+ * (Newton cooling settles at the room). Never above the cooking temperature: a pan heading there is cooking.
+ */
+static float cool_line_c(const safety_sm_t *sm)
+{
+    const float line = sm->room_c + TUNED(room_margin_c, ROOM_MARGIN_C);
+    return line < sm->cfg.heat_on_temp_c ? line : sm->cfg.heat_on_temp_c;
+}
+
 /* Cooking judgment: is heat going in? Updates sm->cooling and sm->heat_phase. */
 static void judge_heat(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_ms)
 {
+    room_update(sm, in);
     if (!sm->heat_active) {
         trend_clear(sm);
         sm->cooling = false;
@@ -365,15 +411,15 @@ static void judge_heat(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now_
         return;
     }
     settle_track(sm, now_ms);
-    const float off = sm->cfg.heat_off_temp_c;
+    const float line = cool_line_c(sm);
     const bool model_fits = !(isfinite(sm->settle_drift_c_per_min) && sm->settle_drift_c_per_min > TUNED(settle_exit_drift_c_per_min, SETTLE_EXIT_DRIFT_C_PER_MIN));
     if (sm->cooling) {
-        if (sm->settle_c >= off + TUNED(settle_margin_c, SETTLE_MARGIN_C) || !model_fits) {
+        if (sm->settle_c >= line + TUNED(settle_margin_c, SETTLE_MARGIN_C) || !model_fits) {
             sm->cooling = false; /* heading hot after all, or the estimate is climbing: the profile does not fit */
         }
-    } else if (sm->settle_c < off - TUNED(settle_margin_c, SETTLE_MARGIN_C) && isfinite(sm->settle_drift_c_per_min) &&
+    } else if (sm->settle_c < line - TUNED(settle_margin_c, SETTLE_MARGIN_C) && isfinite(sm->settle_drift_c_per_min) &&
                sm->settle_drift_c_per_min <= TUNED(settle_max_drift_c_per_min, SETTLE_MAX_DRIFT_C_PER_MIN)) {
-        sm->cooling = true; /* below the cooking temperature, and stable: the cooling model fits */
+        sm->cooling = true; /* heading for the room, and stable: the cooling model fits */
         sm->cooling_since_ms = now_ms;
     }
     sm->heat_phase = sm->cooling ? SAFETY_HEAT_COOLING
@@ -401,14 +447,14 @@ static uint32_t cooling_hold_max_ms(const safety_sm_t *sm)
 }
 
 /*
- * The trend is sure heat is still going in: the pan is heading somewhere above the off temperature, and that
+ * The trend is sure heat is still going in: the pan is heading somewhere hot (above cool_line_c()), and that
  * estimate has stopped moving (a lowered flame). Right after a burner is switched off the estimate is still
  * falling fast, so this is not believed yet.
  */
 static bool heat_confirmed(const safety_sm_t *sm)
 {
     return isfinite(sm->settle_c) && isfinite(sm->settle_drift_c_per_min) &&
-           sm->settle_c >= sm->cfg.heat_off_temp_c + TUNED(settle_margin_c, SETTLE_MARGIN_C) &&
+           sm->settle_c >= cool_line_c(sm) + TUNED(settle_margin_c, SETTLE_MARGIN_C) &&
            fabsf(sm->settle_drift_c_per_min) <= TUNED(settle_max_drift_c_per_min, SETTLE_MAX_DRIFT_C_PER_MIN);
 }
 
@@ -418,10 +464,22 @@ static bool heat_confirmed(const safety_sm_t *sm)
  * waits until the temperature rises again, heat is confirmed, or falling_hold_max_ms is used up. That limit
  * counts from the first falling hold of the timeline, so falling on and off can't stretch it.
  */
+/*
+ * How fast the pan has to fall to count as falling: a share of its heat above the room per minute, never less
+ * than falling_rate_c_per_min.
+ */
+static float falling_rate_needed(const safety_sm_t *sm, float temp_c)
+{
+    const float floor_c = TUNED(falling_rate_c_per_min, FALLING_RATE_C_PER_MIN);
+    const float share = TUNED(falling_share_pct_per_min, FALLING_SHARE_PCT_PER_MIN) / 100.0f;
+    const float by_share = isfinite(temp_c) ? share * (temp_c - sm->room_c) : 0.0f;
+    return by_share > floor_c ? by_share : floor_c;
+}
+
 static bool falling_hold(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 {
     if (!sm->cfg.falling_hold || !sm->heat_active || !in->thermal_valid || !isfinite(sm->fast_rate_c_per_min) ||
-        sm->fast_rate_c_per_min > -TUNED(falling_rate_c_per_min, FALLING_RATE_C_PER_MIN) || heat_confirmed(sm)) {
+        sm->fast_rate_c_per_min > -falling_rate_needed(sm, in->cooking_temp_c) || heat_confirmed(sm)) {
         return false;
     }
     if (!sm->falling_hold_started) {
@@ -656,6 +714,7 @@ void safety_init(safety_sm_t *sm, const safety_config_t *cfg, safety_transition_
     sm->trend_rate_c_per_min = NAN;
     sm->fast_rate_c_per_min = NAN;
     sm->settle_c = NAN;
+    sm->room_c = TUNED(room_fallback_c, ROOM_FALLBACK_C);
 }
 
 bool safety_set_config(safety_sm_t *sm, const safety_config_t *cfg)

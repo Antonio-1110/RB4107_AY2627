@@ -113,13 +113,14 @@ function phase(values, age, elapsed) {
         out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the pan cools`;
         out.detail =
           "No heat is going in: the temperature is heading for " +
-          `${number(values.cooking_settle_c) ? values.cooking_settle_c.toFixed(0) + " °C" : "the room temperature"}. ` +
+          `${number(values.cooking_settle_c) ? values.cooking_settle_c.toFixed(0) + " °C" : "the room temperature"}` +
+          `${number(values.cooking_room_c) ? ` (room ${values.cooking_room_c.toFixed(0)} °C)` : ""}. ` +
           "The next step comes when the trend flattens out hot, or it ends when the pan drops below the cooking temperature.";
         out.label = "held: cooling";
       } else if (values.hold === "falling") {
         out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the temperature falls`;
         out.detail =
-          "The pan is getting cooler, so it is moving away from danger. The next step comes at once if it rises " +
+          "The pan is losing heat fast for how far it is above the room, so it is moving away from danger. The next step comes at once if it rises " +
           "again or the trend shows heat is still going in (a lowered flame), and after 90 s at most.";
         out.label = "held: falling";
       } else {
@@ -213,7 +214,8 @@ function liveLines(values, age, elapsed) {
     values.thermal_lost === true
       ? "Cooking: unknown · thermal sensor lost"
       : `Cooking: ${cooking === true ? "yes" : cooking === false ? "no" : "not reported"}${phase} · hottest pixel ${hot}${trend}` +
-          (number(values.cooking_on_c) ? ` (from ${values.cooking_on_c.toFixed(1)} °C, over below ${number(values.cooking_off_c) ? values.cooking_off_c.toFixed(1) : "—"} °C)` : ""),
+          (number(values.cooking_on_c) ? ` (from ${values.cooking_on_c.toFixed(1)} °C, over below ${number(values.cooking_off_c) ? values.cooking_off_c.toFixed(1) : "—"} °C)` : "") +
+          (number(values.cooking_room_c) ? ` · room ${values.cooking_room_c.toFixed(0)} °C` : ""),
   );
   let person =
     values.occupied === true

@@ -83,6 +83,7 @@ static void send_thermal(const rb_sim_inputs_t *in, uint32_t now)
         .max_temp_c = in->hot_region_c, /* the hottest pixel is what the safety logic compares */
         .min_temp_c = 22.0f,
         .mean_temp_c = 26.0f,
+        .ambient_c = 24.0f, /* below the 30 °C clamp: the room in use is 30 °C */
         .hot_region_temp_c = in->hot_region_c,
         .temp_rate_c_per_min = in->rate_c_per_min,
         .pixels_above_threshold = in->hot_region_c > 50.0f ? 12 : 0,
