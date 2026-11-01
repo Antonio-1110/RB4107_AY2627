@@ -59,7 +59,7 @@ export const sendCookingTemp = (deviceId, body) => post(`${device(deviceId)}/coo
 export const sendCookware = (deviceId, body) => post(`${device(deviceId)}/cookware/`, body);
 
 // Temperature tiers (shorter buzzer and shutdown times for hotter pans), saved on the controller:
-// {elevated: {temp_c, warning_s, shutdown_s}, critical: {temp_c, rate_c_per_min, rate_min_temp_c, warning_s, shutdown_s}}
+// {levels: [{temp_c, warning_s, shutdown_s} for tiers 2, 3, 4 and 5]} (tier 1 is the base times)
 // or {defaults: true}. The answer is values.tiers / values.tiers_source in the next telemetry.
 export const sendTiers = (deviceId, body) => post(`${device(deviceId)}/tiers/`, body);
 

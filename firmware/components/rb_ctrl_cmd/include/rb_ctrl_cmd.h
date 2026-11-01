@@ -26,12 +26,10 @@
  *                               controller; needs cookware: "mixed", "light",
  *                               "heavy" or "liquid"
  *   "cookware_defaults"         forget the saved profile: back to menuconfig
- *   "tiers"                     set the temperature tiers (docs/safety_state_machine.md),
- *                               saved on the controller; needs all eight values:
- *                               tier1_temp_dc, tier1_warning_ms, tier1_shutdown_ms,
- *                               tier2_temp_dc, tier2_rate_dc_per_min,
- *                               tier2_rate_min_temp_dc, tier2_warning_ms,
- *                               tier2_shutdown_ms (0.1 degC, 0.1 degC/min, ms)
+ *   "tiers"                     set temperature tiers 2 to 5 (docs/safety_state_machine.md;
+ *                               tier 1 is the base times), saved on the controller; needs
+ *                               all twelve values: tierN_temp_dc (0.1 degC, 0 = that tier
+ *                               off), tierN_warning_ms and tierN_shutdown_ms, N = 2..5
  *   "tiers_defaults"            forget the saved tiers: back to menuconfig
  *   "attendance"                set who counts as at the stove and the pause budget, saved
  *                               on the controller; needs pause_budget_ms (0..600000),
@@ -73,8 +71,8 @@ extern "C" {
 #define RB_CTRL_TIMEOUT_MAX_MS 3600000
 /* Dashboard limit for "cooking_temp": 0..300.0 degC, as RB_SAFETY_HEAT_ON_DC. */
 #define RB_CTRL_COOKING_TEMP_MAX_DC 3000
-/* Dashboard limit for the tier rate: 0..1000.0 degC/min. */
-#define RB_CTRL_TIER_RATE_MAX_DC_PER_MIN 10000
+/* Tiers 2..5 in the "tiers" command (tier 1 is the base times). */
+#define RB_CTRL_TIERS 4
 
 typedef enum {
     RB_CTRL_ACTION_RESET = 1,
@@ -110,15 +108,10 @@ typedef struct {
     uint16_t cooking_temp_dc;
     /* RB_CTRL_ACTION_COOKWARE only: "mixed", "light", "heavy" or "liquid". */
     char cookware[12];
-    /* RB_CTRL_ACTION_TIERS only. Temperatures in 0.1 degC (0 = that tier off), rate in 0.1 degC/min. */
-    uint16_t tier1_temp_dc;
-    uint32_t tier1_warning_ms;
-    uint32_t tier1_shutdown_ms;
-    uint16_t tier2_temp_dc;
-    uint16_t tier2_rate_dc_per_min;
-    uint16_t tier2_rate_min_temp_dc;
-    uint32_t tier2_warning_ms;
-    uint32_t tier2_shutdown_ms;
+    /* RB_CTRL_ACTION_TIERS only: [0] = tier 2 ... [3] = tier 5. Temperatures in 0.1 degC (0 = that tier off). */
+    uint16_t tier_temp_dc[RB_CTRL_TIERS];
+    uint32_t tier_warning_ms[RB_CTRL_TIERS];
+    uint32_t tier_shutdown_ms[RB_CTRL_TIERS];
     /* RB_CTRL_ACTION_ATTENDANCE only. */
     uint32_t pause_budget_ms;
     uint8_t pause_budget_pct;

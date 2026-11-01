@@ -89,7 +89,7 @@ typedef struct {
     safety_tier_t tier;           /* temperature tier in force */
     uint32_t eff_warning_ms;      /* the buzzer and shutdown times in force (base, tier and hook applied) */
     uint32_t eff_shutdown_ms;
-    safety_config_t tiers;        /* only the tier fields are read: tier1_*, tier2_* */
+    safety_config_t tiers;        /* only the tier fields are read: tiers[], tier_rate */
     bool tiers_remote;            /* tiers set from the dashboard, not menuconfig */
     bool paused;                  /* the clock is stopped: someone is at the stove (pause budget) */
     uint32_t pause_used_ms;
@@ -259,22 +259,15 @@ typedef struct {
  */
 esp_err_t rb_controller_set_radar_rules(const rb_radar_rules_t *rules);
 
-/* The temperature tiers of safety_config_t, as the dashboard sets them. */
+/* Temperature tiers 2..5 of safety_config_t, as the dashboard sets them (tier 1 is the base times). */
 typedef struct {
-    float tier1_temp_c;
-    uint32_t tier1_warning_ms;
-    uint32_t tier1_shutdown_ms;
-    float tier2_temp_c;
-    float tier2_rate_c_per_min;
-    float tier2_rate_min_temp_c;
-    uint32_t tier2_warning_ms;
-    uint32_t tier2_shutdown_ms;
+    safety_tier_cfg_t tiers[SAFETY_HOT_TIERS];
 } rb_tiers_t;
 
 /*
  * Replace the temperature tiers, or NULL for the menuconfig ones. Stays on top of any later
  * rb_controller_set_safety_config() until a reboot or a call with NULL. Applied at the next step; values
- * safety_config_valid() refuses (a shutdown not after its warning, CRITICAL below ELEVATED) are logged and
+ * safety_config_valid() refuses (a shutdown not after its warning, a tier below the one before it) are logged and
  * ignored. Saving it across reboots is the caller's job.
  */
 esp_err_t rb_controller_set_tiers(const rb_tiers_t *tiers);

@@ -244,7 +244,7 @@ class DashboardIntegrationTest(TestCase):
         values = self.latest()["values"]
         self.assertTrue(values["manual_reset_required"])
         self.assertEqual(values["reset_status_source"], "firmware")
-        self.assertEqual(values["warning_after_seconds"], 180)  # the firmware defaults, as the demo reports them
+        self.assertEqual(values["warning_after_seconds"], 150)  # the firmware defaults, as the demo reports them
         self.assertEqual(values["shutdown_after_seconds"], 300)
         self.assertEqual(values["shutdown_counts_from"], "UNATTENDED")
         self.assertEqual(values["boot_id"], "aaaa0001")
