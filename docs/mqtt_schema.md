@@ -90,8 +90,10 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   a rising pan gets the tier it is heading for (`rate`; `null` if tiers are off).
   `hold` is what holds a due step back: `none`, `return`, `cooling` or `falling`. See [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time).
   `cooking.phase` is the judgment from the temperature trend (`off`, `checking`,
-  `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min` and where the
-  temperature is heading (`settle_c`), compared with the room temperature in use
+  `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min`, its standard
+  error `rate_err_c_per_min`, the fall `cool_rate_c_per_min` that counts as only
+  cooling, and where the temperature is heading (`settle_c`, noisy, used only to
+  check the profile fits), against the room temperature in use
   (`room_c`: the thermal camera's 10th-percentile pixel, kept between 30 and 45 °C,
   38 °C without a reading); `cookware` is the profile that sets the
   cooling time constant; `hold` says why a due buzzer or shutdown is held back

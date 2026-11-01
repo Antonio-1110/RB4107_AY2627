@@ -112,9 +112,8 @@ function phase(values, age, elapsed) {
       if (values.hold === "cooling") {
         out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the pan cools`;
         out.detail =
-          "No heat is going in: the temperature is heading for " +
-          `${number(values.cooking_settle_c) ? values.cooking_settle_c.toFixed(0) + " °C" : "the room temperature"}` +
-          `${number(values.cooking_room_c) ? ` (room ${values.cooking_room_c.toFixed(0)} °C)` : ""}. ` +
+          "No heat is going in: the pan is falling as fast as a pan with the burner off would, so it is heading for " +
+          `the room temperature${number(values.cooking_room_c) ? ` (${values.cooking_room_c.toFixed(0)} °C)` : ""}. ` +
           "The next step comes when the trend flattens out hot, or it ends when the pan drops below the cooking temperature.";
         out.label = "held: cooling";
       } else if (values.hold === "falling") {
@@ -206,8 +205,12 @@ function liveLines(values, age, elapsed) {
   const phase = values.cooking_phase && PHASE[values.cooking_phase] ? ` · ${PHASE[values.cooking_phase]}` : "";
   const trend =
     values.cooking_phase && values.cooking_phase !== "off" && number(values.cooking_rate_c_per_min)
-      ? ` · ${values.cooking_rate_c_per_min > 0 ? "+" : ""}${values.cooking_rate_c_per_min.toFixed(1)} °C/min` +
-        (number(values.cooking_settle_c) ? ` heading for ${values.cooking_settle_c.toFixed(0)} °C` : "")
+      ? ` · ${values.cooking_rate_c_per_min > 0 ? "+" : ""}${values.cooking_rate_c_per_min.toFixed(1)}` +
+        (number(values.cooking_rate_err_c_per_min) ? ` ± ${(2 * values.cooking_rate_err_c_per_min).toFixed(1)}` : "") +
+        " °C/min" +
+        (number(values.cooking_cool_rate_c_per_min) && values.cooking_cool_rate_c_per_min > 0
+          ? ` (only cooling if falling ≥ ${values.cooking_cool_rate_c_per_min.toFixed(1)})`
+          : "")
       : "";
   set(
     "cd-cooking-live",

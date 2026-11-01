@@ -248,6 +248,39 @@
    "group": "Temperature trend and the cooling hold"
   },
   {
+   "key": "trend_outlier_mads_x10",
+   "kind": "TENTHS",
+   "min": 5,
+   "max": 200,
+   "default": 30,
+   "label": "Trend leaves out samples this many robust SDs off",
+   "source": "TREND_OUTLIER_MADS",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_outlier_min_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 1000,
+   "default": 5,
+   "label": "... but never samples closer than",
+   "source": "TREND_OUTLIER_MIN_C",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_confidence_x10",
+   "kind": "TENTHS",
+   "min": 1,
+   "max": 100,
+   "default": 20,
+   "label": "Hold as cooling only this many standard errors clear",
+   "source": "TREND_CONFIDENCE",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
    "key": "settle_margin_dc",
    "kind": "DC",
    "min": 1,

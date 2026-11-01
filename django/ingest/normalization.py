@@ -77,6 +77,8 @@ def _cooking_trend(safety):
     return {"tiers_source": tiers_source(safety.get("tiers")), "tier": safety.get("tier"), "effective_warning_seconds": _seconds(safety.get("effective_warning_ms")),
             "effective_shutdown_seconds": _seconds(safety.get("effective_shutdown_ms")), "tiers": tiers,
             "cooking_phase": cooking.get("phase"), "cooking_rate_c_per_min": finite(cooking.get("rate_c_per_min")),
+            "cooking_rate_err_c_per_min": finite(cooking.get("rate_err_c_per_min")),
+            "cooking_cool_rate_c_per_min": finite(cooking.get("cool_rate_c_per_min")),
             "cooking_settle_c": finite(cooking.get("settle_c")), "cooking_room_c": finite(cooking.get("room_c")), "hold": safety.get("hold"),
             "cookware_profile": cookware.get("profile"), "cookware_tau_s": finite(cookware.get("tau_s")),
             "cookware_source": cookware.get("source"), **_params(safety)}

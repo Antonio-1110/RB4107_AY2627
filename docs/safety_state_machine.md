@@ -101,16 +101,27 @@ fire hazard: oil fires start when a pan keeps being heated unattended
 The decision uses the **trend**, not the absolute temperature, so it also works
 for a shiny pan that reads too cold:
 
-1. Every 2 s the S3 stores the hottest pixel. A least-squares fit over the last
-   2 minutes gives the rate (needs at least 12 samples over 60 s; until then the
-   phase is *checking* and heat counts as going in).
-2. From the cooling law (T falls toward its settling temperature as `e^(−t/τ)`),
-   it works out where the temperature is heading: `T_settle = T + τ × rate`.
-3. If `T_settle` is less than 10 °C above the **room temperature** (with a 3 °C
-   hysteresis, and never above the cooking temperature), the pan is
-   **cooling**: a pan with nothing keeping it hot settles at the room. Otherwise
-   heat is going in: **holding** (steady or settling hot: a lowered flame, a
-   simmer, boiling water at 100 °C) or **heating** (rising faster than 0.5 °C/min).
+1. Every 2 s the S3 stores the **hot region** (the mean of the 3×3 pixels
+   around the hottest one; the tiers still use the hottest pixel itself). A
+   weighted least-squares line over the last 2 minutes gives the rate (needs at
+   least 12 samples over 60 s; until then the phase is *checking* and heat counts
+   as going in). The fit runs twice: the second leaves out samples the first
+   missed by more than 3 robust standard deviations (stirring, steam, a
+   reflection), so one jump can't swing it. The residuals give the rate's
+   standard error.
+2. From the cooling law, a pan with nothing keeping it hot falls at
+   `(T − room) / τ`. The pan is **cooling** when it falls at least as fast as a
+   pan settling 3 °C below the *cooling line* would, and the rate is clear of
+   that by 2 standard errors. The line is 10 °C above the **room temperature**,
+   never above the cooking temperature. This is the same test as
+   `T + τ × rate < line`, but it compares rates, so the noise in the rate is not
+   multiplied by τ (40 min × 0.5 °C/min of noise would be ±20 °C on a
+   prediction). Otherwise heat is going in: **holding** (steady or settling hot:
+   a lowered flame, a simmer, boiling water at 100 °C) or **heating** (rising
+   faster than 0.5 °C/min).
+3. Holding back a buzzer needs that confidence; letting go of a hold does not.
+   The hold ends as soon as the pan falls slower than a pan settling 3 °C above
+   the line would.
 
 **The room temperature** is measured, not assumed: the thermal node sends the
 10th-percentile pixel of each frame (the pan and a few cold pixels, such as a
@@ -138,8 +149,11 @@ Extremes (searing pans, very large stock pots, deep fryers) are not profiled.
 the pan: for a pan that is only cooling it stays put near the room temperature.
 If the profile's τ is longer than the pan's, the estimate climbs as a lowered
 flame's warm-up tail relaxes. So "cooling" is only believed while the estimate
-has not risen by more than 8 °C over the last minute (and is dropped if it rises
-by more than 16 °C/min). A profile that fits the pan holds the timers for a
+has not risen by more than 8 °C over the last minute, and is dropped if it rises
+by more than 16 °C/min plus its own noise (2 × 1.4 × τ × the rate's standard
+error: about 18 °C/min for a pot on the liquid profile). Without that noise
+allowance, a pot cooling on the bench (63 °C, room 33 °C, liquid profile) lost
+its hold every minute and buzzed on time; with it, it is held and ends idle. A profile that fits the pan holds the timers for a
 cooling pan; a profile that does not simply falls back to the normal timers.
 
 What a wrong profile costs, simulated on model cooling curves (not measured on

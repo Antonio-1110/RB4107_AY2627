@@ -108,6 +108,8 @@ typedef struct {
         const char *cooking_phase;    /* "off" "checking" "heating" "holding" "cooling" (the temperature trend) */
         float trend_rate_c_per_min;   /* NAN = not enough data */
         float settle_c;               /* where the temperature is heading, NAN = unknown */
+        float trend_rate_err_c_per_min; /* standard error of trend_rate_c_per_min */
+        float cool_rate_c_per_min;    /* falling at least this fast (with confidence) = only cooling; NAN = unknown */
         float room_c;                 /* the room temperature the cooling judgment uses */
         const char *hold;             /* "none" "return" "cooling" "falling": what holds a due buzzer/shutdown back */
         const char *tier;             /* "tier1" ... "tier5": the temperature tier in force (tier1 = the base times) */

@@ -85,6 +85,8 @@ typedef struct {
     safety_heat_phase_t heat_phase;   /* heating / holding / cooling, from the temperature trend */
     float trend_rate_c_per_min;   /* NAN until there is enough data */
     float settle_c;               /* where the temperature is heading, NAN if unknown */
+    float trend_rate_err_c_per_min;
+    float cool_rate_c_per_min;    /* falling at least this fast (with confidence) = only cooling */
     float room_c;                 /* the room temperature the cooling judgment uses */
     safety_hold_t hold;           /* what holds a due buzzer or shutdown back right now */
     safety_tier_t tier;           /* temperature tier in force */

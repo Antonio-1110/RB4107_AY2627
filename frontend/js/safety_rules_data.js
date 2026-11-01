@@ -196,8 +196,8 @@ export default {
    "rows": [
     {
      "id": "D1",
-     "when": "Cooling: over the last {{TREND_DEFAULT_WINDOW_MS|120 s}} (at least {{TREND_MIN_SAMPLES|12}} samples over {{TREND_MIN_SPAN_MS|60 s}}) the predicted settling temperature T + tau x rate is more than {{SETTLE_MARGIN_C|3 °C}} below the only-cooling line, and it rose at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}} over the last minute. The line is {{ROOM_MARGIN_C|10 °C}} above the room temperature (B5), but never above the cooking temperature: Newton cooling settles at the room, so a pan heading there has no heat going in. tau comes from the cookware profile ({{RB_SAFETY_COOKWARE|\"mixed / unknown (10 min)\"}})",
-     "result": "The pan counts as only cooling. Ends when the prediction is back {{SETTLE_MARGIN_C|3 °C}} above the line or climbs faster than {{SETTLE_EXIT_DRIFT_C_PER_MIN|16 °C/min}}. With too little data, a lost camera or the trend judgment turned off (it is {{RB_SAFETY_COOKING_TREND|on}} by default), heat counts as going in",
+     "when": "Cooling: a straight line fitted to the hot region (the mean around the hottest pixel) over the last {{TREND_DEFAULT_WINDOW_MS|120 s}} (at least {{TREND_MIN_SAMPLES|12}} samples over {{TREND_MIN_SPAN_MS|60 s}}; recent samples count more, and samples a first fit misses by over {{TREND_OUTLIER_MADS|3}} robust SDs, at least {{TREND_OUTLIER_MIN_C|0.5 °C}}, are left out) shows the pan falling at least as fast as cooling alone would make a pan that settles {{SETTLE_MARGIN_C|3 °C}} below the only-cooling line fall: (T - line + margin) / tau. The rate must be clear of that by {{TREND_CONFIDENCE|2}} standard errors of the fit. The line is {{ROOM_MARGIN_C|10 °C}} above the room temperature (B5), but never above the cooking temperature: Newton cooling settles at the room. T + tau x rate (where it is heading) also rose at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}} over the last minute. tau comes from the cookware profile ({{RB_SAFETY_COOKWARE|\"mixed / unknown (10 min)\"}})",
+     "result": "The pan counts as only cooling. Ends when it falls slower than a pan settling {{SETTLE_MARGIN_C|3 °C}} above the line would, or T + tau x rate climbs faster than {{SETTLE_EXIT_DRIFT_C_PER_MIN|16 °C/min}} plus its own noise ({{TREND_CONFIDENCE|2}} x 1.4 x tau x the rate's standard error). With too little data, a lost camera or the trend judgment turned off (it is {{RB_SAFETY_COOKING_TREND|on}} by default), heat counts as going in",
      "code": "judge_heat()"
     },
     {
@@ -220,7 +220,7 @@ export default {
     },
     {
      "id": "D5",
-     "when": "A buzzer or shutdown comes due while the temperature is falling (over the last {{TIER_RATE_WINDOW_MS|30 s}}) by at least {{FALLING_SHARE_PCT_PER_MIN|2}} % per minute of its heat above the room (B5), and at least {{FALLING_RATE_C_PER_MIN|1 °C/min}}; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the prediction of D1 at least {{SETTLE_MARGIN_C|3 °C}} above the only-cooling line and moving at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}})",
+     "when": "A buzzer or shutdown comes due while the temperature is falling (over the last {{TIER_RATE_WINDOW_MS|30 s}}) by at least {{FALLING_SHARE_PCT_PER_MIN|2}} % per minute of its heat above the room (B5), and at least {{FALLING_RATE_C_PER_MIN|1 °C/min}}; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the fit of D1 falling slower than a pan settling {{SETTLE_MARGIN_C|3 °C}} above the only-cooling line would, and T + tau x rate moving at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}})",
      "result": "It waits (falling hold; {{RB_SAFETY_FALLING_HOLD|on}} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {{FALLING_HOLD_MAX_MS|90 s}} at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead",
      "code": "falling_hold()"
     }
@@ -686,6 +686,39 @@ export default {
    "default": 12,
    "label": "Trend needs at least this many samples (one per 2 s)",
    "source": "TREND_MIN_SAMPLES",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_outlier_mads_x10",
+   "kind": "TENTHS",
+   "min": 5,
+   "max": 200,
+   "default": 30,
+   "label": "Trend leaves out samples this many robust SDs off",
+   "source": "TREND_OUTLIER_MADS",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_outlier_min_dc",
+   "kind": "DC",
+   "min": 1,
+   "max": 1000,
+   "default": 5,
+   "label": "... but never samples closer than",
+   "source": "TREND_OUTLIER_MIN_C",
+   "options": null,
+   "group": "Temperature trend and the cooling hold"
+  },
+  {
+   "key": "trend_confidence_x10",
+   "kind": "TENTHS",
+   "min": 1,
+   "max": 100,
+   "default": 20,
+   "label": "Hold as cooling only this many standard errors clear",
+   "source": "TREND_CONFIDENCE",
    "options": null,
    "group": "Temperature trend and the cooling hold"
   },

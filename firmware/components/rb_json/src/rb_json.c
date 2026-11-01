@@ -188,6 +188,10 @@ static void safety_obj(rb_json_writer_t *w, const rb_telemetry_t *t)
     rb_json_str(w, t->safety.cooking_phase != NULL ? t->safety.cooking_phase : "off");
     rb_json_key(w, "rate_c_per_min");
     rb_json_num(w, t->safety.trend_rate_c_per_min, 2);
+    rb_json_key(w, "rate_err_c_per_min");
+    rb_json_num(w, t->safety.trend_rate_err_c_per_min, 2);
+    rb_json_key(w, "cool_rate_c_per_min");
+    rb_json_num(w, t->safety.cool_rate_c_per_min, 2);
     rb_json_key(w, "settle_c");
     rb_json_num(w, t->safety.settle_c, 1);
     rb_json_key(w, "room_c");

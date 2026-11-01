@@ -49,6 +49,8 @@ static rb_telemetry_t sample(void)
                    .trend_rate_c_per_min = -12.34f,
                    .settle_c = NAN,
                    .room_c = 33.5f,
+                   .trend_rate_err_c_per_min = 0.25f,
+                   .cool_rate_c_per_min = NAN,
                    .hold = "falling",
                    .tier = "tier5",
                    .effective_warning_ms = 30000,
@@ -119,6 +121,7 @@ static void test_unknown_values_are_null(void)
                                      "\"return_gap_ms\":1000,\"fusion\":\"all\",\"pause_budget_cfg_ms\":30000,"
                                      "\"pause_budget_pct\":25,\"attendance_source\":\"dashboard\",\"source\":\"menuconfig\"},"
                                      "\"cooking\":{\"active\":true,\"phase\":\"cooling\",\"rate_c_per_min\":-12.34,"
+                                     "\"rate_err_c_per_min\":0.25,\"cool_rate_c_per_min\":null,"
                                      "\"settle_c\":null,\"room_c\":33.5,\"on_c\":55.5,\"off_c\":45.5,\"source\":\"dashboard\"},"
                                      "\"cookware\":{\"profile\":\"liquid\",\"tau_s\":2400,\"source\":\"dashboard\"}}"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"hold\":\"falling\",\"tier\":\"tier5\",\"effective_warning_ms\":30000,"

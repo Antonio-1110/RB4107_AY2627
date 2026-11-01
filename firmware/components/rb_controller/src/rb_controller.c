@@ -424,6 +424,7 @@ static void safety_task(void *arg)
             .cooking_temp_c = ni.max_temp_c,
             .temp_rate_c_per_min = ni.temp_rate_c_per_min,
             .ambient_c = ni.ambient_c,
+            .trend_temp_c = ni.hot_region_temp_c,
             .self_test = s_hooks.self_test != NULL ? s_hooks.self_test(s_hooks.ctx) : SAFETY_SELFTEST_PASS,
             .reset_request = reset,
             .safety_fault = s_hooks.safety_fault_active != NULL && s_hooks.safety_fault_active(s_hooks.ctx),
@@ -486,6 +487,8 @@ static void safety_task(void *arg)
             s_snapshot.heat_phase = sm.heat_phase;
             s_snapshot.trend_rate_c_per_min = sm.trend_rate_c_per_min;
             s_snapshot.settle_c = sm.settle_c;
+            s_snapshot.trend_rate_err_c_per_min = sm.trend_rate_err_c_per_min;
+            s_snapshot.cool_rate_c_per_min = sm.cool_rate_c_per_min;
             s_snapshot.room_c = sm.room_c;
             s_snapshot.hold = sm.hold;
             s_snapshot.tier = sm.tier;

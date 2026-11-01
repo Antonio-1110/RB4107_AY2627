@@ -84,6 +84,14 @@ RB_PARAM(trend_min_span_ms, MS, 10000, 250000, TREND_MIN_SPAN_MS, "", "Trend nee
          t->safety.trend_min_span_ms, t->safety.trend_min_span_ms = v)
 RB_PARAM(trend_min_samples, COUNT, 3, 128, TREND_MIN_SAMPLES, "", "Trend needs at least this many samples (one per 2 s)",
          t->safety.trend_min_samples, t->safety.trend_min_samples = (uint16_t)v)
+RB_PARAM(trend_outlier_mads_x10, TENTHS, 5, 200, TREND_OUTLIER_MADS, "",
+         "Trend leaves out samples this many robust SDs off",
+         (uint32_t)lroundf(t->safety.trend_outlier_mads * 10.0f), t->safety.trend_outlier_mads = v / 10.0f)
+RB_PARAM(trend_outlier_min_dc, DC, 1, 1000, TREND_OUTLIER_MIN_C, "", "... but never samples closer than",
+         (uint32_t)lroundf(t->safety.trend_outlier_min_c * 10.0f), t->safety.trend_outlier_min_c = v / 10.0f)
+RB_PARAM(trend_confidence_x10, TENTHS, 1, 100, TREND_CONFIDENCE, "",
+         "Hold as cooling only this many standard errors clear",
+         (uint32_t)lroundf(t->safety.trend_confidence * 10.0f), t->safety.trend_confidence = v / 10.0f)
 RB_PARAM(settle_margin_dc, DC, 1, 500, SETTLE_MARGIN_C, "", "Cooling margin around the only-cooling line",
          (uint32_t)lroundf(t->safety.settle_margin_c * 10.0f), t->safety.settle_margin_c = v / 10.0f)
 RB_PARAM(settle_max_drift_dc_per_min, DC_PER_MIN, 1, 1000, SETTLE_MAX_DRIFT_C_PER_MIN, "",
