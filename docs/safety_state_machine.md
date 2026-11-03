@@ -129,7 +129,7 @@ window or a cold drink, don't move it). The controller keeps it between 30 °C
 and 45 °C and uses 38 °C when the camera has no reading. In a 30 °C room the
 cooling line is 40 °C, the same as the old off-temperature line; in a hot
 kitchen it moves up with the room, so a pan cooling to a 40 °C room is no longer
-mistaken for heat going in. The numbers are on the Other settings card.
+mistaken for heat going in. These numbers are fixed in the firmware (`safety.c`).
 
 τ comes from the **cookware profile**, chosen per stall on the dashboard
 (Tuning → Rules) and saved on the controller. The values are engineering
@@ -257,7 +257,8 @@ pan would get there. The rate is measured over the last 30 s, as the median of
 the newer half of the window minus the median of the older half: one bad frame
 (a reflection, steam) can't fake a fast rise. Noise in it errs early (a buzzer
 too soon, never too late), and only a rise counts. Setting:
-`RB_SAFETY_TIER_RATE` (on), and the window on the Other settings card.
+`RB_SAFETY_TIER_RATE` (on, also under the Timer card's More settings); the
+window is fixed (30 s).
 
 How it behaves:
 
@@ -296,8 +297,8 @@ held only until the trend confirms heat is going in, or the 90 s limit; cold
 food dropped into hot oil is held until the oil recovers and rises again. Heat
 counts as confirmed when the predicted settling temperature (T + τ × rate, see
 "Cooking judgment") is above the cooling line and has stopped moving (at
-most 8 °C/min). Setting: `RB_SAFETY_FALLING_HOLD` (on); the thresholds and the
-limit are on the Other settings card.
+most 8 °C/min). Setting: `RB_SAFETY_FALLING_HOLD` (on) and its limit, under the
+Cooking card's More settings; the thresholds are fixed in the firmware.
 
 **Why "falling" is relative to the room.** A pan loses heat in proportion to how
 far it is above the room (Newton's law: rate = (T − room) / τ). Near the room

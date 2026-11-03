@@ -13,7 +13,8 @@ copy and the command schema.
                                         docs/schema/rb4107_mqtt.schema.json
   python3 tools/safety_rules.py check   exit 1 if any of those is out of date, the table names
                                         something that doesn't exist, a setting in the rules
-                                        can't be changed from the dashboard, or a function the
+                                        ({NAME}, not a fixed {=NAME}) can't be changed from the
+                                        dashboard, or a function the
                                         table names changed on this branch without the table
                                         changing
 
@@ -242,8 +243,10 @@ def schema_with_params(text, params):
     props = text.index('      "properties": {\n', start) + len('      "properties": {\n')
     end = text.index("\n      },\n", props)
     keys = {p["key"] for p in params}
+    # Drop every generated line (they say "params: ..."), so a row removed from rb_params.def goes too.
     lines = [ln for ln in text[props:end].split("\n")
-             if not (re.match(r'^\s*"(\w+)":', ln) and re.match(r'^\s*"(\w+)":', ln).group(1) in keys)]
+             if '"description": "params: ' not in ln
+             and not (re.match(r'^\s*"(\w+)":', ln) and re.match(r'^\s*"(\w+)":', ln).group(1) in keys)]
     lines[-1] = lines[-1].rstrip(",") + ","
     for i, p in enumerate(params):
         desc = f"params: {p['label']}" + (f" (0 = {p['options'][0]}, 1 = {p['options'][1]})" if p["options"] else
@@ -290,20 +293,24 @@ def resolve(name, kconfig, consts):
     return with_unit(name, sym["default"])
 
 
-def render_text(text, kconfig, consts, used, live=False):
-    """{NAME} -> **default**, or for the dashboard {{NAME|default}} so it can show the live value instead."""
+def render_text(text, kconfig, consts, used, live=False, tunable=None):
+    """{NAME} -> **default**, or for the dashboard {{NAME|default}} so it can show the live value instead.
+    {=NAME} is a fixed setting: rendered the same, but not added to tunable (the dashboard needn't change it)."""
     def sub(m):
-        used.add(m.group(1))
-        value = resolve(m.group(1), kconfig, consts)
-        return f"{{{{{m.group(1)}|{value}}}}}" if live else f"**{value}**"
-    return re.sub(r"\{(\w+)\}", sub, text)
+        name = m.group(2)
+        used.add(name)
+        if tunable is not None and not m.group(1):
+            tunable.add(name)
+        value = resolve(name, kconfig, consts)
+        return f"{{{{{name}|{value}}}}}" if live else f"**{value}**"
+    return re.sub(r"\{(=?)(\w+)\}", sub, text)
 
 
 def generate():
     states, rules, signals = parse_def()
     kconfig, consts = parse_kconfig(), parse_constants()
     params = parse_params(kconfig, consts)
-    used = set()
+    used, tunable = set(), set()
     out = [
         "# Safety rules: what the controller does, and when",
         "",
@@ -313,8 +320,8 @@ def generate():
         "machine runs from the same table this page is generated from",
         "([`safety_rules.def`](../firmware/components/safety/src/safety_rules.def)), so",
         "the transitions below are exactly what the firmware does. Values in **bold**",
-        "are the menuconfig defaults; the dashboard can change every one of them (see the",
-        "last section) and shows the values in force. The",
+        "are the menuconfig defaults. The dashboard changes the ones listed in the last",
+        "section and shows the values in force; the rest are fixed (menuconfig or safety.c). The",
         "reasons behind the rules are in [safety_state_machine.md](safety_state_machine.md).",
         "",
         "## Outputs per state",
@@ -331,8 +338,8 @@ def generate():
             return
         out.extend(["", f"## {SECTIONS[letter]}", "", "| # | When | Result | Code |", "|---|---|---|---|"])
         for s in rows:
-            out.append(f"| {s['id']} | {render_text(s['when'], kconfig, consts, used)} | "
-                       f"{render_text(s['result'], kconfig, consts, used)} | `{s['function']}()` in `{s['file']}` |")
+            out.append(f"| {s['id']} | {render_text(s['when'], kconfig, consts, used, tunable=tunable)} | "
+                       f"{render_text(s['result'], kconfig, consts, used, tunable=tunable)} | `{s['function']}()` in `{s['file']}` |")
 
     for letter in "ABCD":
         signal_section(letter)
@@ -352,7 +359,7 @@ def generate():
                 "", "| # | From | When | To | Reported reason |", "|---|---|---|---|---|"])
     for r in rules:
         frm = ", ".join(r["from"]) if len(r["from"]) < 4 else "any cooking-related state (" + ", ".join(r["from"]) + ")"
-        out.append(f"| {r['id']} | {frm} | {render_text(r['when'], kconfig, consts, used)} | **{r['to']}** | {r['reason']} |")
+        out.append(f"| {r['id']} | {frm} | {render_text(r['when'], kconfig, consts, used, tunable=tunable)} | **{r['to']}** | {r['reason']} |")
     out.append("")
     out.append("SHUTDOWN is left only by T16. A state not in the table goes to FAULT (\"invalid state\").")
 
@@ -370,11 +377,11 @@ def generate():
     for k, (v, note) in consts.items():
         out.append(f"| `{k}` | {v} | {note} |")
     out.extend(["", "## Changing them from the dashboard", "",
-                "The dashboard's Tuning cards change the cooking temperature, cookware profile, temperature tiers,",
-                "presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules. Every other",
-                "setting above is on the Logic tab's **Other settings** card",
-                "([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)); the controller saves",
-                "them until **Defaults** is pressed.", "",
+                "The dashboard's Safety tab changes the cooking temperature, cookware profile, temperature tiers,",
+                "presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules, plus the",
+                "settings below ([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)) under",
+                "each card's **More settings**. The controller saves them until **Restore defaults** is pressed.",
+                "Everything else in these rules is fixed.", "",
                 "| Setting | Key | Default | Range |", "|---|---|---|---|"])
     for p in params:
         rng = " / ".join(p["options"]) if p["options"] else f"{param_text(p, p['min'])} to {param_text(p, p['max'])}"
@@ -388,7 +395,7 @@ def generate():
     django = json.dumps({"_": "Generated by tools/safety_rules.py from firmware/components/rb_params/include/rb_params.def; "
                               "do not edit.", "params": params}, indent=1, ensure_ascii=False) + "\n"
     schema = schema_with_params(SCHEMA.read_text(), params)
-    uncovered = sorted(used - {p["source"] for p in params} - dashboard_card_settings())
+    uncovered = sorted(tunable - {p["source"] for p in params} - dashboard_card_settings())
     return "\n".join(out), states, rules, signals, js, django, schema, uncovered
 
 
@@ -466,7 +473,7 @@ def check():
         errors.append(f"the params keys in {SCHEMA.relative_to(ROOT)} are out of date: run python3 tools/safety_rules.py gen")
     for name in uncovered:
         errors.append(f"{{{name}}} in the rules can't be changed from the dashboard: add it to rb_params.def "
-                      f"(or to a dashboard card and its LIVE entry in safety_logic.js)")
+                      f"(or to a dashboard card and its LIVE entry in safety_logic.js), or write {{={name}}} if it is fixed")
 
     base = os.environ.get("SAFETY_RULES_BASE", "origin/main")
     if git_ok(base):

@@ -261,18 +261,6 @@ function liveLines(values, age, elapsed) {
           (shortTier(values.tier) ? ` (${TIER_LABEL[values.tier]})` : "")
       : "Timer: not reported",
   );
-  const tiers = values.tiers;
-  set(
-    "cd-timer-tiers",
-    tiers && Array.isArray(tiers.levels) && tiers.levels.length
-      ? "By temperature: tier 1 the base times · " +
-          tiers.levels
-            .filter((t) => number(t.temp_c) && t.temp_c > 0)
-            .map((t) => `tier ${t.tier} from ${t.temp_c} °C: ${seconds0(t.warning_seconds)} / ${seconds0(t.shutdown_seconds)}`)
-            .join(" · ") +
-          (tiers.rate ? " · a rising pan already gets the tier it reaches within that tier's buzzer time" : "")
-      : "",
-  );
 }
 
 function draw() {

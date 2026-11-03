@@ -6,8 +6,8 @@ Every condition the S3 controller reacts to, and what it does. The state
 machine runs from the same table this page is generated from
 ([`safety_rules.def`](../firmware/components/safety/src/safety_rules.def)), so
 the transitions below are exactly what the firmware does. Values in **bold**
-are the menuconfig defaults; the dashboard can change every one of them (see the
-last section) and shows the values in force. The
+are the menuconfig defaults. The dashboard changes the ones listed in the last
+section and shows the values in force; the rest are fixed (menuconfig or safety.c). The
 reasons behind the rules are in [safety_state_machine.md](safety_state_machine.md).
 
 ## Outputs per state
@@ -87,7 +87,7 @@ Checked on every step in this order; the first rule of the current state that ho
 | T10 | UNATTENDED | Return confirmed (D4). The countdown is cancelled | **MONITORING** | person returned |
 | T11 | UNATTENDED | Not cooking (B3), with the cooling policy **"return to IDLE and cancel the timers"**. The countdown is cancelled | **IDLE** | heating stopped while unattended |
 | T12 | UNATTENDED | Unattended for the warning time (**150 s**, shorter in a hotter tier C4, C5) and no hold (D2, D3, D5) | **WARNING** | unattended timeout |
-| T13 | WARNING | Return confirmed (D4). The warning exit is **"return to MONITORING"**; if it is changed to acknowledge, a reset is needed as well | **MONITORING** | person returned during warning |
+| T13 | WARNING | Return confirmed (D4). The warning exit is **"return to MONITORING"**; if menuconfig changes it to acknowledge, a reset is needed as well | **MONITORING** | person returned during warning |
 | T14 | WARNING | Not cooking (B3), with the cooling policy **"return to IDLE and cancel the timers"**. The countdown is cancelled | **IDLE** | heating stopped during warning |
 | T15 | WARNING | Unattended for the shutdown time (**300 s**, counted from **"start of UNATTENDED (total unattended time)"**, shorter in a hotter tier), no hold (D2, D3, D5), and the buzzer has sounded at least **30 s** if a hold happened, or **10 s** if a tier made the shutdown due at once | **SHUTDOWN** | shutdown timeout |
 | T16 | SHUTDOWN | Operator reset (dashboard button or console reset). Nothing else leaves SHUTDOWN; a reboot also clears it. All timing starts over | **IDLE** | operator reset |
@@ -95,7 +95,7 @@ Checked on every step in this order; the first rule of the current state that ho
 | T18 | FAULT | Fault cleared, cooking, PRESENT | **MONITORING** | fault cleared, person present |
 | T19 | FAULT | Fault cleared, cooking, nobody seen. A countdown already running carries on; otherwise it counts from when the fault began | **UNATTENDED** | fault cleared, person absent |
 | T20 | FAULT | The countdown reached its shutdown time: a fault never postpones it | **SHUTDOWN** | shutdown timeout reached during fault |
-| T21 | FAULT | In FAULT for **90 s** (0 = never) | **SHUTDOWN** | fault persisted |
+| T21 | FAULT | In FAULT for **90 s** (0 = never, menuconfig only) | **SHUTDOWN** | fault persisted |
 
 SHUTDOWN is left only by T16. A state not in the table goes to FAULT ("invalid state").
 
@@ -194,49 +194,19 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 
 ## Changing them from the dashboard
 
-The dashboard's Tuning cards change the cooking temperature, cookware profile, temperature tiers,
-presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules. Every other
-setting above is on the Logic tab's **Other settings** card
-([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)); the controller saves
-them until **Defaults** is pressed.
+The dashboard's Safety tab changes the cooking temperature, cookware profile, temperature tiers,
+presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules, plus the
+settings below ([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)) under
+each card's **More settings**. The controller saves them until **Restore defaults** is pressed.
+Everything else in these rules is fixed.
 
 | Setting | Key | Default | Range |
 |---|---|---|---|
-| Shutdown time counts from | `shutdown_timing` | start of UNATTENDED (total unattended time) | start of UNATTENDED (total unattended time) / start of WARNING |
-| Someone comes back during WARNING | `warning_exit` | return to MONITORING | return to MONITORING / stay in WARNING until the person acknowledges (reset input) |
-| The pan cools down while unattended | `cooling_policy` | return to IDLE and cancel the timers | keep the timers running (old behaviour: shuts a cold stove off) / return to IDLE and cancel the timers |
-| Judge from the temperature trend | `cooking_trend` | on | off / on |
-| Also cooking when rising this fast, 0 = off | `heat_on_rate_dc_per_min` | 0 °C/min | 0 °C/min to 1000 °C/min |
 | Cooking is over this far below the cooking temperature | `heat_off_gap_dc` | 10 °C | 0 °C to 100 °C |
-| FAULT shuts down after, 0 = never | `fault_shutdown_ms` | 90 s | 0 s to 3600 s |
-| Self-test result needed within, at boot | `self_test_timeout_ms` | 10 s | 1 s to 120 s |
-| Read back the shutdown output every | `verify_period_ms` | 1 s | 0.1 s to 60 s |
-| A sensor node is STALE after silence of | `node_stale_ms` | 2 s | 0.2 s to 60 s |
-| A sensor node is OFFLINE after silence of | `node_offline_ms` | 10 s | 0.5 s to 600 s |
-| Wireless valve KEEP_OPEN every, under the valve's 3 s | `valve_keepalive_ms` | 1 s | 0.1 s to 2.5 s |
-| A hotter tier takes over after holding | `tier_up_persist_ms` | 4 s | 0.1 s to 60 s |
-| A cooler tier takes over after holding | `tier_down_persist_ms` | 20 s | 0.1 s to 600 s |
-| A cooler tier also needs the pan this far below its threshold | `tier_hyst_dc` | 10 °C | 0.1 °C to 50 °C |
-| Buzzer before a shutdown that was already due | `late_warning_min_ms` | 10 s | 1 s to 300 s |
-| A rising pan gets the tier it is heading for | `tier_rate` | on | off / on |
-| Rise or fall measured over the last | `tier_rate_window_ms` | 30 s | 10 s to 120 s |
-| Trend window | `trend_window_ms` | 120 s | 10 s to 250 s |
-| Trend needs at least this much history | `trend_min_span_ms` | 60 s | 10 s to 250 s |
-| Trend needs at least this many samples (one per 2 s) | `trend_min_samples` | 12 | 3 to 128 |
-| Trend leaves out samples this many robust SDs off | `trend_outlier_mads_x10` | 3 | 0.5 to 20 |
-| ... but never samples closer than | `trend_outlier_min_dc` | 0.5 °C | 0.1 °C to 100 °C |
-| Hold as cooling only this many standard errors clear | `trend_confidence_x10` | 2 | 0.1 to 10 |
-| Cooling margin around the only-cooling line | `settle_margin_dc` | 3 °C | 0.1 °C to 50 °C |
-| Prediction may climb this fast to start a cooling hold | `settle_max_drift_dc_per_min` | 8 °C/min | 0.1 °C/min to 100 °C/min |
-| A cooling hold ends when the prediction climbs faster than | `settle_exit_drift_dc_per_min` | 16 °C/min | 0.1 °C/min to 100 °C/min |
-| A cooling hold lasts at most | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
-| A cooling hold lasts at most this many time constants | `cooling_hold_taus_x10` | 4 | 0.1 to 20 |
-| Buzzer before the shutdown after any hold | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |
-| Hold a due buzzer or shutdown while the pan is falling | `falling_hold` | on | off / on |
-| Falling means losing this % of the heat above the room per minute | `falling_share_pct_x10` | 2 | 0.1 to 50 |
-| ... and falling at least | `falling_rate_dc_per_min` | 1 °C/min | 0.1 °C/min to 100 °C/min |
-| A falling hold lasts at most, per countdown | `falling_hold_max_ms` | 90 s | 10 s to 600 s |
-| Room temperature is at least | `room_min_dc` | 30 °C | 0.1 °C to 60 °C |
-| Room temperature is at most | `room_max_dc` | 45 °C | 0.1 °C to 80 °C |
-| Room temperature without a camera reading | `room_fallback_dc` | 38 °C | 0.1 °C to 80 °C |
-| Only cooling = heading for less than this above the room | `room_margin_dc` | 10 °C | 0.1 °C to 50 °C |
+| Wait while the pan is only cooling down | `cooking_trend` | on | off / on |
+| ... but at most | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
+| Wait while the pan temperature is falling | `falling_hold` | on | off / on |
+| ... but at most | `falling_hold_max_ms` | 90 s | 10 s to 600 s |
+| After a wait, buzzer at least this long before shutting off | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |
+| A pan heating up fast gets the hotter tier early | `tier_rate` | on | off / on |
+| If the controller has a fault, shut off after | `fault_shutdown_ms` | 90 s | 10 s to 3600 s |

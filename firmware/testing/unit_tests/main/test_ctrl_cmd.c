@@ -375,22 +375,22 @@ static void test_bad_params_are_rejected(void)
     rb_ctrl_cmd_t cmd;
     char err[80];
     /* one setting missing */
-    params_json(json, sizeof(json), false, RB_PARAM_trend_window_ms, "");
+    params_json(json, sizeof(json), false, RB_PARAM_falling_hold_max_ms, "");
     TEST_ASSERT_FALSE(parse(json, &cmd, err));
     /* one twice */
-    params_json(json, sizeof(json), false, -1, ",\"tier_hyst_dc\":20");
+    params_json(json, sizeof(json), false, -1, ",\"falling_hold_max_ms\":20000");
     TEST_ASSERT_FALSE(parse(json, &cmd, err));
     /* one out of range, below and above */
-    params_json(json, sizeof(json), false, RB_PARAM_self_test_timeout_ms, ",\"self_test_timeout_ms\":999");
+    params_json(json, sizeof(json), false, RB_PARAM_fault_shutdown_ms, ",\"fault_shutdown_ms\":9999");
     TEST_ASSERT_FALSE(parse(json, &cmd, err));
-    params_json(json, sizeof(json), true, RB_PARAM_valve_keepalive_ms, ",\"valve_keepalive_ms\":2501");
+    params_json(json, sizeof(json), true, RB_PARAM_falling_hold_max_ms, ",\"falling_hold_max_ms\":600001");
     TEST_ASSERT_FALSE(parse(json, &cmd, err));
     /* a string */
-    params_json(json, sizeof(json), false, RB_PARAM_shutdown_timing, ",\"shutdown_timing\":\"1\"");
+    params_json(json, sizeof(json), false, RB_PARAM_tier_rate, ",\"tier_rate\":\"1\"");
     TEST_ASSERT_FALSE(parse(json, &cmd, err));
     /* a setting with another action */
     TEST_ASSERT_FALSE(parse("{\"schema_version\":2,\"type\":\"controller_command\",\"controller_id\":\"c\","
-                            "\"request_id\":3,\"action\":\"params_defaults\",\"tier_hyst_dc\":20}",
+                            "\"request_id\":3,\"action\":\"params_defaults\",\"falling_hold_max_ms\":20000}",
                             &cmd, err));
     TEST_ASSERT_TRUE(err[0] != '\0');
 }

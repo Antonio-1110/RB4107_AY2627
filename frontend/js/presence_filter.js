@@ -1,39 +1,36 @@
 "use strict";
-// Presence filter and timers in the System status card (docs/remote_reset.md).
-// Changes how long the radar must agree before the safety state machine counts
-// "absent" or "returned", and when the buzzer and shutdown come, until the
-// controller reboots. The controller's answer is safety.presence_filter (and
-// warning_after_ms / shutdown_after_ms) in the next telemetry.
+// Away after / back after (Person card) and the buzzer / shut-off times (Timer card) in Tuning > Safety
+// (docs/remote_reset.md): one "presence_filter" command to the controller, carrying all of them. Each card
+// saves its own: its fields as edited, the other card's as they are in force. The gap a return may have is
+// fixed on the dashboard, so the value in force is sent back unchanged. The controller's answer is
+// presence_filter (and warning_after_seconds / shutdown_after_seconds) in the next telemetry.
 
 import { sendPresenceFilter } from "./api.js";
 import { $ } from "./dom.js";
 import { number } from "./format.js";
+import { registerPart, report, showsResult } from "./safety_save.js";
 
 const ANSWER_WAIT_MS = 15000;
+// [input id, key sent, key in the seconds form, card]
 const FIELDS = [
-  ["pf-absence", "absence_ms", "absence_seconds"],
-  ["pf-return", "return_ms", "return_seconds"],
-  ["pf-gap", "return_gap_ms", "return_gap_seconds"],
-  ["pf-warning", "warning_ms", "warning_seconds"],
-  ["pf-shutdown", "shutdown_ms", "shutdown_seconds"],
+  ["pf-absence", "absence_ms", "absence_seconds", "person"],
+  ["pf-return", "return_ms", "return_seconds", "person"],
+  ["pf-warning", "warning_ms", "warning_seconds", "timer"],
+  ["pf-shutdown", "shutdown_ms", "shutdown_seconds", "timer"],
 ];
+const LABEL = { person: "Away and back", timer: "Buzzer and shut-off times" };
 
 let deviceId = "",
-  edited = false, // the user changed an input: don't overwrite it with telemetry
-  sending = false, // request in flight
-  pending = null, // {request_id, sentAt, expect: {key: seconds} or "menuconfig"}
+  edited = { person: false, timer: false }, // the user changed a card's inputs: don't overwrite them with telemetry
+  sending = false,
+  usable = false,
+  inForce = null, // the filter in force (seconds)
+  pending = null, // {request_id, sentAt, cards, expect: {key: seconds} or "menuconfig"}
   shutdownCountsFrom = null; // "UNATTENDED" or "WARNING", from telemetry
 
-function setStatus(text, style = "") {
-  const status = $("pf-status");
-  status.textContent = text;
-  status.className = `tuning-status ${style || "muted"}`;
-}
-
-const describe = (filter) =>
-  `absent after ${filter.absence_seconds} s, return after ${filter.return_seconds} s, ` +
-  `gaps up to ${filter.return_gap_seconds} s ignored, buzzer after ${filter.warning_seconds} s, ` +
-  `shutdown after ${filter.shutdown_seconds} s (${filter.source === "dashboard" ? "set here" : "menuconfig"})`;
+const setStatus = (cards, text, style = "") => {
+  for (const card of cards) report(LABEL[card], text, style);
+};
 
 // The presence filter plus the warning/shutdown times, which telemetry reports separately.
 function current(values) {
@@ -52,91 +49,104 @@ function answered(filter) {
   return filter.source === "dashboard" && FIELDS.every(([, , key]) => filter[key] === pending.expect[key]);
 }
 
+const DONE = {
+  person: (f) => `saved: away after ${f.absence_seconds} s, back after ${f.return_seconds} s.`,
+  timer: (f) => `saved: buzzer after ${f.warning_seconds} s, shut off after ${f.shutdown_seconds} s.`,
+};
+
 export function renderPresenceFilter(device) {
   if (device.device_id !== deviceId) {
     deviceId = device.device_id;
-    edited = false;
+    edited = { person: false, timer: false };
     pending = null;
+    setStatus(["person", "timer"], "");
   }
   shutdownCountsFrom = device.values.shutdown_counts_from;
   const filter = current(device.values),
     reachable = device.connection !== "offline";
-  if (filter && !edited) {
-    for (const [id, , key] of FIELDS) $(id).value = number(filter[key]) ? filter[key] : "";
+  inForce = filter;
+  if (filter) {
+    for (const [id, , key, card] of FIELDS) if (!edited[card]) $(id).value = number(filter[key]) ? filter[key] : "";
   }
-  const usable = Boolean(filter) && reachable && pending === null && !sending;
-  $("presence-filter-form").disabled = !usable;
-  $("pf-apply").disabled = !usable;
-  $("pf-defaults").disabled = !usable;
 
   if (pending) {
     if (answered(filter)) {
+      for (const card of pending.cards) {
+        edited[card] = false;
+        report(LABEL[card], pending.expect === "menuconfig" ? "back to the menuconfig values." : DONE[card](filter), "good");
+      }
       pending = null;
-      edited = false;
-      setStatus(`Applied: ${describe(filter)}.`, "good");
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
-      pending = null;
       setStatus(
-        'No change from the controller. Check it is online and that "Accept presence filter settings from the dashboard" is on in menuconfig.',
+        pending.cards,
+        'no change from the controller. Check it is online and that "Accept presence filter and buzzer/shutdown ' +
+          'times from the dashboard" is on in menuconfig.',
         "bad",
       );
-    } else {
-      setStatus(`Sent (request ${pending.request_id}), waiting for the controller…`, "warn");
+      pending = null;
     }
-  } else if (!filter) {
-    setStatus("This controller's firmware does not report its presence filter yet.");
-  } else if (!reachable) {
-    setStatus(`Controller offline. Last known: ${describe(filter)}.`, "warn");
-  } else if (sending || $("pf-status").classList.contains("bad")) {
-    // keep "sending…" or the last error until the next click
-  } else if (edited) {
-    setStatus(`Not applied yet. In use: ${describe(filter)}.`, "warn");
-  } else {
-    setStatus(`In use: ${describe(filter)}.`, filter.source === "dashboard" ? "good" : "");
+  } else if (!sending) {
+    for (const card of ["person", "timer"]) if (!showsResult(LABEL[card])) report(LABEL[card], "");
   }
+  usable = Boolean(filter) && reachable && pending === null && !sending;
+  for (const [id] of FIELDS) $(id).disabled = !usable;
 }
 
-async function send(body, expect) {
+async function send(body, expect, cards) {
   sending = true;
-  $("pf-apply").disabled = true;
-  $("pf-defaults").disabled = true;
-  setStatus("Sending…", "warn");
+  setStatus(cards, "sending…", "warn");
   try {
     const result = await sendPresenceFilter(deviceId, body);
-    pending = { request_id: result.request_id, sentAt: Date.now(), expect };
-    setStatus(`Sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    pending = { request_id: result.request_id, sentAt: Date.now(), cards, expect };
+    setStatus(cards, `sent (request ${result.request_id}), waiting for the controller…`, "warn");
   } catch (error) {
     pending = null;
-    $("pf-apply").disabled = false;
-    $("pf-defaults").disabled = false;
-    setStatus(`Not sent: ${error.message}`, "bad");
+    setStatus(cards, `not sent: ${error.message}`, "bad");
   } finally {
     sending = false;
   }
 }
 
-for (const [id] of FIELDS) $(id).addEventListener("input", () => (edited = true));
+for (const [id, , , card] of FIELDS)
+  $(id).addEventListener("input", () => {
+    edited[card] = true;
+    report(LABEL[card], "");
+  });
 
-$("pf-apply").addEventListener("click", () => {
-  const body = {},
+// saving: the cards being saved. Their fields go as edited, the rest as in force.
+function prepare(saving) {
+  const cards = ["person", "timer"].filter((card) => saving.has(card) && edited[card]),
+    body = { return_gap_ms: Math.round((inForce.return_gap_seconds || 0) * 1000) },
     expect = {};
-  for (const [id, wire, key] of FIELDS) {
-    const value = Number($(id).value);
-    if ($(id).value === "" || !Number.isFinite(value) || value < Number($(id).min) || value > Number($(id).max)) {
-      setStatus(`${$(id).parentElement.firstChild.textContent.trim()} must be ${$(id).min}–${$(id).max} s.`, "bad");
-      return;
+  for (const [id, wire, key, card] of FIELDS) {
+    let value = inForce[key];
+    if (cards.includes(card)) {
+      const input = $(id);
+      value = Number(input.value);
+      if (input.value === "" || !Number.isFinite(value) || value < Number(input.min) || value > Number(input.max))
+        return { error: `${input.parentElement.firstChild.textContent.trim()} must be ${input.min}–${input.max} s.` };
     }
     body[wire] = Math.round(value * 1000);
     expect[key] = body[wire] / 1000;
   }
-  if (shutdownCountsFrom === "UNATTENDED" && body.shutdown_ms <= body.warning_ms) {
-    setStatus("Shut down after must be longer than Buzzer after (both count from when the person left).", "bad");
-    return;
-  }
-  send(body, expect);
-});
+  if (shutdownCountsFrom === "UNATTENDED" && body.shutdown_ms <= body.warning_ms)
+    return { error: "shut off after must be longer than buzzer after (both count from when the person left)." };
+  return { run: () => send(body, expect, cards) };
+}
 
-$("pf-defaults").addEventListener("click", () => {
-  edited = false;
-  send({ defaults: true }, "menuconfig");
-});
+function defaults() {
+  edited = { person: false, timer: false };
+  send({ defaults: true }, "menuconfig", ["person", "timer"]);
+}
+
+for (const card of ["person", "timer"])
+  registerPart({
+    label: LABEL[card],
+    card,
+    shared: "presence_filter",
+    edited: () => edited[card],
+    busy: () => sending || pending !== null,
+    usable: () => usable,
+    prepare,
+    defaults,
+  });

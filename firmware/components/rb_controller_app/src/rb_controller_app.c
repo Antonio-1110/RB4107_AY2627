@@ -45,8 +45,9 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 }
 
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP || CONFIG_RB_CTRL_REMOTE_COOKWARE || CONFIG_RB_CTRL_REMOTE_TIERS || \
-    CONFIG_RB_CTRL_REMOTE_ATTENDANCE || CONFIG_RB_CTRL_REMOTE_RADAR_RULES || CONFIG_RB_CTRL_REMOTE_PARAMS
-/* The dashboard's cooking temperature, cookware profile and temperature tiers, saved so they survive a reboot. */
+    CONFIG_RB_CTRL_REMOTE_ATTENDANCE || CONFIG_RB_CTRL_REMOTE_RADAR_RULES || CONFIG_RB_CTRL_REMOTE_PARAMS || \
+    CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
+/* The dashboard's settings, saved so they survive a reboot. */
 #define NVS_NAMESPACE "rb_safety"
 #define NVS_KEY_COOKING "cook_dc"
 #define NVS_KEY_COOKWARE "cookware"
@@ -54,6 +55,7 @@ static void apply_outputs(const safety_outputs_t *out, void *ctx)
 #define NVS_KEY_ATTENDANCE "attend"
 #define NVS_KEY_RADAR "radar"
 #define NVS_KEY_PARAMS "params"
+#define NVS_KEY_FILTER "filter"
 
 static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
 {
@@ -65,6 +67,93 @@ static bool open_nvs(nvs_open_mode_t mode, nvs_handle_t *h)
     return err == ESP_OK && nvs_open(NVS_NAMESPACE, mode, h) == ESP_OK;
 }
 
+#endif
+
+#if CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
+typedef struct {
+    uint8_t version; /* 1 */
+    rb_presence_filter_t filter;
+} saved_filter_t;
+
+/* The command's limits (rb_ctrl_cmd.h): a saved value outside them is not used. */
+static bool filter_in_range(const rb_presence_filter_t *f)
+{
+    return f->absence_debounce_ms <= RB_CTRL_ABSENCE_MAX_MS && f->presence_return_debounce_ms <= RB_CTRL_RETURN_MAX_MS &&
+           f->presence_return_gap_ms <= RB_CTRL_RETURN_GAP_MAX_MS && f->warning_timeout_ms >= RB_CTRL_TIMEOUT_MIN_MS &&
+           f->warning_timeout_ms <= RB_CTRL_TIMEOUT_MAX_MS && f->shutdown_timeout_ms >= RB_CTRL_TIMEOUT_MIN_MS &&
+           f->shutdown_timeout_ms <= RB_CTRL_TIMEOUT_MAX_MS;
+}
+
+static void filter_load(void)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READONLY, &h)) {
+        return;
+    }
+    saved_filter_t saved;
+    size_t len = sizeof(saved);
+    if (nvs_get_blob(h, NVS_KEY_FILTER, &saved, &len) == ESP_OK && len == sizeof(saved) && saved.version == 1 &&
+        filter_in_range(&saved.filter)) {
+#if CONFIG_RB_DIAG_TEST_TIMERS_AT_BOOT
+        ESP_LOGW(TAG, "presence filter and times saved from the dashboard not used: test timers at boot are on");
+#else
+        rb_controller_set_presence_filter(&saved.filter);
+        ESP_LOGW(TAG, "presence filter and times saved from the dashboard: away %lu ms, back %lu ms, buzzer %lu s, "
+                      "shutdown %lu s",
+                 (unsigned long)saved.filter.absence_debounce_ms, (unsigned long)saved.filter.presence_return_debounce_ms,
+                 (unsigned long)(saved.filter.warning_timeout_ms / 1000),
+                 (unsigned long)(saved.filter.shutdown_timeout_ms / 1000));
+#endif
+    }
+    nvs_close(h);
+}
+
+/* filter == NULL: forget the saved values (back to menuconfig at the next boot too). */
+static void filter_save(const rb_presence_filter_t *filter)
+{
+    nvs_handle_t h;
+    if (!open_nvs(NVS_READWRITE, &h)) {
+        ESP_LOGW(TAG, "NVS not available: the presence filter and times last until the next reboot");
+        return;
+    }
+    esp_err_t err;
+    if (filter == NULL) {
+        err = nvs_erase_key(h, NVS_KEY_FILTER);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    } else {
+        const saved_filter_t saved = {.version = 1, .filter = *filter};
+        err = nvs_set_blob(h, NVS_KEY_FILTER, &saved, sizeof(saved));
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "presence filter and times not saved (%s): they last until the next reboot", esp_err_to_name(err));
+    }
+}
+
+/* MQTT task: the dashboard's presence filter and buzzer/shutdown times, or back to menuconfig. */
+static void set_presence_filter(const rb_ctrl_cmd_t *cmd)
+{
+    ESP_LOGW(TAG, "presence filter from the dashboard (request %u)", (unsigned)cmd->request_id);
+    if (cmd->action == RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS) {
+        rb_controller_set_presence_filter(NULL);
+        filter_save(NULL);
+        return;
+    }
+    const rb_presence_filter_t filter = {
+        .absence_debounce_ms = cmd->absence_ms,
+        .presence_return_debounce_ms = cmd->return_ms,
+        .presence_return_gap_ms = cmd->return_gap_ms,
+        .warning_timeout_ms = cmd->warning_ms,
+        .shutdown_timeout_ms = cmd->shutdown_ms,
+    };
+    rb_controller_set_presence_filter(&filter); /* the safety task refuses inconsistent values and keeps the ones in use */
+    filter_save(&filter);
+}
 #endif
 
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
@@ -561,19 +650,7 @@ static void on_controller_command(const char *topic, const char *data, size_t le
     case RB_CTRL_ACTION_PRESENCE_FILTER:
     case RB_CTRL_ACTION_PRESENCE_FILTER_DEFAULTS:
 #if CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
-        ESP_LOGW(TAG, "presence filter from the dashboard (request %u)", (unsigned)cmd.request_id);
-        if (cmd.action == RB_CTRL_ACTION_PRESENCE_FILTER) {
-            const rb_presence_filter_t filter = {
-                .absence_debounce_ms = cmd.absence_ms,
-                .presence_return_debounce_ms = cmd.return_ms,
-                .presence_return_gap_ms = cmd.return_gap_ms,
-                .warning_timeout_ms = cmd.warning_ms,
-                .shutdown_timeout_ms = cmd.shutdown_ms,
-            };
-            rb_controller_set_presence_filter(&filter);
-        } else {
-            rb_controller_set_presence_filter(NULL);
-        }
+        set_presence_filter(&cmd);
 #else
         ESP_LOGW(TAG, "dashboard presence filter refused: turned off in menuconfig");
 #endif
@@ -687,8 +764,11 @@ esp_err_t rb_controller_app_start(void)
 #endif
         .params_applied = params_applied,
     };
+#if CONFIG_RB_CTRL_REMOTE_PRESENCE_FILTER
+    filter_load(); /* applied at the first safety step */
+#endif
 #if CONFIG_RB_CTRL_REMOTE_COOKING_TEMP
-    cooking_temp_load(); /* applied at the first safety step */
+    cooking_temp_load();
 #endif
 #if CONFIG_RB_CTRL_REMOTE_COOKWARE
     cookware_load();

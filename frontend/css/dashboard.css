@@ -1639,7 +1639,6 @@ body[data-view="detail"] .heading {
 #detail-view[data-mode="tuning"][data-tab="radar"] [data-tab]:not([data-tab="radar"]),
 #detail-view[data-mode="tuning"][data-tab="thermal"] [data-tab]:not([data-tab="thermal"]),
 #detail-view[data-mode="tuning"][data-tab="diag"] [data-tab]:not([data-tab="diag"]),
-#detail-view[data-mode="tuning"][data-tab="logic"] [data-tab]:not([data-tab="logic"]),
 #detail-view[data-mode="tuning"][data-tab="logs"] [data-tab]:not([data-tab="logs"]) {
   display: none !important;
 }
@@ -1709,6 +1708,7 @@ body[data-view="detail"] .heading {
 #countdown-card { grid-area: hero; }
 .dv-cond { grid-area: cond; }
 .dv-logic { grid-area: logic; }
+.dv-flow { grid-area: flow; }
 .dv-heat { grid-area: heat; }
 .dv-mets { grid-area: mets; }
 .dv-chart { grid-area: chart; }
@@ -1722,8 +1722,8 @@ body[data-view="detail"] .heading {
 #detail-view[data-mode="monitor"] .dv-grid {
   grid-template-areas:
     "hero hero hero hero hero hero hero hero hero heat heat heat"
+    "flow flow flow flow flow flow flow flow flow heat heat heat"
     "cond cond cond cond cond cond cond cond cond heat heat heat"
-    "logic logic logic logic logic logic logic logic logic heat heat heat"
     "mets mets mets mets mets mets mets mets mets heat heat heat"
     "chart chart chart chart chart sys sys sys evt evt evt evt";
 }
@@ -1731,10 +1731,11 @@ body[data-view="detail"] .heading {
   display: none;
 }
 #detail-view[data-mode="tuning"][data-tab="rules"] .dv-grid {
-  grid-template-areas: "hero hero hero hero hero hero hero hero hero hero hero hero" "cond cond cond cond cond cond cond cond cond cond cond cond";
-}
-#detail-view[data-mode="tuning"][data-tab="logic"] .dv-grid {
-  grid-template-areas: "hero hero hero hero hero hero hero hero hero hero hero hero" "logic logic logic logic logic logic logic logic logic logic logic logic";
+  grid-template-areas:
+    "hero hero hero hero hero hero hero hero hero hero hero hero"
+    "flow flow flow flow flow flow flow flow flow flow flow flow"
+    "cond cond cond cond cond cond cond cond cond cond cond cond"
+    "logic logic logic logic logic logic logic logic logic logic logic logic";
 }
 #detail-view[data-mode="tuning"][data-tab="radar"] .dv-grid {
   grid-template-areas: "hero hero hero hero hero hero hero hero hero hero hero hero" "radar radar radar radar radar radar radar radar radar radar radar radar";
@@ -1827,6 +1828,148 @@ body[data-view="detail"] .heading {
   margin-top: 8px;
 }
 
+/* Safety tab: the flow strip, the step cards' details, the tiers and the save bar */
+.dv-flow {
+  margin: 0;
+  padding: 12px 16px;
+}
+.flow-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.flow-state {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.flow-state.current {
+  border-color: transparent;
+  font-weight: 700;
+}
+.flow-state.current.st-idle,
+.flow-state.current.st-monitoring {
+  background: var(--tint-good);
+  color: var(--green);
+}
+.flow-state.current.st-unattended,
+.flow-state.current.st-warning {
+  background: var(--tint-warn);
+  color: var(--on-warn);
+}
+.flow-state.current.st-shutdown,
+.flow-state.current.st-fault {
+  background: var(--tint-red);
+  color: var(--on-red);
+}
+.flow-arrow {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.flow-aside {
+  margin-left: auto;
+}
+.flow-next summary,
+.cd-more summary,
+.dv-logic > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--teal);
+}
+.flow-next[open] summary,
+.cd-more[open] summary {
+  margin-bottom: 8px;
+}
+.cd-step {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--tint-info);
+  color: var(--ink);
+  font-size: 11px;
+  vertical-align: 1px;
+}
+#detail-view[data-mode="monitor"] .cd-step {
+  display: none;
+}
+.dv-cond .tuning-grid.cd-fields {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: end; /* inputs line up when a label wraps */
+  margin: 10px 0;
+}
+.cd-more {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.cd-more .eyebrow {
+  margin: 12px 0 4px;
+}
+.tier-table {
+  display: grid;
+  grid-template-columns: 2.5em repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
+  align-items: center;
+  margin: 6px 0;
+}
+.tier-head {
+  font-size: 10px;
+  color: var(--muted);
+}
+.tier-name {
+  font-weight: 700;
+  color: var(--muted);
+}
+.tier-table input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--bd-info);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.card-save {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.dv-cond .cd-rule {
+  display: flex;
+  flex-direction: column;
+}
+.dv-cond .cd-rule .card-save {
+  margin-top: auto;
+  padding-top: 10px;
+}
+.safety-status {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.safety-status li {
+  margin: 2px 0;
+}
+.dv-logic > summary {
+  font-size: 13px;
+}
+.dv-logic[open] > summary {
+  margin-bottom: 8px;
+}
+
 /* safety logic: the controller's rules table, current state highlighted */
 .dv-logic {
   margin: 0;
@@ -1903,7 +2046,7 @@ body[data-view="detail"] .heading {
 .logic-to.to-fault {
   color: var(--red);
 }
-.logic-full .logic-rule.current,
+#logic-transitions .logic-rule.current,
 .logic-signal.current,
 .logic-outputs tr.current td {
   background: var(--tint-info);
@@ -2077,15 +2220,6 @@ body[data-view="detail"] .safety-note {
   font-weight: 600;
 }
 
-/* Other settings (Tuning > Logic): one grid per group of rb_params.def */
-#pr-block {
-  margin-bottom: 18px;
-}
-.params-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
-  align-items: end; /* inputs line up when a label wraps */
-  margin-bottom: 10px;
-}
 /* Stall history (js/stall_history.js) */
 body[data-view="history"] .ov-view-switch {
   display: none;

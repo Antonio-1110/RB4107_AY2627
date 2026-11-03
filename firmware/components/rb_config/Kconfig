@@ -894,9 +894,10 @@ menu "RB4107 configuration"
                     changes the absence debounce, the presence-return filter
                     (length and gap) and the warning and shutdown times of the
                     running state machine, within
-                    limits checked here (docs/remote_reset.md). Not saved: the
-                    menuconfig values come back on reboot, or when the
-                    dashboard sends "presence_filter_defaults".
+                    limits checked here (docs/remote_reset.md). Saved on the
+                    controller, so it survives a reboot, until the dashboard
+                    sends "presence_filter_defaults" (not used at boot while
+                    the diagnostic test timers at boot are on).
 
             config RB_CTRL_REMOTE_COOKING_TEMP
                 bool "Accept the cooking temperature from the dashboard"

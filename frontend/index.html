@@ -288,8 +288,7 @@
           </div>
         </div>
         <nav class="dv-tabs" data-show="tuning" aria-label="Tuning sections">
-          <button type="button" data-tab-button="rules">Rules</button>
-          <button type="button" data-tab-button="logic">Logic</button>
+          <button type="button" data-tab-button="rules">Safety</button>
           <button type="button" data-tab-button="radar">Radar</button>
           <button type="button" data-tab-button="thermal">Thermal</button>
           <button type="button" data-tab-button="diag">Diagnostics</button>
@@ -329,108 +328,86 @@
           </div>
           <div class="cd-flags" id="cd-flags" aria-label="Sensor status"></div>
         </section>
-        <fieldset class="dv-cond" id="presence-filter-form" data-tab="rules" disabled>
-          <legend class="visually-hidden">Cooking, person and timer rules</legend>
+        <section class="card dv-flow" id="safety-flow-card" data-tab="rules" aria-labelledby="flow-title">
+          <h2 id="flow-title" class="visually-hidden">How the controller decides</h2>
+          <ol id="safety-flow" class="flow-strip" aria-label="Safety states, the current one highlighted"></ol>
+          <div id="logic-now" class="logic-now"></div>
+          <details class="flow-next" data-show="tuning">
+            <summary>What can happen next</summary>
+            <ol id="logic-next" class="logic-list"></ol>
+          </details>
+        </section>
+
+        <fieldset class="dv-cond" id="safety-form" data-tab="rules" disabled>
+          <legend class="visually-hidden">Safety settings: cooking, person and timer</legend>
           <section class="card cd-rule" aria-labelledby="cd-cooking-title">
-            <h3 id="cd-cooking-title">Cooking</h3>
+            <h3 id="cd-cooking-title"><span class="cd-step">1</span>Is it cooking?</h3>
             <p class="cd-live" id="cd-cooking-live">—</p>
-            <p class="muted small" id="cd-cooking-rule" data-show="tuning">
-              The thermal camera decides: cooking starts when the hottest pixel reaches the
-              temperature below and ends under the "over" value.
+            <p class="muted small" data-show="tuning">
+              The thermal camera decides: cooking starts when the hottest spot reaches this temperature.
             </p>
-            <div class="heatmap-footprint" data-show="tuning">
+            <div class="tuning-grid cd-fields" data-show="tuning">
               <label
                 >Cooking from (°C)
-                <input id="ct-value" type="number" min="0" max="300" step="0.5" disabled
+                <input id="ct-value" type="number" min="0" max="300" step="0.5"
               /></label>
-            </div>
-            <div class="reset-actions" data-show="tuning">
-              <button id="ct-apply" class="primary-button" type="button" disabled>Apply</button>
-              <button id="ct-defaults" class="secondary-button" type="button" disabled>
-                Menuconfig value
-              </button>
-              <p id="ct-status" class="tuning-status muted">Waiting for the controller.</p>
-            </div>
-            <div data-show="tuning" class="cw-block">
-              <p class="muted small">
-                Cookware: how fast the pans at this stall lose heat. A pan that is only cooling
-                down holds the buzzer and shutdown back; a lowered flame, a simmer or boiling does
-                not. When unsure, pick the shorter time.
-              </p>
               <label
-                >Cookware profile
-                <select id="cw-select" disabled>
-                  <option value="mixed">Mixed / unknown (10 min)</option>
-                  <option value="light">Light pans: woks, thin aluminium or stainless (5 min)</option>
-                  <option value="heavy">Heavy pans: cast iron, thick clad (15 min)</option>
-                  <option value="liquid">Pots with liquid: soup, stock, boiling water (40 min)</option>
-                </select>
-              </label>
-              <div class="reset-actions">
-                <button id="cw-apply" class="primary-button" type="button" disabled>Apply</button>
-                <button id="cw-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig profile
-                </button>
-                <p id="cw-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
+                >Cookware
+                <select id="cw-select">
+                  <option value="mixed">Mixed / not sure (10 min)</option>
+                  <option value="light">Light: woks, thin pans (5 min)</option>
+                  <option value="heavy">Heavy: cast iron (15 min)</option>
+                  <option value="liquid">Pots with liquid (40 min)</option>
+                </select></label
+              >
+            </div>
+            <details class="cd-more" data-show="tuning">
+              <summary>More settings</summary>
+              <p class="muted small">
+                The cookware says how fast a pan loses heat. A pan that is only cooling down, or whose
+                temperature is falling, is moving away from danger: a buzzer or shut-off that comes due then
+                waits, up to the limits below.
+              </p>
+              <div id="pr-fields-cooking" class="tuning-grid cd-fields"></div>
+            </details>
+            <div class="card-save" data-show="tuning">
+              <button id="save-cooking" class="primary-button" type="button" disabled>Apply</button>
             </div>
           </section>
+
           <section class="card cd-rule" aria-labelledby="cd-person-title">
-            <h3 id="cd-person-title">Person</h3>
+            <h3 id="cd-person-title"><span class="cd-step">2</span>Is someone there?</h3>
             <p class="cd-live" id="cd-person-live">—</p>
-            <p class="muted small" id="cd-person-rule" data-show="tuning">
-              The S3 decides, not the radars. A radar blip never restarts the absence count;
-              only a confirmed return does.
+            <p class="muted small" data-show="tuning">
+              The radars decide. A short blip never restarts the countdown; only staying for the
+              "back after" time does.
             </p>
-            <p class="muted small" id="cd-person-radars" data-show="tuning"></p>
-            <div class="tuning-grid presence-filter-grid cd-fields" data-show="tuning">
+            <div class="tuning-grid cd-fields" data-show="tuning">
               <label
-                >Absent after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5"
-              /></label>
-              <label
-                >Stays this long to cancel (s)<input id="pf-return" type="number" min="0" max="10" step="0.5"
-              /></label>
-              <label
-                >Ignore gaps up to (s)<input id="pf-gap" type="number" min="0" max="5" step="0.5"
-              /></label>
+                >At the stove when
+                <select id="at-fusion">
+                  <option value="all">every radar sees them</option>
+                  <option value="any">either radar sees them</option>
+                </select></label
+              >
+              <label>Away after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5" /></label>
+              <label>Back after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5" /></label>
             </div>
-            <div class="at-block" data-show="tuning">
-              <p class="eyebrow">AT THE STOVE (attendance)</p>
-              <p class="muted small">
-                Someone passing stops the clock while they are detected; staying the time above
-                cancels the timeline. The pause has a budget so a busy aisle cannot stall it.
-              </p>
-              <div class="tuning-grid presence-filter-grid">
+            <details class="cd-more" data-show="tuning">
+              <summary>More settings</summary>
+              <div class="tuning-grid cd-fields">
                 <label
-                  >Pause budget (s, 0 = never)<input id="at-budget" type="number" min="0" max="600" step="1"
+                  >Someone passing may pause the clock for (s, 0 = never)
+                  <input id="at-budget" type="number" min="0" max="600" step="1"
                 /></label>
-                <label
-                  >... at most (% of shutdown)<input id="at-pct" type="number" min="0" max="100" step="1"
-                /></label>
-                <label
-                  >At the stove when
-                  <select id="at-fusion">
-                    <option value="all">every radar sees them</option>
-                    <option value="any">either radar sees them</option>
-                  </select></label
-                >
               </div>
-              <div class="reset-actions">
-                <button id="at-apply" class="primary-button" type="button" disabled>Apply attendance</button>
-                <button id="at-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig values
-                </button>
-                <p id="at-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
-            </div>
-            <div class="at-block" data-show="tuning">
-              <p class="eyebrow">RADAR STATE AND DISTANCE (placeholder rules)</p>
+              <p class="eyebrow">Radar rules (still being tuned on the bench)</p>
               <p class="muted small">
-                Tells someone passing from someone dwelling at the stove by how long the radar keeps a target,
-                how much of it is stationary and how far its distance wanders. Observe only shows the verdict;
-                enforce makes a passing target not count as at the stove.
+                Tell someone walking past from someone cooking. "Observe" only shows the verdict below;
+                "enforce" stops a passer-by counting as at the stove.
               </p>
-              <div class="tuning-grid presence-filter-grid">
+              <p class="muted small" id="cd-person-radars"></p>
+              <div class="tuning-grid cd-fields">
                 <label
                   >Mode
                   <select id="rr-mode">
@@ -439,175 +416,97 @@
                     <option value="enforce">enforce</option>
                   </select></label
                 >
-                <label
-                  >Gap that ends an episode (s)<input id="rr-gap" type="number" min="0" max="10" step="0.5"
-                /></label>
-                <label
-                  >Dwelling after (s)<input id="rr-dwell" type="number" min="0" max="60" step="0.5"
-                /></label>
-                <label
-                  >... of it stationary (s)<input id="rr-still" type="number" min="0" max="60" step="0.5"
-                /></label>
-                <label
-                  >Distance settled over (s)<input id="rr-window" type="number" min="0.5" max="60" step="0.5"
-                /></label>
-                <label
-                  >... within (cm)<input id="rr-span" type="number" min="0" max="1000" step="5"
-                /></label>
-                <label
-                  >Cook zone up to (cm, 0 = any)<input id="rr-zone" type="number" min="0" max="1200" step="10"
-                /></label>
+                <label>Cook zone up to (cm, 0 = any)<input id="rr-zone" type="number" min="0" max="1200" step="10" /></label>
+                <label>Cooking after (s)<input id="rr-dwell" type="number" min="0" max="60" step="0.5" /></label>
+                <label>... of it standing still (s)<input id="rr-still" type="number" min="0" max="60" step="0.5" /></label>
+                <label>Distance steady over (s)<input id="rr-window" type="number" min="0.5" max="60" step="0.5" /></label>
+                <label>... within (cm)<input id="rr-span" type="number" min="0" max="1000" step="5" /></label>
+                <label>A gap this long ends a visit (s)<input id="rr-gap" type="number" min="0" max="10" step="0.5" /></label>
               </div>
-              <div class="reset-actions">
-                <button id="rr-apply" class="primary-button" type="button" disabled>Apply radar rules</button>
-                <button id="rr-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig values
-                </button>
-                <p id="rr-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
+            </details>
+            <div class="card-save" data-show="tuning">
+              <button id="save-person" class="primary-button" type="button" disabled>Apply</button>
             </div>
           </section>
+
           <section class="card cd-rule" aria-labelledby="cd-timer-title">
-            <h3 id="cd-timer-title">Timer</h3>
+            <h3 id="cd-timer-title"><span class="cd-step">3</span>How long before…</h3>
             <p class="cd-live" id="cd-timer-live">—</p>
-            <p class="muted small" id="cd-timer-rule" data-show="tuning">
-              Runs while cooking and nobody is there. The buzzer and shutdown times count from
-              when the person left. The hotter the pan, the shorter the times (below); the times
-              set here are the base ones for a simmer.
+            <p class="muted small" data-show="tuning">
+              Counted from when the person left. Hotter pans get shorter times (More settings).
             </p>
-            <p class="eyebrow" data-show="tuning">BASE TIMES (a simmer)</p>
-            <div class="tuning-grid presence-filter-grid cd-fields" data-show="tuning">
-              <label
-                >Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1"
-              /></label>
-              <label
-                >Shut down after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1"
-              /></label>
+            <div class="tuning-grid cd-fields" data-show="tuning">
+              <label>Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1" /></label>
+              <label>Shut off after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1" /></label>
             </div>
-            <p class="muted small" id="cd-timer-tiers" data-show="tuning"></p>
-            <div class="tr-block" data-show="tuning">
-              <p class="eyebrow">TEMPERATURE TIERS (hottest pixel; tier 1 = the times above)</p>
-              <div class="tuning-grid presence-filter-grid">
-                <label
-                  >Tier 2 from (°C)<input id="tr-2-temp" type="number" min="0" max="300" step="1"
-                /></label>
-                <label
-                  >Buzzer after (s)<input id="tr-2-warn" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Shut down after (s)<input id="tr-2-stop" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Tier 3 from (°C)<input id="tr-3-temp" type="number" min="0" max="300" step="1"
-                /></label>
-                <label
-                  >Buzzer after (s)<input id="tr-3-warn" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Shut down after (s)<input id="tr-3-stop" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Tier 4 from (°C)<input id="tr-4-temp" type="number" min="0" max="300" step="1"
-                /></label>
-                <label
-                  >Buzzer after (s)<input id="tr-4-warn" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Shut down after (s)<input id="tr-4-stop" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Tier 5 from (°C)<input id="tr-5-temp" type="number" min="0" max="300" step="1"
-                /></label>
-                <label
-                  >Buzzer after (s)<input id="tr-5-warn" type="number" min="1" max="3600" step="1"
-                /></label>
-                <label
-                  >Shut down after (s)<input id="tr-5-stop" type="number" min="1" max="3600" step="1"
-                /></label>
+            <details class="cd-more" data-show="tuning">
+              <summary>More settings</summary>
+              <p class="eyebrow">Hotter pans</p>
+              <div class="tier-table" role="group" aria-label="Temperature tiers 2 to 5">
+                <span class="tier-head">Tier</span><span class="tier-head">From (°C)</span
+                ><span class="tier-head">Buzzer (s)</span><span class="tier-head">Shut off (s)</span>
+                <span class="tier-name">2</span
+                ><input id="tr-2-temp" type="number" min="0" max="300" step="1" aria-label="Tier 2 from (°C)"
+                /><input id="tr-2-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 2 buzzer after (s)"
+                /><input id="tr-2-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 2 shut off after (s)" />
+                <span class="tier-name">3</span
+                ><input id="tr-3-temp" type="number" min="0" max="300" step="1" aria-label="Tier 3 from (°C)"
+                /><input id="tr-3-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 3 buzzer after (s)"
+                /><input id="tr-3-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 3 shut off after (s)" />
+                <span class="tier-name">4</span
+                ><input id="tr-4-temp" type="number" min="0" max="300" step="1" aria-label="Tier 4 from (°C)"
+                /><input id="tr-4-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 4 buzzer after (s)"
+                /><input id="tr-4-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 4 shut off after (s)" />
+                <span class="tier-name">5</span
+                ><input id="tr-5-temp" type="number" min="0" max="300" step="1" aria-label="Tier 5 from (°C)"
+                /><input id="tr-5-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 5 buzzer after (s)"
+                /><input id="tr-5-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 5 shut off after (s)" />
               </div>
               <p class="muted small">
-                A temperature of 0 turns a tier off; each tier must start at or above the one before it. A tier
-                only ever shortens the base times, and a pan rising fast enough to reach a tier within its buzzer
-                time already gets it ("A rising pan gets the tier it is heading for" in Other settings). Saved on
-                the controller.
+                Tier 1 is the times above. A tier only ever shortens them; 0 °C turns a tier off, and each tier must
+                start at or above the one before.
               </p>
-              <div class="reset-actions">
-                <button id="tr-apply" class="primary-button" type="button" disabled>Apply tiers</button>
-                <button id="tr-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig tiers
-                </button>
-                <p id="tr-status" class="tuning-status muted">Waiting for the controller.</p>
-              </div>
+              <div id="pr-fields-timer" class="tuning-grid cd-fields"></div>
+            </details>
+            <div class="card-save" data-show="tuning">
+              <button id="save-timer" class="primary-button" type="button" disabled>Apply</button>
             </div>
           </section>
-          <div class="cd-apply" data-show="tuning">
+
+          <div class="cd-apply safety-save" data-show="tuning">
             <div class="reset-actions">
-              <button id="pf-apply" class="primary-button" type="button" disabled>
-                Apply person and timer rules
-              </button>
-              <button id="pf-defaults" class="secondary-button" type="button" disabled>
-                Menuconfig values
-              </button>
-              <p id="pf-status" class="tuning-status muted">Waiting for the controller.</p>
+              <button id="safety-defaults" class="secondary-button" type="button" disabled>Restore defaults</button>
             </div>
+            <ul id="safety-status" class="safety-status" aria-live="polite"></ul>
             <p class="muted small">
-              A lost sensor never starts a timer on its own: it shows a flag. If the thermal camera
-              says it is cooking and presence is unknown, presence counts as absent and the timer
-              runs. Changes to the person and timer rules last until the controller reboots; the
-              cooking temperature is saved on the controller.
+              Saved on the controller, so they survive a reboot. A lost sensor never starts the countdown on its own;
+              if the camera says cooking and nobody can be seen, the countdown runs.
             </p>
           </div>
         </fieldset>
 
-        <section class="card dv-logic" id="logic-card" data-tab="logic" aria-labelledby="logic-title">
-          <div class="section-heading">
-            <div>
-              <h2 id="logic-title">Safety logic</h2>
-              <p class="muted small">
-                From the same rules table the controller runs. Values are the ones in force on
-                the controller, and every one can be tuned on the dashboard: on the Rules tab's
-                cards or under Other settings below. Grey ones are menuconfig defaults the
-                controller doesn't report (older firmware).
-              </p>
-            </div>
-          </div>
-          <div id="logic-now" class="logic-now"></div>
-          <h3 class="logic-heading">What can happen next</h3>
-          <ol id="logic-next" class="logic-list"></ol>
-          <div class="logic-full" data-show="tuning">
-            <div class="tr-block" id="pr-block">
-              <h3 class="logic-heading">Other settings</h3>
-              <p class="muted small">
-                Every other number and choice in these rules: the ones the Rules tab's cards don't
-                cover. Saved on the controller until Menuconfig settings is pressed; hover a field for
-                its menuconfig default.
-              </p>
-              <div id="pr-fields"></div>
-              <p id="pr-status" class="tuning-status muted">Waiting for the controller.</p>
-              <div class="reset-actions">
-                <button id="pr-apply" class="primary-button" type="button" disabled>Apply settings</button>
-                <button id="pr-defaults" class="secondary-button" type="button" disabled>
-                  Menuconfig settings
-                </button>
-              </div>
-            </div>
-            <h3 class="logic-heading">All transitions, checked in this order</h3>
-            <ol id="logic-transitions" class="logic-list"></ol>
-            <h3 class="logic-heading">Outputs per state</h3>
-            <table class="logic-outputs">
-              <thead>
-                <tr>
-                  <th>State</th>
-                  <th>Buzzer</th>
-                  <th>Shutdown output</th>
-                </tr>
-              </thead>
-              <tbody id="logic-outputs"></tbody>
-            </table>
-            <h3 class="logic-heading">Inputs, cooking, timers and holds</h3>
-            <div id="logic-signals"></div>
-          </div>
-        </section>
+        <details class="card dv-logic" id="logic-card" data-tab="rules" data-show="tuning">
+          <summary>Full rule table</summary>
+          <p class="muted small">
+            The same table the controller runs, with the values in force. Underlined values are the ones you can
+            change above; the rest are fixed in the firmware.
+          </p>
+          <h3 class="logic-heading">All transitions, checked in this order</h3>
+          <ol id="logic-transitions" class="logic-list"></ol>
+          <h3 class="logic-heading">Outputs per state</h3>
+          <table class="logic-outputs">
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>Buzzer</th>
+                <th>Shutdown output</th>
+              </tr>
+            </thead>
+            <tbody id="logic-outputs"></tbody>
+          </table>
+          <h3 class="logic-heading">Inputs, cooking, timers and holds</h3>
+          <div id="logic-signals"></div>
+        </details>
 
         <section class="metrics dv-mets" data-tab="diag" aria-label="Latest device-reported readings">
           <article class="card metric" id="card-presence">

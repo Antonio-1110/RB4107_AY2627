@@ -21,6 +21,7 @@ static rb_mqtt_stats_t s_stats;
 
 #define MAX_SUBSCRIPTIONS 2
 #define TOPIC_MAX 128
+#define RB_MQTT_BUFFER_BYTES 2048 /* receive and send buffer of the MQTT client */
 
 typedef struct {
     char filter[TOPIC_MAX];
@@ -200,6 +201,9 @@ esp_err_t rb_mqtt_start(const rb_mqtt_config_t *config, rb_mqtt_state_cb_t cb, v
             },
         },
         .network.reconnect_timeout_ms = CONFIG_RB_MQTT_RECONNECT_MS,
+        /* The "params" command is ~1.1 KB; the client's 1 KB default would split it and on_data() drops split messages.
+         * django/ingest/tests/test_params.py checks that the longest command stays well under this. */
+        .buffer.size = RB_MQTT_BUFFER_BYTES,
         .outbox.limit = (uint64_t)CONFIG_RB_MQTT_OUTBOX_LIMIT_KB * 1024,
     };
     s_client = esp_mqtt_client_init(&mqtt_cfg);

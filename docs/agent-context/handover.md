@@ -85,8 +85,10 @@ The state machine runs from `firmware/components/safety/src/safety_rules.def`,
 and [`docs/safety_rules.md`](../safety_rules.md) is generated from it
 (`tools/safety_rules.py`). Change behaviour in the table, regenerate, and run
 the check before finishing; see [`CLAUDE.md`](../../CLAUDE.md). Every setting the
-rules name is tunable from the dashboard; the ones without a card of their own
-are in `firmware/components/rb_params/include/rb_params.def`.
+rules name as `{NAME}` is tunable from the dashboard's Safety tab; the ones without
+a card field of their own are in `firmware/components/rb_params/include/rb_params.def`.
+Settings written `{=NAME}` are fixed on purpose (decided 2026-11-03 to keep the
+dashboard simple): menuconfig or `safety.c` only.
 
 ## How the user likes to work
 

@@ -72,7 +72,7 @@ PRESENCE_FILTER_KEYS = ("absence_ms", "return_ms", "return_gap_ms", "warning_ms"
 
 def build_presence_filter_command(controller_id: str, body: dict) -> dict:
     """{"absence_ms", "return_ms", "return_gap_ms", "warning_ms", "shutdown_ms"} sets the
-    presence filter and the buzzer/shutdown times until the controller reboots;
+    presence filter and the buzzer/shutdown times, which the controller saves;
     {"defaults": true} goes back to the menuconfig values. Whether shutdown_ms
     must be above warning_ms depends on shutdown_counts_from, so the controller
     checks that (and the dashboard before sending)."""
@@ -242,7 +242,7 @@ def safety_params() -> tuple[dict, ...]:
 
 def build_params_command(controller_id: str, body: dict) -> dict:
     """{"<key>": integer, ...} with every key of safety_params.json sets the controller's other safety settings
-    (policies, fault/node/valve timings, the tier, trend and hold tuning), which it saves; {"defaults": true}
+    (the holds, the "cooking over" gap, the tier rate rule and the fault shutdown), which it saves; {"defaults": true}
     goes back to the menuconfig and built-in values. Values are in the units of rb_params.def (ms, 0.1 °C, ...).
     The controller also refuses combinations that don't fit together."""
     if not isinstance(body, dict):
@@ -262,8 +262,6 @@ def build_params_command(controller_id: str, body: dict) -> dict:
             if isinstance(value, bool) or not isinstance(value, int) or not p["min"] <= value <= p["max"]:
                 raise CommandError(f"{p['label']} ({p['key']}) must be a whole number from {p['min']} to {p['max']}")
             values[p["key"]] = value
-        if values["node_stale_ms"] >= values["node_offline_ms"]:
-            raise CommandError("a sensor node must go STALE before it goes OFFLINE")
         action = "params"
     command = {"schema_version": 2, "type": "controller_command", "controller_id": controller_id,
                "request_id": secrets.randbelow(65535) + 1, "action": action, **values}

@@ -209,7 +209,8 @@ typedef struct {
 /*
  * Override the presence filter and the warning/shutdown times (dashboard
  * tuning). It stays on top of any later rb_controller_set_safety_config()
- * (the accelerated test timers included) until a reboot or a call with NULL,
+ * (the accelerated test timers included) until a reboot or a call with NULL
+ * (the application saves it and sets it again at boot),
  * which goes back to the configured values. Applied at the next step; values
  * safety_config_valid() refuses (shutdown not after the warning) are logged
  * and ignored.

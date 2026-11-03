@@ -1,5 +1,6 @@
 "use strict";
-// Safety logic card: the controller's rules, from the same table its state machine
+// Safety tab: the flow strip, the state now and what can happen next, and the Full rule table: the
+// controller's rules, from the same table its state machine
 // runs (firmware/components/safety/src/safety_rules.def, copied into
 // safety_rules_data.js by tools/safety_rules.py gen). It shows the state the
 // controller reports, the rules that can fire next, any hold, and which rule
@@ -46,10 +47,9 @@ const LIVE = {
   RB_SAFETY_HEAT_OFF_DC: { tune: true, get: (v) => degC(v.cooking_off_c) },
   RB_SAFETY_ABSENCE_DEBOUNCE_MS: { tune: true, get: pf("absence_seconds") },
   RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS: { tune: true, get: pf("return_seconds") },
-  RB_SAFETY_PRESENCE_RETURN_GAP_MS: { tune: true, get: pf("return_gap_seconds") },
+  RB_SAFETY_PRESENCE_RETURN_GAP_MS: { get: pf("return_gap_seconds") }, // fixed ({=NAME}): shown, not tuned
   RB_SAFETY_PAUSE_BUDGET_S: { tune: true, get: pf("pause_budget_seconds") },
   RB_SAFETY_PAUSE_BUDGET_PCT: {
-    tune: true,
     get: (v) => (num(from(v, "presence_filter", "pause_budget_pct")) ? `${v.presence_filter.pause_budget_pct} %` : null),
   },
   RB_CTRL_PRESENCE_FUSION: { tune: true, get: (v) => FUSION[from(v, "presence_filter", "fusion")] || null },
@@ -225,9 +225,39 @@ function renderAll(state, last) {
   }
 }
 
+// The main path through the states, with what moves the controller along each arrow (values in force).
+const FLOW = ["IDLE", "MONITORING", "UNATTENDED", "WARNING", "SHUTDOWN"];
+function flowSteps(v) {
+  const s0 = (x) => (num(x) ? `${trim(x)} s` : "…");
+  return [
+    `pan reaches ${num(v.cooking_on_c) ? `${trim(v.cooking_on_c)} °C` : "the cooking temperature"}`,
+    `away ${s0(from(v, "presence_filter", "absence_seconds"))}`,
+    `buzzer at ${s0(v.warning_after_seconds)}`,
+    `shut off at ${s0(v.shutdown_after_seconds)}`,
+  ];
+}
+
+function renderFlow(state) {
+  const host = $("safety-flow");
+  host.replaceChildren();
+  const steps = flowSteps((device && device.values) || {});
+  FLOW.forEach((name, i) => {
+    if (i) host.append(make("li", `${steps[i - 1]} →`, "flow-arrow"));
+    const item = make("li", name.charAt(0) + name.slice(1).toLowerCase(), `flow-state st-${name.toLowerCase()}`);
+    if (name === state) item.classList.add("current");
+    host.append(item);
+  });
+  if (!FLOW.includes(state) && state) {
+    const aside = make("li", state.charAt(0) + state.replace("_", " ").slice(1).toLowerCase(), `flow-state flow-aside current st-${state.toLowerCase()}`);
+    host.append(aside);
+  }
+  host.title = "Someone coming back, or the pan cooling down, goes back to Monitoring or Idle. Only an operator reset leaves Shutdown.";
+}
+
 function render() {
   const state = device && device.values && device.values.safety_state ? device.values.safety_state.toUpperCase() : "";
   const last = lastChange();
+  renderFlow(state);
   renderNow(state, last);
   renderNext(state);
   renderAll(state, last);

@@ -63,8 +63,10 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 `RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS`,
 `RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`) apply at boot.
 
-1. **Presence filter and timers** in the Countdown card (rules 2 and 3): five fields in
-   seconds, **Apply** and **Menuconfig values**. They call
+1. **Away after / back after** (Person card) and **buzzer after / shut off after**
+   (Timer card) on Tuning → Safety, sent with their card's **Apply** or
+   **Restore defaults**. The gap a return may have is fixed on the dashboard (the value
+   in force is sent back unchanged). They call
    `POST /api/devices/<id>/presence_filter/` with
    `{"absence_ms":1000,"return_ms":5000,"return_gap_ms":1000,"warning_ms":180000,"shutdown_ms":300000}`
    or `{"defaults":true}`.
@@ -86,24 +88,26 @@ The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
 3. The controller (`RB_CTRL_REMOTE_PRESENCE_FILTER` on, the default) applies
    them at the next safety step, logs
    `presence filter (dashboard): ...`, and keeps them on top of the test
-   timers (`timers test|normal` in the console) until a reboot or
-   `presence_filter_defaults`. Nothing is saved.
+   timers (`timers test|normal` in the console) until
+   `presence_filter_defaults`. They are saved in NVS (key `filter`) and set
+   again at boot, except while the diagnostic test timers at boot are on.
 4. The answer is `safety.presence_filter` in the next telemetry
    (`{"absence_ms":..,"return_ms":..,"return_gap_ms":..,"source":"dashboard"}`)
-   with `safety.warning_after_ms` and `safety.shutdown_after_ms`, which the
-   card shows as "In use".
+   with `safety.warning_after_ms` and `safety.shutdown_after_ms`; the Safety
+   tab shows "saved" once they match what was sent.
 
 The same limits as the reset apply: no login, so turn
 `RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
 
 ## Attendance: who is at the stove, and the pause budget
 
-The Person rule (Tuning → Rules) also holds the **attendance** settings: whether
+The Person card (Tuning → Safety) also holds the **attendance** settings: whether
 someone counts as at the stove when every working radar sees them or either
-does, and how long a person passing may stop the unattended clock (per timeline,
-in seconds and as a share of the shutdown time in force; 0 = never pause). The
-"Stays this long to cancel" field above it is the 5 s that cancels the timeline.
-**Apply attendance** calls `POST /api/devices/<id>/attendance/` with
+does (a main field), and, under More settings, how long a person passing may stop
+the unattended clock (per timeline, in seconds; 0 = never pause). The share of the
+shutdown time the pause may take is fixed on the dashboard (the value in force is
+sent back). The "Back after" field is the 5 s that cancels the timeline.
+The card's **Apply** calls `POST /api/devices/<id>/attendance/` with
 
 ```json
 {"pause_budget_s": 30, "pause_budget_pct": 25, "fusion": "all"}
@@ -116,7 +120,7 @@ controller keeps the values in NVS (they survive a reboot) and reports them in
 
 ## Radar state and distance rules
 
-Below the attendance settings. **Apply radar rules** calls
+Under the Person card's More settings. The card's **Apply** calls
 `POST /api/devices/<id>/radar-rules/` with
 
 ```json
@@ -132,15 +136,16 @@ keeps the values in NVS and reports them in `safety.radar_rules` (with
 
 ## Other safety settings
 
-Tuning → Logic → **Other settings** holds every other number and choice in the
-[safety rules](safety_rules.md#changing-them-from-the-dashboard): where the
-shutdown counts from, the cooling and warning-exit policies, the trend on or
-off, the heat-on rate and off gap, the fault shutdown, self-test, node and valve
-timings, and the fine tuning of the tiers, the trend and the holds. They come
-from one table, [`rb_params.def`](../firmware/components/rb_params/include/rb_params.def).
-**Apply settings** calls `POST /api/devices/<id>/params/` with every key in the
-table's units (ms, 0.1 °C, 0.1 °C/min, choice index), for example
-`{"shutdown_timing": 0, ..., "warning_min_after_hold_ms": 30000}`, or
+The few [safety rules](safety_rules.md#changing-them-from-the-dashboard) settings
+without a main field of their own sit under **More settings** on Tuning → Safety:
+the "cooking over" gap, the trend (wait while only cooling) and falling holds with
+their limits, and the buzzer time after a hold (Cooking card); the rising-pan tier
+rule and the fault shut-off (Timer card). They come from one table,
+[`rb_params.def`](../firmware/components/rb_params/include/rb_params.def). Every other
+number in the rules is fixed in the firmware (`{=NAME}` in `safety_rules.def`).
+The card's **Apply** calls `POST /api/devices/<id>/params/` with every key in the
+table's units (ms, 0.1 °C, 0/1), for example
+`{"heat_off_gap_dc": 100, ..., "fault_shutdown_ms": 90000}`, or
 `{"defaults": true}`. Django checks the ranges from
 `django/ingest/safety_params.json`; the controller checks them again, refuses a
 set that doesn't fit together and keeps the ones in use, saves the rest in NVS
@@ -149,11 +154,11 @@ set that doesn't fit together and keeps the ones in use, saves the rest in NVS
 
 ## Temperature tiers
 
-The Timer rule (Tuning → Rules) also holds the **temperature tiers**: from which
+The Timer card's **More settings** (Tuning → Safety) holds the **temperature tiers**: from which
 hottest-pixel temperature the buzzer and shutdown come sooner, and how soon (see
 [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time)).
 Tier 1 is the base times above; tiers 2 to 5 have three fields each: the
-temperature and the two times. **Apply tiers** calls
+temperature and the two times. The card's **Apply** calls
 `POST /api/devices/<id>/tiers/` with
 
 ```json
@@ -165,8 +170,8 @@ temperature and the two times. **Apply tiers** calls
 
 or `{"defaults": true}` for the menuconfig values. A temperature of 0 turns a
 tier off. Limits: temperatures 0-300 °C, times 1-3600 s. Whether a rising pan
-gets the tier it is heading for, and over how long its rise is measured, are on
-the Other settings card (`tier_rate`, `tier_rate_window_ms`).
+gets the tier it is heading for is next to them (`tier_rate`); the window its
+rise is measured over is fixed (30 s).
 The controller keeps the values in NVS (they survive a reboot; tiers saved by
 firmware before the five tiers are ignored), refuses an inconsistent set (a
 shutdown not after its warning, a tier starting below the one before it) and
@@ -176,9 +181,9 @@ A tier never gives more time than the base times.
 
 ## Cookware profile
 
-The Cooking rule (Tuning → Rules) also has a **cookware profile**: mixed, light,
+The Cooking card (Tuning → Safety) also has a **cookware profile**: mixed, light,
 heavy or liquid (see [safety_state_machine.md](safety_state_machine.md#cooking-judgment-is-heat-still-going-in)).
-**Apply** calls `POST /api/devices/<id>/cookware/` with `{"cookware":"light"}`,
+The card's **Apply** calls `POST /api/devices/<id>/cookware/` with `{"cookware":"light"}`,
 or `{"defaults":true}` for the menuconfig profile. The controller saves it
 (NVS key `cookware`) and reports it as `safety.cookware` (profile, tau_s,
 source) in its telemetry. Menuconfig: `RB_CTRL_REMOTE_COOKWARE`.
@@ -193,8 +198,8 @@ value is `RB_SAFETY_HEAT_ON_DC` (50.0 °C). This is the only cooking threshold:
 the dashboard outlines the pixels at or above it, and the cooking badge comes
 from the controller's state.
 
-1. **Cooking temperature** in the Countdown card (rule 1): a field in °C,
-   **Apply** and **Menuconfig value**. They call
+1. **Cooking from** in the Cooking card (Tuning → Safety): a field in °C, sent with
+   its card's **Apply** or **Restore defaults**. They call
    `POST /api/devices/<id>/cooking_temp/` with `{"cooking_temp_c":62.5}`
    (0 – 300 °C, sent in 0.1 °C steps) or `{"defaults":true}`.
 2. Django publishes on `<prefix>/controller/command`:

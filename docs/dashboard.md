@@ -31,9 +31,10 @@ frontend/
     ├── heatmap.js    thermal camera heat map canvas
     ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
     ├── mode.js       Monitor / Tuning mode, tuning tabs, overview layout, colour theme
-    ├── safety_logic.js        Safety logic card: current state, next rules, last rule fired
+    ├── safety_logic.js        Safety tab: flow strip, current state, next rules, Full rule table
+    ├── safety_save.js         Safety tab: each card's Apply, and Restore defaults
     ├── stall_history.js       Stall history view: incidents per stall
-    ├── params.js              Other settings (Tuning > Logic): every setting in rb_params.def
+    ├── params.js              the rb_params.def settings, under the cards' More settings
     ├── safety_rules_data.js   the controller's rules table, generated (tools/safety_rules.py gen)
     ├── dom.js        small DOM helpers
     └── format.js     value formatting
@@ -121,10 +122,8 @@ accepting commands.
   with **Reset shutdown**, the last five events, and a **Safety logic** strip:
   the state the controller reports and the rules that can fire next. Nothing in
   it can be edited.
-- **Tuning** keeps a slim countdown strip on top and adds tabs: **Rules** (the
-  cooking temperature, person filter and timers, editable), **Logic** (every
-  safety rule from the controller's rules table, with the current state's rules,
-  any hold and the last rule that fired highlighted), **Radar** (C4002
+- **Tuning** keeps a slim countdown strip on top and adds tabs: **Safety** (the
+  settings, in two levels, and the rules; see [Safety tab](#safety-tab)), **Radar** (C4002
   settings and the live radar view), **Thermal** (heat map with the outline and
   pixel-size controls), **Diagnostics** (readings, history, system status,
   events, sensor reports, raw telemetry), **Logs** (the controller's own log
@@ -136,19 +135,49 @@ lines, live, with level/tag/text filters, and its per-tag log levels, editable;
 The overview has a **Tiles | Table** switch and a one-row fleet strip. A
 **Light | Dark | Auto** theme button follows the system setting by default.
 
-## Safety logic card
+## Safety tab
 
-`safety_rules_data.js` is generated from
-`firmware/components/safety/src/safety_rules.def`, the table the controller's
-state machine runs, so the card can't drift from the firmware;
-`tools/safety_rules.py check` fails if it is stale. Each setting in the text
-(`{{NAME|default}}`) shows the value the controller reports (map in `LIVE` in
-`safety_logic.js`, plus every setting of `rb_params.def` from `safety.params`),
-falling back to the menuconfig default in grey. In Tuning, the card's **Other
-settings** block (`params.js`) edits every setting the Rules tab's cards don't
-cover, built from the same generated table. The current
-state comes from `safety.state`, a hold from `safety.hold`, and the last rule
-that fired is matched from the newest event's `safety.reason` and
+Laid out in the order the controller thinks, from the general to the detailed:
+
+1. **Flow strip**: Idle → Monitoring → Unattended → Warning → Shutdown, the
+   current state highlighted, and on each arrow what moves it on, with the
+   values in force (cooking temperature, away time, buzzer and shut-off
+   times). Below it, the state's outputs, any hold, the last change, and
+   (folded) the rules that can fire next.
+2. **Three step cards**, each with its live line, one sentence on the rule
+   and only the main settings:
+   - *Is it cooking?* cooking temperature, cookware;
+   - *Is someone there?* every radar or either, away after, back after;
+   - *How long before…* buzzer after, shut off after.
+
+   **More settings** on each card opens the details: the holds and the
+   "cooking over" gap (Cooking); the pause for someone passing and the radar
+   rules, still being tuned on the bench (Person); the hotter-pan tiers, the
+   rising-pan rule and the fault shut-off (Timer). The `rb_params.def`
+   settings (`params.js`) go to the card named by their group.
+3. Each card has its own **Apply**, which sends only that card's changes
+   (`safety_save.js`); there is no page-wide save. Each part is its own
+   command, sent once all of them check out. Two commands span two cards (the
+   presence filter: away/back and buzzer/shut-off; the `rb_params.def`
+   settings): a card's Apply sends its own fields as edited and the other
+   card's as they are in force. **Restore defaults** puts every part
+   back to menuconfig. The list under the buttons shows what is
+   unsaved, waiting for the controller, saved or refused. Everything is saved
+   on the controller and survives a reboot.
+4. **Full rule table** (folded): every transition, the outputs per state and
+   the input, cooking, timer and hold rules, from
+   `safety_rules_data.js`, generated from
+   `firmware/components/safety/src/safety_rules.def`, the table the
+   controller's state machine runs, so it can't drift from the firmware
+   (`tools/safety_rules.py check` fails if it is stale). Each setting in the
+   text (`{{NAME|default}}`) shows the value the controller reports (map in
+   `LIVE` in `safety_logic.js`, plus the `rb_params.def` settings from
+   `safety.params`), falling back to the menuconfig default in grey;
+   underlined ones can be changed above, the rest (`{=NAME}` in the table) are
+   fixed in the firmware.
+
+The current state comes from `safety.state`, a hold from `safety.hold`, and the
+last rule that fired is matched from the newest event's `safety.reason` and
 `from_state`.
 
 ## Countdown card
@@ -163,13 +192,13 @@ why, using only what the controller reports:
 - **Sensor chips**: each node as `OK`, `SENSOR PROBLEM` (node reachable, sensor
   bad: wiring) or `OFFLINE` (no packets: power, Wi-Fi), plus the
   *presence sensor unknown* and *thermal sensor lost* flags.
-- **The three rules** with their live value and adjustable setting:
-  1. *Cooking*: the cooking temperature (saved on the controller).
-  2. *Person*: absent after / stays this long to cancel (5 s) / ignore gaps up to, and the attendance settings (every radar or either; the pause budget). Below them the radar rules (mode off / observe / enforce and the episode numbers) can be edited and applied, and a read-only line shows each radar's episode verdict (nobody / passing / dwelling), see [the radar rules](safety_state_machine.md#radar-state-and-distance-rules-placeholder).
-  3. *Timer*: buzzer after / shut down after.
-  Changes to 2 and 3 last until the controller reboots
-  ([remote_reset.md](remote_reset.md)). The state itself is decided by the
-  safety logic on the S3; the dashboard only displays it and sends settings.
+- **The three steps** (cooking, person, timer) below it on the Safety tab,
+  with their live values and settings ([Safety tab](#safety-tab)). Under the
+  person's More settings, a read-only line shows each radar's episode verdict
+  (nobody / passing / dwelling), see
+  [the radar rules](safety_state_machine.md#radar-state-and-distance-rules-placeholder).
+  The state itself is decided by the safety logic on the S3; the dashboard
+  only displays it and sends settings ([remote_reset.md](remote_reset.md)).
 
 ## Storage
 

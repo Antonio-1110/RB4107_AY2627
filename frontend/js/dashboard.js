@@ -21,6 +21,7 @@ import { renderTiers } from "./tiers.js";
 import { renderParams } from "./params.js";
 import { renderAttendance } from "./attendance.js";
 import { renderRadarRules } from "./radar_rules.js";
+import { refresh as refreshSafetySave } from "./safety_save.js";
 import "./mode.js";
 import { renderReset } from "./reset.js";
 import { renderCookingTemp } from "./cooking_temp.js";
@@ -526,6 +527,7 @@ function renderDevice(device) {
   renderParams(device);
   renderAttendance(device);
   renderRadarRules(device);
+  refreshSafetySave();
   renderTuning(device);
   renderSafetyLogic(device);
   renderLogs(device);

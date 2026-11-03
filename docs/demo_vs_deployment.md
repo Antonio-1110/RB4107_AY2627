@@ -93,7 +93,7 @@ default if you want to show the live radar view.
   3 min / 5 min, and 20 s / 40 s before that). The cooking judgment needs about 1-2 minutes of temperature
   history, so the buzzer has to come later than that for the demo to show the
   timers behaving correctly for the situation. Both can be changed from the
-  dashboard (Tuning, Rules) until the controller reboots.
+  dashboard (Tuning, Safety); the controller saves them.
 - **The diagnostic console's accelerated test timers still don't mix with the
   cooking judgment**: with a warning time of a few seconds the buzzer fires
   before the trend can engage. A lowered flame versus an off burner needs
