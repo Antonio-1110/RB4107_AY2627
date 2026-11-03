@@ -118,7 +118,7 @@ export default {
     },
     {
      "id": "B3",
-     "when": "Cooking, and the hottest pixel falls below the off temperature {{RB_SAFETY_HEAT_OFF_DC|50 °C}}: a pan that holds steady or is turned down has to fall this far",
+     "when": "Cooking, and the hottest pixel falls below the off temperature {{RB_SAFETY_HEAT_OFF_DC|47 °C}}: a pan that holds steady or is turned down has to fall this far",
      "result": "Not cooking",
      "code": "safety_step()"
     },
@@ -131,7 +131,7 @@ export default {
     {
      "id": "B4",
      "when": "The dashboard sets a new cooking temperature",
-     "result": "The off temperature moves with it, keeping the menuconfig gap ({{RB_SAFETY_HEAT_ON_DC|50 °C}} - {{RB_SAFETY_HEAT_OFF_DC|50 °C}})",
+     "result": "The off temperature moves with it, keeping the menuconfig gap ({{RB_SAFETY_HEAT_ON_DC|50 °C}} - {{RB_SAFETY_HEAT_OFF_DC|47 °C}})",
      "code": "apply_cooking_temp()"
     },
     {
@@ -448,7 +448,7 @@ export default {
    "kind": "DC",
    "min": 0,
    "max": 1000,
-   "default": 0,
+   "default": 30,
    "label": "Cooking ends this far below the cooking temperature",
    "source": "RB_SAFETY_HEAT_ON_DC - RB_SAFETY_HEAT_OFF_DC",
    "options": null,

@@ -81,9 +81,10 @@ not tuned on real walks or cooks ([demo_vs_deployment.md](demo_vs_deployment.md)
 starts when the hottest pixel reaches the cooking temperature (50 °C) unless the
 pan is still falling, so a hot pan just put in view, or one that was switched
 off, is not cooking until the fall stops. It ends when the pan falls below the
-off temperature (50 °C by default), or sooner when it is below 60 °C and
-falling by 0.5 °C/min or more. A pan that holds steady or is turned down
-therefore stays cooking until it is below 50 °C; and a pan in the 50-60 °C band
+off temperature (47 °C by default, a 3 °C margin so a pan hovering at 50 °C
+does not flip on every reading), or sooner when it is below 60 °C and falling
+by 0.5 °C/min or more. A pan that holds steady or is turned down therefore
+stays cooking until it is below 47 °C; and a pan in the 50-60 °C band
 that stops falling counts as cooking again. The direction is the thermal node's
 own rate; an unknown rate never stops cooking. These rate limits and the 60 °C
 are fixed in `safety.c`. Once on, the S3 asks a second question: is heat

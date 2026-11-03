@@ -1192,14 +1192,14 @@ menu "RB4107 configuration"
         config RB_SAFETY_HEAT_OFF_DC
             int "Cooking over below hottest-pixel temperature (0.1 degC)"
             range 0 3000
-            default 500
+            default 470
             help
                 A cooking pan that holds steady or is turned down must fall
                 below this before cooking is over. A pan that is below 60 degC
                 and falling is over sooner (fixed in safety.c). Must not be
-                above the "cooking detected" value; a gap below it stops a pan
-                hovering at the cooking temperature from flipping on every
-                reading. UNVERIFIED placeholder.
+                above the "cooking detected" value; the 3 degC gap below it
+                stops a pan hovering at the cooking temperature from flipping
+                on every reading. UNVERIFIED placeholder.
 
         config RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN
             int "Also detect cooking when rising at least (0.1 degC/min), 0 = off"

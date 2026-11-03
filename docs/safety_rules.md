@@ -42,9 +42,9 @@ reasons behind the rules are in [safety_state_machine.md](safety_state_machine.m
 |---|---|---|---|
 | B1 | Not cooking, and the hottest pixel reaches the cooking temperature **50 °C** (dashboard can change it), unless it is still falling (B6) | Cooking. A pan that is hot but falling (one just put in view, or switched off) is not cooking yet; it counts as cooking once the fall is under **0.2 °C/min** per minute. An unknown rate never blocks | `safety_step()` in `safety/src/safety.c` |
 | B2 | Not cooking, above the off temperature and rising at least the heat-on rate (**0 °C/min**; 0 = this rule is off), and not still falling (B6) | Cooking | `safety_step()` in `safety/src/safety.c` |
-| B3 | Cooking, and the hottest pixel falls below the off temperature **50 °C**: a pan that holds steady or is turned down has to fall this far | Not cooking | `safety_step()` in `safety/src/safety.c` |
+| B3 | Cooking, and the hottest pixel falls below the off temperature **47 °C**: a pan that holds steady or is turned down has to fall this far | Not cooking | `safety_step()` in `safety/src/safety.c` |
 | B6 | Cooking, the hottest pixel below **60 °C** and the thermal node's rate falling by **0.5 °C/min** per minute or more | Not cooking, even above the off temperature (B3). A pan that is still hot but cooling down stops counting as cooking | `safety_step()` in `safety/src/safety.c` |
-| B4 | The dashboard sets a new cooking temperature | The off temperature moves with it, keeping the menuconfig gap (**50 °C** - **50 °C**) | `apply_cooking_temp()` in `rb_controller/src/rb_controller.c` |
+| B4 | The dashboard sets a new cooking temperature | The off temperature moves with it, keeping the menuconfig gap (**50 °C** - **47 °C**) | `apply_cooking_temp()` in `rb_controller/src/rb_controller.c` |
 | B5 | Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame) | The room temperature in use, kept between **36 °C** and **45 °C**; **38 °C** without a camera reading. D1 and D5 compare the pan with it | `room_update()` in `safety/src/safety.c` |
 
 ## C. Timers
@@ -126,7 +126,7 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `RB_SAFETY_COOLING` | return to IDLE and cancel the timers | Pan drops below the cooking temperature while UNATTENDED/WARNING |
 | `RB_SAFETY_FALLING_HOLD` | y | Hold a due buzzer or shutdown while the temperature is falling |
 | `RB_SAFETY_FAULT_SHUTDOWN_S` | 90 | Shut down after this long in FAULT (s, 0 = never) |
-| `RB_SAFETY_HEAT_OFF_DC` | 500 | Cooking over below hottest-pixel temperature (0.1 degC) |
+| `RB_SAFETY_HEAT_OFF_DC` | 470 | Cooking over below hottest-pixel temperature (0.1 degC) |
 | `RB_SAFETY_HEAT_ON_DC` | 500 | Cooking detected at hottest-pixel temperature (0.1 degC) |
 | `RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN` | 0 | Also detect cooking when rising at least (0.1 degC/min), 0 = off |
 | `RB_SAFETY_PAUSE_BUDGET_PCT` | 25 | ... and at most this share of the shutdown time (%) |
@@ -204,7 +204,7 @@ Everything else in these rules is fixed.
 
 | Setting | Key | Default | Range |
 |---|---|---|---|
-| Cooking ends this far below the cooking temperature | `heat_off_gap_dc` | 0 °C | 0 °C to 100 °C |
+| Cooking ends this far below the cooking temperature | `heat_off_gap_dc` | 3 °C | 0 °C to 100 °C |
 | Hold while the pan is only cooling | `cooking_trend` | on | off / on |
 | Maximum cooling hold | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
 | Hold while the pan temperature is falling | `falling_hold` | on | off / on |

@@ -122,7 +122,7 @@ static void test_idle_to_monitoring(void)
 static safety_config_t direction_config(void)
 {
     safety_config_t cfg = th_default_config();
-    cfg.heat_off_temp_c = 50.0f; /* the menuconfig default: no gap, a steady or turned-down pan must drop below 50 */
+    cfg.heat_off_temp_c = 47.0f; /* the menuconfig default: a steady or turned-down pan must drop below 47 */
     cfg.cooling_policy = SAFETY_COOLING_RETURN_TO_IDLE;
     return cfg;
 }
@@ -171,11 +171,11 @@ static void test_a_steady_pan_must_drop_below_the_off_temperature(void)
     const safety_config_t cfg = direction_config();
     th_start(&h, &cfg, 0);
     th_cook(&h);
-    h.in.cooking_temp_c = 55.0f; /* turned down and steady (rate 0): still cooking */
+    h.in.cooking_temp_c = 49.0f; /* turned down and steady (rate 0), under the cooking temperature: still cooking */
     h.in.temp_rate_c_per_min = 0.0f;
     th_run(&h, 5000);
     TH_EXPECT(&h, SAFETY_MONITORING);
-    h.in.cooking_temp_c = 49.9f;
+    h.in.cooking_temp_c = 46.9f;
     th_run(&h, TH_STEP_MS);
     TH_EXPECT(&h, SAFETY_IDLE);
 }
