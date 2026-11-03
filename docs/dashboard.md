@@ -191,6 +191,8 @@ the controller to get round it. A *cooking day* is a day with at least one
 stored reading in a cooking state, so only the last `RB4107_RETENTION_DAYS`
 have any.
 
+**Known limit.** A switched-off pan that is still above the cooking temperature when the cook walks away starts a countdown (the buzzer is held while it cools). Django still counts it as a countdown, which inflates the figures; leaving those out is [issue #72](https://github.com/Antonio-1110/RB4107_AY2627/issues/72).
+
 API: `GET /api/stall-history/` (all-time counts); add `?days=28` or
 `?from=2026-10-01&to=2026-10-14` for each stall's `period` summary, and
 `&stall=<stall_id>` for that stall's newest 500 incidents. Other combinations are a 400.
