@@ -94,13 +94,14 @@ someone is present and it does all the debouncing (`absence_debounce_ms`,
 dashboard's presence filter). A hold inside the radar is a delay the S3 can't
 see: while the radar holds a target for 1 s, the S3's own 1 s absence debounce
 starts 1 s late, and the lock time makes the radar blind to someone who steps
-back in. So the design fixes them at 0 s and 0.2 s (the sensor's minimum), and
-the dashboard doesn't offer them. The node's menuconfig defaults
-(`RB_C4002_DISAPPEAR_DELAY_S`, `RB_C4002_LOCK_TIME_DS`) are still 1 s and 1 s
-and haven't been changed to match yet. The command still takes them, because a hold
-of 0 may make a **still person** flicker to "none" (the radar may need a
-moment to confirm a stationary target; not confirmed for the C4002). To test
-that, send `disappear_delay_s` 0, 1, 2 to one node from a script, stand still
+back in. Both stay at the menuconfig default of 1 s
+(`RB_C4002_DISAPPEAR_DELAY_S` = 1, `RB_C4002_LOCK_TIME_DS` = 10), and the
+dashboard doesn't offer them. 0 s / 0.2 s would show absence about 1 s
+sooner, but a hold of 0 may make a **still person** flicker to "none" (the
+radar may need a moment to confirm a stationary target; not confirmed for the
+C4002). Against 150 s / 300 s timers the 1 s costs well under 1 %. The command
+still takes both: to try another value, send `disappear_delay_s` 0, 1, 2 to
+one node from a script, stand still
 at the stove and watch for orange cells in the live view.
 
 | `motion_gates`, `presence_gates` | 25 × 0/1, gate *i* on or off | |
