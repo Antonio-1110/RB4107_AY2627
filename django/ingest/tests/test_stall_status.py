@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from ingest.demo import demo_telemetry
 from ingest.handlers import handle
-from ingest.locations import SEVERITY_RANK, aggregate_stalls, classify_display_state, fleet_summary
+from ingest.locations import NOT_ONLINE_REASON, SEVERITY_RANK, aggregate_stalls, classify_display_state, fleet_summary
 from ingest.models import Device
 from ingest.storage import worker_status
 from ingest.validation import parse
@@ -70,25 +70,25 @@ class StallStatusRuleTest(SimpleTestCase):
     # 3. fault, F1
     def test_controller_fault_is_a_fault(self):
         state = classify_display_state(device(safety="fault", alarm="fault"))
-        self.assertEqual((state["level"], state["title"]), ("fault", "SAFETY SYSTEM FAULT"))
+        self.assertEqual((state["level"], state["title"]), ("fault", "CONTROLLER FAULT"))
         self.assertTrue(state["active"])
         self.assertEqual(level(safety="idle", alarm="fault"), "fault")
 
     # F2: the bug that started this, plus the old "connectivity issue" bucket
     def test_controller_not_online_is_a_fault(self):
         titles = {"offline": "CONTROLLER OFFLINE", "stale": "CONTROLLER NOT REPORTING",
-                  "unknown": "CONTROLLER NEVER HEARD", "monitor_unavailable": "MONITOR UNAVAILABLE"}
+                  "unknown": "CONTROLLER NEVER REPORTED", "monitor_unavailable": "MQTT MONITORING UNAVAILABLE"}
         for connection, title in titles.items():
             with self.subTest(connection=connection):
                 state = classify_display_state(device(connection=connection))
                 self.assertEqual((state["level"], state["title"]), ("fault", title))
                 self.assertTrue(state["last_known"])
-                self.assertIn(f"controller {connection.replace('_', ' ')}", state["reasons"])
+                self.assertIn(NOT_ONLINE_REASON[connection], state["reasons"])
 
     # F3
     def test_old_safety_state_from_an_online_controller_is_a_fault(self):
         state = classify_display_state(device(age=STALE + 1))
-        self.assertEqual((state["level"], state["title"]), ("fault", "SAFETY STATE NOT CURRENT"))
+        self.assertEqual((state["level"], state["title"]), ("fault", "SAFETY STATE OUT OF DATE"))
         state = classify_display_state(device(age=None))
         self.assertEqual(state["level"], "fault")
 
@@ -96,20 +96,20 @@ class StallStatusRuleTest(SimpleTestCase):
     def test_all_nodes_offline_is_a_fault_not_normal(self):
         state = classify_display_state(device(nodes=all_down()))
         self.assertEqual((state["level"], state["title"]), ("fault", "SENSOR NODES DOWN"))
-        self.assertEqual(state["reasons"], ["sensor node_01 offline", "sensor node_02 offline",
-                                            "sensor node_03 offline"])
+        self.assertEqual(state["reasons"], ["node_01: offline", "node_02: offline",
+                                            "node_03: offline"])
 
     def test_any_single_node_down_is_a_fault(self):
         for link, text in (("OFFLINE", "offline"), ("STALE", "stale"), ("NEVER_SEEN", "never seen")):
             with self.subTest(link=link):
                 state = classify_display_state(device(nodes={**NODES, "node_02": ("presence", link, False)}))
                 self.assertEqual((state["level"], state["title"]), ("fault", "SENSOR NODE DOWN"))
-                self.assertEqual(state["reasons"], [f"sensor node_02 {text}"])
+                self.assertEqual(state["reasons"], [f"node_02: {text}"])
 
     def test_online_node_with_an_invalid_reading_is_a_fault(self):
         state = classify_display_state(device(nodes={**NODES, "node_03": ("thermal", "ONLINE", False)}))
         self.assertEqual(state["level"], "fault")
-        self.assertEqual(state["reasons"], ["sensor node_03 invalid reading"])
+        self.assertEqual(state["reasons"], ["node_03: invalid reading"])
 
     def test_node_dropped_from_the_controllers_list_is_ignored(self):
         # node_04 was configured once; the controller no longer lists it, so its
@@ -120,7 +120,7 @@ class StallStatusRuleTest(SimpleTestCase):
     # F5
     def test_no_sensor_nodes_is_a_fault(self):
         state = classify_display_state(device(nodes={}))
-        self.assertEqual((state["level"], state["title"]), ("fault", "NO SENSOR NODES"))
+        self.assertEqual((state["level"], state["title"]), ("fault", "NO SENSOR NODES REPORTED"))
 
     # 4. unknown
     def test_starting_or_unrecognised_state_with_nodes_working_is_unknown(self):
@@ -136,8 +136,8 @@ class StallStatusRuleTest(SimpleTestCase):
         self.assertEqual(level(safety="boot", nodes=all_down("NEVER_SEEN")), "fault")
         # Several fault reasons: the title names the first, every reason is listed.
         state = classify_display_state(device(safety="fault", alarm="fault", connection="offline"))
-        self.assertEqual(state["title"], "SAFETY SYSTEM FAULT")
-        self.assertEqual(state["reasons"], ["controller reports a safety fault", "controller offline"])
+        self.assertEqual(state["title"], "CONTROLLER FAULT")
+        self.assertEqual(state["reasons"], ["controller reports FAULT", "controller offline"])
         # Offline: node links are last known too, so only the controller is blamed.
         state = classify_display_state(device(connection="offline", nodes=all_down()))
         self.assertEqual(state["reasons"], ["controller offline"])
@@ -200,7 +200,7 @@ class StallStatusApiTest(TestCase):
         self.assertEqual((summary["fault"], summary["normal"]), (1, 0))
         # The stall now also appears in the active alerts list.
         alerts = self.client.get("/api/devices/").json()["alerts"]
-        self.assertEqual(alerts[0]["state"]["reasons"][0], "sensor node_01 offline")
+        self.assertEqual(alerts[0]["state"]["reasons"][0], "node_01: offline")
         # Nodes back: normal again.
         self.send()
         self.assertEqual(self.stall()[0]["severity"], "normal")

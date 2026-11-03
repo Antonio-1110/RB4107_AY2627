@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from ingest.demo import demo_controller_status, demo_telemetry, demo_thermal_frame, network_phase
+from ingest.demo import demo_controller_log, demo_controller_status, demo_telemetry, demo_thermal_frame, network_phase
 from ingest.handlers import handle
 from ingest.locations import load_location_catalog
 from ingest.storage import worker_status
@@ -34,11 +34,12 @@ class Command(BaseCommand):
                 return [(f"{concrete}/controller/status", demo_controller_status(controller_id, False, boot_id))]
             if before != "online":  # reconnected
                 status = [(f"{concrete}/controller/status", demo_controller_status(controller_id, True, boot_id))]
+        log = demo_controller_log(controller_id, index, tick, boot_id, scenario)
         return status + [
             (f"{concrete}/controller/state", demo_telemetry(controller_id, index, tick, boot_id, scenario)),
             (f"{concrete}/sensors/node_03/thermal_frame",
              demo_thermal_frame(controller_id, index, tick, boot_id, scenario)),
-        ]
+        ] + ([(f"{concrete}/controller/log", log)] if log else [])
 
     def handle(self, *args, **options):
         if options["interval"] <= 0:

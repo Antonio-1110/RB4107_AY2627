@@ -63,9 +63,59 @@ class DemoScenarioTests(SimpleTestCase):
             for topic, data in messages:
                 send(topic, data)
             kinds.append((network_phase(tick), [data["type"] for _, data in messages]))
-        self.assertEqual(kinds[0], ("online", ["controller_status", "telemetry", "thermal_frame"]))
+        # The first tick also carries the boot log lines.
+        self.assertEqual(kinds[0], ("online", ["controller_status", "telemetry", "thermal_frame", "controller_log"]))
         self.assertEqual(kinds[1], ("online", ["telemetry", "thermal_frame"]))
         self.assertEqual(kinds[25], ("silent", []))
         self.assertEqual(kinds[40], ("offline", ["controller_status"]))  # the Last Will, once
         self.assertEqual(kinds[41], ("offline", []))
-        self.assertEqual(kinds[60], ("online", ["controller_status", "telemetry", "thermal_frame"]))
+        # Back online: the log says what happened to the link.
+        self.assertEqual(kinds[60], ("online", ["controller_status", "telemetry", "thermal_frame", "controller_log"]))
+
+
+class DemoLogTests(SimpleTestCase):
+    """The simulated controllers' log lines (controller/log) for the Logs tab."""
+
+    def batches(self, scenario, ticks=400):
+        from ingest.demo import demo_controller_log
+        return [(tick, demo_controller_log("demo", 0, tick, "b00t", scenario)) for tick in range(ticks)]
+
+    def test_every_batch_passes_the_schema(self):
+        for scenario in SCENARIOS:
+            for tick, batch in self.batches(scenario):
+                if batch:
+                    with self.subTest(scenario=scenario, tick=tick):
+                        send("rb4107/demo/controller/log", batch)
+
+    def test_boot_lines_first_then_only_changes_and_summaries(self):
+        for scenario in SCENARIOS:
+            with self.subTest(scenario=scenario):
+                batches = self.batches(scenario)
+                first = batches[0][1]["lines"]
+                self.assertIn("BOOT -> SELF_TEST (boot complete)", [line["msg"] for line in first])
+                # Quiet most of the time, as the firmware: changes and the 30 s summaries, not every step.
+                self.assertLess(sum(1 for _, b in batches if b) / len(batches), 0.35)
+                uptimes = [line["uptime_ms"] for _, b in batches if b for line in b["lines"]]
+                self.assertEqual(uptimes, sorted(uptimes), "lines in the order they were logged")
+
+    def test_lines_say_what_the_scenario_does(self):
+        def msgs(scenario):
+            return [(line["level"], line["tag"], line["msg"]) for _, b in self.batches(scenario) if b
+                    for line in b["lines"]]
+        self.assertIn(("W", "SAFETY", "WARNING -> SHUTDOWN (shutdown timeout)"), msgs("shutdown"))
+        self.assertIn(("W", "OUTPUT", "shutdown relay 1 ACTIVATED"), msgs("shutdown"))
+        self.assertIn(("W", "SAFETY", "UNATTENDED -> WARNING (unattended timeout)"), msgs("warning"))
+        self.assertIn(("W", "FAULT", "SAFETY fault RAISED: presence_b_node_offline (detail 2)"),
+                      msgs("fault_node_offline"))
+        self.assertIn(("W", "MQTT", "broker disconnected; retrying every 5000 ms"), msgs("network_loss"))
+        # A transition is logged at W only into WARNING, SHUTDOWN or FAULT (rb_controller.c).
+        for scenario in SCENARIOS:
+            for level, tag, msg in msgs(scenario):
+                if tag == "SAFETY" and " -> " in msg and "(" in msg:
+                    to = msg.split(" -> ")[1].split(" ")[0]
+                    self.assertEqual(level, "W" if to in {"WARNING", "SHUTDOWN", "FAULT"} else "I", msg)
+
+    def test_the_simulator_sends_them(self):
+        topics = [topic for tick in range(20)
+                  for topic, _ in Command.messages("rb4107/demo", "demo", 0, tick, "b00t", "shutdown")]
+        self.assertIn("rb4107/demo/controller/log", topics)

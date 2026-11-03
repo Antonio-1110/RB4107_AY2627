@@ -125,3 +125,17 @@ class LogLevelCommandTest(TestCase):
         with self.assertRaises(validation.InvalidMessage):
             validation.check_command({"schema_version": 2, "type": "controller_command", "controller_id": "c",
                                       "request_id": 1, "action": "reset", "log_tag": "SAFETY"})
+
+
+class DemoLogsReachTheLogsTabTest(TestCase):
+    def test_simulated_lines_are_stored_and_served(self):
+        from ingest.demo import demo_controller_log
+        from ingest.handlers import handle
+        from ingest.storage import worker_status
+        from ingest.validation import parse
+        worker_status(True)
+        batch = demo_controller_log("controller_01", 0, 0, "b00t", "shutdown")
+        handle(parse("rb4107/controller/log", json.dumps(batch).encode()))
+        data = self.client.get("/api/devices/controller_01/logs/").json()
+        self.assertEqual(len(data["lines"]), len(batch["lines"]))
+        self.assertEqual(data["levels"], {"*": "info", "SAFETY": "debug"})

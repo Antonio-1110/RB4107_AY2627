@@ -47,7 +47,7 @@ class TelegramAlertTest(TestCase):
                 alerts.notify(event(name))
                 self.assertEqual([c.args[1]["chat_id"] for c in call.call_args_list], ["-100", "42"])
                 self.assertEqual(call.call_args.args[0], "sendMessage")
-        self.assertIn("Reset shutdown", call.call_args.args[1]["text"])
+        self.assertIn("Reset shut-off", call.call_args.args[1]["text"])
 
     def test_poll_asks_for_button_presses_only(self, call):
         stop = mock.MagicMock()

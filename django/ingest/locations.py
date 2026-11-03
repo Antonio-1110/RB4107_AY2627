@@ -66,12 +66,14 @@ def location_for(device_id, catalog=None):
 # A stall shows its worst controller (SEVERITY_RANK). Display only: the
 # firmware's own safety logic is docs/safety_rules.md.
 NOT_ONLINE_TITLE = {"offline": "CONTROLLER OFFLINE", "stale": "CONTROLLER NOT REPORTING",
-                    "unknown": "CONTROLLER NEVER HEARD", "monitor_unavailable": "MONITOR UNAVAILABLE"}
+                    "unknown": "CONTROLLER NEVER REPORTED", "monitor_unavailable": "MQTT MONITORING UNAVAILABLE"}
+NOT_ONLINE_REASON = {"offline": "controller offline", "stale": "controller not reporting",
+                     "unknown": "controller never reported", "monitor_unavailable": "MQTT monitoring unavailable"}
 
 
 def node_problems(device):
     """Sensor nodes the controller lists that it can't use right now, as
-    "node_01 offline" texts. A node whose link wasn't refreshed by the last
+    "node_01: offline" texts. A node whose link wasn't refreshed by the last
     telemetry (older than the stale window) is no longer configured: skipped."""
     sensors = device["values"].get("sensors")
     if not isinstance(sensors, dict):
@@ -86,9 +88,9 @@ def node_problems(device):
             continue
         link = sensor["link"]
         if link != "ONLINE":
-            problems.append(f"{name} {str(link).lower().replace('_', ' ')}")
+            problems.append(f"{name}: {str(link).lower().replace('_', ' ')}")
         elif sensor.get("valid") is False:
-            problems.append(f"{name} invalid reading")
+            problems.append(f"{name}: invalid reading")
     return problems
 
 
@@ -118,13 +120,13 @@ def classify_display_state(device):
     source = "safety_state"
     reasons = []
     if relay == "isolated" or safety == "shutdown":
-        level, title = "critical", "SUPPLY ISOLATED"
+        level, title = "critical", "GAS SUPPLY SHUT OFF"
         source = "relay_state" if relay == "isolated" else "safety_state"
     elif safety == "warning" or alarm == "warning":
-        level, title = "warning", "UNATTENDED COOKING WARNING"
+        level, title = "warning", "UNATTENDED · BUZZER WARNING"
         source = "safety_state" if safety == "warning" else "alarm_state"
     elif safety == "unattended":
-        level, title = "warning", "UNATTENDED — TIMER RUNNING"
+        level, title = "warning", "UNATTENDED · COUNTDOWN RUNNING"
     else:
         level = None
     source_age = device["field_age_seconds"].get(source)
@@ -132,35 +134,35 @@ def classify_display_state(device):
     if level is None:
         nodes = node_problems(device)
         if safety == "fault" or alarm == "fault":
-            reasons.append("controller reports a safety fault")
+            reasons.append("controller reports FAULT")
         if connection != "online":
-            reasons.append(f"controller {connection.replace('_', ' ')}")
+            reasons.append(NOT_ONLINE_REASON.get(connection, f"controller {connection.replace('_', ' ')}"))
         elif last_known:
-            reasons.append("safety state not current")
+            reasons.append("safety state out of date")
         if connection == "online" and not last_known:
-            reasons += [f"sensor {text}" for text in nodes]
+            reasons += nodes
             if not nodes and listed_nodes(device) == 0:
                 reasons.append("no sensor nodes reported")
         if reasons:
             level = "fault"
             if safety == "fault" or alarm == "fault":
-                title = "SAFETY SYSTEM FAULT"
+                title = "CONTROLLER FAULT"
                 if alarm == "fault" and safety != "fault":
                     source = "alarm_state"
             elif connection != "online":
                 title = NOT_ONLINE_TITLE.get(connection, "CONTROLLER NOT ONLINE")
             elif last_known:
-                title = "SAFETY STATE NOT CURRENT"
+                title = "SAFETY STATE OUT OF DATE"
             elif nodes:
                 title = "SENSOR NODE DOWN" if len(nodes) == 1 else "SENSOR NODES DOWN"
             else:
-                title = "NO SENSOR NODES"
+                title = "NO SENSOR NODES REPORTED"
         elif safety in {"idle", "monitoring"} and alarm in {None, "clear"}:
             level, title = "normal", "NORMAL"
         elif safety in {"boot", "self_test"}:
             level, title = "unknown", "CONTROLLER STARTING"
         else:
-            level, title = "unknown", "UNKNOWN STATE"
+            level, title = "unknown", "UNRECOGNISED STATE"
     return {"level": level, "title": title, "active": level in {"critical", "warning", "fault"},
             "reasons": reasons, "source_field": source, "freshness_seconds": source_age,
             "last_known": last_known}
@@ -175,8 +177,8 @@ def classify_display_state(device):
 # thresholds, and labelled "likely".
 # Menuconfig defaults, used only when the controller doesn't report its own (older firmware).
 HEAT_ON_C, HEAT_OFF_C = 50.0, 40.0
-COOKING_STATES = {"monitoring": "Cook at the stove", "unattended": "Nobody at the stove",
-                  "warning": "Nobody at the stove · warning"}
+COOKING_STATES = {"monitoring": "Person at the stove", "unattended": "Nobody at the stove",
+                  "warning": "Nobody at the stove · buzzer warning"}
 COOKING_RANK = {"cooking": 5, "likely_cooking": 4, "supply_cut": 3, "unknown": 2,
                 "likely_not_cooking": 1, "not_cooking": 0}
 ACTIVE_COOKING = {"cooking", "likely_cooking"}
@@ -193,24 +195,24 @@ def classify_cooking(device):
     off_c = values.get("cooking_off_c") if _finite(values.get("cooking_off_c")) else HEAT_OFF_C
     hot_field = "temperature_c"
     hot = values.get(hot_field) if _finite(values.get(hot_field)) else None
-    hot_text = f"hottest {hot:.0f} °C" if hot is not None else "no temperature"
+    hot_text = f"hottest pixel {hot:.0f} °C" if hot is not None else "no temperature reading"
     if safety in COOKING_STATES:
         status, label, detail, source = "cooking", "COOKING", f"{COOKING_STATES[safety]} · {hot_text}", "safety_state"
     elif safety == "idle":
         status, label, detail, source = ("not_cooking", "NOT COOKING",
-                                         f"Stove off or cold · {hot_text} (cooking from {on_c:g} °C)",
+                                         f"No cooking detected · {hot_text} (cooking temperature {on_c:g} °C)",
                                          "safety_state")
     elif safety == "shutdown":
-        status, label, detail, source = ("supply_cut", "SUPPLY CUT",
-                                         f"Gas cut by the controller · stove cooling, {hot_text}", "safety_state")
+        status, label, detail, source = ("supply_cut", "GAS SHUT OFF",
+                                         f"Gas supply shut off by the controller · {hot_text}", "safety_state")
     elif hot is not None and hot >= on_c:
         status, label, source = "likely_cooking", "LIKELY COOKING", hot_field
-        detail = f"Controller {safety or 'state unknown'} · {hot_text} (≥ {on_c:g} °C)"
+        detail = f"Controller state {(safety or 'unknown').upper()} · {hot_text} (≥ {on_c:g} °C)"
     elif hot is not None and hot < off_c:
         status, label, source = "likely_not_cooking", "LIKELY NOT COOKING", hot_field
-        detail = f"Controller {safety or 'state unknown'} · {hot_text} (< {off_c:g} °C)"
+        detail = f"Controller state {(safety or 'unknown').upper()} · {hot_text} (< {off_c:g} °C)"
     else:
-        status, label, detail, source = "unknown", "COOKING UNKNOWN", f"Controller {safety or 'state unknown'} · {hot_text}", None
+        status, label, detail, source = "unknown", "COOKING UNKNOWN", f"Controller state {(safety or 'unknown').upper()} · {hot_text}", None
     age = device["field_age_seconds"].get(source) if source else None
     last_known = device["connection"] != "online" or age is None or age > device["stale_after_seconds"]
     return {"status": status, "label": label, "detail": detail, "active": status in ACTIVE_COOKING,

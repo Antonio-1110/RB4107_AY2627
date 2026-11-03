@@ -112,7 +112,7 @@ def alert_text(msg: Message, kind: str) -> str:
     if safety["reason"]:
         lines.append(f"Reason: {safety['reason']}")
     if kind == "shutdown":
-        lines.append("Check the stall, then press Reset shutdown on the dashboard.")
+        lines.append("Check the stall, then press Reset shut-off on the dashboard.")
     # Local time (DJANGO_TIME_ZONE); when Django got it if the controller has no clock yet.
     at = dj_timezone.localtime(_event_time(msg) or dj_timezone.now())
     lines.append(f"Time: {at:%H:%M:%S}, {at.day} {at:%b %Y}")

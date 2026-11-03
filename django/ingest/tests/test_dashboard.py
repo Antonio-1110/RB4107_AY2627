@@ -84,7 +84,7 @@ class DashboardIntegrationTest(TestCase):
         latest = self.latest()
         self.assertEqual(latest["values"]["cooking_on_c"], 45.5)
         self.assertEqual(latest["values"]["cooking_source"], "dashboard")
-        self.assertIn("hottest 47 °C (cooking from 45.5 °C)", latest["cooking"]["detail"])
+        self.assertIn("hottest pixel 47 °C (cooking temperature 45.5 °C)", latest["cooking"]["detail"])
         data["safety"]["state"] = "FAULT"
         data["safety"]["buzzer"] = "FAULT"
         data["sequence"] += 1
