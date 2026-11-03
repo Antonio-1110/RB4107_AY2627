@@ -27,8 +27,13 @@ export const fetchEvents = (deviceId, hours = 24, limit = 30) =>
   get(`${device(deviceId)}/events/?hours=${hours}&limit=${limit}`);
 
 // Every stall's incident counts, plus the incidents of one stall (unattended, buzzer warning, shutdown).
-export const fetchStallHistory = (stallId = "") =>
-  get(`/api/stall-history/${stallId ? `?stall=${encodeURIComponent(stallId)}` : ""}`);
+// With `days` (14, 28 or 90) each stall also gets a summary of that period, and the list keeps to it.
+export const fetchStallHistory = (stallId = "", days = null) => {
+  const query = new URLSearchParams();
+  if (stallId) query.set("stall", stallId);
+  if (days) query.set("days", days);
+  return get(`/api/stall-history/${query.size ? `?${query}` : ""}`);
+};
 
 async function post(path, body) {
   const response = await fetch(`${API_BASE}${path}`, {

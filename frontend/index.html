@@ -162,98 +162,153 @@
       </section>
 
       <section id="history-view" hidden>
-        <section class="card hist-stalls" aria-labelledby="hist-stalls-title">
-          <div class="section-heading">
-            <div>
-              <h2 id="hist-stalls-title">Stalls</h2>
-              <p class="muted">Unattended cooking incidents recorded per stall, for as long as the stall is on the system.</p>
-            </div>
+        <section class="card hist-toolbar" aria-label="History period">
+          <div class="hist-period" role="group" aria-label="Period">
+            <span class="hist-period-label">Period</span>
+            <button type="button" class="hist-period-btn" data-days="14">Last 2 weeks</button>
+            <button type="button" class="hist-period-btn" data-days="28">Last 4 weeks</button>
+            <button type="button" class="hist-period-btn" data-days="90">Last 3 months</button>
           </div>
-          <div class="table-scroll">
-            <table class="hist-stall-table">
-              <thead>
-                <tr>
-                  <th>Stall / location</th>
-                  <th>Incidents</th>
-                  <th>Buzzer warnings</th>
-                  <th>Shutdowns</th>
-                  <th>Last incident</th>
-                </tr>
-              </thead>
-              <tbody id="hist-stall-rows">
-                <tr>
-                  <td colspan="5" class="empty-cell">Loading…</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <p id="hist-range" class="muted"></p>
         </section>
-        <section id="hist-detail" class="hist-detail" hidden>
-          <div class="section-heading">
-            <div>
-              <h2 id="hist-stall-name">Stall</h2>
-              <p id="hist-stall-location" class="muted"></p>
-            </div>
-            <span id="hist-demo" class="pill demo" hidden>INCLUDES MADE-UP DEMO HISTORY</span>
-          </div>
-          <section class="summary-grid hist-summary" aria-label="Stall incident totals">
-            <article class="summary-card">
-              <p>Incidents</p>
-              <strong id="hist-total">0</strong>
-            </article>
-            <article class="summary-card fault">
-              <p>Unattended only</p>
-              <strong id="hist-unattended">0</strong>
-            </article>
-            <article class="summary-card warning">
-              <p>Buzzer warnings</p>
-              <strong id="hist-warnings">0</strong>
-            </article>
-            <article class="summary-card critical">
-              <p>Shutdowns</p>
-              <strong id="hist-shutdowns">0</strong>
-            </article>
-            <article class="summary-card">
-              <p>Recorded since</p>
-              <strong id="hist-since" class="hist-since">—</strong>
-            </article>
-          </section>
-          <section class="card" aria-labelledby="hist-list-title">
+        <div id="hist-layout" class="hist-layout">
+          <section class="card hist-stalls" aria-labelledby="hist-stalls-title">
             <div class="section-heading">
               <div>
-                <h2 id="hist-list-title">Incidents</h2>
+                <h2 id="hist-stalls-title">All stalls</h2>
                 <p class="muted">
-                  Each row is one time the cook left while cooking: how far it escalated and how it
-                  ended. The end is inferred from the state the controller went to next.
+                  A countdown starts each time the cook leaves a hot stove. Riskiest first: most
+                  shut-offs, then most buzzer warnings. Click a heading to sort, a stall to open it.
                 </p>
               </div>
-              <label class="hist-filter"
-                >Show<select id="hist-filter">
-                  <option value="">Everything</option>
-                  <option value="warning">Buzzer warning or worse</option>
-                  <option value="shutdown">Shutdowns only</option>
-                </select></label
-              >
             </div>
             <div class="table-scroll">
-              <table class="hist-table">
+              <table class="hist-stall-table">
                 <thead>
                   <tr>
-                    <th>Started</th>
-                    <th>Reached</th>
-                    <th>Buzzer after</th>
-                    <th>Shutdown after</th>
-                    <th>Lasted</th>
-                    <th>Ended by</th>
-                    <th>Hottest</th>
+                    <th aria-sort="none"><button type="button" class="hist-sort" data-sort="name">Stall</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="countdowns">Countdowns / week</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="buzzer">Buzzer</button></th>
+                    <th aria-sort="descending" class="num"><button type="button" class="hist-sort" data-sort="shutoff">Shut-off</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="recovery">Usual recovery</button></th>
                   </tr>
                 </thead>
-                <tbody id="hist-rows"></tbody>
+                <tbody id="hist-stall-rows">
+                  <tr>
+                    <td colspan="5" class="empty-cell">Loading…</td>
+                  </tr>
+                </tbody>
               </table>
             </div>
-            <p id="hist-note" class="muted small"></p>
           </section>
-        </section>
+          <section id="hist-detail" class="hist-detail" hidden>
+            <div class="section-heading">
+              <div>
+                <h2 id="hist-stall-name">Stall</h2>
+                <p id="hist-stall-location" class="muted"></p>
+              </div>
+              <span id="hist-demo" class="pill demo" hidden>INCLUDES MADE-UP DEMO HISTORY</span>
+            </div>
+            <section class="summary-grid hist-summary" aria-label="Stall figures for the period">
+              <article class="summary-card">
+                <p>Countdowns started</p>
+                <strong id="hist-per-week">—</strong>
+                <small id="hist-per-week-note"></small>
+              </article>
+              <article class="summary-card warning">
+                <p>Reached the buzzer</p>
+                <strong id="hist-buzzer">—</strong>
+                <small id="hist-buzzer-note"></small>
+              </article>
+              <article class="summary-card critical">
+                <p>Gas shut off</p>
+                <strong id="hist-shutoff">—</strong>
+                <small id="hist-shutoff-note"></small>
+              </article>
+              <article class="summary-card">
+                <p>Usual recovery</p>
+                <strong id="hist-recovery">—</strong>
+                <small id="hist-recovery-note"></small>
+              </article>
+            </section>
+            <section class="card" aria-labelledby="hist-weeks-title">
+              <div class="section-heading">
+                <div>
+                  <h2 id="hist-weeks-title">Week by week</h2>
+                  <p class="muted">Countdowns started each week (Monday to Sunday), by how far they went.</p>
+                </div>
+                <ul class="hist-legend" aria-label="Legend">
+                  <li><i class="countdown"></i>Countdown only</li>
+                  <li><i class="buzzer"></i>Buzzer</li>
+                  <li><i class="shutoff"></i>Shut-off</li>
+                </ul>
+              </div>
+              <div class="hist-chart-wrap">
+                <canvas id="hist-week-chart" role="img" aria-label="Countdowns per week"></canvas>
+                <p id="hist-week-empty" class="chart-empty" hidden>No countdowns in this period.</p>
+              </div>
+            </section>
+            <section class="card" aria-labelledby="hist-recovery-title">
+              <div class="section-heading">
+                <div>
+                  <h2 id="hist-recovery-title">How countdowns ended</h2>
+                  <p class="muted">
+                    Recovery time is timed from the start of the countdown, the buzzer or the
+                    shut-off, to the moment the controller was back to normal.
+                  </p>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table class="hist-recovery-table">
+                  <thead>
+                    <tr>
+                      <th>Ended how</th>
+                      <th class="num">Count</th>
+                      <th class="num">Usual (median)</th>
+                      <th class="num">Slowest</th>
+                    </tr>
+                  </thead>
+                  <tbody id="hist-recovery-rows"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="card" aria-labelledby="hist-list-title">
+              <div class="section-heading">
+                <div>
+                  <h2 id="hist-list-title">What happened next</h2>
+                  <p class="muted">
+                    Each row is one time the cook left while cooking: how far it escalated and how it
+                    ended. The end is inferred from the state the controller went to next.
+                  </p>
+                </div>
+                <label class="hist-filter"
+                  >Show<select id="hist-filter">
+                    <option value="">Everything</option>
+                    <option value="warning">Buzzer warning or worse</option>
+                    <option value="shutdown">Shut-offs only</option>
+                  </select></label
+                >
+              </div>
+              <div class="table-scroll">
+                <table class="hist-table">
+                  <thead>
+                    <tr>
+                      <th>Started</th>
+                      <th>Reached</th>
+                      <th>Buzzer after</th>
+                      <th>Shut-off after</th>
+                      <th>Lasted</th>
+                      <th>Ended by</th>
+                      <th>Hottest</th>
+                    </tr>
+                  </thead>
+                  <tbody id="hist-rows"></tbody>
+                </table>
+              </div>
+              <p id="hist-note" class="muted small"></p>
+            </section>
+          </section>
+        </div>
       </section>
 
       <section id="detail-view" data-mode="monitor" data-tab="rules" hidden>

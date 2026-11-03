@@ -1,7 +1,7 @@
 """Per-stall incident history built from controller telemetry (ingest/incidents.py)."""
 import json
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import StringIO
 
 from django.core.management import call_command
@@ -11,8 +11,8 @@ from django.utils import timezone
 
 from ingest.demo import demo_telemetry
 from ingest.handlers import handle
-from ingest.incidents import seed_demo
-from ingest.models import Device, Incident
+from ingest.incidents import DEMO_TOPIC, stall_history, seed_demo
+from ingest.models import Device, InboundMessage, Incident, Reading
 from ingest.storage import persist, worker_status
 from ingest.validation import parse
 
@@ -109,6 +109,86 @@ class IncidentTest(TestCase):
         self.assertEqual(listed["incidents"][1]["end_reason_text"], "Reset after shutdown")
 
 
+class PeriodTest(TestCase):
+    """The Stall history page's period summary, checked by hand against a small set of incidents."""
+    NOW = timezone.make_aware(datetime(2026, 11, 4, 12))  # a Wednesday, server time (Asia/Singapore)
+
+    def setUp(self):
+        self.device = Device.objects.create(device_id="controller_01")
+        ago = lambda days, seconds=0: self.NOW - timedelta(days=days) + timedelta(seconds=seconds)
+        rows = (  # days ago, peak, buzzer after s, shut-off after s, ended after s, end reason
+            (2, "unattended", None, None, 60, "person_returned"),
+            (3, "unattended", None, None, 100, "heating_stopped"),
+            (5, "unattended", None, None, 40, "controller_restarted"),
+            (10, "warning", 120, None, 150, "person_returned"),
+            (12, "warning", 60, None, 150, "person_returned"),
+            (20, "shutdown", 60, 180, 780, "operator_reset"),
+            (40, "shutdown", 60, 180, 400, "operator_reset"),  # only in the 3-month period
+        )
+        for days, peak, warn, cut, end, reason in rows:
+            Incident.objects.create(device=self.device, started_at=ago(days), peak=peak,
+                                    warning_at=warn and ago(days, warn), shutdown_at=cut and ago(days, cut),
+                                    ended_at=ago(days, end), end_reason=reason)
+        Incident.objects.create(device=self.device, started_at=self.NOW - timedelta(hours=1))  # ongoing
+        for days, state in ((2, "monitoring"), (10, "unattended"), (3, "idle")):  # idle: not cooking
+            message = InboundMessage.objects.create(device=self.device, received_at=ago(days), topic="t", raw="{}")
+            Reading.objects.create(device=self.device, message=message, received_at=ago(days),
+                                   values={"safety_state": state})
+
+    def period(self, days):
+        body = stall_history(self.NOW, days=days)
+        return next(s for s in body["stalls"] if "controller_01" in s["device_ids"])["period"]
+
+    def test_four_weeks_by_hand(self):
+        p = self.period(28)
+        self.assertEqual((p["countdowns"], p["buzzer"], p["shutoff"], p["ongoing"]), (7, 3, 1, 1))
+        self.assertEqual(p["countdowns_per_week"], 1.75)  # 7 in 4 weeks
+        self.assertAlmostEqual(p["buzzer_share"], 3 / 7)
+        self.assertAlmostEqual(p["shutoff_share"], 1 / 3)  # of the buzzer events
+        # Cooking on 2 days (2 and 10 days ago); one countdown started on each.
+        self.assertEqual((p["cooking_days"], p["countdowns_on_cooking_days"], p["countdowns_per_cooking_day"]),
+                         (2, 2, 1.0))
+        r = p["recovery"]
+        self.assertEqual([r["before_buzzer"][k] for k in ("count", "median_seconds", "slowest_seconds")], [2, 80, 100])
+        self.assertEqual([r["after_buzzer"][k] for k in ("count", "median_seconds", "slowest_seconds")], [2, 60, 90])
+        self.assertEqual([r["after_shutoff"][k] for k in ("count", "median_seconds", "slowest_seconds")], [1, 600, 600])
+        self.assertEqual(r["controller_restarted"]["count"], 1)
+        self.assertIsNone(r["controller_restarted"]["median_seconds"])
+        self.assertEqual(r["stove_off_after_buzzer"]["count"], 0)
+        # Start to end of the 5 recovered countdowns: 60, 100, 150, 150, 780 (not the restart, not ongoing).
+        self.assertEqual((p["usual_recovery"]["median_seconds"], p["usual_recovery"]["slowest_seconds"]), (150, 780))
+        # Monday weeks from Mon 5 Oct (the period starts Wed 7 Oct) to Mon 2 Nov (today is Wed 4 Nov).
+        self.assertEqual([(w["week_start"], w["days_in_period"], w["countdown_only"], w["buzzer"], w["shutoff"])
+                          for w in p["weeks"]],
+                         [("2026-10-05", 5, 0, 0, 0), ("2026-10-12", 7, 0, 0, 1), ("2026-10-19", 7, 0, 2, 0),
+                          ("2026-10-26", 7, 2, 0, 0), ("2026-11-02", 3, 2, 0, 0)])
+
+    def test_the_period_changes_the_numbers(self):
+        self.assertEqual((self.period(14)["countdowns"], self.period(14)["buzzer"]), (6, 2))  # incl. the ongoing one
+        three_months = self.period(90)
+        self.assertEqual((three_months["countdowns"], three_months["shutoff"]), (8, 2))
+        self.assertEqual(three_months["recovery"]["after_shutoff"]["median_seconds"], 410)  # 600 and 220
+        self.assertEqual(len(three_months["weeks"]), 14)
+
+    def test_no_countdowns_gives_no_shares(self):
+        Incident.objects.all().delete()
+        p = self.period(14)
+        self.assertEqual((p["countdowns"], p["buzzer_share"], p["shutoff_share"]), (0, None, None))
+        self.assertIsNone(p["usual_recovery"]["median_seconds"])
+
+    def test_api_days_parameter(self):
+        body = self.client.get("/api/stall-history/", {"days": "28"}).json()
+        stall = next(s for s in body["stalls"] if "controller_01" in s["device_ids"])
+        self.assertEqual(body["days"], 28)
+        self.assertIn("period", stall)
+        listed = self.client.get("/api/stall-history/", {"days": "14", "stall": stall["stall_id"]}).json()
+        self.assertTrue(listed["incidents"])
+        self.assertTrue(all(i["started_at"] >= listed["since"] for i in listed["incidents"]))
+        for bad in ("7", "30", "abc", ""):
+            self.assertEqual(self.client.get("/api/stall-history/", {"days": bad}).status_code, 400)
+        self.assertNotIn("period", self.client.get("/api/stall-history/").json()["stalls"][0])  # all-time as before
+
+
 @override_settings(LOCATION_CATALOG_FILE=settings.BASE_DIR / "locations.demo.json")
 class SeedTest(TestCase):
     def test_seed_fills_demo_stalls_once_and_clear_removes_them(self):
@@ -119,8 +199,18 @@ class SeedTest(TestCase):
         self.assertFalse(Incident.objects.filter(device__device_id="controller_01").exists())  # real controller
         call_command("seed_incident_history", stdout=StringIO())
         self.assertEqual(Incident.objects.count(), count)
+        self.assertTrue(Reading.objects.filter(message__topic=DEMO_TOPIC).exists())  # made-up cooking days
         call_command("seed_incident_history", "--clear", stdout=StringIO())
         self.assertEqual(Incident.objects.count(), 0)
+        self.assertFalse(Reading.objects.exists())
+
+    def test_demo_stalls_differ(self):
+        call_command("seed_incident_history", stdout=StringIO())
+        body = stall_history(timezone.now(), days=28)
+        demo = [s["period"] for s in body["stalls"] if s["demo_only"]]
+        self.assertGreater(len({p["countdowns"] for p in demo}), 2)
+        self.assertTrue(any(p["shutoff"] for p in demo))
+        self.assertTrue(all(p["cooking_days"] >= 20 for p in demo))  # open most days
 
     def test_seeded_incidents_are_consistent(self):
         device = Device.objects.create(device_id="demo-x")
@@ -136,4 +226,4 @@ class SeedTest(TestCase):
             self.assertEqual(incident.shutdown_at is not None, incident.peak == "shutdown")
             self.assertEqual(incident.warning_at is not None, incident.peak != "unattended")
             if incident.peak == "shutdown":
-                self.assertEqual(incident.end_reason, "operator_reset")
+                self.assertIn(incident.end_reason, ("operator_reset", "controller_restarted"))
