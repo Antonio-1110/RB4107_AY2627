@@ -195,16 +195,16 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 The dashboard's Safety tab changes the cooking temperature, cookware profile, temperature tiers,
 presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules, plus the
 settings below ([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)) under
-each card's **More settings**. The controller saves them until **Restore defaults** is pressed.
+each card's **More settings**. The controller saves them until **Restore menuconfig defaults** is pressed.
 Everything else in these rules is fixed.
 
 | Setting | Key | Default | Range |
 |---|---|---|---|
-| Cooking is over this far below the cooking temperature | `heat_off_gap_dc` | 10 °C | 0 °C to 100 °C |
-| Wait while the pan is only cooling down | `cooking_trend` | on | off / on |
-| ... but at most | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
-| Wait while the pan temperature is falling | `falling_hold` | on | off / on |
-| ... but at most | `falling_hold_max_ms` | 90 s | 10 s to 600 s |
-| After a wait, buzzer at least this long before shutting off | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |
-| A pan heating up fast gets the hotter tier early | `tier_rate` | on | off / on |
-| If the controller has a fault, shut off after | `fault_shutdown_ms` | 90 s | 10 s to 3600 s |
+| Cooking ends this far below the cooking temperature | `heat_off_gap_dc` | 10 °C | 0 °C to 100 °C |
+| Hold while the pan is only cooling | `cooking_trend` | on | off / on |
+| Maximum cooling hold | `cooling_hold_max_ms` | 3600 s | 60 s to 14400 s |
+| Hold while the pan temperature is falling | `falling_hold` | on | off / on |
+| Maximum falling hold | `falling_hold_max_ms` | 90 s | 10 s to 600 s |
+| Minimum buzzer warning before shut-off after a hold | `warning_min_after_hold_ms` | 30 s | 1 s to 600 s |
+| Apply a hotter tier early when the pan heats quickly | `tier_rate` | on | off / on |
+| Gas shut-off after a controller fault lasting | `fault_shutdown_ms` | 90 s | 10 s to 3600 s |

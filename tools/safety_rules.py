@@ -380,7 +380,7 @@ def generate():
                 "The dashboard's Safety tab changes the cooking temperature, cookware profile, temperature tiers,",
                 "presence filter and buzzer/shutdown times, fusion and pause budget, and the radar rules, plus the",
                 "settings below ([`rb_params.def`](../firmware/components/rb_params/include/rb_params.def)) under",
-                "each card's **More settings**. The controller saves them until **Restore defaults** is pressed.",
+                "each card's **More settings**. The controller saves them until **Restore menuconfig defaults** is pressed.",
                 "Everything else in these rules is fixed.", "",
                 "| Setting | Key | Default | Range |", "|---|---|---|---|"])
     for p in params:

@@ -478,14 +478,14 @@
         "warning_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "shutdown_ms": {"type": "integer", "minimum": 1000, "maximum": 3600000},
         "cooking_temp_dc": {"type": "integer", "minimum": 0, "maximum": 3000},
-        "heat_off_gap_dc": {"type": "integer", "minimum": 0, "maximum": 1000, "description": "params: Cooking is over this far below the cooking temperature (dc)"},
-        "cooking_trend": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Wait while the pan is only cooling down (0 = off, 1 = on)"},
-        "cooling_hold_max_ms": {"type": "integer", "minimum": 60000, "maximum": 14400000, "description": "params: ... but at most (ms)"},
-        "falling_hold": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Wait while the pan temperature is falling (0 = off, 1 = on)"},
-        "falling_hold_max_ms": {"type": "integer", "minimum": 10000, "maximum": 600000, "description": "params: ... but at most (ms)"},
-        "warning_min_after_hold_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "description": "params: After a wait, buzzer at least this long before shutting off (ms)"},
-        "tier_rate": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: A pan heating up fast gets the hotter tier early (0 = off, 1 = on)"},
-        "fault_shutdown_ms": {"type": "integer", "minimum": 10000, "maximum": 3600000, "description": "params: If the controller has a fault, shut off after (ms)"}
+        "heat_off_gap_dc": {"type": "integer", "minimum": 0, "maximum": 1000, "description": "params: Cooking ends this far below the cooking temperature (dc)"},
+        "cooking_trend": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Hold while the pan is only cooling (0 = off, 1 = on)"},
+        "cooling_hold_max_ms": {"type": "integer", "minimum": 60000, "maximum": 14400000, "description": "params: Maximum cooling hold (ms)"},
+        "falling_hold": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Hold while the pan temperature is falling (0 = off, 1 = on)"},
+        "falling_hold_max_ms": {"type": "integer", "minimum": 10000, "maximum": 600000, "description": "params: Maximum falling hold (ms)"},
+        "warning_min_after_hold_ms": {"type": "integer", "minimum": 1000, "maximum": 600000, "description": "params: Minimum buzzer warning before shut-off after a hold (ms)"},
+        "tier_rate": {"type": "integer", "minimum": 0, "maximum": 1, "description": "params: Apply a hotter tier early when the pan heats quickly (0 = off, 1 = on)"},
+        "fault_shutdown_ms": {"type": "integer", "minimum": 10000, "maximum": 3600000, "description": "params: Gas shut-off after a controller fault lasting (ms)"}
       },
       "allOf": [
         {

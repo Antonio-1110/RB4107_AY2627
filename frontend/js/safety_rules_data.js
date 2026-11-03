@@ -443,7 +443,7 @@ export default {
    "min": 0,
    "max": 1000,
    "default": 100,
-   "label": "Cooking is over this far below the cooking temperature",
+   "label": "Cooking ends this far below the cooking temperature",
    "source": "RB_SAFETY_HEAT_ON_DC - RB_SAFETY_HEAT_OFF_DC",
    "options": null,
    "group": "Cooking"
@@ -454,7 +454,7 @@ export default {
    "min": 0,
    "max": 1,
    "default": 1,
-   "label": "Wait while the pan is only cooling down",
+   "label": "Hold while the pan is only cooling",
    "source": "RB_SAFETY_COOKING_TREND",
    "options": [
     "off",
@@ -468,7 +468,7 @@ export default {
    "min": 60000,
    "max": 14400000,
    "default": 3600000,
-   "label": "... but at most",
+   "label": "Maximum cooling hold",
    "source": "COOLING_HOLD_MAX_MS",
    "options": null,
    "group": "Cooking"
@@ -479,7 +479,7 @@ export default {
    "min": 0,
    "max": 1,
    "default": 1,
-   "label": "Wait while the pan temperature is falling",
+   "label": "Hold while the pan temperature is falling",
    "source": "RB_SAFETY_FALLING_HOLD",
    "options": [
     "off",
@@ -493,7 +493,7 @@ export default {
    "min": 10000,
    "max": 600000,
    "default": 90000,
-   "label": "... but at most",
+   "label": "Maximum falling hold",
    "source": "FALLING_HOLD_MAX_MS",
    "options": null,
    "group": "Cooking"
@@ -504,7 +504,7 @@ export default {
    "min": 1000,
    "max": 600000,
    "default": 30000,
-   "label": "After a wait, buzzer at least this long before shutting off",
+   "label": "Minimum buzzer warning before shut-off after a hold",
    "source": "WARNING_MIN_AFTER_HOLD_MS",
    "options": null,
    "group": "Cooking"
@@ -515,7 +515,7 @@ export default {
    "min": 0,
    "max": 1,
    "default": 1,
-   "label": "A pan heating up fast gets the hotter tier early",
+   "label": "Apply a hotter tier early when the pan heats quickly",
    "source": "RB_SAFETY_TIER_RATE",
    "options": [
     "off",
@@ -529,7 +529,7 @@ export default {
    "min": 10000,
    "max": 3600000,
    "default": 90000,
-   "label": "If the controller has a fault, shut off after",
+   "label": "Gas shut-off after a controller fault lasting",
    "source": "RB_SAFETY_FAULT_SHUTDOWN_S",
    "options": null,
    "group": "Timer"
