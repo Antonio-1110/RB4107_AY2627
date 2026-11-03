@@ -50,24 +50,24 @@ function setStatus(text, style = "") {
 }
 
 const RESULT_TEXT = {
-  invalid: "the node refused a value",
-  sensor_error: "the C4002 did not accept a command (wiring?)",
+  invalid: "the node rejected a value as out of range",
+  sensor_error: "the C4002 radar did not acknowledge the command (check its UART wiring)",
   rejected: "the controller rejected the command",
-  unknown_node: "the controller has not heard from this node since it started",
-  send_failed: "the controller could not send it over ESP-NOW",
-  no_reply: "the node did not answer",
+  unknown_node: "the controller has received nothing from this node since it started",
+  send_failed: "the controller could not send the command over ESP-NOW",
+  no_reply: "the node did not reply",
 };
 
 function describe(tuning) {
-  if (!tuning) return ["Waiting for this node's settings (the controller asks for them when it first hears the node).", ""];
+  if (!tuning) return ["Waiting for this node's settings (the controller requests them when it first receives a packet from the node).", ""];
   const what = tuning.request_id === 0 ? "Settings report" : `Last command (${tuning.action || "?"})`;
   if (tuning.result !== "ok") {
     const reason = RESULT_TEXT[tuning.result] || tuning.result;
     return [`${what}: ${reason}${tuning.error ? ` · ${tuning.error}` : ""}.`, "bad"];
   }
   if (tuning.calibration_remaining_s > 0)
-    return [`Calibrating: keep the area empty, about ${tuning.calibration_remaining_s} s left (counted from the node's last report).`, "warn"];
-  const saved = tuning.saved ? "saved on the node" : "not saved (menuconfig values, or lost at reboot)";
+    return [`Calibrating: keep the area empty; approx. ${tuning.calibration_remaining_s} s remaining (as of the node's last report).`, "warn"];
+  const saved = tuning.saved ? "saved on the node" : "not saved on the node (menuconfig values, or lost on restart)";
   return [`${what}: OK. Settings in use, ${saved}.`, "good"];
 }
 
@@ -112,8 +112,8 @@ function nodeStatus(id) {
   if (sent) {
     const waited = Date.now() - sent.sentAt;
     return waited < ANSWER_WAIT_MS
-      ? [`Sent ${sent.action} to ${id}, waiting for the node to answer…`, "warn"]
-      : [`Sent ${sent.action} to ${id}, but no answer yet. Is the controller connected to MQTT?`, "warn"];
+      ? [`Sent ${sent.action} to ${id}; waiting for the node's reply…`, "warn"]
+      : [`Sent ${sent.action} to ${id}; no reply yet. Check that the controller is connected to MQTT.`, "warn"];
   }
   if (errors[id]) return [errors[id], "bad"];
   const [text, style] = describe(reports[id]);
@@ -136,7 +136,7 @@ export function renderTuning(device) {
     nodes = list;
     const select = $("tuning-node");
     const options = list.map((id) => new Option(id, id));
-    if (list.length > 1) options.unshift(new Option(`All radars (${list.length})`, ALL));
+    if (list.length > 1) options.unshift(new Option(`All presence nodes (${list.length})`, ALL));
     select.replaceChildren(...options);
     if (changedDevice || !(node === ALL ? list.length > 1 : list.includes(node))) {
       node = list.length > 1 ? ALL : list[0] || "";
@@ -153,9 +153,9 @@ export function renderTuning(device) {
   for (const id of nodes) reports[id] = (device.values.sensors[id] || {}).c4002 || null;
   latest = shown ? reports[shown] : null;
   selectLiveNode(deviceId, shown, latest && latest.settings);
-  $("live-title").textContent = shown ? `What ${shown} sees (last minute)` : "What the radar sees (last minute)";
+  $("live-title").textContent = shown ? `Radar detections from ${shown}, last 60 s` : "Radar detections, last 60 s";
   if (!node) {
-    setStatus("No presence node reported yet.");
+    setStatus("No presence node has reported.");
     return;
   }
 
@@ -178,7 +178,7 @@ export function renderTuning(device) {
   if (node === ALL) {
     const parts = nodes.map(formPart);
     if (parts.every(Boolean) && new Set(parts).size > 1)
-      lines.push([`The nodes use different settings; the form shows ${shown}'s and Apply sends it to all.`, "warn"]);
+      lines.push([`The presence nodes have different settings; the form shows ${shown}'s, and Apply sends them to every node.`, "warn"]);
   }
   const rank = { bad: 3, warn: 2, good: 1, "": 0 };
   const style = lines.reduce((worst, [, s]) => (rank[s] > rank[worst] ? s : worst), "");
@@ -255,7 +255,7 @@ $("tune-apply").addEventListener("click", () =>
 );
 $("tune-read").addEventListener("click", () => send({ action: "read" }));
 $("tune-reset").addEventListener("click", () => {
-  if (confirm(`Forget the settings saved on ${targetName()} and go back to the menuconfig values?`))
+  if (confirm(`Erase the settings saved on ${targetName()} and restore the menuconfig defaults?`))
     send({ action: "reset" });
 });
 $("tune-calibrate").addEventListener("click", () => {
@@ -263,9 +263,9 @@ $("tune-calibrate").addEventListener("click", () => {
     duration = intValue("tune-calib-duration");
   if (
     confirm(
-      `${targetName()} will learn the empty room for ${duration} s, starting in ${delay} s. ` +
-        "Everyone must leave the radar's view, and moving things (fans) should be in their normal state. " +
-        "Afterwards the node keeps the learned thresholds (sensitivity becomes custom). Start?",
+      `${targetName()} will calibrate the empty area for ${duration} s, starting in ${delay} s. ` +
+        "Everyone must stay out of the radar's field of view, and moving objects (such as fans) must be in their normal state. " +
+        "The node then keeps the learned thresholds and both sensitivities change to Custom. Start calibration?",
     )
   )
     send({ action: "calibrate", calibration_delay_s: delay, calibration_duration_s: duration });

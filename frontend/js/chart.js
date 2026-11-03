@@ -1,7 +1,7 @@
 // Temperature history graph, drawn on a <canvas> without a chart library.
 
 import { cssVar } from "./dom.js";
-import { when } from "./format.js";
+import { DATE_LOCALE, when } from "./format.js";
 
 // Draws `points` ({received_at, temperature_c}) onto `canvas`. Readings more
 // than `gapSeconds` apart are not joined, so outages show as gaps.
@@ -21,7 +21,7 @@ export function drawTemperatureChart(canvas, emptyMessage, points, gapSeconds) {
     bottom = height - 28;
   emptyMessage.hidden = points.length > 0;
   if (!points.length) {
-    canvas.setAttribute("aria-label", "No temperature readings in selected window");
+    canvas.setAttribute("aria-label", "No temperature readings in this period");
     return;
   }
   const temperatures = points.map((point) => point.temperature_c),
@@ -32,7 +32,7 @@ export function drawTemperatureChart(canvas, emptyMessage, points, gapSeconds) {
     x = (point) =>
       left + ((Date.parse(point.received_at) - start) / (end - start)) * (right - left),
     y = (point) => bottom - ((point.temperature_c - min) / (max - min)) * (bottom - top);
-  ctx.font = "10px system-ui";
+  ctx.font = `${cssVar("--fs-meta")} system-ui`;
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const py = top + ((bottom - top) * i) / 4;
@@ -103,7 +103,7 @@ export function drawStackedWeeks(canvas, emptyMessage, weeks, series) {
     y = (value) => bottom - (value / max) * (bottom - top),
     slot = (right - left) / weeks.length,
     bar = Math.min(48, slot * 0.68);
-  ctx.font = "10px system-ui";
+  ctx.font = `${cssVar("--fs-meta")} system-ui`;
   ctx.lineWidth = 1;
   for (let value = 0; value <= max; value += step) {
     ctx.strokeStyle = cssVar("--line");
@@ -135,7 +135,7 @@ export function drawStackedWeeks(canvas, emptyMessage, weeks, series) {
     const start = new Date(`${week.week_start}T00:00:00`);
     ctx.fillStyle = cssVar("--muted");
     ctx.textAlign = "center";
-    ctx.fillText(start.toLocaleDateString([], { day: "numeric", month: "short" }), x + bar / 2, bottom + 14);
+    ctx.fillText(start.toLocaleDateString(DATE_LOCALE, { day: "numeric", month: "short" }), x + bar / 2, bottom + 14);
     if (week.days_in_period < 7) ctx.fillText("(part)", x + bar / 2, bottom + 26);
   });
   canvas.setAttribute(

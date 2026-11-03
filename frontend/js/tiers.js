@@ -10,13 +10,13 @@ import { number } from "./format.js";
 import { registerPart, report, showsResult } from "./safety_save.js";
 
 const ANSWER_WAIT_MS = 15000;
-const LABEL = "Hotter pans";
+const LABEL = "Temperature tiers";
 const TIERS = [2, 3, 4, 5];
 // [input id, tier, key in the telemetry's seconds form, key sent, what it is]
 const FIELDS = TIERS.flatMap((n) => [
   [`tr-${n}-temp`, n, "temp_c", "temp_c", "from (°C)"],
-  [`tr-${n}-warn`, n, "warning_seconds", "warning_s", "buzzer (s)"],
-  [`tr-${n}-stop`, n, "shutdown_seconds", "shutdown_s", "shut off (s)"],
+  [`tr-${n}-warn`, n, "warning_seconds", "warning_s", "buzzer warning (s)"],
+  [`tr-${n}-stop`, n, "shutdown_seconds", "shutdown_s", "shut-off (s)"],
 ]);
 const level = (tiers, n) => ((tiers && tiers.levels) || []).find((t) => t && t.tier === n) || {};
 
@@ -61,9 +61,9 @@ export function renderTiers(device) {
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       pending = null;
       setStatus(
-        "the controller didn't report the change. It refuses inconsistent values (a shut-off not after its " +
-          'buzzer, a tier below the one before it) and needs "Accept the temperature tiers from the dashboard" ' +
-          "on in menuconfig.",
+        "the controller did not confirm the change. It rejects inconsistent values (a shut-off not later than its " +
+          'buzzer warning, or a tier starting below the previous one) and requires "Accept the temperature tiers from ' +
+          'the dashboard" to be enabled in menuconfig.',
         "bad",
       );
     }
@@ -80,7 +80,7 @@ async function send(body, expect) {
   try {
     const result = await sendTiers(deviceId, body);
     pending = { request_id: result.request_id, sentAt: Date.now(), expect };
-    setStatus(`sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    setStatus(`sent (request ${result.request_id}); waiting for the controller to confirm…`, "warn");
   } catch (error) {
     pending = null;
     setStatus(`not sent: ${error.message}`, "bad");
@@ -115,11 +115,11 @@ registerPart({
     let below = 0;
     for (const [k, l] of levels.entries()) {
       if (l.temp_c > 0) {
-        if (l.temp_c < below) return { error: `tier ${TIERS[k]} must not start below the tier before it.` };
+        if (l.temp_c < below) return { error: `tier ${TIERS[k]} must not start below the previous tier.` };
         below = l.temp_c;
       }
       if (countsFrom === "UNATTENDED" && l.shutdown_s <= l.warning_s)
-        return { error: `in tier ${TIERS[k]} the shut-off must come after the buzzer.` };
+        return { error: `in tier ${TIERS[k]} the gas shut-off must come after the buzzer warning.` };
     }
     return { run: () => send({ levels }, expect) };
   },

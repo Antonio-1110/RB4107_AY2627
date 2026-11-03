@@ -29,6 +29,7 @@ import { renderTuning } from "./tuning.js";
 import { renderSafetyLogic, setSafetyEvents } from "./safety_logic.js";
 import { refreshStallHistory, showStallHistory } from "./stall_history.js";
 import { renderLogs } from "./logs.js";
+import { eventText } from "./event_text.js";
 
 let fleet = { devices: [], stalls: [], alerts: [], summary: {}, catalog: {}, worker: {} };
 let selectedStall = "",
@@ -46,7 +47,7 @@ let selectedStall = "",
   historyStall = ""; // the stall to open when switching to the history view
 function freshness(device, key, explicitAge) {
   const age = explicitAge === undefined ? device.field_age_seconds[key] : explicitAge;
-  if (age == null) return "No live timestamp · retained or not reported";
+  if (age == null) return "No live timestamp (retained or not reported)";
   const stale = age > device.stale_after_seconds || device.connection !== "online";
   return `${stale ? "Last known · " : "Updated "}${Math.floor(age)} s ago`;
 }
@@ -71,24 +72,22 @@ function showView(view) {
   $("detail-view").hidden = view !== "detail";
   $("history-view").hidden = view !== "history";
   document.body.dataset.view = view;
-  $("overview-tab").classList.toggle("active", view === "overview");
-  $("detail-tab").classList.toggle("active", view === "detail");
   $("history-tab").classList.toggle("active", view === "history");
   if (view === "history") {
-    set("page-title", "Stall incident history");
-    set("page-subtitle", "Unattended cooking, buzzer warnings and shutdowns, per stall.");
+    set("page-title", "Stall history");
+    set("page-subtitle", "Unattended-cooking countdowns, buzzer warnings and gas shut-offs, per stall.");
     showStallHistory(historyStall);
     historyStall = "";
   } else if (view === "overview") {
-    set("page-title", "All-stall safety overview");
-    set("page-subtitle", "Airport terminals, zones and external sites in one view.");
+    set("page-title", "Safety overview: all stalls");
+    set("page-subtitle", "Every monitored stall, grouped by site, terminal, zone and level.");
     history.replaceState(null, "", "#overview");
   } else {
     const stall = fleet.stalls.find((item) => item.stall_id === selectedStall);
     set("page-title", stall ? stall.stall_name : "Stall detail");
     set(
       "page-subtitle",
-      stall ? locationLine(stall.location) : "Device telemetry and event history.",
+      stall ? locationLine(stall.location) : "Controller telemetry and event history.",
     );
     history.replaceState(null, "", `#stall=${encodeURIComponent(selectedStall)}`);
     setTimeout(drawChart, 0);
@@ -104,10 +103,9 @@ function openStall(stallId, deviceId = "") {
   points = [];
   heatmap = null;
   heatmapNumber = null;
-  renderEventsMessage("Loading station history…");
+  renderEventsMessage("Loading events…");
   set("chart-caption", "Loading temperature history…");
-  set("heatmap-age", "Loading picture…");
-  $("detail-tab").disabled = false;
+  set("heatmap-age", "Loading image…");
   showView("detail");
   renderDetail();
   refreshDetailData(true);
@@ -141,7 +139,6 @@ function applyInitialRoute() {
   selectedDevice = stall.device_ids[0];
   lastHistoryAt = 0;
   points = [];
-  $("detail-tab").disabled = false;
   showView("detail");
 }
 function renderGlobalAlerts() {
@@ -184,7 +181,7 @@ function renderGlobalAlerts() {
         make("p", null, "alert-location"),
         make("p", null, "alert-facts"),
       );
-      const button = make("button", "Open stall details", "alert-button");
+      const button = make("button", "Open stall", "alert-button");
       button.type = "button";
       card.append(make("div", null, "alert-icon"), content, button);
     } else
@@ -192,12 +189,12 @@ function renderGlobalAlerts() {
     card.dataset.alertState = stateSignature;
     card.className = `global-alert global-alert-${alert.severity}`;
     card.querySelector(".alert-icon").textContent = alert.severity === "critical" ? "!" : "△";
-    card.querySelector(".alert-title").textContent = "SUPPLY ISOLATED · MANUAL RESET REQUIRED";
+    card.querySelector(".alert-title").textContent = "GAS SUPPLY SHUT OFF · MANUAL RESET REQUIRED";
     card.querySelector(".last-known").hidden = !lastKnown;
     card.querySelector(".alert-stall").textContent = `${alert.stall_name} · ${alert.station_name}`;
     card.querySelector(".alert-location").textContent = locationLine(alert.location);
     card.querySelector(".alert-facts").textContent =
-      `Presence ${alert.values.occupied === true ? "present" : alert.values.occupied === false ? "absent" : "unknown"} · ${number(alert.values.temperature_c) ? alert.values.temperature_c.toFixed(1) + " °C" : "Temperature unknown"} · unattended ${seconds(alert.values.unattended_seconds)} · relay ${human(alert.values.relay_state)} · ${human(alert.connection)} · report ${when(alert.last_seen_at)}`;
+      `Presence: ${alert.values.occupied === true ? "present" : alert.values.occupied === false ? "absent" : "unknown"} · ${number(alert.values.temperature_c) ? alert.values.temperature_c.toFixed(1) + " °C" : "temperature unknown"} · unattended ${seconds(alert.values.unattended_seconds)} · gas supply relay: ${human(alert.values.relay_state).toLowerCase()} · ${human(alert.connection)} · last report ${when(alert.last_seen_at)}`;
     card.querySelector(".alert-button").onclick = () => openStall(alert.stall_id, alert.device_id);
     if (host.children[index] !== card) host.insertBefore(card, host.children[index] || null);
   }
@@ -313,7 +310,7 @@ function stallButton(stall) {
   );
   const facts = make(
     "p",
-    `${number(stall.temperature_c) ? stall.temperature_c.toFixed(1) + " °C" : "—"} · ${seconds(stall.unattended_seconds)} unattended · ${human(stall.connection)}`,
+    `${number(stall.temperature_c) ? stall.temperature_c.toFixed(1) + " °C" : "—"} · unattended ${seconds(stall.unattended_seconds)} · ${human(stall.connection)}`,
     "stall-tile-facts",
   );
   button.append(head, cooking, place, facts);
@@ -322,7 +319,7 @@ function stallButton(stall) {
 function renderLocationGroups(stalls) {
   const host = $("location-groups");
   host.replaceChildren();
-  set("visible-count", `${stalls.length} stalls`);
+  set("visible-count", `${stalls.length} stall${stalls.length === 1 ? "" : "s"}`);
   if (!stalls.length) {
     host.append(make("p", "No stalls match the selected filters.", "empty-cell"));
     return;
@@ -426,17 +423,19 @@ function renderDetailAlert(device) {
   const host = $("detail-alert"),
     state = device.display_state;
   host.replaceChildren();
-  host.hidden = !state.active;
-  if (!state.active) return;
+  // A warning or shutdown is already the countdown card's job: the banner only adds what that card can't say,
+  // a fault's reasons or telemetry that isn't fresh.
+  host.hidden = !state.active || !(state.level === "fault" || state.last_known);
+  if (host.hidden) return;
   host.className = `detail-alert detail-alert-${state.level}`;
   const title = make("strong", state.title);
   const text = make(
     "p",
     state.level === "fault" && state.reasons?.length
-      ? `Not protected or not visible: ${state.reasons.join(", ")}. Check the controller and its sensor nodes.`
+      ? `Protection not confirmed: ${state.reasons.join(", ")}. Inspect the controller and its sensor nodes.`
       : state.last_known
-        ? "This is a last-known active state. Current safety cannot be confirmed because telemetry is not fresh."
-        : "Local ESP32 safety action is active. Respond at the physical location; once the stove is checked, a latched shutdown can be reset from System status.",
+        ? "Last known active state. The current safety status cannot be confirmed because telemetry is out of date."
+        : "The controller's local safety action is active. Respond at the stall; after the stove has been inspected, a latched shut-off can be reset from the countdown card.",
   );
   host.append(title, text);
 }
@@ -445,44 +444,19 @@ function renderDevice(device) {
   const value = device.values;
   pill(
     "device-status",
-    `Device ${human(device.connection).toLowerCase()}`,
+    `Controller ${human(device.connection).toLowerCase()}`,
     device.connection === "online" ? "good" : "warn",
   );
   $("demo-badge").hidden = value.simulation !== true;
-  const cooking = device.cooking;
-  $("cooking-banner").className = `card cooking-banner ${cooking.status}`;
-  set("cooking-label", `${cooking.label}${cooking.last_known ? " · last known" : ""}`);
-  set("cooking-detail", cooking.detail);
   $("test-timers-badge").hidden = value.test_timers !== true;
   set(
     "thermal-extra",
-    `Hot region ${number(value.hot_region_c) ? value.hot_region_c.toFixed(1) + " °C" : "—"} · rate ${number(value.rate_c_per_min) ? value.rate_c_per_min.toFixed(1) + " °C/min" : "—"}`,
-  );
-  metric(
-    "presence",
-    "occupied",
-    value.occupied === true
-      ? "At the stove"
-      : value.occupied === false
-        ? value.nearby === true
-          ? "Nearby"
-          : "Absent"
-        : "Unknown",
+    `Hot region ${number(value.hot_region_c) ? value.hot_region_c.toFixed(1) + " °C" : "—"} · rate of change ${number(value.rate_c_per_min) ? value.rate_c_per_min.toFixed(1) + " °C/min" : "—"}`,
   );
   metric(
     "temperature",
     "temperature_c",
     number(value.temperature_c) ? `${value.temperature_c.toFixed(1)} °C` : "—",
-  );
-  metric("safety", "safety_state", human(value.safety_state));
-  metric("alarm", "alarm_state", human(value.alarm_state));
-  $("card-alarm").classList.toggle(
-    "danger",
-    ["warning", "shutdown", "fault"].includes(value.alarm_state),
-  );
-  $("card-safety").classList.toggle(
-    "danger",
-    ["warning", "shutdown", "fault"].includes(value.safety_state),
   );
   statusValue("relay", "relay_state", human(value.relay_state));
   statusValue(
@@ -500,7 +474,7 @@ function renderDevice(device) {
     "shutdown-setting",
     "shutdown_after_seconds",
     number(value.shutdown_after_seconds)
-      ? `${seconds(value.shutdown_after_seconds)} from ${human(value.shutdown_counts_from).toLowerCase()}`
+      ? `${seconds(value.shutdown_after_seconds)} after ${value.shutdown_counts_from ? String(value.shutdown_counts_from).toUpperCase() : "the countdown"} begins`
       : "—",
   );
   statusValue("uptime", "uptime_seconds", seconds(value.uptime_seconds));
@@ -555,9 +529,6 @@ function renderDetail() {
   set("detail-location-line", locationLine(stall.location));
   set("detail-response-route", `Response route: ${stall.location.response_route}`);
   $("detail-demo").hidden = !stall.location.demo_only;
-  const mapUrl = stall.location.map_url || fleet.catalog.map_url || "";
-  $("official-map").hidden = !mapUrl;
-  if (mapUrl) $("official-map").href = mapUrl;
   renderDevice(device);
   showView("detail");
 }
@@ -565,13 +536,13 @@ function renderSensors(sensors) {
   const rows = $("sensor-rows");
   rows.replaceChildren();
   const entries = Object.entries(sensors);
-  set("sensor-count", `${entries.length} sensors`);
+  set("sensor-count", `${entries.length} node${entries.length === 1 ? "" : "s"}`);
   if (!entries.length) {
     const row = rows.insertRow(),
       cell = row.insertCell();
     cell.colSpan = 4;
     cell.className = "empty-cell";
-    cell.textContent = "No sensors reported";
+    cell.textContent = "No sensor nodes reported";
   }
   for (const [id, sensor] of entries) {
     const row = rows.insertRow(),
@@ -604,17 +575,17 @@ function renderEvents(events, truncated = false) {
   list.replaceChildren();
   set("event-count", `${events.length}${truncated ? "+" : ""}`);
   if (!events.length) {
-    const item = make("li", "No events reported", "empty-cell");
+    const item = make("li", "No events in the last 24 hours", "empty-cell");
     list.append(item);
     return;
   }
   for (const event of events) {
-    const item = make("li"),
+    const { title, note } = eventText(event),
+      item = make("li"),
       detail = make("div"),
-      title = make("strong", human(event.event_type)),
       timestamp = make("time", when(event.received_at));
-    detail.append(title);
-    if (event.detail.note) detail.append(make("p", String(event.detail.note), "event-note"));
+    detail.append(make("strong", title));
+    if (note) detail.append(make("p", note, "event-note"));
     timestamp.dateTime = event.received_at;
     item.append(detail, timestamp);
     list.append(item);
@@ -697,9 +668,9 @@ function renderFootprint() {
     region = heatmap?.radius === null || !heatmap ? 3 : 2 * heatmap.radius + 1;
   set(
     "heatmap-footprint",
-    `At ${distance.toFixed(1)} m each centre pixel covers about ${width.toFixed(1)} × ${height.toFixed(1)} cm, ` +
-      `so the ${region} × ${region} hot region is about ${(width * region).toFixed(0)} × ${(height * region).toFixed(0)} cm. ` +
-      "A pan smaller than that region, or a pixel only partly on the pan, reads cooler than the pan.",
+    `At ${distance.toFixed(1)} m, each central pixel covers approx. ${width.toFixed(1)} × ${height.toFixed(1)} cm; ` +
+      `the ${region} × ${region} hot region covers approx. ${(width * region).toFixed(0)} × ${(height * region).toFixed(0)} cm. ` +
+      "A pan smaller than this region, or a pixel only partly on the pan, reads below the true pan temperature.",
   );
 }
 async function refreshHeatmap() {
@@ -715,13 +686,13 @@ async function refreshHeatmap() {
     set(
       "heatmap-age",
       frame
-        ? `${frame.sensor_node} · picture ${frame.number} · ${seconds(frame.age_seconds)} ago${stale ? " (stale)" : ""}`
-        : "No picture yet",
+        ? `${frame.sensor_node} · image ${frame.number} · ${seconds(frame.age_seconds)} ago${stale ? " (stale)" : ""}`
+        : "No image received",
     );
     $("heatmap").classList.toggle("stale", !!stale);
   } catch (error) {
     if (requested !== selectedDevice) return;
-    set("heatmap-age", "Picture unavailable");
+    set("heatmap-age", "Image unavailable");
   }
   renderHeatmap();
 }
@@ -742,13 +713,13 @@ async function refreshDetailData(force = false) {
     lastHistoryAt = Date.now();
     set(
       "chart-caption",
-      `${points.length} samples · server receipt time${historyData.truncated ? " · latest 360 samples" : ""}`,
+      `${points.length} samples · time axis: server receipt time${historyData.truncated ? " · newest 360 samples shown" : ""}`,
     );
   } catch (error) {
     if (requested !== selectedDevice) return;
     points = [];
     drawChart();
-    renderEventsMessage("History unavailable; retrying automatically.", "Unavailable");
+    renderEventsMessage("Events unavailable; retrying automatically.", "Unavailable");
     set("chart-caption", "Temperature history unavailable; live fleet data is unaffected.");
     lastHistoryAt = Date.now();
     console.warn("Detail history refresh failed:", error.message);
@@ -761,13 +732,13 @@ function updateSystemStatus() {
   const workerText =
     worker.mode === "demo-direct"
       ? worker.connected
-        ? "Demo direct · MQTT bypassed"
+        ? "Demo mode · MQTT bypassed"
         : "Demo stopped"
       : worker.connected
-        ? "MQTT subscribed"
+        ? "MQTT connected"
         : worker.running
           ? "MQTT disconnected"
-          : "MQTT worker stopped";
+          : "MQTT subscriber stopped";
   pill(
     "worker-status",
     workerText,
@@ -776,7 +747,7 @@ function updateSystemStatus() {
   const catalogStatus = fleet.catalog.status,
     catalogText =
       catalogStatus === "demo_reference"
-        ? "Demo reference locations"
+        ? "Demo location catalogue"
         : catalogStatus === "unavailable"
           ? "Location catalogue unavailable"
           : catalogStatus === "invalid"
@@ -799,24 +770,24 @@ function updateSystemStatus() {
   set(
     "last-update",
     dates.length
-      ? `Newest device report: ${when(new Date(Math.max(...dates)).toISOString())}`
-      : "No live reports yet",
+      ? `Latest controller report: ${when(new Date(Math.max(...dates)).toISOString())}`
+      : "No controller reports received",
   );
   const workerProblem = !worker.connected;
   $("notice").hidden = !workerProblem && fleet.devices.length > 0;
   set(
     "notice",
     fleet.devices.length === 0
-      ? "No devices have reported yet. Start the MQTT worker and firmware, or run the fleet simulator."
+      ? "No controller has reported. Start the MQTT subscriber and the controller firmware, or run the fleet simulator."
       : worker.mode === "demo-direct"
-        ? "The direct fleet demo has stopped. Existing values are last known; local device protection is not represented by this simulator."
-        : "The MQTT monitoring path is unavailable. Existing values are last known; local ESP32 protection remains independent.",
+        ? "The fleet simulator has stopped. Displayed values are last known; the simulator does not model local controller protection."
+        : "The MQTT connection is unavailable. Displayed values are last known; each controller's local protection continues independently.",
   );
 }
 // The dashboard lost the server: nothing is current any more. By the stall
 // status rule a stall we can't see is a fault, unless its last known state was
 // worse (critical or warning), which is kept and marked last known.
-const UNREACHABLE = "DASHBOARD CAN'T REACH THE SERVER";
+const UNREACHABLE = "SERVER UNREACHABLE";
 function unreachableState(state) {
   if (state.level === "critical" || state.level === "warning")
     return { ...state, last_known: true };
@@ -826,7 +797,7 @@ function unreachableState(state) {
     title: UNREACHABLE,
     active: true,
     last_known: true,
-    reasons: ["dashboard can't reach the server", ...(state.reasons || [])],
+    reasons: ["server unreachable from the dashboard", ...(state.reasons || [])],
   };
 }
 function markFleetLastKnown() {
@@ -883,13 +854,13 @@ async function refresh(forceHistory = false) {
   } catch (error) {
     document.body.classList.add("transport-lost");
     markFleetLastKnown();
-    pill("server-status", "Dashboard data unavailable", "bad");
+    pill("server-status", "Server unreachable", "bad");
     pill("worker-status", "MQTT status unknown", "warn");
-    pill("catalog-status", "Location status last known", "warn");
+    pill("catalog-status", "Location catalogue: last known", "warn");
     $("notice").hidden = false;
     set(
       "notice",
-      "Could not refresh dashboard data. All displayed values are last known; current device status is unknown. Retrying automatically.",
+      "Cannot reach the server. All displayed values are last known; the current controller status is unknown. Retrying automatically.",
     );
     renderGlobalAlerts();
     renderOverview();
@@ -919,7 +890,6 @@ $("clear-filters").addEventListener("click", () => {
   $("severity-filter").value = "";
   renderOverview();
 });
-$("overview-tab").addEventListener("click", () => showView("overview"));
 $("history-tab").addEventListener("click", () => showView("history"));
 $("open-history").addEventListener("click", () => {
   historyStall = selectedStall;
@@ -927,9 +897,6 @@ $("open-history").addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 $("back-overview").addEventListener("click", () => showView("overview"));
-$("detail-tab").addEventListener("click", () => {
-  if (selectedStall) showView("detail");
-});
 $("brand-home").addEventListener("click", (event) => {
   event.preventDefault();
   showView("overview");
@@ -939,11 +906,11 @@ $("device-select").addEventListener("change", () => {
   selectedDevice = $("device-select").value;
   heatmap = null;
   heatmapNumber = null;
-  set("heatmap-age", "Loading picture…");
+  set("heatmap-age", "Loading image…");
   renderHeatmap();
   lastHistoryAt = 0;
   points = [];
-  renderEventsMessage("Loading station history…");
+  renderEventsMessage("Loading events…");
   set("chart-caption", "Loading temperature history…");
   renderDetail();
   refreshDetailData(true);
@@ -951,7 +918,7 @@ $("device-select").addEventListener("change", () => {
 $("history-hours").addEventListener("change", () => {
   lastHistoryAt = 0;
   points = [];
-  renderEventsMessage("Loading station history…");
+  renderEventsMessage("Loading events…");
   set("chart-caption", "Loading temperature history…");
   drawChart();
   refreshDetailData(true);

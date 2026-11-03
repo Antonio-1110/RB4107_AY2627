@@ -11,8 +11,8 @@ import { number } from "./format.js";
 import { registerPart, report, showsResult } from "./safety_save.js";
 
 const ANSWER_WAIT_MS = 15000;
-const LABEL = "Who is at the stove";
-const FUSION_TEXT = { all: "every radar", any: "either radar" };
+const LABEL = "Presence fusion and pause";
+const FUSION_TEXT = { all: "every working radar", any: "either radar" };
 
 let deviceId = "",
   edited = false,
@@ -59,15 +59,15 @@ export function renderAttendance(device) {
       pending = null;
       edited = false;
       setStatus(
-        `saved: at the stove when ${FUSION_TEXT[f.fusion] || f.fusion} sees them, a passer-by may pause the clock ` +
+        `saved: at the stove when ${FUSION_TEXT[f.fusion] || f.fusion} detects them; countdown pause for passers-by up to ` +
           `${f.pause_budget_seconds} s.`,
         "good",
       );
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       pending = null;
       setStatus(
-        "the controller didn't report the change. Check that it runs firmware with this feature and that " +
-          '"Accept the fusion and the pause budget from the dashboard" is on in menuconfig.',
+        "the controller did not confirm the change. Check that its firmware supports this setting and that " +
+          '"Accept the fusion and the pause budget from the dashboard" is enabled in menuconfig.',
         "bad",
       );
     }
@@ -84,7 +84,7 @@ async function send(body, expect) {
   try {
     const result = await sendAttendance(deviceId, body);
     pending = { request_id: result.request_id, sentAt: Date.now(), expect };
-    setStatus(`sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    setStatus(`sent (request ${result.request_id}); waiting for the controller to confirm…`, "warn");
   } catch (error) {
     pending = null;
     setStatus(`not sent: ${error.message}`, "bad");
@@ -109,7 +109,7 @@ registerPart({
     const budget = Number($("at-budget").value),
       pct = number(inForce.pause_budget_pct) ? Math.round(inForce.pause_budget_pct) : 25;
     if ($("at-budget").value === "" || !Number.isFinite(budget) || budget < 0 || budget > 600)
-      return { error: "the pause for someone passing must be 0–600 s." };
+      return { error: "the maximum countdown pause for passers-by must be 0–600 s." };
     const fusion = $("at-fusion").value;
     return {
       run: () => send({ pause_budget_s: budget, pause_budget_pct: pct, fusion }, { budget, pct, fusion }),

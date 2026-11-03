@@ -9,31 +9,36 @@
   </head>
   <body>
     <header>
-      <a id="brand-home" class="brand" href="#overview" aria-label="Safety overview"
+      <a id="brand-home" class="brand" href="#overview" aria-label="RB4107 home: all stalls"
         ><span class="brand-icon">R</span><span>RB4107 <small>COOKING SAFETY</small></span></a
       >
-      <nav class="view-tabs" aria-label="Dashboard views">
-        <button id="overview-tab" class="tab active" type="button">All stalls</button
-        ><button id="detail-tab" class="tab" type="button" disabled>Stall detail</button
-        ><button id="history-tab" class="tab" type="button">Stall history</button>
+      <nav class="header-nav" aria-label="Dashboard">
+        <button id="history-tab" class="nav-button" type="button">Stall history</button>
+        <div class="dev-gate">
+          <button id="dev-toggle" class="nav-button" type="button" aria-pressed="false" aria-controls="dev-form"
+            aria-expanded="false" title="Commissioning tools: safety settings, radar, thermal camera, diagnostics and logs (password)">
+            Developer mode
+          </button>
+          <form id="dev-form" class="dev-form" hidden>
+            <label
+              >Developer password
+              <input id="dev-password" type="password" autocomplete="off" required
+            /></label>
+            <p id="dev-error" class="dev-error" role="alert" hidden>Wrong password. Try again.</p>
+            <div class="dev-actions">
+              <button class="primary-button" type="submit">Unlock</button>
+              <button id="dev-cancel" class="secondary-button" type="button">Cancel</button>
+            </div>
+          </form>
+        </div>
+        <button id="theme-toggle" class="nav-button" type="button" aria-label="Colour theme: automatic">Auto</button>
       </nav>
-      <div class="mode-switch" role="group" aria-label="Dashboard mode">
-        <button type="button" data-mode-button="monitor" aria-pressed="true" title="Deployment view: what the stall shows, nothing to change">Monitor</button
-        ><button type="button" data-mode-button="tuning" aria-pressed="false" title="Adds the tuning tools: rules, radar, thermal, diagnostics">Tuning</button>
-      </div>
-      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Colour theme: automatic">Auto</button>
-      <div class="statusbar" aria-live="polite">
-        <span id="server-status" class="pill neutral">Connecting to server</span
-        ><span id="worker-status" class="pill neutral">MQTT unknown</span
-        ><span id="catalog-status" class="pill neutral">Location catalogue loading</span
-        ><span id="last-update" class="last-update">No live reports yet</span>
-      </div>
     </header>
     <div id="global-alerts" class="global-alerts" aria-live="off" hidden></div>
     <main>
       <div class="heading">
-        <h1 id="page-title">All-stall safety overview</h1>
-        <p id="page-subtitle" class="muted">Airport terminals, zones and external sites in one view.</p>
+        <h1 id="page-title">Safety overview: all stalls</h1>
+        <p id="page-subtitle" class="muted">Every monitored stall, grouped by site, terminal, zone and level.</p>
         <div class="ov-view-switch" role="group" aria-label="Overview layout">
           <button type="button" data-ov-button="tiles" aria-pressed="true">Tiles</button
           ><button type="button" data-ov-button="table" aria-pressed="false">Table</button>
@@ -41,11 +46,11 @@
       </div>
       <div id="notice" class="notice" role="status" hidden></div>
       <details class="safety-note">
-        <summary><span class="note-icon">i</span>Local protection runs on each ESP32-S3; this dashboard only monitors.</summary>
+        <summary><span class="note-icon">i</span>Each stall is protected by its own controller (ESP32-S3); the dashboard only monitors.</summary>
         <p>
-          A dashboard alert does not operate or silence the local alarm, relay or gas isolation;
-          the only safety commands it sends are the reset of a latched shutdown and the presence
-          filter timing.
+          Dashboard alerts do not operate or silence the buzzer, the shut-off relay or the gas supply.
+          The dashboard sends only the reset of a latched shut-off and, in Tuning mode, setting
+          changes, which the controller validates before applying.
         </p>
       </details>
 
@@ -72,7 +77,7 @@
             <strong id="summary-fault">0</strong>
           </article>
           <article class="summary-card unknown">
-            <p>Unknown state</p>
+            <p>Unknown</p>
             <strong id="summary-unknown">0</strong>
           </article>
           <article class="summary-card normal">
@@ -85,7 +90,7 @@
             >Search<input
               id="stall-search"
               type="search"
-              placeholder="Stall, terminal, area or device"
+              placeholder="Stall, terminal, area or controller ID"
           /></label>
           <label
             >Site<select id="site-filter">
@@ -117,9 +122,9 @@
         <section class="card topology-card" data-ov-card="tiles">
           <div class="section-heading">
             <div>
-              <h2>Operational location view</h2>
+              <h2>Stalls by location</h2>
               <p class="muted">
-                Grouped by site, terminal/building, zone and level — schematic, not a floor plan.
+                Grouped by site, terminal or building, zone and level. Schematic layout, not a floor plan.
               </p>
             </div>
             <span id="visible-count" class="count">0 stalls</span>
@@ -131,8 +136,8 @@
         <section class="card roster-card" data-ov-card="table">
           <div class="section-heading">
             <div>
-              <h2>All-stall status</h2>
-              <p class="muted">Status follows the stall status rule: an offline controller or sensor node is a fault.</p>
+              <h2>Stall status table</h2>
+              <p class="muted">Status follows the stall status rule: an offline controller or sensor node counts as a fault.</p>
             </div>
           </div>
           <div class="table-scroll">
@@ -140,19 +145,19 @@
               <thead>
                 <tr>
                   <th>Stall / location</th>
-                  <th>Safety</th>
+                  <th>Safety status</th>
                   <th>Cooking</th>
                   <th>Presence</th>
-                  <th>Max temp.</th>
-                  <th>Unattended</th>
-                  <th>Relay</th>
-                  <th>Connectivity</th>
+                  <th>Max. temp.</th>
+                  <th>Unattended time</th>
+                  <th>Gas supply</th>
+                  <th>Connection</th>
                   <th>Last report</th>
                 </tr>
               </thead>
               <tbody id="stall-rows">
                 <tr>
-                  <td colspan="8" class="empty-cell">No stalls reported</td>
+                  <td colspan="8" class="empty-cell">No stalls have reported</td>
                 </tr>
               </tbody>
             </table>
@@ -168,6 +173,22 @@
             <button type="button" class="hist-period-btn" data-days="14">Last 2 weeks</button>
             <button type="button" class="hist-period-btn" data-days="28">Last 4 weeks</button>
             <button type="button" class="hist-period-btn" data-days="90">Last 3 months</button>
+            <button type="button" class="hist-period-btn" id="hist-custom-btn" aria-expanded="false"
+              aria-controls="hist-custom">Custom…</button>
+          </div>
+          <div id="hist-custom" class="hist-custom" hidden>
+            <form id="hist-days-form" class="hist-custom-form">
+              <label>Last<input id="hist-days" class="hist-field" type="number" min="1" max="366" step="1"
+                required />days</label>
+              <button type="submit" class="secondary-button">Apply</button>
+            </form>
+            <span class="muted">or</span>
+            <form id="hist-dates-form" class="hist-custom-form">
+              <label>From<input id="hist-from" class="hist-field" type="date" required /></label>
+              <label>to<input id="hist-to" class="hist-field" type="date" required /></label>
+              <button type="submit" class="secondary-button">Apply</button>
+            </form>
+            <p id="hist-custom-error" class="hist-custom-error" role="alert"></p>
           </div>
           <p id="hist-range" class="muted"></p>
         </section>
@@ -175,31 +196,60 @@
           <section class="card hist-stalls" aria-labelledby="hist-stalls-title">
             <div class="section-heading">
               <div>
-                <h2 id="hist-stalls-title">All stalls</h2>
+                <h2 id="hist-stalls-title">Compare stalls</h2>
                 <p class="muted">
-                  A countdown starts each time the cook leaves a hot stove. Riskiest first: most
-                  shut-offs, then most buzzer warnings. Click a heading to sort, a stall to open it.
+                  An unattended-cooking countdown starts each time a stove is left unattended while
+                  cooking. Rank the stalls by any measure, filter them, and star the stalls to track.
+                  Select a stall to show its figures.
                 </p>
               </div>
+            </div>
+            <div class="hist-filters">
+              <label class="hist-filter-search"
+                >Search<input id="hist-search" class="hist-field" type="search"
+                  placeholder="Stall, terminal, area"
+              /></label>
+              <label
+                >Area<select id="hist-area" class="hist-field">
+                  <option value="">All areas</option>
+                </select></label
+              >
+              <label
+                >Show<select id="hist-show" class="hist-field">
+                  <option value="">All stalls</option>
+                  <option value="watched">Starred only</option>
+                  <option value="shutoff">With a gas shut-off</option>
+                  <option value="buzzer">With a buzzer warning</option>
+                  <option value="restart">With a controller restart</option>
+                </select></label
+              >
+              <label
+                >Rank by<select id="hist-rank" class="hist-field"></select></label
+              >
+              <button id="hist-rank-dir" type="button" class="secondary-button hist-rank-dir"
+                aria-label="Sort order">Worst first</button>
             </div>
             <div class="table-scroll">
               <table class="hist-stall-table">
                 <thead>
                   <tr>
+                    <th class="hist-star-col"><span class="visually-hidden">Starred</span></th>
                     <th aria-sort="none"><button type="button" class="hist-sort" data-sort="name">Stall</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="countdowns">Countdowns / week</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="buzzer">Buzzer</button></th>
-                    <th aria-sort="descending" class="num"><button type="button" class="hist-sort" data-sort="shutoff">Shut-off</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="recovery">Usual recovery</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="countdowns_per_week">Countdowns / week</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="buzzer">Buzzer warnings</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="shutoff">Shut-offs</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="usual_recovery">Median recovery</button></th>
+                    <th id="hist-rank-col" aria-sort="none" class="num" hidden></th>
                   </tr>
                 </thead>
                 <tbody id="hist-stall-rows">
                   <tr>
-                    <td colspan="5" class="empty-cell">Loading…</td>
+                    <td colspan="7" class="empty-cell">Loading…</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+            <p id="hist-stall-note" class="muted small"></p>
           </section>
           <section id="hist-detail" class="hist-detail" hidden>
             <div class="section-heading">
@@ -207,7 +257,7 @@
                 <h2 id="hist-stall-name">Stall</h2>
                 <p id="hist-stall-location" class="muted"></p>
               </div>
-              <span id="hist-demo" class="pill demo" hidden>INCLUDES MADE-UP DEMO HISTORY</span>
+              <span id="hist-demo" class="pill demo" hidden>INCLUDES SIMULATED DEMO HISTORY</span>
             </div>
             <section class="summary-grid hist-summary" aria-label="Stall figures for the period">
               <article class="summary-card">
@@ -216,17 +266,17 @@
                 <small id="hist-per-week-note"></small>
               </article>
               <article class="summary-card warning">
-                <p>Reached the buzzer</p>
+                <p>Reached buzzer warning</p>
                 <strong id="hist-buzzer">—</strong>
                 <small id="hist-buzzer-note"></small>
               </article>
               <article class="summary-card critical">
-                <p>Gas shut off</p>
+                <p>Reached gas shut-off</p>
                 <strong id="hist-shutoff">—</strong>
                 <small id="hist-shutoff-note"></small>
               </article>
               <article class="summary-card">
-                <p>Usual recovery</p>
+                <p>Median recovery</p>
                 <strong id="hist-recovery">—</strong>
                 <small id="hist-recovery-note"></small>
               </article>
@@ -234,13 +284,13 @@
             <section class="card" aria-labelledby="hist-weeks-title">
               <div class="section-heading">
                 <div>
-                  <h2 id="hist-weeks-title">Week by week</h2>
-                  <p class="muted">Countdowns started each week (Monday to Sunday), by how far they went.</p>
+                  <h2 id="hist-weeks-title">Countdowns per week</h2>
+                  <p class="muted">Countdowns started each week (Monday to Sunday), by the furthest stage reached.</p>
                 </div>
                 <ul class="hist-legend" aria-label="Legend">
                   <li><i class="countdown"></i>Countdown only</li>
-                  <li><i class="buzzer"></i>Buzzer</li>
-                  <li><i class="shutoff"></i>Shut-off</li>
+                  <li><i class="buzzer"></i>Buzzer warning</li>
+                  <li><i class="shutoff"></i>Gas shut-off</li>
                 </ul>
               </div>
               <div class="hist-chart-wrap">
@@ -253,8 +303,8 @@
                 <div>
                   <h2 id="hist-recovery-title">How countdowns ended</h2>
                   <p class="muted">
-                    Recovery time is timed from the start of the countdown, the buzzer or the
-                    shut-off, to the moment the controller was back to normal.
+                    Recovery time runs from the start of the countdown, the buzzer warning or the
+                    shut-off to the moment the controller returned to a normal state.
                   </p>
                 </div>
               </div>
@@ -262,9 +312,9 @@
                 <table class="hist-recovery-table">
                   <thead>
                     <tr>
-                      <th>Ended how</th>
+                      <th>Outcome</th>
                       <th class="num">Count</th>
-                      <th class="num">Usual (median)</th>
+                      <th class="num">Median</th>
                       <th class="num">Slowest</th>
                     </tr>
                   </thead>
@@ -275,16 +325,16 @@
             <section class="card" aria-labelledby="hist-list-title">
               <div class="section-heading">
                 <div>
-                  <h2 id="hist-list-title">What happened next</h2>
+                  <h2 id="hist-list-title">Countdown log</h2>
                   <p class="muted">
-                    Each row is one time the cook left while cooking: how far it escalated and how it
-                    ended. The end is inferred from the state the controller went to next.
+                    One row per countdown: the furthest stage it reached and how it ended. The
+                    outcome is inferred from the controller's next state.
                   </p>
                 </div>
                 <label class="hist-filter"
                   >Show<select id="hist-filter">
-                    <option value="">Everything</option>
-                    <option value="warning">Buzzer warning or worse</option>
+                    <option value="">All countdowns</option>
+                    <option value="warning">Buzzer warning or shut-off</option>
                     <option value="shutdown">Shut-offs only</option>
                   </select></label
                 >
@@ -294,12 +344,12 @@
                   <thead>
                     <tr>
                       <th>Started</th>
-                      <th>Reached</th>
+                      <th>Furthest stage</th>
                       <th>Buzzer after</th>
                       <th>Shut-off after</th>
-                      <th>Lasted</th>
-                      <th>Ended by</th>
-                      <th>Hottest</th>
+                      <th>Duration</th>
+                      <th>Outcome</th>
+                      <th>Max. temp.</th>
                     </tr>
                   </thead>
                   <tbody id="hist-rows"></tbody>
@@ -321,23 +371,15 @@
             <p id="detail-response-route" class="route-line">No response route configured</p>
           </div>
           <div class="dv-top-right">
-            <span id="device-status" class="pill neutral">Device unknown</span
+            <span id="device-status" class="pill neutral">Controller status unknown</span
+            ><span id="dv-sensors" class="dv-sensors" aria-label="Sensor nodes"></span
             ><span id="demo-badge" class="pill demo" hidden>SIMULATED DATA</span
-            ><span id="detail-demo" class="pill demo" hidden>DEMO REFERENCE</span
+            ><span id="detail-demo" class="pill demo" hidden>DEMO REFERENCE LOCATION</span
             ><span id="test-timers-badge" class="pill warn" hidden>FIRMWARE TEST TIMERS</span
-            ><button id="open-history" class="secondary-button" type="button">Incident history</button
-            ><a
-              id="official-map"
-              class="secondary-button"
-              href="#"
-              target="_blank"
-              rel="noopener"
-              hidden
-              >Open official map ↗</a
-            >
+            ><button id="open-history" class="secondary-button" type="button">Stall history</button>
             <label class="station-label"
-              >Station<select id="device-select">
-                <option value="">Waiting for a device…</option>
+              ><span class="visually-hidden">Station</span><select id="device-select">
+                <option value="">Waiting for a controller…</option>
               </select></label
             >
           </div>
@@ -350,20 +392,12 @@
           <button type="button" data-tab-button="logs">Logs</button>
         </nav>
         <div class="dv-grid">
-        <section class="card cooking-banner unknown dv-banner" id="cooking-banner" aria-label="Active cooking" data-tab="diag">
-          <div>
-            <p class="label">ACTIVE COOKING</p>
-            <h2 id="cooking-label">Unknown</h2>
-          </div>
-          <p class="metric-detail" id="cooking-detail">Awaiting report</p>
-        </section>
-
         <section class="card countdown-card cd-idle dv-hero" id="countdown-card" aria-label="Countdown">
           <div class="countdown-head">
             <div>
-              <p class="label">COUNTDOWN</p>
-              <h2 id="cd-phase">Waiting for the controller</h2>
-              <p class="metric-detail" id="cd-detail">No telemetry yet.</p>
+              <p class="label">UNATTENDED COUNTDOWN</p>
+              <h2 id="cd-phase">Waiting for controller telemetry</h2>
+              <p class="metric-detail" id="cd-detail">No telemetry received.</p>
             </div>
             <div class="cd-clock" aria-live="polite">
               <span id="cd-seconds">—</span>
@@ -371,45 +405,52 @@
               <p class="metric-detail" id="cd-clock-label"></p>
             </div>
           </div>
-          <div class="cd-bar" id="cd-bar" role="img" aria-label="Unattended time against the warning and shutdown times">
+          <div class="cd-bar" id="cd-bar" role="img" aria-label="Unattended time relative to the buzzer-warning and shut-off times">
             <div class="cd-fill" id="cd-fill"></div>
             <span class="cd-mark" id="cd-mark-warn"></span>
             <span class="cd-mark" id="cd-mark-stop"></span>
           </div>
           <div class="cd-scale muted small">
-            <span>Person left</span>
-            <span id="cd-scale-warn">Warning —</span>
-            <span id="cd-scale-stop">Shutdown —</span>
+            <span>Countdown start</span>
+            <span id="cd-scale-warn">Buzzer —</span>
+            <span id="cd-scale-stop">Shut-off —</span>
           </div>
-          <div class="cd-flags" id="cd-flags" aria-label="Sensor status"></div>
+          <p class="cd-mismatch" id="cd-mismatch" role="alert" hidden></p>
+          <div class="cd-reset" id="cd-reset" hidden>
+            <button id="reset-button" class="primary-button" type="button" disabled>Reset shut-off</button>
+            <p id="reset-status" class="tuning-status muted">Available only while a shut-off is latched.</p>
+          </div>
         </section>
-        <section class="card dv-flow" id="safety-flow-card" data-tab="rules" aria-labelledby="flow-title">
+        <section class="card dv-flow" id="safety-flow-card" data-tab="rules" data-show="tuning" aria-labelledby="flow-title">
           <h2 id="flow-title" class="visually-hidden">How the controller decides</h2>
           <ol id="safety-flow" class="flow-strip" aria-label="Safety states, the current one highlighted"></ol>
           <div id="logic-now" class="logic-now"></div>
           <details class="flow-next" data-show="tuning">
-            <summary>What can happen next</summary>
+            <summary>Possible next transitions</summary>
             <ol id="logic-next" class="logic-list"></ol>
           </details>
         </section>
 
         <fieldset class="dv-cond" id="safety-form" data-tab="rules" disabled>
-          <legend class="visually-hidden">Safety settings: cooking, person and timer</legend>
+          <legend class="visually-hidden">Safety settings: cooking detection, presence and countdown times</legend>
           <section class="card cd-rule" aria-labelledby="cd-cooking-title">
-            <h3 id="cd-cooking-title"><span class="cd-step">1</span>Is it cooking?</h3>
-            <p class="cd-live" id="cd-cooking-live">—</p>
+            <div class="cd-head">
+              <h3 id="cd-cooking-title"><span class="cd-step">1</span>Cooking</h3>
+              <p class="cd-live" id="cd-cooking-live">—</p>
+            </div>
+            <p class="cd-sub" id="cd-cooking-sub"></p>
             <p class="muted small" data-show="tuning">
-              The thermal camera decides: cooking starts when the hottest spot reaches this temperature.
+              Detected by the thermal node: cooking starts when the hottest pixel reaches the cooking temperature.
             </p>
             <div class="tuning-grid cd-fields" data-show="tuning">
               <label
-                >Cooking from (°C)
+                >Cooking temperature (°C)
                 <input id="ct-value" type="number" min="0" max="300" step="0.5"
               /></label>
               <label
-                >Cookware
+                >Cookware profile
                 <select id="cw-select">
-                  <option value="mixed">Mixed / not sure (10 min)</option>
+                  <option value="mixed">Mixed or unknown (10 min)</option>
                   <option value="light">Light: woks, thin pans (5 min)</option>
                   <option value="heavy">Heavy: cast iron (15 min)</option>
                   <option value="liquid">Pots with liquid (40 min)</option>
@@ -419,9 +460,9 @@
             <details class="cd-more" data-show="tuning">
               <summary>More settings</summary>
               <p class="muted small">
-                The cookware says how fast a pan loses heat. A pan that is only cooling down, or whose
-                temperature is falling, is moving away from danger: a buzzer or shut-off that comes due then
-                waits, up to the limits below.
+                The cookware profile sets how fast a pan loses heat (its cooling time constant, in brackets).
+                While the pan is only cooling, or its temperature is falling, a buzzer warning or shut-off that
+                falls due is held, up to the maximums below.
               </p>
               <div id="pr-fields-cooking" class="tuning-grid cd-fields"></div>
             </details>
@@ -431,52 +472,56 @@
           </section>
 
           <section class="card cd-rule" aria-labelledby="cd-person-title">
-            <h3 id="cd-person-title"><span class="cd-step">2</span>Is someone there?</h3>
-            <p class="cd-live" id="cd-person-live">—</p>
+            <div class="cd-head">
+              <h3 id="cd-person-title"><span class="cd-step">2</span>Presence at the stove</h3>
+              <p class="cd-live" id="cd-person-live">—</p>
+            </div>
+            <p class="cd-sub" id="cd-person-sub"></p>
             <p class="muted small" data-show="tuning">
-              The radars decide. A short blip never restarts the countdown; only staying for the
-              "back after" time does.
+              Detected by the presence nodes' radars. A brief detection does not cancel the countdown;
+              only presence for the full return-confirmation time does.
             </p>
             <div class="tuning-grid cd-fields" data-show="tuning">
               <label
-                >At the stove when
+                >Person at the stove when
                 <select id="at-fusion">
-                  <option value="all">every radar sees them</option>
-                  <option value="any">either radar sees them</option>
+                  <option value="all">every working radar detects them</option>
+                  <option value="any">either radar detects them</option>
                 </select></label
               >
-              <label>Away after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5" /></label>
-              <label>Back after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5" /></label>
+              <label>Absence confirmed after (s)<input id="pf-absence" type="number" min="0" max="10" step="0.5" /></label>
+              <label>Return confirmed after (s)<input id="pf-return" type="number" min="0" max="10" step="0.5" /></label>
             </div>
             <details class="cd-more" data-show="tuning">
               <summary>More settings</summary>
               <div class="tuning-grid cd-fields">
                 <label
-                  >Someone passing may pause the clock for (s, 0 = never)
+                  >Maximum countdown pause for passers-by (s, 0 = off)
                   <input id="at-budget" type="number" min="0" max="600" step="1"
                 /></label>
               </div>
-              <p class="eyebrow">Radar rules (still being tuned on the bench)</p>
+              <p class="eyebrow">Radar classification rules</p>
               <p class="muted small">
-                Tell someone walking past from someone cooking. "Observe" only shows the verdict below;
-                "enforce" stops a passer-by counting as at the stove.
+                Distinguish a person walking past from a person cooking. Observe: the classification is
+                reported below but not used. Enforce: a person classified as passing does not count as at
+                the stove. The values are provisional and not yet validated on site.
               </p>
               <p class="muted small" id="cd-person-radars"></p>
               <div class="tuning-grid cd-fields">
                 <label
                   >Mode
                   <select id="rr-mode">
-                    <option value="off">off</option>
-                    <option value="observe">observe (show only)</option>
-                    <option value="enforce">enforce</option>
+                    <option value="off">Off</option>
+                    <option value="observe">Observe</option>
+                    <option value="enforce">Enforce</option>
                   </select></label
                 >
-                <label>Cook zone up to (cm, 0 = any)<input id="rr-zone" type="number" min="0" max="1200" step="10" /></label>
-                <label>Cooking after (s)<input id="rr-dwell" type="number" min="0" max="60" step="0.5" /></label>
-                <label>... of it standing still (s)<input id="rr-still" type="number" min="0" max="60" step="0.5" /></label>
-                <label>Distance steady over (s)<input id="rr-window" type="number" min="0.5" max="60" step="0.5" /></label>
-                <label>... within (cm)<input id="rr-span" type="number" min="0" max="1000" step="5" /></label>
-                <label>A gap this long ends a visit (s)<input id="rr-gap" type="number" min="0" max="10" step="0.5" /></label>
+                <label>Cooking zone limit (cm, 0 = no limit)<input id="rr-zone" type="number" min="0" max="1200" step="10" /></label>
+                <label>Classed as cooking after (s)<input id="rr-dwell" type="number" min="0" max="60" step="0.5" /></label>
+                <label>Of which stationary (s)<input id="rr-still" type="number" min="0" max="60" step="0.5" /></label>
+                <label>Distance stability window (s)<input id="rr-window" type="number" min="0.5" max="60" step="0.5" /></label>
+                <label>Maximum distance variation (cm)<input id="rr-span" type="number" min="0" max="1000" step="5" /></label>
+                <label>Detection gap that ends an episode (s)<input id="rr-gap" type="number" min="0" max="10" step="0.5" /></label>
               </div>
             </details>
             <div class="card-save" data-show="tuning">
@@ -485,41 +530,44 @@
           </section>
 
           <section class="card cd-rule" aria-labelledby="cd-timer-title">
-            <h3 id="cd-timer-title"><span class="cd-step">3</span>How long before…</h3>
-            <p class="cd-live" id="cd-timer-live">—</p>
+            <div class="cd-head">
+              <h3 id="cd-timer-title"><span class="cd-step">3</span>Countdown times</h3>
+              <p class="cd-live" id="cd-timer-live">—</p>
+            </div>
+            <p class="cd-sub" id="cd-timer-sub"></p>
             <p class="muted small" data-show="tuning">
-              Counted from when the person left. Hotter pans get shorter times (More settings).
+              Measured from the start of the unattended countdown. Hotter pans use shorter times (see More settings).
             </p>
             <div class="tuning-grid cd-fields" data-show="tuning">
-              <label>Buzzer after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1" /></label>
-              <label>Shut off after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1" /></label>
+              <label>Buzzer warning after (s)<input id="pf-warning" type="number" min="1" max="3600" step="1" /></label>
+              <label>Gas shut-off after (s)<input id="pf-shutdown" type="number" min="1" max="3600" step="1" /></label>
             </div>
             <details class="cd-more" data-show="tuning">
               <summary>More settings</summary>
-              <p class="eyebrow">Hotter pans</p>
+              <p class="eyebrow">Temperature tiers</p>
               <div class="tier-table" role="group" aria-label="Temperature tiers 2 to 5">
                 <span class="tier-head">Tier</span><span class="tier-head">From (°C)</span
-                ><span class="tier-head">Buzzer (s)</span><span class="tier-head">Shut off (s)</span>
+                ><span class="tier-head">Buzzer (s)</span><span class="tier-head">Shut-off (s)</span>
                 <span class="tier-name">2</span
                 ><input id="tr-2-temp" type="number" min="0" max="300" step="1" aria-label="Tier 2 from (°C)"
-                /><input id="tr-2-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 2 buzzer after (s)"
-                /><input id="tr-2-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 2 shut off after (s)" />
+                /><input id="tr-2-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 2 buzzer warning after (s)"
+                /><input id="tr-2-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 2 shut-off after (s)" />
                 <span class="tier-name">3</span
                 ><input id="tr-3-temp" type="number" min="0" max="300" step="1" aria-label="Tier 3 from (°C)"
-                /><input id="tr-3-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 3 buzzer after (s)"
-                /><input id="tr-3-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 3 shut off after (s)" />
+                /><input id="tr-3-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 3 buzzer warning after (s)"
+                /><input id="tr-3-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 3 shut-off after (s)" />
                 <span class="tier-name">4</span
                 ><input id="tr-4-temp" type="number" min="0" max="300" step="1" aria-label="Tier 4 from (°C)"
-                /><input id="tr-4-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 4 buzzer after (s)"
-                /><input id="tr-4-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 4 shut off after (s)" />
+                /><input id="tr-4-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 4 buzzer warning after (s)"
+                /><input id="tr-4-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 4 shut-off after (s)" />
                 <span class="tier-name">5</span
                 ><input id="tr-5-temp" type="number" min="0" max="300" step="1" aria-label="Tier 5 from (°C)"
-                /><input id="tr-5-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 5 buzzer after (s)"
-                /><input id="tr-5-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 5 shut off after (s)" />
+                /><input id="tr-5-warn" type="number" min="1" max="3600" step="1" aria-label="Tier 5 buzzer warning after (s)"
+                /><input id="tr-5-stop" type="number" min="1" max="3600" step="1" aria-label="Tier 5 shut-off after (s)" />
               </div>
               <p class="muted small">
-                Tier 1 is the times above. A tier only ever shortens them; 0 °C turns a tier off, and each tier must
-                start at or above the one before.
+                Tier 1 uses the times above. A tier can only shorten them. Set 0 °C to disable a tier; each tier
+                must start at or above the previous tier's temperature.
               </p>
               <div id="pr-fields-timer" class="tuning-grid cd-fields"></div>
             </details>
@@ -530,12 +578,12 @@
 
           <div class="cd-apply safety-save" data-show="tuning">
             <div class="reset-actions">
-              <button id="safety-defaults" class="secondary-button" type="button" disabled>Restore defaults</button>
+              <button id="safety-defaults" class="secondary-button" type="button" disabled>Restore menuconfig defaults</button>
             </div>
             <ul id="safety-status" class="safety-status" aria-live="polite"></ul>
             <p class="muted small">
-              Saved on the controller, so they survive a reboot. A lost sensor never starts the countdown on its own;
-              if the camera says cooking and nobody can be seen, the countdown runs.
+              Settings are stored on the controller and kept across restarts. A sensor failure alone never starts
+              the countdown; if the thermal node reports cooking and no presence can be detected, the countdown runs.
             </p>
           </div>
         </fieldset>
@@ -543,10 +591,10 @@
         <details class="card dv-logic" id="logic-card" data-tab="rules" data-show="tuning">
           <summary>Full rule table</summary>
           <p class="muted small">
-            The same table the controller runs, with the values in force. Underlined values are the ones you can
-            change above; the rest are fixed in the firmware.
+            The rule table the controller executes, with the values in force. Underlined values can be changed
+            on this tab; the others are fixed in the firmware.
           </p>
-          <h3 class="logic-heading">All transitions, checked in this order</h3>
+          <h3 class="logic-heading">Transitions, evaluated in this order</h3>
           <ol id="logic-transitions" class="logic-list"></ol>
           <h3 class="logic-heading">Outputs per state</h3>
           <table class="logic-outputs">
@@ -554,7 +602,7 @@
               <tr>
                 <th>State</th>
                 <th>Buzzer</th>
-                <th>Shutdown output</th>
+                <th>Shut-off output</th>
               </tr>
             </thead>
             <tbody id="logic-outputs"></tbody>
@@ -563,41 +611,23 @@
           <div id="logic-signals"></div>
         </details>
 
-        <section class="metrics dv-mets" data-tab="diag" aria-label="Latest device-reported readings">
-          <article class="card metric" id="card-presence">
-            <p class="label">HUMAN PRESENCE</p>
-            <h2 id="presence">—</h2>
-            <p class="metric-detail">Firmware occupancy report · C4002</p>
-            <p class="freshness" id="age-presence">Awaiting report</p>
-          </article>
+        <section class="metrics dv-mets" data-tab="diag" data-show="tuning" aria-label="Latest device-reported readings">
           <article class="card metric" id="card-temperature">
-            <p class="label">SURFACE TEMPERATURE</p>
+            <p class="label">IS THE THERMAL NODE READING THE PAN?</p>
             <h2 id="temperature">—</h2>
-            <p class="metric-detail">MLX90640 · hottest pixel (decides cooking)</p>
-            <p class="metric-detail" id="thermal-extra">Hot region / rate not reported</p>
-            <p class="freshness" id="age-temperature">Awaiting report</p>
-          </article>
-          <article class="card metric" id="card-safety">
-            <p class="label">SAFETY STATE</p>
-            <h2 id="safety">Unknown</h2>
-            <p class="metric-detail">Controller state machine</p>
-            <p class="freshness" id="age-safety">Awaiting report</p>
-          </article>
-          <article class="card metric" id="card-alarm">
-            <p class="label">ALARM</p>
-            <h2 id="alarm">Unknown</h2>
-            <p class="metric-detail">Device-reported warning / alarm</p>
-            <p class="freshness" id="age-alarm">Awaiting report</p>
+            <p class="metric-detail">Thermal node (MLX90640) · hottest pixel, used for cooking detection</p>
+            <p class="metric-detail" id="thermal-extra">Hot region and rate of change not reported</p>
+            <p class="freshness" id="age-temperature">No report received</p>
           </article>
         </section>
-        <article class="card chart-card dv-chart" data-tab="diag">
+        <article class="card chart-card dv-chart" data-show="monitor">
             <div class="section-heading">
               <div>
                 <h2>Temperature history</h2>
-                <p class="muted">Maximum surface temperature · °C</p>
+                <p class="muted">Hottest-pixel temperature · °C</p>
               </div>
               <label class="range-label"
-                >Window<select id="history-hours">
+                >Period<select id="history-hours">
                   <option value="1">Last hour</option>
                   <option value="6">Last 6 hours</option>
                   <option value="24">Last 24 hours</option>
@@ -610,17 +640,19 @@
                 role="img"
                 aria-label="Temperature history, waiting for readings"
               ></canvas>
-              <p id="chart-empty">No temperature readings yet</p>
+              <p id="chart-empty">No temperature readings in this period</p>
             </div>
             <p id="chart-caption" class="muted chart-caption">
-              Server receipt time · waiting for data
+              Time axis: server receipt time · waiting for data
             </p>
           </article>
-        <article class="card system-card dv-sys" data-tab="diag">
-            <h2>System status</h2>
+        <article class="card system-card dv-sys" data-tab="diag" data-show="tuning">
+            <h2>Does the controller agree with itself?</h2>
+            <p class="muted">The gas supply relay and reset flag it reports, the times in force, and how long it has
+              been running (back to 0 after a restart).</p>
             <dl>
               <div>
-                <dt>Relay / supply</dt>
+                <dt>Gas supply relay</dt>
                 <dd id="relay">Unknown</dd>
               </div>
               <div>
@@ -628,77 +660,69 @@
                 <dd id="reset-required">Unknown</dd>
               </div>
               <div>
-                <dt>Unattended timer</dt>
+                <dt>Unattended time</dt>
                 <dd id="timer">—</dd>
               </div>
               <div data-show="tuning">
-                <dt>Warning after</dt>
+                <dt>Buzzer warning after</dt>
                 <dd id="warning-setting">—</dd>
               </div>
               <div data-show="tuning">
-                <dt>Shutdown after</dt>
+                <dt>Gas shut-off after</dt>
                 <dd id="shutdown-setting">—</dd>
               </div>
               <div data-show="tuning">
-                <dt>Device uptime</dt>
+                <dt>Controller uptime</dt>
                 <dd id="uptime">—</dd>
               </div>
             </dl>
-            <div class="reset-actions">
-              <button id="reset-button" class="primary-button" type="button" disabled>
-                Reset shutdown
-              </button>
-              <p id="reset-status" class="tuning-status muted">
-                Available only while a shutdown is latched.
-              </p>
-            </div>
-            <p class="muted small" data-show="tuning">
-              Firmware-reported values only. The server does not advance the safety timer; the reset
-              button asks the controller to release a latched shutdown.
+            <p class="muted small">
+              Values as reported by the controller firmware; the server never advances the countdown. While a
+              shut-off is latched, Reset shut-off appears in the countdown card.
             </p>
           </article>
         <section class="card heatmap-card dv-heat" data-tab="thermal" aria-label="Thermal camera heat map">
           <div class="section-heading">
             <div>
               <h2>Thermal camera</h2>
-              <p class="muted">MLX90640 picture · 32 × 24 pixels · display only</p>
+              <p class="muted">Thermal node (MLX90640) image · 32 × 24 pixels · for display only</p>
             </div>
-            <span id="heatmap-age" class="count">No picture yet</span>
+            <span id="heatmap-age" class="count">No image received</span>
           </div>
           <div class="heatmap-body">
             <div class="heatmap-wrap">
-              <canvas id="heatmap" role="img" aria-label="Heat map, waiting for a picture"></canvas>
+              <canvas id="heatmap" role="img" aria-label="Heat map, waiting for an image"></canvas>
               <p id="heatmap-empty">
-                No heat-map picture received. The thermal node sends one every few seconds when
-                RB_THERMAL_HEATMAP is on.
+                No heat-map image received. The thermal node sends one every few seconds when
+                RB_THERMAL_HEATMAP is enabled in menuconfig.
               </p>
               <div id="heatmap-tip" class="heatmap-tip" hidden></div>
             </div>
             <div class="heatmap-side">
-              <p class="eyebrow">PICTURE SCALE</p>
+              <p class="eyebrow">COLOUR SCALE</p>
               <div class="heatmap-legend">
                 <span id="heatmap-min">—</span>
                 <span id="heatmap-scale" class="heatmap-scale"></span>
                 <span id="heatmap-max">—</span>
               </div>
               <p class="muted small" data-show="tuning">
-                Colours are scaled to each picture: lightest = coldest pixel, darkest = hottest. The
-                ring marks the hottest pixel; grey pixels had no valid reading. The safety logic
-                uses the hottest pixel the node reports, never this picture.
+                Colours are scaled to each image: lightest is the coldest pixel, darkest the hottest.
+                The ring marks the hottest pixel; grey pixels have no valid reading. The safety logic
+                uses the hottest-pixel value reported by the thermal node, not this image.
               </p>
-              <p class="eyebrow">WHAT THE NODE REPORTED</p>
-              <dl class="heatmap-facts">
+              <p class="eyebrow" data-show="tuning">THERMAL NODE REPORT</p>
+              <dl class="heatmap-facts" data-show="tuning">
                 <dt>Hot region</dt>
                 <dd id="heatmap-region">—</dd>
                 <dt>Cooking temperature</dt>
                 <dd id="heatmap-threshold">—</dd>
-                <dt>Pixels above it</dt>
+                <dt>Pixels at or above it</dt>
                 <dd id="heatmap-count">—</dd>
               </dl>
               <div class="heatmap-toggles" data-show="tuning">
                 <label
-                  ><input type="checkbox" id="heatmap-show-threshold" checked /> Outline pixels
-                  at cooking temperature</label
+                  ><input type="checkbox" id="heatmap-show-threshold" checked /> Outline pixels at
+                  or above the cooking temperature</label
                 >
                 <label
                   ><input type="checkbox" id="heatmap-show-region" checked /> Show hot region
@@ -706,9 +730,9 @@
                 >
               </div>
               <p class="muted small" data-show="tuning">
-                The cooking temperature is set in the Countdown card, under "Cooking".
+                The cooking temperature is set on the Safety tab, in card 1 (Cooking).
               </p>
-              <p class="eyebrow" data-show="tuning">PIXEL SIZE AT A DISTANCE</p>
+              <p class="eyebrow" data-show="tuning">PIXEL FOOTPRINT AT DISTANCE</p>
               <div class="heatmap-footprint" data-show="tuning">
                 <label
                   >Lens
@@ -726,39 +750,40 @@
             </div>
           </div>
         </section>
-        <article class="card dv-evt" data-tab="diag">
+        <article class="card dv-evt" data-show="monitor">
             <div class="section-heading">
               <div>
                 <h2>Event log</h2>
-                <p class="muted">Firmware events · last 24 hours</p>
+                <p class="muted">Controller events · last 24 hours</p>
               </div>
               <span id="event-count" class="count">0</span>
             </div>
             <ul id="events" class="event-list">
-              <li class="empty-cell">No events reported</li>
+              <li class="empty-cell">No events in the last 24 hours</li>
             </ul>
           </article>
         <article class="card dv-sens" data-show="tuning" data-tab="diag">
             <div class="section-heading">
               <div>
-                <h2>Sensor reports</h2>
-                <p class="muted">Individual C4002 / MLX90640 diagnostics</p>
+                <h2>Is each sensor node reporting?</h2>
+                <p class="muted">Each node's own readings, link and last report: presence nodes A and B (C4002 radars)
+                  and the thermal node (MLX90640). The Monitor page only shows the combined answer.</p>
               </div>
-              <span id="sensor-count" class="count">0 sensors</span>
+              <span id="sensor-count" class="count">0 nodes</span>
             </div>
             <div class="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Sensor ID</th>
+                    <th>Node</th>
                     <th>Type</th>
                     <th>Latest values</th>
-                    <th>Freshness</th>
+                    <th>Last update</th>
                   </tr>
                 </thead>
                 <tbody id="sensor-rows">
                   <tr>
-                    <td colspan="4" class="empty-cell">No sensors reported</td>
+                    <td colspan="4" class="empty-cell">No sensor nodes reported</td>
                   </tr>
                 </tbody>
               </table>
@@ -769,39 +794,39 @@
             <div>
               <h2>Radar tuning (C4002)</h2>
               <p class="muted">
-                Demo tool. Changes go dashboard → MQTT → S3 → ESP-NOW → presence node and are saved
-                on the node. Use it with nobody relying on the system.
+                Commands travel dashboard → MQTT → controller → ESP-NOW → presence node; settings are
+                saved on the node. Use only during commissioning, while the stall does not rely on the system.
               </p>
             </div>
             <label class="station-label"
-              >Send to<select id="tuning-node"></select
+              >Target node<select id="tuning-node"></select
             ></label>
           </div>
-          <p id="tuning-status" class="tuning-status muted">No presence node reported yet.</p>
+          <p id="tuning-status" class="tuning-status muted">No presence node has reported.</p>
           <div class="live-radar">
-            <h3 id="live-title">What the radar sees (last minute)</h3>
+            <h3 id="live-title">Radar detections, last 60 s</h3>
             <p id="live-now" class="live-now"></p>
             <p id="live-error" class="tuning-status bad" hidden></p>
             <canvas id="live-canvas" class="live-canvas" role="img"></canvas>
             <p class="muted live-legend">
-              <span class="swatch stationary"></span>gate holding a stationary target
-              <span class="swatch moving"></span>moving target (bigger = more energy)
-              <span class="swatch off"></span>gate turned off
+              <span class="swatch stationary"></span>gate detecting a stationary target
+              <span class="swatch moving"></span>moving target (larger = higher energy)
+              <span class="swatch off"></span>gate disabled
               <span class="swatch range"></span>range limits
-              <span class="swatch change"></span>settings applied. Right column: share of
-              results in which each gate fired. With nobody in the room, every orange cell is a
-              false positive.
+              <span class="swatch change"></span>settings applied. Right column (% fired): percentage
+              of results in which each gate detected a target. With the area empty, every orange cell
+              is a false detection.
             </p>
           </div>
           <fieldset id="tuning-form" class="tuning-grid" disabled>
             <label
-              >Range min (cm)<input id="tune-range-min" type="number" min="0" max="1100" step="10"
+              >Minimum range (cm)<input id="tune-range-min" type="number" min="0" max="1100" step="10"
             /></label>
             <label
-              >Range max (cm)<input id="tune-range-max" type="number" min="0" max="1100" step="10"
+              >Maximum range (cm)<input id="tune-range-max" type="number" min="0" max="1100" step="10"
             /></label>
             <label
-              >Gate size<select id="tune-resolution">
+              >Gate size (resolution)<select id="tune-resolution">
                 <option value="80">80 cm (15 gates, ~11 m)</option>
                 <option value="20">20 cm (25 gates, ~4.9 m)</option>
               </select></label
@@ -809,15 +834,15 @@
             <label
               >Motion sensitivity<select id="tune-motion-sens">
                 <option value="low">Low</option>
-                <option value="mid">Mid</option>
+                <option value="mid">Medium</option>
                 <option value="high">High</option>
                 <option value="custom">Custom (per gate)</option>
               </select></label
             >
             <label
-              >Still-presence sensitivity<select id="tune-presence-sens">
+              >Stationary-presence sensitivity<select id="tune-presence-sens">
                 <option value="low">Low</option>
-                <option value="mid">Mid</option>
+                <option value="mid">Medium</option>
                 <option value="high">High</option>
                 <option value="custom">Custom (per gate)</option>
               </select></label
@@ -828,17 +853,17 @@
               Apply settings
             </button>
             <button id="tune-read" class="secondary-button" type="button" disabled>
-              Read from sensor
+              Read from node
             </button>
             <button id="tune-reset" class="secondary-button" type="button" disabled>
-              Reset to menuconfig defaults
+              Restore menuconfig defaults
             </button>
             <span class="tuning-spacer"></span>
             <label class="range-label"
-              >Start after (s)<input id="tune-calib-delay" type="number" min="0" max="600" value="10"
+              >Calibration delay (s)<input id="tune-calib-delay" type="number" min="0" max="600" value="10"
             /></label>
             <label class="range-label"
-              >Learn for (s)<input
+              >Calibration duration (s)<input
                 id="tune-calib-duration"
                 type="number"
                 min="1"
@@ -850,12 +875,12 @@
             </button>
           </div>
           <details class="tuning-gates">
-            <summary>Per-gate settings (switch bands on or off)</summary>
+            <summary>Per-gate settings (enable or disable distance bands)</summary>
             <p class="muted">
-              Each gate is one distance band. Untick a band to ignore it (for example the band where
-              a fan sits). The thresholds (0–99, higher means less sensitive) are shown for
-              reference only: "Calibrate empty room" sets them, and "Read from sensor" shows the
-              values the sensor uses now.
+              Each gate is one distance band. Clear a band's box to ignore it (for example, the band
+              containing a fan). The thresholds (0–99; higher is less sensitive) are read-only here:
+              "Calibrate empty room" sets them, and "Read from node" shows the values currently in
+              use.
             </p>
             <div class="table-scroll">
               <table>
@@ -863,10 +888,10 @@
                   <tr>
                     <th>Gate</th>
                     <th>Distance</th>
-                    <th>Motion on</th>
-                    <th>Still on</th>
+                    <th>Motion enabled</th>
+                    <th>Stationary enabled</th>
                     <th>Motion threshold</th>
-                    <th>Still threshold</th>
+                    <th>Stationary threshold</th>
                   </tr>
                 </thead>
                 <tbody id="tune-gate-rows"></tbody>
@@ -874,7 +899,7 @@
             </div>
             <div class="tuning-actions">
               <button id="tune-apply-gates" class="secondary-button" type="button" disabled>
-                Apply gates on/off
+                Apply gate selection
               </button>
             </div>
           </details>
@@ -884,16 +909,16 @@
             <div>
               <h2 id="logs-title">Controller log</h2>
               <p class="muted">
-                The lines the controller prints on its serial port, sent over MQTT. The sensor
-                nodes' logs stay on their own serial ports.
+                Lines the controller writes to its serial port, forwarded over MQTT. Sensor node logs
+                are available only on each node's serial port.
               </p>
             </div>
             <span id="logs-count" class="count">0 lines</span>
           </div>
           <div class="tuning-grid logs-filters">
             <label
-              >Show<select id="logs-level">
-                <option value="V" selected>Everything the controller logs</option>
+              >Level<select id="logs-level">
+                <option value="V" selected>All levels (verbose)</option>
                 <option value="D">Debug and above</option>
                 <option value="I">Info and above</option>
                 <option value="W">Warnings and errors</option>
@@ -905,21 +930,22 @@
                 <option value="">All tags</option>
               </select></label
             >
-            <label>Search<input id="logs-search" type="search" placeholder="text in the line" /></label>
+            <label>Search<input id="logs-search" type="search" placeholder="Text in the line" /></label>
             <label class="logs-follow"
-              ><span><input id="logs-follow" type="checkbox" checked /> Follow new lines</span></label
+              ><span><input id="logs-follow" type="checkbox" checked /> Scroll to new lines</span></label
             >
           </div>
-          <p id="logs-status" class="tuning-status muted">Waiting for the controller's log.</p>
+          <p id="logs-status" class="tuning-status muted">Waiting for controller log lines.</p>
           <div id="logs-view" class="logs-view" role="log" aria-live="off" tabindex="0">
-            <p class="empty-cell">No log lines yet.</p>
+            <p class="empty-cell">No log lines received.</p>
           </div>
           <details class="logs-levels" open>
             <summary>Log levels on the controller</summary>
             <p class="muted small">
-              What the controller logs, per tag: the serial port and this page show the same lines.
-              A change lasts until the controller reboots; at boot it starts from the menuconfig
-              levels (RB4107 configuration → Logging). Debug is the most the firmware is built with.
+              Log level per tag on the controller; the serial port and this page show the same lines.
+              A change lasts until the controller restarts, which restores the menuconfig levels
+              (RB4107 configuration → Logging). The firmware is built with Debug as its maximum
+              level, so Verbose shows no more than Debug.
             </p>
             <table class="logs-levels-table">
               <thead>
@@ -930,7 +956,7 @@
               </thead>
               <tbody id="logs-levels-rows">
                 <tr>
-                  <td colspan="2" class="empty-cell">Not reported yet</td>
+                  <td colspan="2" class="empty-cell">Not reported</td>
                 </tr>
               </tbody>
             </table>
@@ -942,7 +968,7 @@
                 >Level<select id="logs-new-level">
                   <option value="none">None</option>
                   <option value="error">Error</option>
-                  <option value="warn">Warn</option>
+                  <option value="warn">Warning</option>
                   <option value="info">Info</option>
                   <option value="debug" selected>Debug</option>
                   <option value="verbose">Verbose</option>
@@ -950,20 +976,26 @@
               >
               <button id="logs-set-level" class="secondary-button" type="button">Set level</button>
               <span class="tuning-spacer"></span>
-              <button id="logs-defaults" class="secondary-button" type="button">Back to menuconfig levels</button>
+              <button id="logs-defaults" class="secondary-button" type="button">Restore menuconfig levels</button>
             </div>
             <p id="logs-level-status" class="tuning-status muted" hidden></p>
           </details>
         </section>
         <details class="raw-panel dv-raw" data-show="tuning" data-tab="diag">
-          <summary>Latest normalized telemetry / integration details</summary>
+          <summary>What did the controller send? (latest telemetry, raw JSON)</summary>
           <pre id="raw-data">{}</pre>
         </details>
         </div>
       </section>
       <footer>
-        <span>ESP32-S3 → MQTT → Django → Multi-site dashboard</span
-        ><span>Monitoring only · no remote actuation</span>
+        <div class="statusbar" aria-live="polite">
+          <span id="server-status" class="pill neutral">Connecting to the server</span
+          ><span id="worker-status" class="pill neutral">MQTT status unknown</span
+          ><span id="catalog-status" class="pill neutral">Loading location catalogue</span
+          ><span id="last-update" class="last-update">No controller reports received</span>
+        </div>
+        <span>Controller (ESP32-S3) → MQTT → Django → dashboard</span
+        ><span>Safety decisions are made locally on each controller</span>
       </footer>
     </main>
   </body>

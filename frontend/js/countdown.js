@@ -38,42 +38,40 @@ const strictTier = (tier) => tier === "tier4" || tier === "tier5";
 
 function nodeStatus(sensor) {
   if (sensor.valid && sensor.link === "ONLINE") return ["OK", "normal"];
-  if (sensor.link === "ONLINE") return ["SENSOR PROBLEM", "warning"]; // node reachable, sensor bad: wiring
+  if (sensor.link === "ONLINE") return ["SENSOR FAULT", "warning"]; // node reachable, sensor bad: wiring
   return ["OFFLINE", "warning"]; // no packets: power, Wi-Fi, channel
 }
 
-function renderFlags(values) {
-  const host = $("cd-flags");
+// Sensor-node health as small chips beside the stall name: green when fine, amber when not.
+function renderSensorChips(values) {
+  const host = $("dv-sensors");
   host.replaceChildren();
+  let radars = 0;
   for (const [name, sensor] of Object.entries(values.sensors || {})) {
     if (!sensor || !sensor.role || sensor.link === undefined) continue;
     const [label, style] = nodeStatus(sensor);
-    host.append(make("span", `${name} · ${sensor.role} · ${label}`, `state-badge ${style}`));
+    const what =
+      sensor.role === "presence" ? `Presence node ${String.fromCharCode(65 + radars++)}` : sensor.role === "thermal" ? "Thermal node" : name;
+    const chip = make("span", `${what}: ${label === "OK" ? "OK" : label.toLowerCase()}`, `pill ${style === "normal" ? "good" : "warn"}`);
+    chip.title = `${name} · ${sensor.role} · ${label}`;
+    host.append(chip);
   }
-  if (shortTier(values.tier)) {
-    host.append(
-      make(
-        "span",
-        `Temperature ${TIER_LABEL[values.tier]} · shorter limits (buzzer ${seconds0(limits(values).warn)}, shutdown ${seconds0(limits(values).stop)})`,
-        `state-badge ${strictTier(values.tier) ? "critical" : "warning"}`,
-      ),
-    );
-  }
-  if (values.presence_unknown === true) {
-    host.append(
-      make(
-        "span",
-        values.cooking_active === true
-          ? "Presence sensor unknown · counted as absent while cooking"
-          : "Presence sensor unknown · no timer while nothing is cooking",
-        "state-badge warning",
-      ),
-    );
-  }
-  if (values.thermal_lost === true) {
-    host.append(make("span", "Thermal sensor lost · flag only, no timer started", "state-badge warning"));
-  }
-  host.hidden = host.childElementCount === 0;
+}
+
+// The countdown card follows the safety state. The outputs the controller reports (buzzer pattern, gas supply)
+// are not shown again; they appear only when they disagree with the state, which would be a fault worth seeing.
+const BUZZER_FOR = { warning: "warning", shutdown: "shutdown", fault: "fault" };
+function renderMismatch(values) {
+  const state = values.safety_state,
+    problems = [];
+  if (state && values.alarm_state && values.alarm_state !== (BUZZER_FOR[state] || "clear"))
+    problems.push(`the buzzer reports ${human(values.alarm_state).toLowerCase()}`);
+  if (state && values.relay_state && (values.relay_state === "isolated") !== (state === "shutdown"))
+    problems.push(`the gas supply reports ${values.relay_state === "isolated" ? "off" : "on"}`);
+  $("cd-mismatch").hidden = problems.length === 0;
+  $("cd-mismatch").textContent = problems.length
+    ? `Output mismatch in state ${human(state).toLowerCase()}: ${problems.join(" and ")}. Inspect the controller.`
+    : "";
 }
 
 // Phase text, clock and bar position for the current state.
@@ -84,7 +82,7 @@ function phase(values, age, elapsed) {
     filter = values.presence_filter,
     // the clock stands still while someone is at the stove (the pause)
     unattended = runningValue(values.unattended_seconds, age("unattended_seconds"), values.paused !== true, elapsed);
-  const out = { style: "cd-idle", title: "Waiting for the controller", detail: "", clock: null, label: "", fill: 0 };
+  const out = { style: "cd-idle", title: "Waiting for controller telemetry", detail: "", clock: null, label: "", fill: 0 };
 
   if (!state) return out;
   const total = number(stopAt) ? (mode === "WARNING" && number(warnAt) ? warnAt + stopAt : stopAt) : null;
@@ -110,156 +108,185 @@ function phase(values, age, elapsed) {
       out.clock = null;
       out.clockText = "hold";
       if (values.hold === "cooling") {
-        out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the pan cools`;
+        out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: on hold, pan cooling`;
         out.detail =
-          "No heat is going in: the pan is falling as fast as a pan with the burner off would, so it is heading for " +
-          `the room temperature${number(values.cooking_room_c) ? ` (${values.cooking_room_c.toFixed(0)} °C)` : ""}. ` +
-          "The next step comes when the trend flattens out hot, or it ends when the pan drops below the cooking temperature.";
-        out.label = "held: cooling";
+          "No heat input: the pan temperature is falling at the rate of a pan with the burner off, towards " +
+          `room temperature${number(values.cooking_room_c) ? ` (${values.cooking_room_c.toFixed(0)} °C)` : ""}. ` +
+          "The next stage starts if the temperature levels off while still hot; the countdown ends once cooking stops.";
+        out.label = "on hold: cooling";
       } else if (values.hold === "falling") {
-        out.title = `${state === "warning" ? "Warning" : "Unattended"}: held while the temperature falls`;
+        out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: on hold, temperature falling`;
         out.detail =
-          "The pan is losing heat fast for how far it is above the room, so it is moving away from danger. The next step comes at once if it rises " +
-          "again or the trend shows heat is still going in (a lowered flame), and after 90 s at most.";
-        out.label = "held: falling";
+          "The pan is losing heat quickly for its temperature above the room, so the risk is decreasing. The next stage starts " +
+          "immediately if the temperature rises again or the trend shows continued heat input (a lowered flame), and at the latest after " +
+          `${number(values.params && values.params.falling_hold_max_ms) ? `${Math.round(values.params.falling_hold_max_ms / 1000)} s` : "the maximum falling hold"}.`;
+        out.label = "on hold: falling";
       } else {
-        out.title = `${state === "warning" ? "Warning" : "Unattended"}: held, a return is being confirmed`;
-        out.detail = "The radar sees someone and is confirming that they are really back. At most a few seconds.";
-        out.label = "held: return";
+        out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: on hold, confirming return`;
+        out.detail = "A radar detects someone; the controller is confirming the return (a few seconds at most).";
+        out.label = "on hold: return";
       }
       return out;
     }
     if (state === "warning") {
       out.style = "cd-warn";
-      out.title = "Warning: shutdown is coming";
-      out.detail = "Nobody has returned. The buzzer is sounding; the gas is cut when the clock reaches 0.";
+      out.title = "Buzzer warning: gas shut-off pending";
+      out.detail = "No return confirmed. The buzzer is sounding; the gas supply is shut off when the countdown reaches 0.";
       out.clock = toStop;
-      out.label = "until shutdown";
+      out.label = "until gas shut-off";
     } else {
       out.style = "cd-run";
-      out.title = strictTier(values.tier) ? `Unattended: ${TIER_LABEL[values.tier]}, short limits` : "Unattended: timer running";
+      out.title = strictTier(values.tier) ? `Unattended: ${TIER_LABEL[values.tier]}, shortened times` : "Unattended: countdown running";
       out.detail =
         shortTier(values.tier)
-          ? `The pan is hot (${TIER_LABEL[values.tier]}), so the limits are short: buzzer after ${seconds0(warnAt)}, shutdown after ${seconds0(stopAt)}. A person returning for the "return after" time cancels it.`
-          : "Cooking and no one confirmed at the stove. A person returning for the \"return after\" time cancels it.";
+          ? `Pan temperature in ${TIER_LABEL[values.tier]}, so shortened times apply: buzzer warning after ${seconds0(warnAt)}, gas shut-off after ${seconds0(stopAt)}. A confirmed return cancels the countdown.`
+          : "Cooking detected and nobody confirmed at the stove. A confirmed return cancels the countdown.";
       out.clock = toWarn;
-      out.label = "until the buzzer";
+      out.label = "until buzzer warning";
     }
     if (values.paused === true) {
-      out.title = `${state === "warning" ? "Warning" : "Unattended"}: paused, someone is at the stove`;
+      out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: paused, someone passing`;
       out.detail =
-        `The clock stands still while someone is detected (${number(values.pause_used_seconds) ? values.pause_used_seconds.toFixed(0) : "?"} of ` +
-        `${number(values.pause_budget_seconds) ? values.pause_budget_seconds.toFixed(0) : "?"} s of pause used). ` +
-        `Staying ${number(filter && filter.return_seconds) ? filter.return_seconds : "a few"} s cancels the timeline.`;
+        `The countdown is paused while someone is detected (${number(values.pause_used_seconds) ? values.pause_used_seconds.toFixed(0) : "?"} of ` +
+        `${number(values.pause_budget_seconds) ? values.pause_budget_seconds.toFixed(0) : "?"} s pause allowance used). ` +
+        `Presence for ${number(filter && filter.return_seconds) ? filter.return_seconds : "a few"} s confirms a return and cancels the countdown.`;
       out.label = "paused";
     }
-    if (values.presence_unknown === true) out.detail += " Presence sensor unknown, so presence counts as absent.";
+    if (values.presence_unknown === true) out.detail += " Presence unknown (no working radar), so it counts as absent.";
     return out;
   }
   if (state === "shutdown") {
-    return { ...out, style: "cd-stop", title: "Shutdown: gas supply cut", fill: 1,
-      detail: "Latched. Check the stove, then use Reset shutdown in System status.", clock: null, label: "reset required" };
+    return { ...out, style: "cd-stop", title: "Shut-off: gas supply off", fill: 1,
+      detail: "Latched. Inspect the stove in person, then press Reset shut-off below.", clock: null, label: "reset required" };
   }
   if (state === "fault") {
     return { ...out, style: "cd-warn", title: "Controller fault",
-      detail: "The controller's self-test or shutdown output failed. A lost sensor does not cause this; see Faults.",
+      detail: "The controller's self-test or shut-off output has failed. A sensor failure does not cause this state; the event log names the fault.",
       label: "fault" };
   }
   if (state === "monitoring") {
     const absent = runningValue(values.absent_seconds, age("absent_seconds"), number(values.absent_seconds) && values.absent_seconds > 0, elapsed);
     if (number(absent) && absent > 0 && filter && number(filter.absence_seconds)) {
       out.style = "cd-run";
-      out.title = "Cooking: confirming that nobody is there";
-      out.detail = `No one seen for ${s1(Math.min(absent, filter.absence_seconds))} of ${s1(filter.absence_seconds)}. A short blip does not restart this; a confirmed return does.`;
+      out.title = "Cooking: confirming absence";
+      out.detail = `Nobody detected for ${s1(Math.min(absent, filter.absence_seconds))} of ${s1(filter.absence_seconds)}. A brief detection does not reset this; only a confirmed return does.`;
       out.clock = Math.max(filter.absence_seconds - absent, 0);
       out.label = "until unattended";
       return out;
     }
     out.style = "cd-ok";
-    out.title = values.presence_unknown === true ? "Cooking: presence unknown" : "Cooking: someone is there";
-    out.detail = "The timer is not running.";
+    out.title = values.presence_unknown === true ? "Cooking: presence unknown" : "Cooking: person at the stove";
+    out.detail = "The countdown is not running.";
     return out;
   }
   if (state === "idle") {
-    out.title = "Idle: nothing is cooking";
+    out.title = "Idle: no cooking detected";
     out.detail =
       values.presence_unknown === true || values.thermal_lost === true
-        ? "A sensor flag is up, but no timer runs while nothing is cooking."
-        : "The timer starts when the thermal camera sees cooking and nobody is there.";
+        ? "A sensor is flagged, but no countdown runs while no cooking is detected."
+        : "The countdown starts when the thermal node detects cooking and nobody is at the stove.";
     return out;
   }
   out.title = `Controller ${human(state).toLowerCase()}`;
   return out;
 }
 
+// "3 min 4 s" for how long someone has been away.
+const span = (value) => (value < 60 ? `${Math.floor(value)} s` : `${Math.floor(value / 60)} min ${Math.floor(value % 60)} s`);
+
+// The three tiles under the countdown: one plain answer each and one short line under it. The buzzer and
+// shut-off times are in the countdown card only, so the tiles don't repeat them.
 function liveLines(values, age, elapsed) {
   const filter = values.presence_filter,
-    cooking = values.cooking_active;
-  const hot = number(values.temperature_c) ? `${values.temperature_c.toFixed(1)} °C` : "no reading";
-  const PHASE = {
-    heating: "heating up",
-    holding: "heat going in (steady)",
-    cooling: "only cooling down",
-    checking: "judging the trend",
-  };
-  const phase = values.cooking_phase && PHASE[values.cooking_phase] ? ` · ${PHASE[values.cooking_phase]}` : "";
-  const trend =
-    values.cooking_phase && values.cooking_phase !== "off" && number(values.cooking_rate_c_per_min)
-      ? ` · ${values.cooking_rate_c_per_min > 0 ? "+" : ""}${values.cooking_rate_c_per_min.toFixed(1)}` +
-        (number(values.cooking_rate_err_c_per_min) ? ` ± ${(2 * values.cooking_rate_err_c_per_min).toFixed(1)}` : "") +
-        " °C/min" +
-        (number(values.cooking_cool_rate_c_per_min) && values.cooking_cool_rate_c_per_min > 0
-          ? ` (only cooling if falling ≥ ${values.cooking_cool_rate_c_per_min.toFixed(1)})`
-          : "")
-      : "";
-  set(
-    "cd-cooking-live",
-    values.thermal_lost === true
-      ? "Cooking: unknown · thermal sensor lost"
-      : `Cooking: ${cooking === true ? "yes" : cooking === false ? "no" : "not reported"}${phase} · hottest pixel ${hot}${trend}` +
-          (number(values.cooking_on_c) ? ` (from ${values.cooking_on_c.toFixed(1)} °C, over below ${number(values.cooking_off_c) ? values.cooking_off_c.toFixed(1) : "—"} °C)` : "") +
-          (number(values.cooking_room_c) ? ` · room ${values.cooking_room_c.toFixed(0)} °C` : ""),
-  );
-  let person =
-    values.occupied === true
-      ? "at the stove"
-      : values.occupied === false
-        ? values.nearby === true
-          ? "nearby, not at the stove"
-          : "absent"
-        : "unknown";
-  if (values.paused === true) person += ` · clock paused (${number(values.pause_used_seconds) ? values.pause_used_seconds.toFixed(0) : "?"} s of ${number(values.pause_budget_seconds) ? values.pause_budget_seconds.toFixed(0) : "?"} s)`;
-  const absent = runningValue(values.absent_seconds, age("absent_seconds"), number(values.absent_seconds) && values.absent_seconds > 0, elapsed),
+    cooking = values.cooking_active,
+    state = values.safety_state,
+    running = state === "unattended" || state === "warning",
+    hot = number(values.temperature_c) ? `${Math.round(values.temperature_c)} °C` : "no reading",
+    rate = values.cooking_rate_c_per_min,
+    trend = number(rate) && Math.abs(rate) >= 0.5 ? `${rate > 0 ? "+" : "−"}${Math.abs(rate).toFixed(1)} °C/min` : "steady";
+
+  let cook = "Not reported",
+    cookSub = "";
+  if (values.thermal_lost === true) [cook, cookSub] = ["Unknown", "Thermal node lost: flagged; a running countdown continues"];
+  else if (cooking === false) [cook, cookSub] = ["Not detected", `Hottest pixel ${hot}`];
+  else if (cooking === true) {
+    if (values.hold === "cooling" || values.cooking_phase === "cooling")
+      [cook, cookSub] = ["Cooling down", `${hot} · no heat input; a due buzzer warning or shut-off is held`];
+    else if (values.hold === "falling") [cook, cookSub] = ["Temperature falling", `${hot}, ${trend} · a due buzzer warning or shut-off is held`];
+    else if (values.cooking_phase === "heating") [cook, cookSub] = ["Heating up", `${hot}, ${trend}`];
+    else [cook, cookSub] = ["Active, heat input", `${hot}, ${values.cooking_phase === "checking" ? "evaluating the trend" : trend}`];
+  }
+  set("cd-cooking-live", cook);
+  set("cd-cooking-sub", cookSub);
+
+  const unattended = runningValue(values.unattended_seconds, age("unattended_seconds"), values.paused !== true, elapsed),
+    absent = runningValue(values.absent_seconds, age("absent_seconds"), number(values.absent_seconds) && values.absent_seconds > 0, elapsed),
     returning = runningValue(values.returning_seconds, age("returning_seconds"), number(values.returning_seconds) && values.returning_seconds > 0, elapsed);
-  if (filter && number(absent) && absent > 0) person += ` · absence counted ${s1(Math.min(absent, filter.absence_seconds))} of ${s1(filter.absence_seconds)}`;
-  else if (filter && number(returning) && returning > 0 && ["unattended", "warning"].includes(values.safety_state))
-    person += ` · return counted ${s1(Math.min(returning, filter.return_seconds))} of ${s1(filter.return_seconds)}`;
-  set("cd-person-live", `Person: ${person}`);
+  let person = "Not reported",
+    personSub = "";
+  if (values.presence_unknown === true)
+    [person, personSub] = ["Unknown", cooking === true ? "No working radar: counted as absent while cooking" : "No working radar"];
+  else if (values.paused === true)
+    [person, personSub] = [
+      "Passing by",
+      `Countdown paused ${number(values.pause_used_seconds) ? Math.round(values.pause_used_seconds) : "?"} of ${number(values.pause_budget_seconds) ? Math.round(values.pause_budget_seconds) : "?"} s`,
+    ];
+  else if (values.occupied === true)
+    [person, personSub] = [
+      "At the stove",
+      running && filter && number(returning) && returning > 0
+        ? `Confirming return: ${s1(Math.min(returning, filter.return_seconds))} of ${s1(filter.return_seconds)}`
+        : "",
+    ];
+  else if (values.occupied === false) {
+    person = values.nearby === true ? "Nearby" : "Absent";
+    personSub =
+      running && number(unattended)
+        ? `Absent for ${span(unattended)}`
+        : filter && number(absent) && absent > 0
+          ? `Confirming absence: ${s1(Math.min(absent, filter.absence_seconds))} of ${s1(filter.absence_seconds)}`
+          : values.nearby === true
+            ? "Detected, but not at the stove"
+            : "";
+  }
+  set("cd-person-live", person);
+  set("cd-person-sub", personSub);
+
+  const levels = (values.tiers && Array.isArray(values.tiers.levels) && values.tiers.levels) || [],
+    level = levels.find((t) => `tier${t.tier}` === values.tier),
+    first = levels.find((t) => number(t.temp_c) && t.temp_c > 0);
+  let times, timesSub;
+  if (state === "shutdown") [times, timesSub] = ["Gas shut off", "Awaiting reset after an in-person check of the stove"];
+  else if (state === "fault") [times, timesSub] = ["Controller fault", "Gas shut-off follows if the fault persists"];
+  else if (running && values.hold === "cooling") [times, timesSub] = ["On hold", "Pan cooling"];
+  else if (running && values.hold === "falling") [times, timesSub] = ["On hold", "Temperature falling"];
+  else if (running && values.hold === "return") [times, timesSub] = ["On hold", "Confirming return"];
+  else if (values.paused === true) [times, timesSub] = ["Paused", "Someone passing"];
+  else if (cooking !== true) [times, timesSub] = ["Not running", "Starts when cooking is detected and nobody is at the stove"];
+  else if (shortTier(values.tier))
+    [times, timesSub] = ["Shortened times", `${TIER_LABEL[values.tier]}${level ? `: pan at ${level.temp_c} °C or above` : ""}`];
+  else [times, timesSub] = ["Base times", first ? `Pan below ${first.temp_c} °C` : "Tier 1 times"];
+  set("cd-timer-live", times);
+  set("cd-timer-sub", timesSub);
+
   // The radar state and distance rules (a placeholder): what each radar's recent target looks like.
   const rules = values.radar_rules,
-    VERDICT = { none: "nobody", passing: "passing", dwelling: "dwelling at the stove" };
+    VERDICT = { none: "no target", passing: "passing", dwelling: "at the stove" };
   const radars = Object.entries(values.sensors || {})
     .filter(([, sensor]) => sensor && sensor.verdict)
     .map(
       ([name, sensor]) =>
         `${name}: ${VERDICT[sensor.verdict] || sensor.verdict}` +
         (sensor.verdict !== "none" || sensor.episode_seconds
-          ? ` (${number(sensor.episode_seconds) ? sensor.episode_seconds.toFixed(1) : "?"} s, ${number(sensor.stationary_seconds) ? sensor.stationary_seconds.toFixed(1) : "?"} s still, span ${sensor.span_cm ?? "?"} cm)`
+          ? ` (${number(sensor.episode_seconds) ? sensor.episode_seconds.toFixed(1) : "?"} s, ${number(sensor.stationary_seconds) ? sensor.stationary_seconds.toFixed(1) : "?"} s stationary, span ${sensor.span_cm ?? "?"} cm)`
           : ""),
     );
   set(
     "cd-person-radars",
     rules
-      ? `Radar rules (a placeholder, not tuned on real walks; ${rules.mode === "observe" ? "shown, not used" : rules.mode === "enforce" ? "in use: a radar that only sees someone passing does not count as at the stove" : "off"}): ` +
-          (radars.length ? radars.join(" · ") : "no radar episode yet.")
+      ? `Radar classification (provisional; ${rules.mode === "observe" ? "reported, not used" : rules.mode === "enforce" ? "enforced: a radar that only detects someone passing does not count as at the stove" : "off"}): ` +
+          (radars.length ? radars.join(" · ") : "no radar episode recorded.")
       : "",
-  );
-  set(
-    "cd-timer-live",
-    number(values.unattended_seconds)
-      ? `Timer: ${["unattended", "warning"].includes(values.safety_state) ? `unattended ${s1(runningValue(values.unattended_seconds, age("unattended_seconds"), values.paused !== true, elapsed))}${values.paused === true ? " (paused)" : ""}` : "not running"} · buzzer at ${seconds0(limits(values).warn)}, shutdown at ${seconds0(limits(values).stop)}` +
-          (shortTier(values.tier) ? ` (${TIER_LABEL[values.tier]})` : "")
-      : "Timer: not reported",
   );
 }
 
@@ -278,6 +305,8 @@ function draw() {
   set("cd-seconds", number(view.clock) ? Math.max(Math.ceil(view.clock), 0).toString() : view.clockText || "—");
   set("cd-unit", number(view.clock) ? "s" : "");
   set("cd-clock-label", view.label);
+  // No seconds to count (idle, shut down, fault): no big clock, rather than a large dash.
+  $("cd-seconds").closest(".cd-clock").hidden = !number(view.clock) && !view.clockText;
   const { warn: warnAt, stop: stopAt } = limits(values),
     total = number(stopAt) ? (values.shutdown_counts_from === "WARNING" && number(warnAt) ? warnAt + stopAt : stopAt) : null;
   $("cd-fill").style.width = `${Math.min(Math.max(view.fill, 0), 1) * 100}%`;
@@ -285,14 +314,17 @@ function draw() {
     $(id).hidden = !(number(at) && total);
     if (number(at) && total) $(id).style.left = `${(at / total) * 100}%`;
   }
-  set("cd-scale-warn", `Warning ${number(warnAt) ? Math.round(warnAt) + " s" : "—"}`);
-  set("cd-scale-stop", `Shutdown ${number(total) ? Math.round(total) + " s" : "—"}`);
+  set("cd-scale-warn", `Buzzer ${number(warnAt) ? Math.round(warnAt) + " s" : "—"}`);
+  set("cd-scale-stop", `Shut-off ${number(total) ? Math.round(total) + " s" : "—"}`);
   liveLines(values, age, elapsed);
 }
 
 export function renderCountdown(device) {
   shown = { device, renderedAt: Date.now() };
-  renderFlags(device.values || {});
+  const values = device.values || {};
+  renderSensorChips(values);
+  renderMismatch(values);
+  $("cd-reset").hidden = values.manual_reset_required !== true;
   draw();
   if (timer === null) timer = setInterval(draw, TICK_MS);
 }

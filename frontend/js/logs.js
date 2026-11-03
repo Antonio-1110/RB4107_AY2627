@@ -7,7 +7,7 @@
 import { fetchLogs, sendLogLevel } from "./api.js";
 import { getTab, isTuning, onModeChange } from "./mode.js";
 import { $, make, set } from "./dom.js";
-import { when } from "./format.js";
+import { DATE_LOCALE, when } from "./format.js";
 
 const POLL_MS = 1000;
 const FIRST_LINES = 300;
@@ -75,7 +75,7 @@ async function poll() {
       drawLevels();
     }
   } catch (e) {
-    if (asked === generation) set("logs-status", `Log not available: ${e.message}`);
+    if (asked === generation) set("logs-status", `Log unavailable: ${e.message}`);
   }
   busy = false;
   schedule(POLL_MS);
@@ -85,12 +85,12 @@ function status(body) {
   const age = body.levels_age_seconds;
   const parts = [
     age == null
-      ? "No log message from the controller yet: it needs firmware with RB_MQTT_PUBLISH_LOG (on by default)."
+      ? "No log message received from the controller. It requires firmware with RB_MQTT_PUBLISH_LOG enabled (the default)."
       : age > 45
-        ? `Last log message ${Math.round(age)} s ago: controller offline or broker unreachable.`
+        ? `Last log message ${Math.round(age)} s ago: the controller is offline or the MQTT broker is unreachable.`
         : "Live.",
-    body.dropped ? `${body.dropped} lines lost on the controller since it booted (buffer full).` : "",
-    `Lines are kept ${body.retention_days} days.`,
+    body.dropped ? `${body.dropped} lines dropped on the controller since it started (buffer full).` : "",
+    `Lines are retained for ${body.retention_days} days.`,
   ];
   set("logs-status", parts.filter(Boolean).join(" "));
 }
@@ -98,9 +98,9 @@ function status(body) {
 function lineRow(line) {
   const row = make("div", null, `log-line lvl-${line.level}`);
   const time = make("span", when(line.received_at), "log-time");
-  time.title = `received ${new Date(line.received_at).toLocaleString()}`;
+  time.title = `Received ${new Date(line.received_at).toLocaleString(DATE_LOCALE)}`;
   const uptime = make("span", `${(line.uptime_ms / 1000).toFixed(1)} s`, "log-uptime");
-  uptime.title = "controller uptime when it logged the line";
+  uptime.title = "Controller uptime when the line was logged";
   const level = make("span", line.level, "log-level");
   level.title = LEVEL_NAME[line.level] || line.level;
   const tag = make("span", line.tag, "log-tag");
@@ -114,7 +114,7 @@ function draw(added = false) {
   const atBottom = view.scrollHeight - view.scrollTop - view.clientHeight < 40;
   set("logs-count", `${lines.length} line${lines.length === 1 ? "" : "s"}`);
   if (!lines.length) {
-    view.replaceChildren(make("p", deviceId ? "No log lines match." : "No controller selected.", "empty-cell"));
+    view.replaceChildren(make("p", deviceId ? "No log lines match the filters." : "No controller selected.", "empty-cell"));
     return;
   }
   const rows = [];
@@ -133,7 +133,7 @@ function draw(added = false) {
 
 function levelSelect(tag, level) {
   const select = make("select");
-  select.setAttribute("aria-label", `Log level of ${tag === "*" ? "every other tag" : tag}`);
+  select.setAttribute("aria-label", `Log level of ${tag === "*" ? "all other tags" : tag}`);
   for (const name of LEVELS) {
     const option = make("option", name);
     option.value = name;
@@ -158,7 +158,7 @@ function drawLevels() {
     body.replaceChildren(
       ...entries.map(([tag, level]) => {
         const row = make("tr");
-        row.append(make("td", tag === "*" ? "Every other tag (*)" : tag), make("td"));
+        row.append(make("td", tag === "*" ? "All other tags (*)" : tag), make("td"));
         row.lastChild.append(levelSelect(tag, level));
         return row;
       }),
@@ -184,7 +184,7 @@ async function send(body) {
     await sendLogLevel(deviceId, body);
     note.className = "tuning-status good";
     note.textContent = body.defaults
-      ? "Sent: back to the menuconfig levels. The table updates when the controller confirms."
+      ? "Sent: restore the menuconfig levels. The table updates when the controller confirms."
       : `Sent: ${body.tag} → ${body.level}. The table updates when the controller confirms.`;
   } catch (e) {
     note.className = "tuning-status bad";
@@ -198,7 +198,7 @@ $("logs-set-level").addEventListener("click", () => {
     const note = $("logs-level-status");
     note.hidden = false;
     note.className = "tuning-status bad";
-    note.textContent = 'Type a tag: "*" or up to 15 letters, digits, _ - . (e.g. SAFETY).';
+    note.textContent = 'Enter a tag: "*" or up to 15 letters, digits, "_", "-" or "." (e.g. SAFETY).';
     return;
   }
   send({ tag, level: $("logs-new-level").value });

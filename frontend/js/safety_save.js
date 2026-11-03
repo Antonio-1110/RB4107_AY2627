@@ -50,10 +50,10 @@ export function refresh() {
     if (s && s.text && s.style) list.append(make("li", `${p.label}: ${s.text}`, `tuning-status ${s.style}`));
   }
   if (edited.length)
-    list.append(make("li", `Not applied yet: ${edited.map((p) => p.label.toLowerCase()).join(", ")}.`, "tuning-status warn"));
+    list.append(make("li", `Not yet applied: ${edited.map((p) => p.label.toLowerCase()).join(", ")}.`, "tuning-status warn"));
   if (!usable.length && !busy)
     list.append(
-      make("li", "Settings can't be changed now: the controller is offline or doesn't report them.", "tuning-status muted"),
+      make("li", "Settings unavailable: the controller is offline or does not report them.", "tuning-status muted"),
     );
 }
 
@@ -80,7 +80,7 @@ for (const card of CARDS)
   $(`save-${card}`).addEventListener("click", () => save(savable(parts.filter((p) => p.card === card))));
 
 $("safety-defaults").addEventListener("click", () => {
-  if (!confirm("Put every safety setting on this page back to the controller's menuconfig defaults?")) return;
+  if (!confirm("Restore every safety setting on this tab to the controller's menuconfig defaults?")) return;
   const seen = new Set();
   for (const p of parts.filter((part) => part.usable())) {
     report(p.label, "");

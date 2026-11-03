@@ -66,7 +66,7 @@ async function poll() {
     }
     error = "";
   } catch (e) {
-    error = `Live data not available: ${e.message}`;
+    error = `Live data unavailable: ${e.message}`;
   }
   busy = false;
   const cutoff = Date.now() - clockOffset - WINDOW_MS;
@@ -95,10 +95,10 @@ function renderNow() {
   const now = $("live-now");
   const s = samples.at(-1);
   if (!s) {
-    now.textContent = node ? "No live results in the last minute." : "";
+    now.textContent = node ? "No radar results in the last 60 s." : "";
     return;
   }
-  const parts = [`Sensor says: ${s.target ?? "?"}`];
+  const parts = [`Radar target: ${s.target ?? "?"}`];
   if (s.motion.energy > 0 || s.target === "moving") {
     const dir = s.motion.direction && s.motion.direction !== "none" ? `, ${s.motion.direction}` : "";
     parts.push(
@@ -111,8 +111,8 @@ function renderNow() {
         (s.presence_gates.length ? `, gates ${gateRuns(s.presence_gates, s.gate_size_cm)}` : ""),
     );
   }
-  if (s.presence.countdown_s > 0 && s.target !== "none") parts.push(`hold ${s.presence.countdown_s} s`);
-  if (s.calibration_remaining_s > 0) parts.push(`calibrating, ${s.calibration_remaining_s} s left`);
+  if (s.presence.countdown_s > 0 && s.target !== "none") parts.push(`C4002 hold ${s.presence.countdown_s} s`);
+  if (s.calibration_remaining_s > 0) parts.push(`calibrating, ${s.calibration_remaining_s} s remaining`);
   const first = samples[0];
   const span = (Date.parse(s.received_at) - Date.parse(first.received_at)) / 1000;
   if (samples.length > 1 && span > 0) {
@@ -147,7 +147,7 @@ function draw() {
   const x = (t) => left + ((t - start) / WINDOW_MS) * (right - left);
   const y = (cm) => bottom - (cm / maxCm) * (bottom - top);
   const rowH = (bottom - top) / gates;
-  ctx.font = "10px system-ui";
+  ctx.font = `${cssVar("--fs-meta")} system-ui`;
 
   // Gate rows; turned-off gates (from the node's settings) shaded grey.
   for (let g = 0; g < gates; g++) {
@@ -226,7 +226,7 @@ function draw() {
   }
   canvas.setAttribute(
     "aria-label",
-    `Radar results for ${node || "no node"} over the last minute: ${samples.length} results`,
+    `Radar results from ${node || "no node"} over the last 60 s: ${samples.length} results`,
   );
 }
 

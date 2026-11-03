@@ -1,5 +1,5 @@
 "use strict";
-// Away after / back after (Person card) and the buzzer / shut-off times (Timer card) in Tuning > Safety
+// Absence / return confirmed after (Person card) and the buzzer / shut-off times (Timer card) in Tuning > Safety
 // (docs/remote_reset.md): one "presence_filter" command to the controller, carrying all of them. Each card
 // saves its own: its fields as edited, the other card's as they are in force. The gap a return may have is
 // fixed on the dashboard, so the value in force is sent back unchanged. The controller's answer is
@@ -18,7 +18,7 @@ const FIELDS = [
   ["pf-warning", "warning_ms", "warning_seconds", "timer"],
   ["pf-shutdown", "shutdown_ms", "shutdown_seconds", "timer"],
 ];
-const LABEL = { person: "Away and back", timer: "Buzzer and shut-off times" };
+const LABEL = { person: "Absence and return confirmation", timer: "Buzzer warning and shut-off times" };
 
 let deviceId = "",
   edited = { person: false, timer: false }, // the user changed a card's inputs: don't overwrite them with telemetry
@@ -50,8 +50,8 @@ function answered(filter) {
 }
 
 const DONE = {
-  person: (f) => `saved: away after ${f.absence_seconds} s, back after ${f.return_seconds} s.`,
-  timer: (f) => `saved: buzzer after ${f.warning_seconds} s, shut off after ${f.shutdown_seconds} s.`,
+  person: (f) => `saved: absence confirmed after ${f.absence_seconds} s, return confirmed after ${f.return_seconds} s.`,
+  timer: (f) => `saved: buzzer warning after ${f.warning_seconds} s, gas shut-off after ${f.shutdown_seconds} s.`,
 };
 
 export function renderPresenceFilter(device) {
@@ -73,14 +73,14 @@ export function renderPresenceFilter(device) {
     if (answered(filter)) {
       for (const card of pending.cards) {
         edited[card] = false;
-        report(LABEL[card], pending.expect === "menuconfig" ? "back to the menuconfig values." : DONE[card](filter), "good");
+        report(LABEL[card], pending.expect === "menuconfig" ? "restored to the menuconfig defaults." : DONE[card](filter), "good");
       }
       pending = null;
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       setStatus(
         pending.cards,
-        'no change from the controller. Check it is online and that "Accept presence filter and buzzer/shutdown ' +
-          'times from the dashboard" is on in menuconfig.',
+        'the controller did not confirm the change. Check that it is online and that "Accept presence filter and ' +
+          'buzzer/shutdown times from the dashboard" is enabled in menuconfig.',
         "bad",
       );
       pending = null;
@@ -98,7 +98,7 @@ async function send(body, expect, cards) {
   try {
     const result = await sendPresenceFilter(deviceId, body);
     pending = { request_id: result.request_id, sentAt: Date.now(), cards, expect };
-    setStatus(cards, `sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    setStatus(cards, `sent (request ${result.request_id}); waiting for the controller to confirm…`, "warn");
   } catch (error) {
     pending = null;
     setStatus(cards, `not sent: ${error.message}`, "bad");
@@ -124,13 +124,13 @@ function prepare(saving) {
       const input = $(id);
       value = Number(input.value);
       if (input.value === "" || !Number.isFinite(value) || value < Number(input.min) || value > Number(input.max))
-        return { error: `${input.parentElement.firstChild.textContent.trim()} must be ${input.min}–${input.max} s.` };
+        return { error: `${input.parentElement.firstChild.textContent.trim().replace(/\s*\(s\)$/, "")} must be ${input.min}–${input.max} s.` };
     }
     body[wire] = Math.round(value * 1000);
     expect[key] = body[wire] / 1000;
   }
   if (shutdownCountsFrom === "UNATTENDED" && body.shutdown_ms <= body.warning_ms)
-    return { error: "shut off after must be longer than buzzer after (both count from when the person left)." };
+    return { error: "the gas shut-off time must be longer than the buzzer warning time (both are counted from the start of the countdown)." };
   return { run: () => send(body, expect, cards) };
 }
 

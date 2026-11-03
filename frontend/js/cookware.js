@@ -9,9 +9,9 @@ import { $ } from "./dom.js";
 import { registerPart, report, showsResult } from "./safety_save.js";
 
 const ANSWER_WAIT_MS = 15000;
-const LABEL = "Cookware";
+const LABEL = "Cookware profile";
 const NAME = {
-  mixed: "mixed / not sure",
+  mixed: "mixed or unknown",
   light: "light pans",
   heavy: "heavy pans",
   liquid: "pots with liquid",
@@ -51,8 +51,8 @@ export function renderCookware(device) {
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       pending = null;
       setStatus(
-        "the controller didn't report the change. Check that it runs firmware with this feature and that " +
-          '"Accept the cookware profile from the dashboard" is on in menuconfig.',
+        "the controller did not confirm the change. Check that its firmware supports this setting and that " +
+          '"Accept the cookware profile from the dashboard" is enabled in menuconfig.',
         "bad",
       );
     }
@@ -69,7 +69,7 @@ async function send(body, expect) {
   try {
     const result = await sendCookware(deviceId, body);
     pending = { request_id: result.request_id, sentAt: Date.now(), expect };
-    setStatus(`sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    setStatus(`sent (request ${result.request_id}); waiting for the controller to confirm…`, "warn");
   } catch (error) {
     pending = null;
     setStatus(`not sent: ${error.message}`, "bad");

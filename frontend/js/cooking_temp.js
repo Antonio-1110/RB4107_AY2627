@@ -47,12 +47,12 @@ export function renderCookingTemp(device) {
       pending = null;
       edited = false;
       if (on !== null) $("ct-value").value = on.toFixed(1);
-      setStatus(back ? `back to the menuconfig value, ${on.toFixed(1)} °C.` : `saved, ${on.toFixed(1)} °C.`, "good");
+      setStatus(back ? `restored to the menuconfig default, ${on.toFixed(1)} °C.` : `saved, ${on.toFixed(1)} °C.`, "good");
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       pending = null;
       setStatus(
-        "the controller didn't report the change. Check that it runs firmware with this feature and that " +
-          '"Accept the cooking temperature from the dashboard" is on in menuconfig.',
+        "the controller did not confirm the change. Check that its firmware supports this setting and that " +
+          '"Accept the cooking temperature from the dashboard" is enabled in menuconfig.',
         "bad",
       );
     }
@@ -69,7 +69,7 @@ async function send(body, expect) {
   try {
     const result = await sendCookingTemp(deviceId, body);
     pending = { request_id: result.request_id, sentAt: Date.now(), expect };
-    setStatus(`sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    setStatus(`sent (request ${result.request_id}); waiting for the controller to confirm…`, "warn");
   } catch (error) {
     pending = null;
     setStatus(`not sent: ${error.message}`, "bad");

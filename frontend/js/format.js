@@ -1,5 +1,9 @@
 // Formatting of values for display.
 
+// Dates in English, day before month ("1 Nov 2026, 14:05"), like the Telegram alerts, whatever
+// the browser's own language.
+export const DATE_LOCALE = "en-GB";
+
 export const number = (value) => typeof value === "number" && Number.isFinite(value);
 
 export const human = (value) =>
@@ -17,7 +21,7 @@ export const when = (value) => {
     today = new Date();
   const sameDay = date.toDateString() === today.toDateString();
   return date.toLocaleString(
-    [],
+    DATE_LOCALE,
     sameDay
       ? { hour: "2-digit", minute: "2-digit", second: "2-digit" }
       : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" },

@@ -13,7 +13,7 @@ import { registerPart, report, showsResult } from "./safety_save.js";
 
 const ANSWER_WAIT_MS = 15000;
 const cardOf = (p) => (p.group || "").toLowerCase(); // "cooking" or "timer"
-const LABEL = { cooking: "Cooking details", timer: "Timer details" };
+const LABEL = { cooking: "Cooking detection (more settings)", timer: "Countdown times (more settings)" };
 // Wire unit -> [shown = wire / scale, unit, input step]
 const KIND = {
   MS: [1000, "s", 1],
@@ -116,13 +116,13 @@ export function renderParams(device) {
   if (pending) {
     if (answered(values)) {
       for (const card of pending.cards) edited[card] = false;
-      setStatus(pending.cards, pending.expect === "menuconfig" ? "back to the menuconfig values." : "saved.", "good");
+      setStatus(pending.cards, pending.expect === "menuconfig" ? "restored to the menuconfig defaults." : "saved.", "good");
       pending = null;
     } else if (Date.now() - pending.sentAt > ANSWER_WAIT_MS) {
       setStatus(
         pending.cards,
-        'the controller didn\'t report the change. It needs "Accept the other safety settings from the dashboard" ' +
-          "on in menuconfig, and firmware with the same settings as this dashboard.",
+        'the controller did not confirm the change. Check that "Accept the other safety settings from the dashboard" ' +
+          "is enabled in menuconfig and that the firmware has the same settings table as this dashboard.",
         "bad",
       );
       pending = null;
@@ -140,7 +140,7 @@ async function send(body, expect, cards) {
   try {
     const result = await sendParams(deviceId, body);
     pending = { request_id: result.request_id, sentAt: Date.now(), cards, expect };
-    setStatus(cards, `sent (request ${result.request_id}), waiting for the controller…`, "warn");
+    setStatus(cards, `sent (request ${result.request_id}); waiting for the controller to confirm…`, "warn");
   } catch (error) {
     pending = null;
     setStatus(cards, `not sent: ${error.message}`, "bad");

@@ -13,8 +13,8 @@ import { PARAMS, paramText } from "./params.js";
 
 const HOLD_RULE = { cooling: "D2", return: "D3" };
 const HOLD_TEXT = {
-  cooling: "The next step is held: the pan is only cooling down.",
-  return: "The next step is held while a return is being confirmed.",
+  cooling: "Next stage on hold: the pan is only cooling.",
+  return: "Next stage on hold while a return is confirmed.",
 };
 
 let device = null,
@@ -30,11 +30,11 @@ const secs = (v) => (num(v) ? `${trim(v)} s` : null);
 const degC = (v) => (num(v) ? `${trim(v)} °C` : null);
 const from = (obj, ...keys) => keys.reduce((o, k) => (o && typeof o === "object" ? o[k] : undefined), obj);
 
-const FUSION = { all: "every working radar sees them", any: "either radar sees them" };
+const FUSION = { all: "every working radar detects them", any: "either radar detects them" };
 const RADAR_MODE = {
   off: "off",
   observe: "observe: computed and reported, not used",
-  enforce: "enforce: a radar that only sees someone passing does not count as at the stove",
+  enforce: "enforce: a radar that only detects someone passing does not count as at the stove",
 };
 const COOKWARE = { mixed: "mixed / unknown", light: "light pans", heavy: "heavy pans", liquid: "pots with liquid" };
 
@@ -99,10 +99,10 @@ function value(name, fallback) {
   const live = spec && device && device.values ? spec.get(device.values) : null;
   const node = make("strong", live || unquoted, `logic-val${spec && spec.tune ? " tunable" : ""}${live ? "" : " default"}`);
   node.title = live
-    ? `Reported by the controller${spec.tune ? ", tunable on the dashboard" : ""} (menuconfig default ${unquoted})`
+    ? `Value reported by the controller${spec.tune ? "; tunable on the dashboard" : ""} (menuconfig default ${unquoted})`
     : spec && spec.tune
-      ? "Menuconfig default; tunable on the dashboard (not reported yet)"
-      : `Menuconfig default (${name}); change it in menuconfig or the code`;
+      ? "Menuconfig default; tunable on the dashboard (not yet reported)"
+      : `Menuconfig default (${name}); fixed: change it in menuconfig or the firmware source`;
   return node;
 }
 
@@ -119,7 +119,7 @@ function rich(text) {
 }
 
 const stateOf = (name) => RULES.states.find((s) => s.state === name);
-const outputsText = (s) => `buzzer ${s.buzzer} · shutdown ${s.shutdown ? "ACTIVE" : "released"}`;
+const outputsText = (s) => `buzzer ${s.buzzer} · shut-off output ${s.shutdown ? "active" : "released"}`;
 
 // The newest state change in the event log, and the rule that made it.
 function lastChange() {
@@ -140,7 +140,7 @@ function ruleRow(rule, { current, fired }) {
   const body = make("span", null, "logic-when");
   body.append(rich(rule.when));
   row.append(body, make("span", `→ ${rule.to}`, `logic-to to-${rule.to.toLowerCase()}`));
-  if (fired) row.title = "The rule that made the last state change";
+  if (fired) row.title = "Rule that caused the last state change";
   return row;
 }
 
@@ -149,7 +149,7 @@ function renderNow(state, last) {
   host.replaceChildren();
   const s = stateOf(state);
   if (!s) {
-    host.append(make("p", "Waiting for the controller's state.", "muted"));
+    host.append(make("p", "Waiting for the controller to report its state.", "muted"));
     return;
   }
   const line = make("p", null, "logic-now-line");
@@ -173,7 +173,7 @@ function renderNext(state) {
   list.replaceChildren();
   const next = RULES.transitions.filter((r) => r.from.includes(state));
   if (!next.length) {
-    list.append(make("li", "No state reported yet.", "muted"));
+    list.append(make("li", "No state reported.", "muted"));
     return;
   }
   for (const rule of next) list.append(ruleRow(rule, { current: true, fired: false }));
@@ -200,7 +200,7 @@ function renderAll(state, last) {
   outputs.replaceChildren();
   for (const s of RULES.states) {
     const row = make("tr", null, s.state === state ? "current" : "");
-    row.append(make("td", s.state), make("td", s.buzzer), make("td", s.shutdown ? "ACTIVE" : "released"));
+    row.append(make("td", s.state), make("td", s.buzzer), make("td", s.shutdown ? "Active" : "Released"));
     outputs.append(row);
   }
 
@@ -231,9 +231,9 @@ function flowSteps(v) {
   const s0 = (x) => (num(x) ? `${trim(x)} s` : "…");
   return [
     `pan reaches ${num(v.cooking_on_c) ? `${trim(v.cooking_on_c)} °C` : "the cooking temperature"}`,
-    `away ${s0(from(v, "presence_filter", "absence_seconds"))}`,
+    `absent ${s0(from(v, "presence_filter", "absence_seconds"))}`,
     `buzzer at ${s0(v.warning_after_seconds)}`,
-    `shut off at ${s0(v.shutdown_after_seconds)}`,
+    `shut-off at ${s0(v.shutdown_after_seconds)}`,
   ];
 }
 
@@ -251,7 +251,7 @@ function renderFlow(state) {
     const aside = make("li", state.charAt(0) + state.replace("_", " ").slice(1).toLowerCase(), `flow-state flow-aside current st-${state.toLowerCase()}`);
     host.append(aside);
   }
-  host.title = "Someone coming back, or the pan cooling down, goes back to Monitoring or Idle. Only an operator reset leaves Shutdown.";
+  host.title = "A confirmed return, or cooking stopping, takes the controller back to Monitoring or Idle. Only an operator reset leaves Shutdown.";
 }
 
 function render() {
