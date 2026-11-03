@@ -27,6 +27,8 @@ Run from this folder with the virtualenv active.
 | `python manage.py simulate_fleet --direct` | same data written straight to the database, no broker. Don't run it together with the subscriber |
 | `python manage.py telegram_alerts` | Telegram alert setup: `--find-chats` lists chat IDs, `--test` sends a test message ([telegram_alerts.md](../docs/telegram_alerts.md)) |
 | `python manage.py simulate_alert` | plays one sped-up incident (buzzer, shutdown, reset) to try the dashboard and Telegram alerts ([telegram_alerts.md](../docs/telegram_alerts.md#try-it-without-hardware)) |
+| `python manage.py seed_incident_history` | made-up past incidents for the simulated stalls; `--clear` removes them ([dashboard.md](../docs/dashboard.md#stall-history)) |
+| `python manage.py prune_history` | run the retention clean-up now; `--dry-run` shows what would go |
 | `python manage.py test ingest` | unit tests |
 
 ## Configuration (environment variables)
@@ -67,6 +69,9 @@ each other.
 | `ingest/handlers.py` | stores each message (`storage.py`) and logs it: telemetry at INFO, warnings/shutdowns/FAULT at WARNING, routine heartbeat/sensor messages at DEBUG |
 | `ingest/alerts.py` | sends a Telegram message for the events in `RB4107_ALERT_EVENTS`, with an Acknowledge button the subscriber polls for |
 | `ingest/normalization.py` | maps schema v2 to dashboard fields |
+| `ingest/models.py`, `storage.py`, `retention.py` | the tables; writing messages; the hourly clean-up |
+| `ingest/incidents.py`, `locations.py` | unattended-cooking episodes for Stall history; the stall catalogue and stall status |
+| `ingest/demo.py`, `demo_events.py`, `commands.py` | simulated fleet and history for demos; commands sent to the controller |
 | `ingest/views.py` | `/api/health/`, `/api/devices/`, and per device `latest/`, `history/`, `events/` |
 
 ## Tests

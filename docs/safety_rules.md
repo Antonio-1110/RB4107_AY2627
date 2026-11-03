@@ -103,7 +103,6 @@ SHUTDOWN is left only by T16. A state not in the table goes to FAULT ("invalid s
 
 | # | When | Result | Code |
 |---|---|---|---|
-| X1 | Wireless gas valve: in SHUTDOWN, or the safety task stops reporting | Valve CLOSE; otherwise KEEP_OPEN every **1 s** | `link_task()` in `rb_valve_link/src/rb_valve_link.c` |
 | X2 | MQTT, Django, the laptop or the network is down | No effect on any rule: the safety task never waits on them, and the settings the dashboard gave it stay in force (saved on the controller) | `safety_task()` in `rb_controller/src/rb_controller.c` |
 
 ## Settings
@@ -120,7 +119,6 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `RB_CTRL_RADAR_SETTLE_SPAN_CM` | 60 | ... to within a span of (cm) |
 | `RB_CTRL_RADAR_SETTLE_WINDOW_MS` | 4000 | The distance must have settled over the last (ms) ... |
 | `RB_CTRL_RADAR_STATIONARY_MIN_MS` | 1500 | ... of which as a stationary target at least (ms) |
-| `RB_CTRL_VALVE_KEEPALIVE_MS` | 1000 | Keep-open / command period (ms) |
 | `RB_SAFETY_ABSENCE_DEBOUNCE_MS` | 1000 | Absence must last (ms) before UNATTENDED |
 | `RB_SAFETY_COOKING_TREND` | y | Judge from the temperature trend whether heat is going in |
 | `RB_SAFETY_COOKWARE` | mixed / unknown (10 min) | Cookware profile (how fast the pans lose heat) |

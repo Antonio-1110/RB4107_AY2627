@@ -2,224 +2,135 @@
 
 The dashboard in [`frontend/`](../frontend) shows every controller's reported
 state. It reads a JSON API from the Django backend, which is fed by the
-existing `mqtt_subscriber` and JSON-schema validator. It can not operate or
-silence anything: local protection stays on the ESP32-S3. It sends two kinds of
-command: the reset of a latched shutdown ([remote_reset.md](remote_reset.md))
-and C4002 radar tuning ([c4002_tuning.md](c4002_tuning.md)).
+`mqtt_subscriber`. It cannot operate or silence anything: protection stays on
+the ESP32-S3. It sends two kinds of command: resetting a latched shutdown
+([remote_reset.md](remote_reset.md)) and C4002 radar tuning
+([c4002_tuning.md](c4002_tuning.md)). The page's files are listed in
+[`frontend/README.md`](../frontend/README.md); this page covers what the numbers mean.
 
-## Data path and files
+## Data path
 
-1. Firmware publishes schema v2 on the configured MQTT prefix.
-2. `ingest/subscriber.py` validates messages, preserving MQTT retain/QoS/DUP metadata.
-3. `ingest/handlers.py` calls `storage.persist()` before writing its existing logs.
-4. `ingest/normalization.py` adapts controller fields to the dashboard contract.
-5. SQLite holds controller snapshots, field timestamps, packet records,
-   temperature samples, events and worker heartbeat.
-6. `ingest/views.py` serves JSON under `/api/`.
-7. `frontend/` (plain HTML, CSS and JavaScript modules, no build step) polls
-   that API every two seconds. Django serves it at `/`, so both share one origin.
+1. The firmware publishes schema v2 ([mqtt_schema.md](mqtt_schema.md)).
+2. `ingest/subscriber.py` validates each message; `ingest/handlers.py` stores it
+   (`storage.persist()`) and `ingest/normalization.py` adapts it to the dashboard fields.
+3. SQLite holds snapshots, field timestamps, raw messages, temperature samples,
+   events and the worker heartbeat. `ingest/views.py` serves JSON under `/api/`.
+4. The page polls the API every two seconds. Django serves it at `/`, so both share one origin.
 
-```text
-frontend/
-├── index.html        page layout: overview and stall detail views
-├── css/dashboard.css
-└── js/
-    ├── config.js     API base URL, poll interval, request timeout
-    ├── api.js        the GET calls the page makes
-    ├── dashboard.js  state, polling and rendering of both views
-    ├── chart.js      temperature history canvas
-    ├── heatmap.js    thermal camera heat map canvas
-    ├── countdown.js  Countdown card: phase, clock, bar, sensor flags, live rule values
-    ├── mode.js       Monitor / Tuning mode, tuning tabs, overview layout, colour theme
-    ├── safety_logic.js        Safety tab: flow strip, current state, next rules, Full rule table
-    ├── safety_save.js         Safety tab: each card's Apply, and Restore defaults
-    ├── stall_history.js       Stall history view: incidents per stall
-    ├── params.js              the rb_params.def settings, under the cards' More settings
-    ├── safety_rules_data.js   the controller's rules table, generated (tools/safety_rules.py gen)
-    ├── dom.js        small DOM helpers
-    └── format.js     value formatting
-```
+## Firmware → dashboard fields
 
-## Firmware → frontend contract
+The main mappings (unit conversions and `null` from older firmware are not repeated):
 
 | Firmware field | Dashboard field | Meaning |
 |---|---|---|
-| `controller_id` | `device_id` | One controller / cooking station; used as catalogue key |
-| `presence_state` | `occupied` | PRESENT → true, ABSENT → false, UNKNOWN → null; no backend radar fusion |
-| `thermal.max_c` | `temperature_c` | Reported maximum, only when thermal.valid is true |
-| `thermal.mean_c` / `min_c` | `temperature_avg_c` / `temperature_min_c` | Reported thermal measurements |
-| `thermal.hot_region_c` / `rate_c_per_min` | same names | Shown below the maximum-temperature card |
-| `safety.state` | `safety_state` | Firmware enum in lower case |
-| `safety.buzzer` | `alarm_state` | OFF → clear; other enum values in lower case |
-| `safety.shutdown` | `relay_state` | true → isolated, false → enabled; **firmware output report, not independent valve feedback** |
-| `safety.reset_required` | `manual_reset_required` | Sent by the firmware. For older firmware without it: `safety.state == SHUTDOWN` AND `safety.shutdown` |
-| `safety.warning_after_ms` / `shutdown_after_ms` / `shutdown_counts_from` | `warning_after_seconds` / `shutdown_after_seconds` / same | The controller's timer settings |
-| `boot_id` + `sequence` | stored on the device | Orders messages and detects restarts (see below) |
-| `safety.unattended_ms` | `unattended_seconds` | Unit conversion only; browser/server never advances this safety timer |
-| `uptime_ms` | `uptime_seconds` | Unit conversion |
-| `nodes[]` and sensor topics | `sensors[node_id]` | Distinct C4002/MLX90640 diagnostics for each controller |
-| `safety.test_timers` | `test_timers` | Explicit firmware-test-timers badge, separate from simulation badge |
-| `safety.presence_filter` | `presence_filter` (`absence_seconds`, `return_seconds`, `return_gap_seconds`, `source`) | Presence filter in use, shown and changed in the Countdown card ([remote_reset.md](remote_reset.md#presence-filter-and-timers)); `null` from older firmware |
-| `safety.presence_unknown`, `safety.thermal_lost` | `presence_unknown`, `thermal_lost` (`null` from older firmware) | The sensor flags: shown as badges in the Countdown card, never turned into a fault by the backend |
-| `safety.cooking.active` | `cooking_active` | The heat detector's state, as the controller sees it |
-| `safety.tier`, `safety.effective_warning_ms` / `effective_shutdown_ms`, `safety.tiers` | `tier`, `effective_warning_seconds`, `effective_shutdown_seconds`, `tiers` (`null` from older firmware) | The temperature tier in force and the buzzer and shutdown times it gives. The Countdown card draws its clock, bar and marks from the times in force, shows a tier chip, and Tuning > Rules lists the tiers |
-| `safety.hold`, `safety.cooking.phase` / `rate_c_per_min` / `rate_err_c_per_min` / `cool_rate_c_per_min` / `settle_c` / `room_c`, `safety.cookware` | `hold`, `cooking_phase`, `cooking_rate_c_per_min`, `cooking_rate_err_c_per_min`, `cooking_cool_rate_c_per_min`, `cooking_settle_c`, `cooking_room_c`, `cookware_profile`, `cookware_tau_s`, `cookware_source` (`null` from older firmware) | The cooking judgment: shown in the Countdown card ("held while the pan cools", the Cooking tile) and the cookware profile selector in Tuning → Rules |
-| `safety.absent_ms`, `safety.returning_ms`, `safety.state_ms` | `absent_seconds`, `returning_seconds`, `state_seconds` | Progress of the absence / return debounce and time in the current state. The Countdown card advances its clock from them between reports and freezes it ("last known") when the controller goes quiet; the backend never advances a timer |
-| `c4002_live` (per presence node) | `sensors[node_id].c4002_live` | Newest raw radar result only. The live radar view reads the last minute from `GET /api/devices/<id>/nodes/<node>/c4002/live/?after=<id>` every 0.5 s |
-| `c4002_config` (per presence node) | `sensors[node_id].c4002` | Radar settings and the result of the last tuning command; a failed command keeps the last known `settings` ([c4002_tuning.md](c4002_tuning.md)) |
-| `thermal_frame` message (`sensors/<node>/thermal_frame`) | `GET /api/devices/<id>/thermal_frame/` → `frames[]` | Latest heat-map picture per thermal node, with `received_at` and `age_seconds`. Only the newest picture is kept (table `ThermalFrame`), not logged as an inbound message and never used for state. The card outlines the pixels at or above the controller's cooking temperature (`safety.cooking.on_c`, the node's hot-pixel threshold with older firmware), lets you change that temperature ([remote_reset.md](remote_reset.md#cooking-temperature)), boxes its hot region, and works out the pixel size at a chosen distance for either lens (55° or 110°) |
+| `controller_id` | `device_id` | One controller / cooking station |
+| `presence_state` | `occupied` | PRESENT → true, ABSENT → false, UNKNOWN → null. No fusion in the backend |
+| `thermal.max_c`, `mean_c`, `min_c` | `temperature_c`, `temperature_avg_c`, `temperature_min_c` | Only when `thermal.valid` is true |
+| `safety.state` | `safety_state` | Firmware enum, lower case |
+| `safety.buzzer` | `alarm_state` | OFF → clear |
+| `safety.shutdown` | `relay_state` | true → isolated. **A report of the controller's output, not independent feedback from the appliance** |
+| `safety.reset_required` | `manual_reset_required` | Older firmware: SHUTDOWN state and `safety.shutdown`. Never inferred from temperature, absence or network loss |
+| `safety.warning_after_ms`, `shutdown_after_ms`, `shutdown_counts_from` | `*_seconds` | The controller's timer settings |
+| `safety.unattended_ms`, `absent_ms`, `returning_ms`, `state_ms` | `*_seconds` | Time in the current stage. The Countdown card advances between reports and freezes ("last known") when the controller goes quiet; the backend never runs a safety timer |
+| `safety.tier`, `effective_*_ms`, `tiers` | `tier`, `effective_*_seconds`, `tiers` | The temperature tier in force and the times it gives |
+| `safety.cooking.*`, `safety.hold`, `safety.cookware` | `cooking_*`, `hold`, `cookware_*` | The cooking judgment (see [Active cooking](#active-cooking)) |
+| `safety.presence_filter` | `presence_filter` | The debounce in use ([remote_reset.md](remote_reset.md#presence-filter-and-timers)) |
+| `safety.presence_unknown`, `thermal_lost` | same | Sensor flags, shown as badges and never turned into a fault by the backend |
+| `safety.test_timers` | `test_timers` | Badge: the firmware runs shortened test timers |
+| `nodes[]` and sensor topics | `sensors[node_id]` | Per-node radar and thermal diagnostics |
+| `c4002_live`, `c4002_config` | `sensors[node_id].c4002_live`, `.c4002` | Newest raw radar result; radar settings and the last tuning result ([c4002_tuning.md](c4002_tuning.md)) |
+| `thermal_frame` | `GET /api/devices/<id>/thermal_frame/` | Newest heat-map picture per thermal node only. Display only, never used for state |
+| `boot_id` + `sequence` | stored on the device | Orders messages and detects restarts (see [Freshness](#freshness-and-limitations)) |
 
-The firmware publishes `safety.reset_required` (`safety_reset_required()` in
-`firmware/components/safety`). For messages from older firmware without it,
-the adapter falls back to SHUTDOWN state plus shutdown output, which
-[`docs/safety_state_machine.md`](safety_state_machine.md) defines as latched
-until operator reset; `reset_status_source` says which was used. It never
-infers a shutdown from temperature, absence duration or network loss.
-
-The top sticky banner requires isolated supply AND manual reset required.
-WARNING and UNATTENDED remain in summary, tiles, table and stall detail without
-a sticky warning banner. Missing or invalid thermal values stay null. The
-warning and shutdown times shown are the ones the controller reports.
+The top sticky banner needs the supply isolated AND a manual reset required.
+WARNING and UNATTENDED show in the summary, tiles and stall page but not as a
+sticky banner. Missing or invalid thermal values stay null.
 
 ### Stall status
 
-Every controller gets exactly one status, worked out by Django
-(`classify_display_state()` in `ingest/locations.py`, tests in
-`ingest/tests/test_stall_status.py`). The rules are checked in order and the
-first one that matches wins:
+Django gives every controller exactly one status (`classify_display_state()` in
+`ingest/locations.py`, tests in `ingest/tests/test_stall_status.py`). The first
+rule that matches wins:
 
 | # | Status | When |
 |---|---|---|
-| 1 | **Critical** | The supply is cut: relay isolated or state SHUTDOWN. Kept even when the data is last known, because the cut is latched |
+| 1 | **Critical** | The supply is cut: output isolated or state SHUTDOWN. Kept even when the data is last known, because the cut is latched |
 | 2 | **Warning** | State WARNING or UNATTENDED, or the warning buzzer. Kept when last known |
-| 3 | **Fault** | Anything that leaves the stall unprotected or out of sight: **F1** the controller reports FAULT; **F2** the controller is not online (offline by Last Will, no message for `RB4107_DEVICE_STALE_SECONDS` = 15 s, never heard, or the MQTT monitor is down); **F3** its safety state is older than 15 s; **F4** a sensor node it lists is not working (link STALE, OFFLINE or NEVER_SEEN, or an invalid reading); **F5** it lists no sensor nodes |
+| 3 | **Fault** | Anything that leaves the stall unprotected or out of sight: **F1** the controller reports FAULT; **F2** it is not online (Last Will, silent for `RB4107_DEVICE_STALE_SECONDS` = 15 s, never heard, or the MQTT monitor is down); **F3** its safety state is older than 15 s; **F4** a sensor node it lists is not working (STALE, OFFLINE, NEVER_SEEN, or an invalid reading); **F5** it lists no sensor nodes |
 | 4 | **Unknown** | Online and every node working, but the controller is starting (BOOT, SELF_TEST) or reports a state the dashboard doesn't know |
 | 5 | **Normal** | IDLE or MONITORING, buzzer off, fresh data, every listed node working |
 
-A stall with several controllers shows the worst one (critical, warning,
-fault, unknown, normal). Each stall is counted in exactly one summary card, so
-the cards add up to the total; there is no separate connectivity card, an
-offline stall is a fault. A fault lists all its reasons on the stall page; the
-title names the first (for example SENSOR NODES DOWN, CONTROLLER OFFLINE). If
-the dashboard itself loses Django, every stall that wasn't critical or warning
-turns into a fault ("dashboard can't reach the server").
+A stall with several controllers shows its worst one. Each stall is counted in
+exactly one summary card; an offline stall is a fault. If the dashboard loses
+Django, every stall that wasn't critical or warning shows "SERVER UNREACHABLE".
 
-This is display only. The firmware keeps its own rules (`safety_rules.md`): a
-lost sensor node does not put the controller's state machine in FAULT (rules
-A4, A8), so a controller can report IDLE while the dashboard shows Fault.
+This is display only. The firmware keeps its own rules ([safety_rules.md](safety_rules.md)):
+a lost sensor node does not put the controller in FAULT (rules A4, A8), so a
+controller can report IDLE while the dashboard shows Fault.
 
-## Monitor and Tuning modes
+## Stall page
 
-A **Monitor | Tuning** switch in the header (remembered in this browser; open
-`/?mode=tuning` to start in Tuning) changes what the stall page shows. It is
-cosmetic: Monitor hides the tuning tools, it does not stop the API from
-accepting commands.
+A **Monitor | Tuning** switch in the header (remembered per browser, or open
+`/?mode=tuning`) is cosmetic: Monitor hides the tuning tools but does not stop
+the API accepting commands.
 
-- **Monitor** (default, the deployment view) fits one laptop screen without
-  scrolling: the Countdown hero with its clock, the three condition tiles
-  (cooking, person, timer, values only), the four readings with their
-  freshness, a compact thermal picture, the temperature history, system status
-  with **Reset shutdown**, the last five events, and a **Safety logic** strip:
-  the state the controller reports and the rules that can fire next. Nothing in
-  it can be edited.
-- **Tuning** keeps a slim countdown strip on top and adds tabs: **Safety** (the
-  settings, in two levels, and the rules; see [Safety tab](#safety-tab)), **Radar** (C4002
-  range, gate size, sensitivity, gates on/off, calibration and the live radar
-  view; the per-gate thresholds are shown read-only), **Thermal** (heat map with the outline and
-  pixel-size controls), **Diagnostics** (readings, history, system status,
-  events, sensor reports, raw telemetry), **Logs** (the controller's own log
-lines, live, with level/tag/text filters, and its per-tag log levels, editable;
-[logging.md](logging.md#logs-tab)). The header gets an orange underline
-  so it is obvious which mode you are in. The live radar stream is only polled
-  in Tuning, and the log only while the Logs tab is open.
+- **Monitor** fits one laptop screen: the Countdown card (phase, clock and bar
+  against the buzzer and shut-off marks, sensor chips), condition tiles, the
+  readings with their freshness, a small heat map, temperature history, system
+  status with **Reset shut-off**, the last events and a read-only **Safety logic** strip.
+- **Tuning** adds tabs: **Safety** (settings and rules), **Radar** (C4002
+  tuning and live view), **Thermal** (heat map, outline and pixel-size
+  controls), **Diagnostics** and **Logs** ([logging.md](logging.md#logs-tab)).
+- **Diagnostics** has nothing to change: it is for finding out why something
+  looks wrong, during installation or when a stall misbehaves. It shows only
+  what no other page does, each block headed by the question it answers: is
+  each sensor node reporting (each node's own readings, link and last report),
+  is the thermal node reading the pan (hottest pixel, hot region, rate of
+  change, freshness), does the controller agree with itself (gas relay, reset
+  flag, times in force, uptime), and what the controller sent (raw telemetry).
+  The countdown, temperature history and event log are on Monitor.
 
-The overview has a **Tiles | Table** switch and a one-row fleet strip. A
-**Light | Dark | Auto** theme button follows the system setting by default.
+The overview has a Tiles | Table switch and a Light | Dark | Auto theme.
 
-## Safety tab
+**Safety tab.** A flow strip (Idle → Monitoring → Unattended → Warning →
+Shutdown) with the values in force, then three cards: *Cooking*, *Presence
+at the stove*, *Countdown times*. Each card has **More settings** and its
+own **Apply**, which sends only that card's changes; there is no page-wide
+save. **Restore menuconfig defaults** resets everything. Values are saved on
+the controller and survive a reboot. The folded **Full rule table** comes from
+`safety_rules_data.js`, generated from the firmware's rules table, so it
+cannot drift (`tools/safety_rules.py check` fails if it is stale). Each
+setting shows the value the controller reports, falling back to the menuconfig
+default in grey. Underlined settings can be changed above; the rest are fixed
+in the firmware.
 
-Laid out in the order the controller thinks, from the general to the detailed:
+### Active cooking
 
-1. **Flow strip**: Idle → Monitoring → Unattended → Warning → Shutdown, the
-   current state highlighted, and on each arrow what moves it on, with the
-   values in force (cooking temperature, away time, buzzer and shut-off
-   times). Below it, the state's outputs, any hold, the last change, and
-   (folded) the rules that can fire next.
-2. **Three step cards**, each with its live line, one sentence on the rule
-   and only the main settings:
-   - *Is it cooking?* cooking temperature, cookware;
-   - *Is someone there?* every radar or either, away after, back after;
-   - *How long before…* buzzer after, shut off after.
+Whether the stove is in use is decided by the firmware and only displayed here
+(`classify_cooking()` in `ingest/locations.py`). Cooking starts when the
+thermal camera's hottest pixel reaches the cooking temperature
+(`RB_SAFETY_HEAT_ON_DC`, settable on the Safety tab) or rises fast, and ends
+below the "over" value; both come in `safety.cooking`. The thresholds are still
+being tuned ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)).
 
-   **More settings** on each card opens the details: the holds and the
-   "cooking over" gap (Cooking); the pause for someone passing and the radar
-   rules, still being tuned on the bench (Person); the hotter-pan tiers, the
-   rising-pan rule and the fault shut-off (Timer). The `rb_params.def`
-   settings (`params.js`) go to the card named by their group.
-3. Each card has its own **Apply**, which sends only that card's changes
-   (`safety_save.js`); there is no page-wide save. Each part is its own
-   command, sent once all of them check out. Two commands span two cards (the
-   presence filter: away/back and buzzer/shut-off; the `rb_params.def`
-   settings): a card's Apply sends its own fields as edited and the other
-   card's as they are in force. **Restore defaults** puts every part
-   back to menuconfig. The list under the buttons shows what is
-   unsaved, waiting for the controller, saved or refused. Everything is saved
-   on the controller and survives a reboot.
-4. **Full rule table** (folded): every transition, the outputs per state and
-   the input, cooking, timer and hold rules, from
-   `safety_rules_data.js`, generated from
-   `firmware/components/safety/src/safety_rules.def`, the table the
-   controller's state machine runs, so it can't drift from the firmware
-   (`tools/safety_rules.py check` fails if it is stale). Each setting in the
-   text (`{{NAME|default}}`) shows the value the controller reports (map in
-   `LIVE` in `safety_logic.js`, plus the `rb_params.def` settings from
-   `safety.params`), falling back to the menuconfig default in grey;
-   underlined ones can be changed above, the rest (`{=NAME}` in the table) are
-   fixed in the firmware.
+| Controller state | Shown as |
+|---|---|
+| MONITORING, UNATTENDED, WARNING | COOKING |
+| IDLE | NOT COOKING |
+| SHUTDOWN | GAS SHUT OFF |
+| FAULT, BOOT, SELF_TEST, none | a guess from the hottest pixel: LIKELY COOKING, LIKELY NOT COOKING or COOKING UNKNOWN |
 
-The current state comes from `safety.state`, a hold from `safety.hold`, and the
-last rule that fired is matched from the newest event's `safety.reason` and
-`from_state`.
-
-## Countdown card
-
-The biggest card on the stall page. It shows where the safety timeline is and
-why, using only what the controller reports:
-
-- **Phase and clock**: "Cooking: confirming that nobody is there" (the absence
-  debounce), "Unattended: timer running" (seconds until the buzzer),
-  "Warning" (seconds until shutdown), "Shutdown", "Idle". A bar shows the
-  unattended time against the warning and shutdown marks.
-- **Sensor chips**: each node as `OK`, `SENSOR PROBLEM` (node reachable, sensor
-  bad: wiring) or `OFFLINE` (no packets: power, Wi-Fi), plus the
-  *presence sensor unknown* and *thermal sensor lost* flags.
-- **The three steps** (cooking, person, timer) below it on the Safety tab,
-  with their live values and settings ([Safety tab](#safety-tab)). Under the
-  person's More settings, a read-only line shows each radar's episode verdict
-  (nobody / passing / dwelling), see
-  [the radar rules](safety_state_machine.md#radar-state-and-distance-rules-placeholder).
-  The state itself is decided by the safety logic on the S3; the dashboard
-  only displays it and sends settings ([remote_reset.md](remote_reset.md)).
+A stall with several stations shows the most active one. Stale data is marked *last known*.
 
 ## Storage
 
-Every accepted message is stored with its raw JSON, and each telemetry message
-a second time as a reading. Measured on this schema (SQLite, including indexes),
-at the default rates with one controller:
-
-| Message | On disk | Rate | Per day |
-|---|---|---|---|
-| controller telemetry | 3.7 KB | 1 / s | 320 MB |
-| heartbeat | 0.58 KB | 1 / s | 50 MB |
-| per-node presence and thermal topics | 0.65-0.69 KB | 3 / s | 170 MB |
-| raw radar results (live view) | 0.92 KB | about 4 / s | 320 MB |
-| **total** | | | **about 0.86 GB per day (26 GB per month)** |
-
-Heat-map pictures are not stored (only the newest per node). `tools/run_dev.sh`
+Every accepted message is stored with its raw JSON, and telemetry a second time
+as a reading: about 0.86 GB per day for one controller at the default rates
+(telemetry 1/s is the bulk, plus per-node topics and raw radar results).
+Heat-map pictures are not stored beyond the newest per node. `tools/run_dev.sh`
 erases the database when it stops, so this only builds up when Django runs
-continuously. Left alone, one controller would fill a 256 GB disk in months, so
-the subscriber runs a **retention job** once an hour (`ingest/retention.py`;
-first run a minute after start):
+continuously. The subscriber therefore runs an hourly **retention job**
+(`ingest/retention.py`):
 
 | Rule | Default | Setting |
 |---|---|---|
@@ -227,178 +138,87 @@ first run a minute after start):
 | telemetry: full resolution for | 24 h | `RB4107_RETENTION_FULL_HOURS` |
 | then thinned to one per | 60 s | `RB4107_RETENTION_THIN_SECONDS` |
 | and deleted after | 30 days | `RB4107_RETENTION_DAYS` |
-| faults, node status, tuning replies, rejected messages: delete after | 90 days | `RB4107_RETENTION_OTHER_DAYS` |
-| controller log lines (Logs tab): delete after | 7 days | `RB4107_RETENTION_LOG_DAYS` |
+| faults, node status, tuning replies, rejected messages | 90 days | `RB4107_RETENTION_OTHER_DAYS` |
+| controller log lines | 7 days | `RB4107_RETENTION_LOG_DAYS` |
 | how often (0 = never) | 3600 s | `RB4107_RETENTION_INTERVAL_S` |
 
-Safety events and the messages that carry them (including restarts) are never
-deleted. That keeps one controller at about 0.4 GB of telemetry history plus a
-day of detail (roughly 1 GB at the default rates, a few GB at most).
-`python manage.py prune_history --dry-run` shows what would go; run it without
-`--dry-run` for a first clean-up. SQLite does not give disk space back by
-itself: run `sqlite3 db.sqlite3 VACUUM` once after a big clean-up.
+Safety events and the messages that carry them are never deleted, which keeps
+one controller at roughly 1 GB. `python manage.py prune_history --dry-run`
+shows what would go. SQLite does not return disk space by itself: run
+`sqlite3 db.sqlite3 VACUUM` after a big clean-up.
 
 ## Stall history
 
-The **Stall history** tab is for deciding which stall to visit or watch, for
-example by a fire-safety inspector. It answers four questions per stall over a
-chosen period (**Last 2 weeks**, **Last 4 weeks** (default) or **Last 3
-months**, picked at the top; every number on the page follows it):
+The **Stall history** tab helps decide which stall to visit, for example by a
+fire-safety inspector. Over a period chosen at the top (2 weeks, 4 weeks by
+default, 3 months, or custom: last N days or a date range, at most 366 days) it
+shows, per stall:
 
-1. **How often the countdown starts.** A countdown starts each time the cook
-   leaves a hot stove (one *incident*, below). Shown as a count, per week
-   (count ÷ weeks in the period) and per cooking day (see below).
-2. **How many reached the buzzer**: a count, and a share of the countdowns.
-3. **How many escalated to a gas shut-off**: a count, and a share of the
-   buzzer warnings.
-4. **How long recovery usually takes**: the median (the middle value: half
-   were quicker, half slower) and the slowest.
+1. how often a countdown starts (count, per week, per cooking day);
+2. how many reached the buzzer (count, share of countdowns);
+3. how many escalated to a gas shut-off (count, share of buzzer warnings);
+4. how long recovery takes (median and slowest).
 
-Laid out for a laptop screen: on the left, every stall in a table
-(countdowns per week, buzzer, shut-off, usual recovery), riskiest first (most
-shut-offs, then most buzzer warnings); click a heading to sort by it, again to
-go back. On the right, the chosen stall: the four figures, a week-by-week bar
-chart (Monday to Sunday, server time zone; each bar split into *countdown
-only*, *buzzer* and *shut-off*; a week only partly in the period is marked
-"part"), a table of how the countdowns ended, and the list of every countdown
-with what happened next (how far it escalated, after how long the buzzer and
-shut-off came, how long it lasted, how it ended, the hottest reading). Below
-1200 px wide the two sides stack. The stall page's **Incident history** button
-opens the tab on that stall.
+**Compare stalls** lists every stall with a bar per figure, with search, area
+and "show" filters, ranking (default: most shut-offs, then buzzer warnings),
+and a ☆ star kept in the browser. Clicking a row opens that stall: its figures,
+countdowns per week, how countdowns ended, and the countdown log.
 
-**Recovery times.** Each way a countdown can end is timed from a different
-moment:
-
-| Ended how | Timed from → to |
-|---|---|
-| Back before the buzzer (person returned or stove off) | countdown start → back to normal |
-| Back after the buzzer (person returned) | buzzer → back to normal |
-| Stove turned off after the buzzer | buzzer → back to normal |
-| Reset after a shut-off | shut-off → the operator's reset |
-| Controller restarted | not timed, only counted |
-
-Countdowns still going on are counted but not timed. A **controller restart**
-during a countdown is counted on its own row and never timed: it can mean
-someone switched the controller off and on to get round it. *Usual recovery*
-in the stall table and the headline is the median from countdown start to back
-to normal, over every ended countdown except restarts.
-
-**Per cooking day.** A cooking day is a day (server time) with at least one
-stored telemetry reading in a cooking state (MONITORING, UNATTENDED or
-WARNING). Telemetry readings are deleted after `RB4107_RETENTION_DAYS` (30 by
-default, see Storage), so for the 3-month period only the last 30 days have
-cooking days; the figure divides the countdowns that started *on* those days
-by the number of those days, and the page says how many cooking days it used.
-
-An incident is one unattended-cooking episode (`ingest/incidents.py`). Django
-builds it from the controller's live telemetry, which the firmware publishes on
-every state change: it opens when the state first becomes UNATTENDED, WARNING
-or SHUTDOWN, and closes when the state is back to MONITORING (person returned),
-IDLE (heating stopped, or "reset after shutdown" from SHUTDOWN) or the
+An *incident* is one unattended-cooking episode (`ingest/incidents.py`), built
+from live telemetry: it opens when the state first becomes UNATTENDED, WARNING
+or SHUTDOWN and closes when the state returns to MONITORING or IDLE, or the
 controller restarts. FAULT keeps it open. The end reason is inferred from the
-next state, not reported by the controller. Retained snapshots and out-of-order
-messages never open one. Incidents are never pruned, so a stall keeps its
-record for as long as the database exists. **In development no history builds
-up:** `tools/run_dev.sh` (and `tools/stop_dev.sh`) delete the database when
-they stop, so every run starts empty apart from the demo history below.
+next state, not reported by the controller. Incidents are never pruned.
 
-API: `GET /api/stall-history/` (every stall's all-time counts),
-`GET /api/stall-history/?days=28` (plus each stall's `period` summary: counts,
-shares, `weeks`, `recovery`, cooking days; `days` must be 14, 28 or 90,
-anything else is a 400) and `&stall=<stall_id>` (plus that stall's newest 500
-incidents, kept to the period when `days` is given).
+Recovery is timed per outcome: countdown start → normal (back before the
+buzzer); buzzer → normal (back after the buzzer, or stove turned off);
+shut-off → the operator's reset. A **controller restart** during a countdown is
+counted on its own row and never timed, since it can mean someone power-cycled
+the controller to get round it. A *cooking day* is a day with at least one
+stored reading in a cooking state, so only the last `RB4107_RETENTION_DAYS`
+have any.
 
-Demo: `tools/run_dev.sh --demo` runs `python manage.py seed_incident_history`,
-which gives each simulated stall three months of made-up past incidents,
-marked "demo" in the list, and one made-up cooking reading per day it was open
-over the last 30 days. Each stall gets one of four made-up habits (careful,
-typical, busy, risky) so the stalls differ. `--days N` changes how far back it
-goes; `--clear` deletes the made-up incidents and cooking days. The real
-controller's history is only what it actually did.
+API: `GET /api/stall-history/` (all-time counts); add `?days=28` or
+`?from=2026-10-01&to=2026-10-14` for each stall's `period` summary, and
+`&stall=<stall_id>` for that stall's newest 500 incidents. Other combinations are a 400.
 
-## Active cooking
-
-Every controller and stall shows whether its stove is in use (`cooking` in
-`/api/devices/`, `classify_cooking()` in `django/ingest/locations.py`): a badge
-on the stall tiles and roster, a banner on the stall page, and a *Cooking now*
-count. It is display only. The firmware makes the decision: cooking starts
-when the thermal camera's hottest pixel reaches the cooking temperature
-(`RB_SAFETY_HEAT_ON_DC`, placeholder 50 °C, settable from the Countdown
-card; or a fast rise) and ends below the "over" value (10 °C lower by
-default). The controller reports both in `safety.cooking`, and the badge text
-uses them; the thresholds are still being tuned ([issue #21](https://github.com/Antonio-1110/RB4107_AY2627/issues/21)).
-
-| Controller state | Shown as |
-|---|---|
-| MONITORING, UNATTENDED, WARNING | COOKING |
-| IDLE | NOT COOKING |
-| SHUTDOWN | SUPPLY CUT (gas cut, stove cooling) |
-| FAULT, BOOT, SELF_TEST or no state | a guess from the hottest pixel with the controller's reported thresholds (50/40 °C if it doesn't report them): LIKELY COOKING (≥ on), LIKELY NOT COOKING (< over), otherwise COOKING UNKNOWN (dashed badge) |
-
-A stall with several stations shows the most active one, and how many of them
-are cooking. Stale data is marked *last known*.
-
-## Heat map
-
-The stall detail view draws the thermal camera's latest picture (32 × 24) with
-a light-to-dark warm colour scale fitted to each picture, marks the hottest
-pixel, shows grey for pixels with no reading, and gives the temperature of the
-pixel under the mouse. A picture older than `RB4107_DEVICE_STALE_SECONDS` is
-dimmed and labelled stale. `simulate_fleet` also sends synthetic pictures.
-
-The picture is as the sensor sees it. If it looks mirrored or upside down
-compared with the kitchen, that comes from how the camera is mounted.
+**Demo data.** `tools/run_dev.sh --demo` runs `seed_incident_history`: three
+months of made-up incidents per simulated stall (marked "demo"), cooking days
+and 24 hours of made-up events (`ingest/demo_events.py`). `--days N` changes
+the range and `--clear` deletes it all. A real controller's history is only
+what it did.
 
 ## Locations and more controllers
 
 Edit `django/locations.json`, keyed by the firmware's `controller_id`
-(`RB_MQTT_CONTROLLER_ID`). The `controller_01` entry is the lab bench.
-`django/locations.demo.json` holds made-up stalls for `simulate_fleet`
-(`tools/run_dev.sh --demo` selects it). Its terminal layout is illustrative
-and its stall names are fictional. Each demo stall plays the scenario in its
-`demo_scenario`: `monitoring`, `unattended`, `warning`, `shutdown` (supply
-cut, cooling down), `idle`, `fault_radars` (both radars invalid),
-`fault_node_offline` (one radar node unplugged: a Fault on the dashboard) or
-`network_loss` (online, then stale, then offline by Last Will, then back,
-every 2 minutes). Simulated stalls are tagged SIMULATED.
-Unknown IDs are accepted and displayed as unassigned locations.
+(`RB_MQTT_CONTROLLER_ID`); `controller_01` is the lab bench. Unknown IDs show as
+unassigned. `django/locations.demo.json` holds made-up stalls for
+`simulate_fleet` (`tools/run_dev.sh --demo`); each plays a `demo_scenario`
+(monitoring, unattended, warning, shutdown, idle, fault_radars,
+fault_node_offline, network_loss) and is tagged SIMULATED.
 
-Multiple controllers can share a `stall_id` while having different
-`station_name` values. Their worst displayed severity is used in the overview;
-each station remains selectable. Each controller
-publishes under its own prefix (`RB_MQTT_TOPIC_PREFIX`, `rb4107/controller_01`
-for the bench) with a unique controller ID, and Django subscribes to
-`RB4107_MQTT_TOPIC=rb4107/+/#`. Commands (reset, C4002 tuning) go to that
-controller's own tree. A single controller on the plain `rb4107` prefix still
-works with `RB4107_MQTT_TOPIC=rb4107/#`.
+Controllers can share a `stall_id` with different `station_name`s; the overview
+shows their worst severity. Each controller publishes under its own prefix
+(`RB_MQTT_TOPIC_PREFIX`) and Django subscribes to `RB4107_MQTT_TOPIC=rb4107/+/#`.
+Commands go to that controller's own tree.
 
-## Freshness, events and limitations
+## Freshness and limitations
 
 - The worker writes a heartbeat every two seconds and reports ready only after
-  the broker acknowledges subscription. Broker loss, worker death, stale data
-  and HTTP failure are separate visible conditions.
-- Retained messages can fill previously absent values as **last known**, with
-  no live field timestamp. Retained online cannot prove liveness. A retained
-  normal snapshot cannot overwrite a stored cutoff. Retained offline marks
-  the device offline. Retained telemetry is not added to the temperature graph.
-- Heartbeat reports do not refresh temperature, relay or reset field timestamps.
-- Events are stored with their raw payload and reason. Queued old events do not
-  overwrite current live state. The controller publishes fresh full telemetry
-  on transitions; those snapshots drive current safety/relay banners.
-- Valid source timestamps participate in field freshness. Older dated full
-  snapshots are stored as historical and cannot clear newer shutdown state.
-  Graph x-values are server receipt times; `source_at` is also available.
-- MQTT DUP retransmissions with identical payloads are deduplicated.
-- Within one `boot_id`, a message whose `sequence` is not higher than the
-  newest one seen is stored as `historical` (or `duplicate` for the same
-  number) and does not change the current state, even when `timestamp` is
-  null. A new `boot_id` is a controller restart: it is accepted whatever its
-  sequence and logged as a `controller_restarted` event.
-- No login, retention job, broker TLS setup or production HTTP service is added
-  by this prototype integration. Keep runserver bound to localhost and use an
-  SSH tunnel for remote development. Existing .env/database files are ignored
-  by Git. The only command endpoints are C4002 tuning and the shutdown reset ([remote_reset.md](remote_reset.md)); neither has a login.
+  the broker acknowledges its subscription. Broker loss, worker death, stale
+  data and HTTP failure are separate visible conditions.
+- Retained messages can fill absent values as **last known**. A retained
+  "online" cannot prove liveness, a retained normal snapshot cannot overwrite a
+  stored cutoff, and retained telemetry never enters the temperature graph.
+- Heartbeats do not refresh temperature, output or reset timestamps. Queued old
+  events do not overwrite current state. Older dated snapshots are stored as
+  historical and cannot clear a newer shutdown.
+- MQTT DUP retransmissions with identical payloads are deduplicated. Within one
+  `boot_id`, a message whose `sequence` is not higher than the newest seen is
+  stored as `historical` (or `duplicate`) and changes nothing. A new `boot_id`
+  is a restart and is logged as `controller_restarted`.
+- There is no login, broker TLS or production HTTP service. Keep `runserver`
+  on localhost and use an SSH tunnel for remote work. The only command
+  endpoints are C4002 tuning and the shutdown reset, and neither has a login.
 
-## Running it
-
-See [setup.md](setup.md#backend-and-dashboard).
+Running it: [setup.md](setup.md#backend-and-dashboard).

@@ -1,6 +1,22 @@
 # Notes for AI coding agents
 
-Read [`docs/agent-context/handover.md`](docs/agent-context/handover.md) first.
+Read [`README.md`](README.md), [`docs/overview.md`](docs/overview.md) and
+[`docs/status.md`](docs/status.md) first. Decisions already made are in
+[`docs/architecture.md`](docs/architecture.md#design-decisions): don't reopen
+them without the user. Open work is in
+[GitHub issues](https://github.com/Antonio-1110/RB4107_AY2627/issues); there
+is no TODO file.
+
+## How the user likes to work
+
+- The user is learning ESP-IDF: explain options in plain terms, step by step.
+- Don't change code without asking; explain the options first.
+- Bench-test each part with its `firmware/testing/` project before the full system.
+- The S3 must keep protecting the kitchen when MQTT, Django, the laptop or the
+  network is down. Never add a dependency from the safety path on the
+  telemetry path.
+- Commit straight to `main` for now (a demo push): no PRs until the user says
+  the demo is mature. Never push or merge without being asked.
 
 ## Safety rules: one table, code and doc
 

@@ -38,7 +38,6 @@ typedef struct {
 typedef struct {
     safety_config_t safety;
     sensor_node_health_config_t health;
-    uint32_t valve_keepalive_ms;
     uint32_t verify_period_ms;
 } rb_params_target_t;
 

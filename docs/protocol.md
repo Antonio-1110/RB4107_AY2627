@@ -1,8 +1,7 @@
 # RB4107 ESP-NOW protocol (v3)
 
-Sensor nodes (ESP32-C6) → controller (ESP32-S3), plus the optional wireless
-valve node in both directions and C4002 tuning messages between the controller
-and the presence nodes ([c4002_tuning.md](c4002_tuning.md)). The implementation is in
+Sensor nodes (ESP32-C6) → controller (ESP32-S3), plus C4002 tuning messages
+between the controller and the presence nodes ([c4002_tuning.md](c4002_tuning.md)). The implementation is in
 [`firmware/components/rb_protocol`](../firmware/components/rb_protocol), and
 every firmware builds that same code.
 
@@ -13,11 +12,13 @@ The system has three nodes, each with one sensor:
 | presence node A | `presence_node` | 1 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
 | presence node B | `presence_node` (built with `sdkconfig.node_b`) | 2 | presence | PRESENCE_DATA, HEARTBEAT, SENSOR_FAULT |
 | thermal node | `thermal_node` | 3 | thermal | THERMAL_DATA, HEARTBEAT, SENSOR_FAULT, THERMAL_FRAME |
-| valve node (optional, wireless version) | `valve_node` (built with `sdkconfig.wireless`) | 4 | valve | VALVE_STATUS |
-| controller | `controller` (with `RB_CTRL_VALVE_WIRELESS`) | 0 | controller | VALVE_COMMAND, C4002_CONFIG, THERMAL_CONFIG |
+| controller | `controller` | 0 | controller | C4002_CONFIG, THERMAL_CONFIG |
 
-The controller only sends when the wireless valve node is turned on. Then it
-is the one sender that isn't a node, so its node ID is 0.
+The controller is the one sender that isn't a node, so its node ID is 0.
+There is no separate valve node: the controller drives the shutdown output
+itself (digital output 1, energised while it is safe). Message types 5 and 6
+(the old VALVE_COMMAND and VALVE_STATUS) and role 3 (valve) are retired: the
+controller rejects them as unknown, and they must not be reused.
 
 Version 1 carried presence and thermal data in one SENSOR_DATA packet from a
 single node. Version 2 splits them, and adds the sender's role to every
@@ -35,8 +36,8 @@ packet.
   byte. The receiver also checks the magic, version, type, role, exact length
   and node ID.
 - **Role-checked.** A message must match its sender's role (a thermal
-  node can't send PRESENCE_DATA, and only the controller can command the
-  valve). The controller also checks that the role
+  node can't send PRESENCE_DATA, and only the controller can send
+  C4002_CONFIG). The controller also checks that the role
   matches what it expects for that node ID, so a board flashed with the wrong
   firmware or ID is dropped and reported (`espnow_unknown_node`), never
   mistaken for another sensor.
@@ -52,8 +53,8 @@ packet.
 |---|---|---|---|
 | 0 | 2 | magic | `0x52 0x42` ("RB") |
 | 2 | 1 | protocol_version | `3` |
-| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, `5` VALVE_COMMAND, `6` VALVE_STATUS, `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE, `10` THERMAL_FRAME, `11` THERMAL_CONFIG |
-| 4 | 1 | node_role | `1` presence, `2` thermal, `3` valve, `4` controller |
+| 3 | 1 | message_type | `1` PRESENCE_DATA, `2` THERMAL_DATA, `3` HEARTBEAT, `4` SENSOR_FAULT, (`5` and `6` retired), `7` C4002_CONFIG, `8` C4002_CONFIG_ACK, `9` C4002_LIVE, `10` THERMAL_FRAME, `11` THERMAL_CONFIG |
+| 4 | 1 | node_role | `1` presence, `2` thermal, (`3` retired), `4` controller |
 | 5 | 4 | node_id | `CONFIG_RB_NODE_ID` of the sender |
 | 9 | 4 | sequence | +1 for every packet the node sends (all types except THERMAL_FRAME, which carries its frame number here) |
 | 13 | 4 | uptime_ms | node monotonic time; lets the receiver spot a node reboot |
@@ -130,39 +131,6 @@ cleared.
 | 1 | `C4002_INVALID` | reports arrive but fail validation | presence nodes |
 | 2 | `MLX_NO_DATA` | MLX90640 missing or failing to deliver frames | thermal node |
 | 3 | `MLX_INVALID` | frames arrive but fail validation | thermal node |
-
-## VALVE_COMMAND (type 5, 24 bytes total)
-
-Controller → valve node. Sent every `RB_CTRL_VALVE_KEEPALIVE_MS` (1 s), and
-right away when the command changes. Only the controller role may send it.
-
-| Offset | Size | Field | Encoding |
-|---|---|---|---|
-| 17 | 1 | command | `1` KEEP_OPEN, `2` CLOSE. The node treats any other value as CLOSE. |
-| 18 | 4 | valve node ID | the valve node this is for; other nodes ignore it |
-| 22 | 2 | CRC | |
-
-KEEP_OPEN is a dead-man signal: the valve node closes the valve if no
-KEEP_OPEN arrives for `RB_VALVE_LINK_TIMEOUT_MS` (3 s). The controller sends
-CLOSE on shutdown, and also when its safety task stops reporting.
-
-## VALVE_STATUS (type 6, 26 bytes total)
-
-Valve node → controller. Sent every `RB_VALVE_STATUS_PERIOD_MS` (1 s), and
-right away when the valve moves. Only the valve role may send it.
-
-| Offset | Size | Field | Encoding |
-|---|---|---|---|
-| 17 | 1 | position | `1` OPEN, `2` CLOSED (commanded: a hobby servo has no feedback) |
-| 18 | 1 | flags | bit0 moving (within `RB_VALVE_TRAVEL_MS` of a move), bit1 latched closed until reset |
-| 19 | 1 | reason | why it is closed: `0` open, `1` boot, `2` controller sent CLOSE, `3` no keep-open, `4` wired line high |
-| 20 | 4 | last command sequence | `sequence` of the last VALVE_COMMAND accepted, 0 if none |
-| 24 | 2 | CRC | |
-
-The valve messages were added without bumping the version. The existing
-messages are byte-for-byte unchanged, so the sensor nodes don't need
-reflashing. An older controller rejects the new types as an unknown message
-type.
 
 ## C4002 parameters block (70 bytes)
 
@@ -289,7 +257,7 @@ THERMAL_FRAME piece (offset 27).
 | 24 | 2 | hot threshold | int16, 0.01 °C (set only; the node accepts -40.00 – 300.00 °C) |
 | 26 | 2 | CRC | |
 
-Added without a version bump, like messages 5 to 10: the presence and valve
+Added without a version bump, like messages 5 to 10: the presence and thermal
 nodes don't need reflashing.
 
 The threshold and radius let the dashboard draw what the node's own hot-pixel

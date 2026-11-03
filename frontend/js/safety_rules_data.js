@@ -231,12 +231,6 @@ export default {
    "title": "X. Outside the state machine",
    "rows": [
     {
-     "id": "X1",
-     "when": "Wireless gas valve: in SHUTDOWN, or the safety task stops reporting",
-     "result": "Valve CLOSE; otherwise KEEP_OPEN every {{RB_CTRL_VALVE_KEEPALIVE_MS|1 s}}",
-     "code": "link_task()"
-    },
-    {
      "id": "X2",
      "when": "MQTT, Django, the laptop or the network is down",
      "result": "No effect on any rule: the safety task never waits on them, and the settings the dashboard gave it stay in force (saved on the controller)",

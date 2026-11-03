@@ -129,10 +129,8 @@ typedef struct {
     void (*override_inputs)(safety_inputs_t *inputs, void *ctx);
     /* Every packet accepted from a configured node (remote C4002 tuning learns MACs and ACKs here). */
     void (*node_packet)(const rb_espnow_rx_t *rx, void *ctx);
-    /* A packet from a valve node (wireless gas valve). Return false if it isn't one we expect. */
-    bool (*valve_packet)(const rb_packet_t *packet, uint32_t rx_ms, void *ctx);
-    /* The settings rb_params.def keeps outside the safety task changed: the valve keep-alive and the
-     * shutdown read-back period. */
+    /* The settings rb_params.def keeps outside the safety task changed: the shutdown read-back
+     * period. */
     void (*params_applied)(const rb_params_target_t *target, void *ctx);
     void *ctx;
 } rb_controller_hooks_t;
@@ -141,7 +139,6 @@ typedef struct {
     safety_config_t safety;
     sensor_node_health_config_t health;
     node_set_config_t nodes;
-    uint32_t valve_keepalive_ms;  /* only reported and passed to params_applied: the application uses them */
     uint32_t verify_period_ms;
     uint32_t rx_queue_len;
     uint32_t event_queue_len;

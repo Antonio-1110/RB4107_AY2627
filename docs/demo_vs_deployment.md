@@ -18,7 +18,7 @@ measured it; *not checked* means it is an assumption.
 | Remote **reset** of a latched shutdown | any dashboard user can restore the gas | reset only at the stall (physical button), or an authenticated and logged operator action | *checked*: [remote_reset.md](remote_reset.md) |
 | Remote safety settings (presence filter, timers, cooking temperature, cookware) | accepted within wide limits, so they can be set to weaken the protection | hard floors and ceilings on the S3 that the dashboard can't override; settings may only make things stricter without a physical key | *checked*: limits in `rb_ctrl_cmd.h` (warning/shutdown up to 1 h, cooking temperature up to 300 °C) |
 | ESP-NOW between nodes and controller | unencrypted and unauthenticated (CRC only) | ESP-NOW encryption (PMK/LMK) or a message authentication code, plus replay protection | *checked*: `.encrypt = false` in `rb_espnow.c` |
-| "Monitor / Tuning" switch on the dashboard | cosmetic: it hides the tools, it does not lock the API | server-side permission on the tuning endpoints | *checked*: [dashboard.md](dashboard.md#monitor-and-tuning-modes) |
+| "Monitor / Tuning" switch on the dashboard | cosmetic: it hides the tools, it does not lock the API | server-side permission on the tuning endpoints | *checked*: [dashboard.md](dashboard.md#stall-page) |
 | Personal data | presence of staff is logged | retention and access rules for presence and thermal data | retention exists (see Data); policy *not checked* |
 
 ## Safety hardware and fail-safe behaviour
@@ -29,7 +29,6 @@ measured it; *not checked* means it is an assumption.
 | Hung (not crashed) safety task | nothing ties it to the relay; the relay stays energised | a hardware or task watchdog that de-energises the relay if the safety loop stops | *checked*: no such watchdog found in the controller |
 | Relay state during boot | released (appliance powered) is the default; marked an open question | decide and test the safe state | *checked*: `RB_SHUTDOWN_BOOT_STATE` |
 | Reboot while a timeline is running | the timeline starts over from IDLE | keep the unattended time across a reboot, or treat a reboot with a hot stove as already unattended | *checked*: state is RAM only |
-| Wireless valve | closes on its own timeout if the controller stops sending | same, tested with real valves | *checked*: `rb_valve_link.h`; hardware *not checked* |
 | Certification | none | a certified valve and a documented fail-closed design, reviewed by whoever signs off on the safety case | *not checked* (standards not looked up) |
 
 ## How long is too long? (unattended time limits)
@@ -78,7 +77,7 @@ default if you want to show the live radar view.
 | Automated tests | host tests run by hand (safety, protocol, JSON, Django); the ESP-IDF unit-test app has to be built with ESP-IDF | CI that runs the host tests on every push | *checked*: no `.github` folder; the unit-test app did not compile for a while before it was noticed |
 | Adding a node | node IDs by MAC address in `sdkconfig`, reflash to add one | provisioning without a rebuild | *checked*: `presence_node/sdkconfig.defaults` |
 | Dashboard and flashed settings | settings sent from the dashboard may differ from the flashed defaults; the presence filter is lost on reboot | one place that shows what is running and where it came from | partly built (the telemetry reports the source of each setting) |
-| Hardware-in-the-loop test | none | a repeatable end-to-end test with real sensors and a valve | *not built* |
+| Hardware-in-the-loop test | none | a repeatable end-to-end test with real sensors and a real shut-off | *not built* |
 | Alerts to staff | Telegram message on buzzer and shutdown, with an Acknowledge button that records who responded, sent from Django on the Mac ([telegram_alerts.md](telegram_alerts.md)); nothing if the Mac or internet is down | SMS for the critical alert, from a sender ID registered in Singapore's SMS Sender ID Registry (needs the operator's UEN, S$500 setup plus S$200 a year per ID; unregistered senders show as "Likely-SCAM"), sent from a server that is always on | *checked*: [SGNIC registry](https://prod.sgnic.sg/smsregistry); SMS *not built* |
 
 ## Demo notes (things to know when presenting)
@@ -89,8 +88,7 @@ default if you want to show the live radar view.
   rising fast gets the tier it is heading for. The dashboard's "hot_pan" demo scenario
   shows tier 4. The tier values are a baseline.
 - **The base timers are 2.5 min to the buzzer and 5 min to the shutdown**
-  (`RB_SAFETY_WARNING_TIMEOUT_S` and `RB_SAFETY_SHUTDOWN_TIMEOUT_S`; they were
-  3 min / 5 min, and 20 s / 40 s before that). The cooking judgment needs about 1-2 minutes of temperature
+  (`RB_SAFETY_WARNING_TIMEOUT_S` and `RB_SAFETY_SHUTDOWN_TIMEOUT_S`). The cooking judgment needs about 1-2 minutes of temperature
   history, so the buzzer has to come later than that for the demo to show the
   timers behaving correctly for the situation. Both can be changed from the
   dashboard (Tuning, Safety); the controller saves them.

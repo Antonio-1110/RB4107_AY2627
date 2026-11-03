@@ -29,49 +29,43 @@ idf.py build                      # the chip (C6 or S3) comes from sdkconfig.def
 idf.py -p <PORT> flash monitor
 ```
 
-Both presence nodes can run the same build: list their MACs in
+Both presence nodes can share one build: list their MACs in
 `CONFIG_RB_NODE_ID_BY_MAC` in `firmware/presence_node/sdkconfig.defaults`
-(e.g. `"AA:BB:CC:DD:EE:01=1, AA:BB:CC:DD:EE:02=2"`; each board prints its MAC
-at boot) and each board picks its node ID from its own MAC. Without that list,
-presence node B uses its own build folder so it never shares a config with A:
+(`"AA:BB:CC:DD:EE:01=1, AA:BB:CC:DD:EE:02=2"`; each board prints its MAC at boot).
+Without that list, node B needs its own build folder so it never shares a config
+with A:
 
 ```bash
 idf.py -B build_b -D SDKCONFIG=build_b/sdkconfig \
        -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.node_b" -p <PORT> flash monitor
 ```
 
-**No configuration is needed.** The defaults are this project's hardware:
-pins, relay polarity, buzzer, radar settings, node IDs, the S3's MAC on every
-node (`44:B1:76:A9:BB:6C`) and the MacBook as the broker
-(`AntoniodeMacBook-Air.local`, then `192.168.1.50`). Build and flash each
-board in any order; at boot the controller logs `ONLINE` for each node as it
-hears it.
+**No configuration is needed.** The defaults in each project's
+`sdkconfig.defaults` are this project's hardware: pins, relay polarity, node
+IDs, the S3's MAC on every node and the MacBook as the broker. Build and flash
+in any order; at boot the controller logs `ONLINE` for each node as it hears it.
 
-If a project was built before these defaults changed, delete its
-`sdkconfig` (and `build_b/sdkconfig` for node B) first: an existing
-`sdkconfig` keeps its old values. Change a default only when the hardware
-changes, e.g. `RB_NODE_CONTROLLER_MAC` in the nodes' `sdkconfig.defaults` if
-the S3 board is replaced.
+If a project was built before its defaults changed, delete its `sdkconfig` (and
+`build_b/sdkconfig`) first: an existing `sdkconfig` keeps its old values. Change
+a default only when the hardware changes, e.g. `RB_NODE_CONTROLLER_MAC` in the
+nodes' `sdkconfig.defaults` if the S3 board is replaced.
 
-**New to the hardware?** Check each part on its own first with the projects in
-[`firmware/testing/`](../firmware/testing) (radar, thermal camera, buzzer,
-relay, RTC, network). Confirm relay polarity and boot state **before**
-connecting a real appliance. Flashing a test project replaces the system
-firmware; flash the system firmware back afterwards.
+**New to the hardware?** Check each part first with the projects in
+[`firmware/testing/`](../firmware/testing). Confirm relay polarity and boot
+state **before** connecting a real appliance. A test project replaces the system
+firmware; flash it back afterwards.
 
 ## Changing settings
 
 Every pin, timeout and threshold is in `idf.py menuconfig` → *RB4107
-configuration*. All options: [configuration.md](configuration.md). Values
-flagged `UNCONFIRMED` / `OPEN QUESTION` / `UNVERIFIED` still need checking
-on hardware.
+configuration* (all options: [configuration.md](configuration.md)). Values
+flagged `UNCONFIRMED` / `OPEN QUESTION` / `UNVERIFIED` still need checking on
+hardware.
 
 Settings can also go in a file, using the `CONFIG_` name:
-
-- `<project>/sdkconfig.defaults` (committed): e.g. `CONFIG_RB_C4002_RX_GPIO=4`.
-  Only applied when the project has no `sdkconfig` yet, so delete
-  `<project>/sdkconfig` and rebuild after editing.
-- `<project>/sdkconfig` (generated, only on your machine): edit and rebuild.
+`<project>/sdkconfig.defaults` (committed; only applied when the project has no
+`sdkconfig` yet, so delete `<project>/sdkconfig` and rebuild after editing) or
+`<project>/sdkconfig` (generated, only on your machine).
 
 **Never commit `sdkconfig`.** It can hold the Wi-Fi password.
 
@@ -84,19 +78,17 @@ tools/mqtt/start_broker.sh     # allow incoming connections if macOS asks
 tools/mqtt/lan_ip.sh           # the IP to put in RB_BROKER_HOST on the controller
 ```
 
-The controller and laptop must be on the same network. The controller uses
-Wi-Fi only (`RB_NET_TYPE` = Wi-Fi station, the default): set `RB_WIFI_SSID`
-and `RB_WIFI_PASSWORD` in menuconfig. The on-board Ethernet is not used.
+The controller and laptop must be on the same network. The controller is Wi-Fi
+only (`RB_NET_TYPE` = Wi-Fi station): set `RB_WIFI_SSID` and `RB_WIFI_PASSWORD`
+in menuconfig.
 
-With Wi-Fi, the router sets the channel, and ESP-NOW on the controller moves
-with it (the controller logs `ESP-NOW channel 1 -> 6` and reports
-`espnow_channel` in telemetry). The nodes follow on their own
-(`RB_ESPNOW_FOLLOW_CHANNEL`): after a few unacknowledged packets a node probes
-channels 1–13, stays on the one where the controller answers (log
-`controller found on channel 6`) and remembers it for the next boot. This
-takes about a second, also when the router changes channel later. It needs
-`RB_NODE_CONTROLLER_MAC` set on every node; a node sending to broadcast stays
-on `RB_ESPNOW_CHANNEL`, which must then match the router.
+The router sets the channel and ESP-NOW on the controller moves with it
+(`ESP-NOW channel 1 -> 6` in the log; `espnow_channel` in telemetry). The nodes
+follow on their own (`RB_ESPNOW_FOLLOW_CHANNEL`): after a few unacknowledged
+packets a node probes channels 1-13, stays on the one where the controller
+answers and remembers it for the next boot, in about a second. This needs
+`RB_NODE_CONTROLLER_MAC` set on every node; a node sending to broadcast stays on
+`RB_ESPNOW_CHANNEL`, which must then match the router.
 
 ### Phone hotspot as a backup
 
@@ -108,19 +100,17 @@ menuconfig → RB4107 configuration → Network:
 | `RB_WIFI_SSID_2`, `RB_WIFI_PASSWORD_2` | the hotspot's name and password |
 | `RB_BROKER_FALLBACK_HOST_2` | the Mac's IP on the hotspot (`tools/mqtt/lan_ip.sh` while on it; usually `172.20.10.x` on an iPhone) |
 
-The controller joins one network at a time. It starts on `RB_WIFI_SSID`, and
-after `RB_WIFI_SWITCH_AFTER` (3) failed attempts in a row it tries the
-hotspot, alternating until one works (log `switching to '<ssid>'`; the `mqtt`
-console command shows the SSID in use). With the router missing that takes
-about 10–20 s after boot. It stays on the hotspot until the hotspot fails, so
-reboot it to go back to the router. The broker is tried as `RB_BROKER_HOST`
-(the `.local` name, which normally works on a hotspot too), then each
-fallback IP in turn.
+The controller joins one network at a time. It starts on `RB_WIFI_SSID` and,
+after `RB_WIFI_SWITCH_AFTER` failed attempts in a row, tries the hotspot,
+alternating until one works (log `switching to '<ssid>'`; the `mqtt` console
+command shows the SSID in use). With the router missing that takes about 10-20 s
+after boot. It stays on the hotspot until the hotspot fails; reboot to go back to
+the router. The broker is tried as `RB_BROKER_HOST` (the `.local` name, which
+normally works on a hotspot too), then each fallback IP in turn.
 
 On the phone: the S3 only does 2.4 GHz, so on an iPhone turn on Personal
-Hotspot → **Maximize Compatibility**, and keep the Mac joined to the hotspot
-too (it runs the broker). The hotspot picks its own channel; the nodes
-follow it as above.
+Hotspot → **Maximize Compatibility**, and keep the Mac joined to the hotspot too
+(it runs the broker). The nodes follow the hotspot's channel as above.
 
 ## Backend and dashboard
 
@@ -138,63 +128,66 @@ Then, from the repository root:
 tools/run_dev.sh
 ```
 
-It starts Mosquitto, the MQTT subscriber and the Django server together and
-opens the dashboard at http://127.0.0.1:8000/. Ctrl-C stops all three. From
-another terminal, or after closing the one it ran in, `tools/stop_dev.sh` does
-the same and also cleans up anything left over (for example "port 8000 already
-in use" after a crash). It only touches this project's processes.
+It starts Mosquitto, the MQTT subscriber and the Django server and opens the
+dashboard at http://127.0.0.1:8000/. Ctrl-C stops all three. `tools/stop_dev.sh`
+does the same from another terminal and cleans up leftovers (for example "port
+8000 already in use" after a crash); it only touches this project's processes.
 Stopping erases the recorded data (`django/db.sqlite3`, `demo.sqlite3`), so
-every run starts with an empty dashboard. With `--demo` the made-up stalls come
-back within seconds, since they are generated, not stored.
-Options: `RB4107_SKIP_BROKER=1` if a broker is already running,
+every run starts with an empty dashboard; leave it running until you have looked
+at the results. Options: `RB4107_SKIP_BROKER=1` if a broker is already running,
 `RB4107_NO_BROWSER=1` to not open the browser.
 
-While it runs, `run_dev.sh` keeps the Mac from sleeping (`caffeinate -i -s`,
-macOS only; `RB4107_ALLOW_SLEEP=1` turns that off), so the broker and
-dashboard stay up during a long test. For a multi-day run:
+`run_dev.sh` keeps a Mac awake with `caffeinate -i -s` (`RB4107_ALLOW_SLEEP=1`
+turns that off). For a multi-day run:
 
-- Keep the Mac on its charger: `-s` only blocks sleep on mains power.
-- Don't close the lid. A closed lid sleeps the Mac anyway unless an external
-  display, keyboard and power are connected. If it has to be closed,
-  `sudo pmset -a disablesleep 1` stops all sleep until you undo it with
-  `sudo pmset -a disablesleep 0`.
-- Turn off automatic macOS updates (System Settings > General > Software
-  Update > Automatic Updates) so it doesn't restart overnight.
-- Stopping `run_dev.sh` erases the recorded data, so leave it running until
-  you have looked at the results.
+- Keep the Mac on its charger (`-s` only blocks sleep on mains power).
+- Don't close the lid unless an external display, keyboard and power are
+  connected; otherwise `sudo pmset -a disablesleep 1` (undo with `0`).
+- Turn off automatic macOS updates so it doesn't restart overnight.
 
-If the Mac does sleep, the controller keeps protecting the kitchen on its
-own; only telemetry, the dashboard and Reset shutdown are missing until it
-wakes.
+If the Mac does sleep, the controller keeps protecting the kitchen on its own;
+only telemetry, the dashboard and Reset shut-off are missing until it wakes.
 
-For a demonstration, `tools/run_dev.sh --demo` adds simulated stalls next to
-the real one: the cases a single bench stall can't show at once (several
-incidents across sites, a stall that has cut its supply and is cooling down,
-two stations in one stall, a radar node unplugged, a stall losing its
-network). They come from `django/locations.demo.json` (`demo_scenario` per
-stall), are tagged SIMULATED on the dashboard, and are kept in their own
-`django/demo.sqlite3`, so they never mix with real data. The real controller
-works as usual alongside them, Reset shutdown included. Without hardware the
-demo still runs, just without the real stall.
+`tools/run_dev.sh --demo` adds simulated stalls next to the real one (cases a
+single bench stall can't show at once). They come from
+`django/locations.demo.json` (`demo_scenario` per stall), are tagged SIMULATED on
+the dashboard, and live in their own `django/demo.sqlite3`. The real controller
+works as usual alongside them, Reset shut-off included.
+
+Add `--no-telegram` (`tools/run_dev.sh --demo --no-telegram`) to keep Telegram
+alerts off for that run, for example when demoing to visitors, even if
+`django/.env` has a bot token. `.env` is not changed.
 
 Each controller publishes under its own `rb4107/<controller_id>` tree
-(`RB_MQTT_TOPIC_PREFIX`, `rb4107/controller_01` for the bench) and Django
-subscribes to `rb4107/+/#` (`RB4107_MQTT_TOPIC`), so real and simulated
-controllers share the broker without overwriting each other.
+(`RB_MQTT_TOPIC_PREFIX`) and Django subscribes to `rb4107/+/#`
+(`RB4107_MQTT_TOPIC`), so real and simulated controllers share the broker.
 
-Other machines on the same network open `http://192.168.1.50:8000/`. The
-lab router gives the MacBook that fixed IP, and it is also in
-`DJANGO_ALLOWED_HOSTS` (with 192.168.1.73). Whatever IP and name the Mac
-has when the server starts are accepted too, so on another network others use
-the address `run_dev.sh` prints (`RB4107_ALLOW_OWN_HOSTS=0` turns that off). The controller finds the broker by the MacBook's mDNS
-name (`RB_BROKER_HOST="AntoniodeMacBook-Air.local"` in
-`firmware/controller/sdkconfig.defaults`), which works on any network, and
-alternates with that IP (`RB_BROKER_FALLBACK_HOST`) after each failed attempt;
-`mqtt` on the controller console shows which one is in use. The server has no login: anyone on the network can use the
-dashboard, including **Reset shutdown** and C4002 tuning. That is fine for this
-demo on a controlled network. On a shared network, start it with
-`RB4107_HTTP_ADDR=127.0.0.1:8000` and use an SSH tunnel instead. More:
-[django/README.md](../django/README.md).
+Other machines on the network open `http://<the Mac's IP>:8000/`. Django accepts
+`DJANGO_ALLOWED_HOSTS` (`django/rb4107_backend/settings.py`) plus whatever IP and
+name the Mac has when the server starts, so on another network use the address
+`run_dev.sh` prints (`RB4107_ALLOW_OWN_HOSTS=0` turns that off). The controller
+finds the broker by the Mac's mDNS name (`RB_BROKER_HOST`), alternating with
+`RB_BROKER_FALLBACK_HOST` after each failed attempt; both are set in
+`firmware/controller/sdkconfig.defaults`.
+
+The server has no login: anyone on the network can use the dashboard, including
+**Reset shut-off** and C4002 tuning. That is fine for this demo on a controlled
+network. On a shared network start it with `RB4107_HTTP_ADDR=127.0.0.1:8000` and
+use an SSH tunnel. More: [django/README.md](../django/README.md).
+
+## Gotchas
+
+- `sdkconfig.defaults` only applies when a project has no `sdkconfig`. Delete
+  `sdkconfig` after changing defaults.
+- **Never commit `sdkconfig`.** It holds the Wi-Fi password (it is gitignored).
+- ESP-NOW and Wi-Fi share the radio, so with Wi-Fi the ESP-NOW channel must
+  match the router on every board. The nodes find it themselves
+  (`RB_ESPNOW_FOLLOW_CHANNEL`).
+- DFRobot's Arduino C4002 example repeats the last reading when no new frame
+  arrives. The ESP-IDF driver here doesn't; see `firmware/testing/c4002/README.md`.
+- Flash over UART, not JTAG.
+- The node B build command above is spelled out because a `$VAR` shortcut
+  doesn't word-split in zsh.
 
 ## Tests
 

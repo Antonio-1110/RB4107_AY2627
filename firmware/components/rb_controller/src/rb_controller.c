@@ -84,7 +84,6 @@ rb_controller_config_t rb_controller_config_from_kconfig(void)
                       .zone_max_cm = CONFIG_RB_CTRL_RADAR_ZONE_MAX_CM},
 #endif
         },
-        .valve_keepalive_ms = CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS,
         .verify_period_ms = CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS,
         .rx_queue_len = CONFIG_RB_CTRL_RX_QUEUE_LEN,
         .event_queue_len = CONFIG_RB_CTRL_EVENT_QUEUE_LEN,
@@ -156,14 +155,11 @@ static void log_node_events(const sensor_node_state_t *node, node_slot_t slot, u
 static void on_packet(node_set_t *nodes, const rb_espnow_rx_t *rx)
 {
     if (rx->packet.role != RB_NODE_ROLE_PRESENCE && rx->packet.role != RB_NODE_ROLE_THERMAL) {
-        /* Not a sensor node: valve status goes to the application, anything else is foreign. */
-        if (rx->packet.role != RB_NODE_ROLE_VALVE || s_hooks.valve_packet == NULL ||
-            !s_hooks.valve_packet(&rx->packet, rx->rx_ms, s_hooks.ctx)) {
-            s_foreign_packets++;
-            RB_LOG_EVERY_MS(5000, ESP_LOGW, "SENSOR", "dropped %s packet from %s node_%02lu (wireless valve link off?)",
-                            rb_msg_type_name(rx->packet.type), rb_node_role_name(rx->packet.role),
-                            (unsigned long)rx->packet.node_id);
-        }
+        /* Not a sensor node: foreign. */
+        s_foreign_packets++;
+        RB_LOG_EVERY_MS(5000, ESP_LOGW, "SENSOR", "dropped %s packet from %s node_%02lu",
+                        rb_msg_type_name(rx->packet.type), rb_node_role_name(rx->packet.role),
+                        (unsigned long)rx->packet.node_id);
         return;
     }
     node_slot_t slot;
@@ -215,7 +211,6 @@ static void safety_task(void *arg)
     bool params_on = false; /* dashboard settings of rb_params.def in force */
     rb_params_t params = {0};
     rb_params_target_t target = {.safety = sm.cfg, .health = s_cfg.health,
-                                 .valve_keepalive_ms = s_cfg.valve_keepalive_ms,
                                  .verify_period_ms = s_cfg.verify_period_ms};
     rb_params_t params_now; /* what is in force, for telemetry */
     rb_params_read(&target, &params_now);
@@ -282,8 +277,7 @@ static void safety_task(void *arg)
             const bool next_params_on = new_params ? pending_params_on : params_on;
             const rb_params_t next_params = new_params ? pending_params : params;
             rb_params_target_t next_target = {.safety = next, .health = s_cfg.health,
-                                              .valve_keepalive_ms = s_cfg.valve_keepalive_ms,
-                                              .verify_period_ms = s_cfg.verify_period_ms};
+                                                           .verify_period_ms = s_cfg.verify_period_ms};
             if (next_params_on) {
                 rb_params_write(&next_params, &next_target);
                 next = next_target.safety;
@@ -320,8 +314,7 @@ static void safety_task(void *arg)
             if ((!next_params_on || rb_params_target_valid(&next_target)) && safety_set_config(&sm, &next)) {
                 params_on = next_params_on;
                 params = next_params;
-                const bool outside_changed = next_target.valve_keepalive_ms != target.valve_keepalive_ms ||
-                                             next_target.verify_period_ms != target.verify_period_ms;
+                const bool outside_changed = next_target.verify_period_ms != target.verify_period_ms;
                 target = next_target;
                 target.safety = sm.cfg;
                 rb_params_read(&target, &params_now);

@@ -1,0 +1,33 @@
+# Glossary
+
+| Term | Meaning |
+|---|---|
+| **Stall** | One cooking station. A stall has one or more controllers |
+| **Controller** | The ESP32-S3 that runs the safety logic, drives the buzzer and the shutdown output, and publishes over MQTT |
+| **Presence node** | ESP32-C6 with a C4002 radar. Two are used (node IDs 1 and 2) |
+| **Thermal node** | ESP32-C6 with an MLX90640 thermal camera (node ID 3) |
+| **ESP-NOW** | Wi-Fi-based radio link from the nodes to the controller. No router needed ([protocol.md](protocol.md)) |
+| **C4002** | The mmWave radar module. Reports none, moving or stationary targets with a distance |
+| **MLX90640** | 32×24 thermal camera. The hottest pixel is the stove temperature |
+| **Cooking** | Judged by the controller: the hottest pixel reaches the cooking temperature, and heat is still going in rather than the pan cooling |
+| **Presence** | PRESENT, ABSENT or UNKNOWN, combined from both radars. UNKNOWN is never treated as PRESENT |
+| **Absence / return debounce** | How long someone must be gone before the countdown starts, and back before it stops. Stops radar noise from starting or cancelling timers |
+| **IDLE** | Nothing cooking |
+| **MONITORING** | Cooking, and a person is there |
+| **UNATTENDED** | Cooking and nobody there: the countdown runs |
+| **WARNING** | Countdown reached the warning time: buzzer on |
+| **SHUTDOWN** | Countdown reached the shutdown time: output 1 drops, appliance off. Latched until an operator reset |
+| **FAULT** | The controller's own failure (self-test or output read-back). A lost sensor is a flag, not a FAULT |
+| **Tier** | The temperature band that sets the warning and shutdown times. Hotter means shorter |
+| **Hold / pause** | A short freeze of the countdown, for example while a passer-by is detected. Limited by a budget per countdown |
+| **Flag** | A sensor-problem marker (*presence unknown*, *thermal lost*). Shown on the dashboard; never turns into a fault |
+| **Latched** | Stays in force until someone resets it |
+| **Fail-safe** | The output's resting state is "appliance off": a power loss or wire break shuts it down |
+| **Shutdown output / relay** | Output 1 of the controller, driving an external relay coil |
+| **Incident** | One unattended-cooking episode, from the first UNATTENDED to its end. The Stall history tab counts them |
+| **Telemetry** | The controller's JSON snapshots published over MQTT about once a second |
+| **MQTT / broker** | The messaging layer between controller and backend. Mosquitto runs on the laptop |
+| **Schema version** | Version of the MQTT JSON format (2). The ESP-NOW **protocol version** (3) is separate |
+| **Kconfig / menuconfig** | ESP-IDF's build-time settings. Every tunable is in `firmware/components/rb_config/Kconfig` |
+| **`rb_params.def`** | The list of safety settings the dashboard can change at run time |
+| **Monitor / Tuning** | The dashboard's two modes: watch only, or watch and tune |

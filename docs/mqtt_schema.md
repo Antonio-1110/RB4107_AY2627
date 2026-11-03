@@ -1,8 +1,66 @@
-# MQTT JSON schema (schema_version 2)
+# MQTT topics and JSON schema (schema_version 2)
 
 Produced by [`firmware/components/rb_json`](../firmware/components/rb_json).
 Machine-readable: [`schema/rb4107_mqtt.schema.json`](schema/rb4107_mqtt.schema.json).
 Check any capture with `tools/diagnostics/validate_json.py`.
+
+## Topics
+
+Topics are defined in [`firmware/components/rb_topics`](../firmware/components/rb_topics).
+The prefix is configurable (`RB_MQTT_TOPIC_PREFIX`). The controller uses
+`rb4107/controller_01`, one tree per controller, so read `rb4107/` below as
+`rb4107/<controller_id>/`. Node names are
+`node_<id>` with the ID zero-padded to two digits. With the default IDs:
+`node_01` and `node_02` are the presence nodes, `node_03` the thermal node.
+
+```text
+rb4107/
+├── controller/
+│   ├── status      retained online/offline (Last Will)
+│   ├── heartbeat   liveness
+│   ├── state       full telemetry snapshot (see below)
+│   ├── faults      active fault list
+│   ├── log         the controller's log lines (dashboard Logs tab)
+│   └── command     dashboard → controller commands (subscribed)
+├── sensors/
+│   └── <node>/
+│       ├── presence
+│       ├── thermal
+│       ├── status        node link state
+│       ├── c4002_config  presence node radar settings / tuning result
+│       ├── c4002_live    raw radar results for the live view
+│       ├── c4002_set     dashboard → controller tuning command (subscribed)
+│       └── thermal_frame heat-map picture (thermal node, display only)
+└── events/
+    ├── warning
+    ├── shutdown
+    └── fault
+```
+
+| Topic | QoS | Retained | When |
+|---|---|---|---|
+| `controller/status` | 1 | yes | on connect (`online: true`); Last Will (`online: false`) |
+| `controller/heartbeat` | 0 | no | every telemetry period |
+| `controller/state` | 0 | yes | every telemetry period, and right away on every state transition |
+| `controller/faults` | 1 | yes | on every fault raised/cleared |
+| `controller/log` | 0 | no | batches of the controller's log lines while the broker is connected, plus the log levels every 30 s and on change; off with `RB_MQTT_PUBLISH_LOG` ([logging.md](logging.md)) |
+| `controller/command` | 1 | no | published by Django when the dashboard's reset button is pressed; the controller subscribes ([remote_reset.md](remote_reset.md)) |
+| `sensors/<node>/presence` | 0 | no | every telemetry period, for each presence node (`node_01`, `node_02`) |
+| `sensors/<node>/thermal` | 0 | no | every telemetry period, for the thermal node (`node_03`) |
+| `sensors/<node>/thermal_frame` | 0 | no | each complete heat-map picture from the thermal node, about every 3 s (`RB_THERMAL_HEATMAP_PERIOD_MS`); off with `RB_MQTT_PUBLISH_HEATMAP` |
+| `sensors/<node>/status` | 1 | yes | on node ONLINE/STALE/OFFLINE and sensor validity changes |
+| `sensors/<node>/c4002_config` | 1 | yes | when a presence node answers a tuning command, or a command fails ([c4002_tuning.md](c4002_tuning.md)) |
+| `sensors/<node>/c4002_live` | 0 | no | each new raw C4002 result, a few per second, for the dashboard's live radar view |
+| `sensors/<node>/c4002_set` | 1 | no | published by Django; the controller subscribes to `sensors/+/c4002_set` |
+| `events/warning` | 1 | no | entering WARNING |
+| `events/shutdown` | 1 | no | entering SHUTDOWN |
+| `events/fault` | 1 | no | fault raised or cleared (incl. node offline/restored); entering the FAULT state |
+
+Retained topics let a subscriber that starts later (e.g. Django) see the
+current status, state and faults straight away.
+
+Subscribe to everything: `mosquitto_sub -h <broker> -t 'rb4107/#' -v`
+(or `tools/mqtt/watch.sh`).
 
 ## Rules
 
@@ -28,10 +86,6 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   a field requires a bump.
 - `protocol_version` in telemetry is the ESP-NOW protocol version the sensor
   data arrived with (see [protocol.md](protocol.md)).
-- Version 2 (three sensor nodes) replaced the single node's `sensor_node`,
-  `node_link` and `presence` in `telemetry` with `presence_state` and
-  `nodes`, and `presence_valid` / `thermal_valid` in `node_status` with
-  `role` and `valid`.
 
 ## `telemetry` (topic `controller/state`)
 
@@ -44,7 +98,7 @@ Check any capture with `tools/diagnostics/validate_json.py`.
   "timestamp": "2026-09-26T00:00:00+08:00",
   "uptime_ms": 18400,
   "sequence": 4127,
-  "protocol_version": 2,
+  "protocol_version": 3,
   "espnow_channel": 1,
   "presence_state": "ABSENT",
   "nodes": [

@@ -70,7 +70,7 @@ esp_err_t rb_espnow_follow_start(const uint8_t controller_mac[6], rb_espnow_prob
 /*
  * Ask the follow task to check that the controller still acknowledges on
  * the current channel, and search if it doesn't. For a node that mostly
- * listens (the valve node). Never blocks.
+ * listens. Never blocks.
  */
 void rb_espnow_follow_check(void);
 

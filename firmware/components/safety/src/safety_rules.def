@@ -169,9 +169,6 @@ SAFETY_RULE(T21, ST(SAFETY_FAULT), g_fault_persisted, SAFETY_SHUTDOWN, NULL, "fa
     "In FAULT for {RB_SAFETY_FAULT_SHUTDOWN_S} (0 = never, menuconfig only)")
 
 /* ---- outside the state machine ---- */
-SAFETY_SIGNAL(X1, "rb_valve_link/src/rb_valve_link.c", link_task,
-    "Wireless gas valve: in SHUTDOWN, or the safety task stops reporting",
-    "Valve CLOSE; otherwise KEEP_OPEN every {=RB_CTRL_VALVE_KEEPALIVE_MS}")
 SAFETY_SIGNAL(X2, "rb_controller/src/rb_controller.c", safety_task,
     "MQTT, Django, the laptop or the network is down",
     "No effect on any rule: the safety task never waits on them, and the settings the dashboard gave it stay in force (saved on the controller)")

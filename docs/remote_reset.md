@@ -1,13 +1,12 @@
-# Resetting a shutdown from the dashboard
+# Resetting a shutdown and changing safety settings from the dashboard
 
 A SHUTDOWN is latched: output 1 stays in its shutdown state until an operator
-reset ([safety_state_machine.md](safety_state_machine.md)). The reset can come
-from three places, and all of them do the same thing
-(`rb_controller_request_reset()`):
+reset ([safety_state_machine.md](safety_state_machine.md)). A reset can come
+from three places, and all of them call `rb_controller_request_reset()`:
 
 | Way | Needs |
 |---|---|
-| **Reset shutdown** button on the dashboard (System status card) | `RB_CTRL_REMOTE_RESET` on (default), controller connected to the broker |
+| **Reset shut-off** button on the dashboard (countdown card) | `RB_CTRL_REMOTE_RESET` on (default), controller connected to the broker |
 | `reset` in the serial diagnostic console | `RB_DIAG_CONSOLE` on, USB cable |
 | Reboot or power cycle | nothing (the latch is not saved across restarts) |
 
@@ -20,208 +19,136 @@ from three places, and all of them do the same thing
   the acknowledgement, but only while a person is detected.
 - In any other state it does nothing.
 
-The controller checks nothing else first. The dashboard asks for confirmation
-and says to check the stove in person before resetting.
+The controller checks nothing else first; the dashboard asks for confirmation.
 
-## Path
+## How a dashboard command travels
 
-1. The button is enabled while the controller reports `reset_required: true`
-   and is not offline. Pressing it (and confirming) calls
-   `POST /api/devices/<id>/reset/` (`django/ingest/views.py`).
-2. Django publishes once, QoS 1, not retained, on `<prefix>/controller/command`:
+Every setting below uses the same path:
+
+1. The dashboard calls a Django endpoint (`django/ingest/views.py`). Django
+   checks the value (`django/ingest/commands.py`; for the generic params also
+   `django/ingest/safety_params.json`) and publishes a `controller_command` on
+   `<prefix>/controller/command`: QoS 1, **not retained**, so an old command
+   never replays when the controller reconnects. For example, the reset:
 
    ```json
    {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
     "request_id":7,"action":"reset"}
    ```
 
-   (`controller_command` in [the schema](schema/rb4107_mqtt.schema.json)). Not
-   retained, so an old reset never replays when the controller reconnects.
-3. The S3 subscribes to that topic (`rb_controller_app.c`), parses it with
-   `rb_ctrl_cmd`, ignores a command for another `controller_id`, logs
-   `operator reset from the dashboard (request N)` and requests the reset.
-4. There is no separate reply: the next telemetry shows the state leaving
-   SHUTDOWN and `reset_required: false`, and the button's status line says
-   "Reset done". After 15 s with no change it says so.
+   Fields per action: `controller_command` in
+   [the schema](schema/rb4107_mqtt.schema.json).
+2. The controller (`rb_controller_app.c`, parser `rb_ctrl_cmd`) ignores a
+   command for another `controller_id`, checks the values again, applies them at
+   the next safety step and logs it. A set that doesn't fit together is refused
+   whole (`safety settings refused` in its log) and the values in use stay.
+3. There is no separate reply: the next telemetry shows the result. The
+   dashboard shows "saved" or "In use" once the telemetry matches what it sent.
 
-## Limits (lab prototype)
+| Setting | Endpoint | `action` | Menuconfig gate | NVS key | Telemetry |
+|---|---|---|---|---|---|
+| Reset | `POST /api/devices/<id>/reset/` | `reset` | `RB_CTRL_REMOTE_RESET` | – | `reset_required`, state |
+| Presence filter and timers | `…/presence_filter/` | `presence_filter` | `RB_CTRL_REMOTE_PRESENCE_FILTER` | `filter` | `safety.presence_filter`, `safety.warning_after_ms`, `safety.shutdown_after_ms` |
+| Attendance | `…/attendance/` | `attendance` | `RB_CTRL_REMOTE_ATTENDANCE` | `attend` | `safety.presence_filter` (`fusion`, `pause_budget_*`, `attendance_source`) |
+| Radar state and distance rules | `…/radar-rules/` | `radar_rules` | `RB_CTRL_REMOTE_RADAR_RULES` | `radar` | `safety.radar_rules` |
+| Other safety settings | `…/params/` | `params` | `RB_CTRL_REMOTE_PARAMS` | `params` | `safety.params`, `safety.params_source` |
+| Temperature tiers | `…/tiers/` | `tiers` | `RB_CTRL_REMOTE_TIERS` | `tiers` | `safety.tiers` |
+| Cookware profile | `…/cookware/` | `cookware` | `RB_CTRL_REMOTE_COOKWARE` | `cookware` | `safety.cookware` |
+| Cooking temperature | `…/cooking_temp/` | `cooking_temp` | `RB_CTRL_REMOTE_COOKING_TEMP` | `cook_dc` | `safety.cooking` |
+
+Every endpoint also takes `{"defaults": true}` ("Restore menuconfig defaults", action
+`<action>_defaults`); each setting
+saved in NVS survives a reboot and wins over menuconfig until then, or until
+`idf.py erase-flash` (a normal `idf.py flash` keeps NVS). Menuconfig defaults
+are in [configuration.md](configuration.md). The fields live on Tuning →
+Safety; each card's **Apply** sends only its own settings.
+
+### Limits (lab prototype)
 
 The broker and the Django API have no login, so anyone on the network can send
-the reset. That is accepted for the demo; turn `RB_CTRL_REMOTE_RESET` off in
-menuconfig (Controller) for anything else, and the console and power cycle
-still work.
+any of these commands, the reset included. That is accepted for the demo. For
+anything else turn the gates above off in menuconfig (Controller); the console
+and power cycle still work.
 
 ## Presence filter and timers
 
-The same command topic also changes the presence filter and the buzzer and
-shutdown times of the running state machine
-([safety_state_machine.md](safety_state_machine.md#timing-rules)): how long
+Changes the presence filter and the buzzer and shutdown times of the running
+state machine ([timing rules](safety_state_machine.md#timing-rules)): how long
 absence must last before UNATTENDED, how long a return must last before it
 cancels UNATTENDED or WARNING, how long an "absent" gap inside that return may
-be without restarting it, and the unattended time before WARNING and SHUTDOWN.
-The menuconfig values (`RB_SAFETY_ABSENCE_DEBOUNCE_MS`,
-`RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS`, `RB_SAFETY_PRESENCE_RETURN_GAP_MS`,
-`RB_SAFETY_WARNING_TIMEOUT_S`, `RB_SAFETY_SHUTDOWN_TIMEOUT_S`) apply at boot.
+be, and the unattended time before WARNING and SHUTDOWN. The menuconfig values
+apply at boot.
 
-1. **Away after / back after** (Person card) and **buzzer after / shut off after**
-   (Timer card) on Tuning → Safety, sent with their card's **Apply** or
-   **Restore defaults**. The gap a return may have is fixed on the dashboard (the value
-   in force is sent back unchanged). They call
-   `POST /api/devices/<id>/presence_filter/` with
-   `{"absence_ms":1000,"return_ms":5000,"return_gap_ms":1000,"warning_ms":180000,"shutdown_ms":300000}`
-   or `{"defaults":true}`.
-2. Django publishes on `<prefix>/controller/command`:
-
-   ```json
-   {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
-    "request_id":8,"action":"presence_filter","absence_ms":1000,"return_ms":5000,"return_gap_ms":1000,
-    "warning_ms":180000,"shutdown_ms":300000}
-   ```
-
-   or `"action":"presence_filter_defaults"` without the five values. Limits,
-   checked by Django and again by the controller: `absence_ms` and `return_ms`
-   0 – 10000, `return_gap_ms` 0 – 5000, `warning_ms` and `shutdown_ms`
-   1000 – 3600000. When shutdown counts from UNATTENDED, `shutdown_ms` must
-   also be above `warning_ms`: the dashboard checks this before sending, and
-   the controller refuses the whole set otherwise (`safety settings refused`
-   in its log).
-3. The controller (`RB_CTRL_REMOTE_PRESENCE_FILTER` on, the default) applies
-   them at the next safety step, logs
-   `presence filter (dashboard): ...`, and keeps them on top of the test
-   timers (`timers test|normal` in the console) until
-   `presence_filter_defaults`. They are saved in NVS (key `filter`) and set
-   again at boot, except while the diagnostic test timers at boot are on.
-4. The answer is `safety.presence_filter` in the next telemetry
-   (`{"absence_ms":..,"return_ms":..,"return_gap_ms":..,"source":"dashboard"}`)
-   with `safety.warning_after_ms` and `safety.shutdown_after_ms`; the Safety
-   tab shows "saved" once they match what was sent.
-
-The same limits as the reset apply: no login, so turn
-`RB_CTRL_REMOTE_PRESENCE_FILTER` off outside the demo.
+- Fields: `absence_ms`, `return_ms`, `return_gap_ms`, `warning_ms`,
+  `shutdown_ms`. The dashboard doesn't offer the gap; it sends back the value in
+  force.
+- When shutdown counts from UNATTENDED, `shutdown_ms` must be above
+  `warning_ms`. The dashboard checks this before sending; the controller
+  refuses the whole set otherwise.
+- The values are kept on top of the test timers (`timers test|normal` in the
+  console) until `presence_filter_defaults`, and set again at boot, except
+  while the diagnostic test timers at boot are on.
 
 ## Attendance: who is at the stove, and the pause budget
 
-The Person card (Tuning → Safety) also holds the **attendance** settings: whether
-someone counts as at the stove when every working radar sees them or either
-does (a main field), and, under More settings, how long a person passing may stop
-the unattended clock (per timeline, in seconds; 0 = never pause). The share of the
-shutdown time the pause may take is fixed on the dashboard (the value in force is
-sent back). The "Back after" field is the 5 s that cancels the timeline.
-The card's **Apply** calls `POST /api/devices/<id>/attendance/` with
-
-```json
-{"pause_budget_s": 30, "pause_budget_pct": 25, "fusion": "all"}
-```
-
-or `{"defaults": true}`. Limits: 0-600 s, 0-100 %, `fusion` `all` or `any`. The
-controller keeps the values in NVS (they survive a reboot) and reports them in
-`safety.presence_filter` (`fusion`, `pause_budget_cfg_ms`, `pause_budget_pct`,
-`attendance_source`). Menuconfig: `RB_CTRL_REMOTE_ATTENDANCE`.
+Whether someone counts as at the stove when every working radar sees them
+(`fusion` `all`) or either does (`any`), and how long a person passing may stop
+the unattended clock (`pause_budget_s`, per timeline; 0 = never pause). The
+share of the shutdown time the pause may take (`pause_budget_pct`) is fixed on
+the dashboard; the value in force is sent back.
 
 ## Radar state and distance rules
 
-Under the Person card's More settings. The card's **Apply** calls
-`POST /api/devices/<id>/radar-rules/` with
-
-```json
-{"mode": "observe", "quiet_gap_s": 1.5, "dwell_s": 4, "stationary_min_s": 1.5,
- "settle_window_s": 4, "settle_span_cm": 60, "zone_max_cm": 0}
-```
-
-or `{"defaults": true}`. `mode` is `off`, `observe` or `enforce` (see
+`mode` is `off`, `observe` or `enforce` (see
 [the rules](safety_state_machine.md#radar-state-and-distance-rules-placeholder));
-limits 0-10 s, 0-60 s, 0-60 s, 0.5-60 s, 0-1000 cm, 0-1200 cm. The controller
-keeps the values in NVS and reports them in `safety.radar_rules` (with
-`source`). Menuconfig: `RB_CTRL_REMOTE_RADAR_RULES`.
+the other fields are `quiet_gap_s`, `dwell_s`, `stationary_min_s`,
+`settle_window_s`, `settle_span_cm` and `zone_max_cm`.
 
 ## Other safety settings
 
-The few [safety rules](safety_rules.md#changing-them-from-the-dashboard) settings
-without a main field of their own sit under **More settings** on Tuning → Safety:
-the "cooking over" gap, the trend (wait while only cooling) and falling holds with
-their limits, and the buzzer time after a hold (Cooking card); the rising-pan tier
-rule and the fault shut-off (Timer card). They come from one table,
-[`rb_params.def`](../firmware/components/rb_params/include/rb_params.def). Every other
-number in the rules is fixed in the firmware (`{=NAME}` in `safety_rules.def`).
-The card's **Apply** calls `POST /api/devices/<id>/params/` with every key in the
-table's units (ms, 0.1 °C, 0/1), for example
-`{"heat_off_gap_dc": 100, ..., "fault_shutdown_ms": 90000}`, or
-`{"defaults": true}`. Django checks the ranges from
-`django/ingest/safety_params.json`; the controller checks them again, refuses a
-set that doesn't fit together and keeps the ones in use, saves the rest in NVS
-(key `params`, dropped if a later firmware changes the table) and reports them as
-`safety.params` with `safety.params_source`. Menuconfig: `RB_CTRL_REMOTE_PARAMS`.
+The few [safety rules](safety_rules.md#changing-them-from-the-dashboard)
+settings without a main field of their own sit under **More settings** on
+Tuning → Safety. They come from one table,
+[`rb_params.def`](../firmware/components/rb_params/include/rb_params.def); every
+other number in the rules is fixed in the firmware (`{=NAME}` in
+`safety_rules.def`). The request carries every key in the table's units (ms,
+0.1 °C, 0/1). The NVS entry is dropped if a later firmware changes the table.
 
 ## Temperature tiers
 
-The Timer card's **More settings** (Tuning → Safety) holds the **temperature tiers**: from which
-hottest-pixel temperature the buzzer and shutdown come sooner, and how soon (see
-[safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time)).
-Tier 1 is the base times above; tiers 2 to 5 have three fields each: the
-temperature and the two times. The card's **Apply** calls
-`POST /api/devices/<id>/tiers/` with
+From which hottest-pixel temperature the buzzer and shutdown come sooner, and
+how soon ([the rule](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time)).
+Tier 1 is the base times; tiers 2 to 5 are `{"temp_c", "warning_s", "shutdown_s"}`
+entries in `levels`. A temperature of 0 turns a tier off. A tier never gives
+more time than the base times.
 
-```json
-{"levels": [{"temp_c": 100, "warning_s": 120, "shutdown_s": 240},
-            {"temp_c": 150, "warning_s": 90, "shutdown_s": 180},
-            {"temp_c": 200, "warning_s": 60, "shutdown_s": 120},
-            {"temp_c": 250, "warning_s": 30, "shutdown_s": 60}]}
-```
-
-or `{"defaults": true}` for the menuconfig values. A temperature of 0 turns a
-tier off. Limits: temperatures 0-300 °C, times 1-3600 s. Whether a rising pan
-gets the tier it is heading for is next to them (`tier_rate`); the window its
-rise is measured over is fixed (30 s).
-The controller keeps the values in NVS (they survive a reboot; tiers saved by
-firmware before the five tiers are ignored), refuses an inconsistent set (a
-shutdown not after its warning, a tier starting below the one before it) and
-keeps the ones in use, and reports the result as `safety.tiers`
-with `source` `dashboard` or `menuconfig`. Menuconfig: `RB_CTRL_REMOTE_TIERS`.
-A tier never gives more time than the base times.
+The controller refuses an inconsistent set (a shutdown not after its warning, a
+tier starting below the one before it) and keeps the ones in use. `source` in
+`safety.tiers` is `dashboard` or `menuconfig`. Whether a rising pan gets the
+tier it is heading for is `tier_rate`, one of the generic params.
 
 ## Cookware profile
 
-The Cooking card (Tuning → Safety) also has a **cookware profile**: mixed, light,
-heavy or liquid (see [safety_state_machine.md](safety_state_machine.md#cooking-judgment-is-heat-still-going-in)).
-The card's **Apply** calls `POST /api/devices/<id>/cookware/` with `{"cookware":"light"}`,
-or `{"defaults":true}` for the menuconfig profile. The controller saves it
-(NVS key `cookware`) and reports it as `safety.cookware` (profile, tau_s,
-source) in its telemetry. Menuconfig: `RB_CTRL_REMOTE_COOKWARE`.
+`mixed`, `light`, `heavy` or `liquid` (see
+[cooking judgment](safety_state_machine.md#cooking-judgment-is-heat-still-going-in)).
+Request: `{"cookware":"light"}`; `safety.cookware` reports profile, `tau_s` and
+source.
 
 ## Cooking temperature
 
-The same command topic also carries the cooking temperature: the controller
-counts the stove as cooking (IDLE → MONITORING) when the thermal camera's
-hottest pixel reaches it, and as no longer cooking below the "over" value,
-which stays the menuconfig gap below it (10 °C by default). The menuconfig
-value is `RB_SAFETY_HEAT_ON_DC` (50.0 °C). This is the only cooking threshold:
-the dashboard outlines the pixels at or above it, and the cooking badge comes
-from the controller's state.
+The controller counts the stove as cooking (IDLE → MONITORING) when the thermal
+camera's hottest pixel reaches this temperature, and as no longer cooking below
+the "over" value, which stays the menuconfig gap below it. Menuconfig value:
+`RB_SAFETY_HEAT_ON_DC`. This is the only cooking threshold: the dashboard
+outlines the pixels at or above it, and the cooking badge comes from the
+controller's state.
 
-1. **Cooking from** in the Cooking card (Tuning → Safety): a field in °C, sent with
-   its card's **Apply** or **Restore defaults**. They call
-   `POST /api/devices/<id>/cooking_temp/` with `{"cooking_temp_c":62.5}`
-   (0 – 300 °C, sent in 0.1 °C steps) or `{"defaults":true}`.
-2. Django publishes on `<prefix>/controller/command`:
-
-   ```json
-   {"schema_version":2,"type":"controller_command","controller_id":"controller_01",
-    "request_id":9,"action":"cooking_temp","cooking_temp_dc":625}
-   ```
-
-   or `"action":"cooking_temp_defaults"` without the value.
-3. The controller (`RB_CTRL_REMOTE_COOKING_TEMP` on, the default) uses it from
-   the next safety step and saves it in NVS, so it survives a reboot and wins
-   over menuconfig. `cooking_temp_defaults` erases it; so does
-   `idf.py erase-flash`. A normal `idf.py flash` keeps it. It logs
-   `cooking temperature ... from the dashboard`.
-4. The controller also sends the value to the thermal node as a THERMAL_CONFIG
-   packet ([protocol.md](protocol.md#thermal_config-type-11-28-bytes-total)),
-   so the node's `pixels_above_threshold` counts the same pixels. It learns the
-   node's MAC from the node's packets, so the node must have been heard from
-   since the controller booted. This part is display only.
-5. The answer is `safety.cooking` in the next telemetry (`on_c`, `off_c`,
-   `source: "dashboard"`), which the card shows as "In use".
-
-The same limits as the reset apply: no login, so turn
-`RB_CTRL_REMOTE_COOKING_TEMP` off outside the demo.
+- Request: `{"cooking_temp_c":62.5}` (0.1 °C steps). Command field:
+  `cooking_temp_dc`. Telemetry: `safety.cooking` (`on_c`, `off_c`,
+  `source: "dashboard"`).
+- `cooking_temp_defaults` erases the saved value.
+- The controller also sends the value to the thermal node as a THERMAL_CONFIG
+  packet ([protocol.md](protocol.md#thermal_config-type-11-28-bytes-total)), so
+  the node's `pixels_above_threshold` counts the same pixels. It learns the
+  node's MAC from the node's packets, so the node must have been heard from
+  since the controller booted. This part is display only.

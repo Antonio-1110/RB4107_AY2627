@@ -55,8 +55,10 @@ MLX90640       → ESP32-C6 thermal node    ─┘              ├── safety
 
 ## Getting started
 
-Setup, building, flashing and running everything: **[docs/setup.md](docs/setup.md)**.
-All other documentation: [docs/README.md](docs/README.md).
+New here? Read **[docs/overview.md](docs/overview.md)**, then
+[docs/status.md](docs/status.md) for what is proven so far.
+Building, flashing and running everything: **[docs/setup.md](docs/setup.md)**.
+All documentation: [docs/README.md](docs/README.md).
 
 ## Status
 

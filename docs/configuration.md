@@ -86,25 +86,6 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `CONFIG_RB_THERMAL_HEATMAP_PERIOD_MS` | Heat-map picture period (ms) | `3000` | 1000 – 10000 |  |
 | `CONFIG_RB_THERMAL_REMOTE_THRESHOLD` | Accept the hot-pixel threshold from the controller | `y` |  |  |
 
-## Valve node (servo gas valve)
-
-| Option | Description | Default | Range | |
-|---|---|---|---|---|
-| `RB_VALVE_MODE` (choice) | How the valve node gets the shut-off signal: `CONFIG_RB_VALVE_MODE_WIRED` = wired: a controller output pulls an input GPIO low while safe; `CONFIG_RB_VALVE_MODE_WIRELESS` = wireless: ESP-NOW keep-open heartbeat from the controller | `CONFIG_RB_VALVE_MODE_WIRED` |  |  |
-| `CONFIG_RB_VALVE_SERVO_GPIO` | Servo signal GPIO | `18 if IDF_TARGET_ESP32` | 0 – 48 |  |
-| `CONFIG_RB_VALVE_WIRED_INPUT_GPIO` | Wired mode: input GPIO (to the controller output terminal) | `19 if IDF_TARGET_ESP32` | 0 – 48 |  |
-| `CONFIG_RB_VALVE_WIRED_OPEN_DELAY_MS` | Wired mode: input low this long before opening (ms) | `500` | 0 – 10000 |  |
-| `CONFIG_RB_VALVE_WIRED_CLOSE_DEBOUNCE_MS` | Wired mode: input high this long before closing (ms) | `50` | 0 – 1000 |  |
-| `CONFIG_RB_VALVE_LINK_TIMEOUT_MS` | Wireless mode: close after this long without a keep-open (ms) | `3000` | 500 – 30000 |  |
-| `CONFIG_RB_VALVE_STATUS_PERIOD_MS` | Wireless mode: VALVE_STATUS period (ms) | `1000` | 200 – 10000 |  |
-| `CONFIG_RB_VALVE_OPEN_ANGLE_DEG` | Servo angle for OPEN (degrees) | `90` | 0 – 360 |  |
-| `CONFIG_RB_VALVE_CLOSED_ANGLE_DEG` | Servo angle for CLOSED (degrees) | `0` | 0 – 360 |  |
-| `CONFIG_RB_VALVE_SERVO_RANGE_DEG` | Servo travel (degrees) | `180` | 90 – 360 |  |
-| `CONFIG_RB_VALVE_SERVO_MIN_PULSE_US` | Pulse width at 0 degrees (us) | `500` | 300 – 1500 |  |
-| `CONFIG_RB_VALVE_SERVO_MAX_PULSE_US` | Pulse width at full travel (us) | `2500` | 1500 – 3000 |  |
-| `CONFIG_RB_VALVE_TRAVEL_MS` | Time the servo needs to move between positions (ms) | `1000` | 100 – 10000 |  |
-| `CONFIG_RB_VALVE_LATCH_CLOSED` | Stay closed after a shutdown until the valve node is reset | `n` |  |  |
-
 ## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO)
 
 | Option | Description | Default | Range | |
@@ -136,17 +117,6 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 | `RB_SHUTDOWN_POLARITY` (choice) | Relay polarity: `CONFIG_RB_SHUTDOWN_ENERGISE_TO_SHUT_DOWN` = energise relay to shut down (appliance on NC contact); `CONFIG_RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN` = de-energise relay to shut down (appliance on NO contact, fail-safe) | `CONFIG_RB_SHUTDOWN_DEENERGISE_TO_SHUT_DOWN` |  |  |
 | `RB_SHUTDOWN_BOOT_STATE` (choice) | Shutdown output at boot: `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` = released (appliance powered); `CONFIG_RB_SHUTDOWN_BOOT_ACTIVE` = active (appliance off until the controller is running) | `CONFIG_RB_SHUTDOWN_BOOT_RELEASED` |  | ⚠ |
 | `CONFIG_RB_SHUTDOWN_VERIFY_PERIOD_MS` | Read back and verify the relay output every (ms) | `1000` | 100 – 60000 |  |
-
-## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Gas valve node
-
-| Option | Description | Default | Range | |
-|---|---|---|---|---|
-| `CONFIG_RB_SHUTDOWN_VALVE_CHANNEL` | Wired valve line: output channel (0 = not used) | `0` | 0 – 8 |  |
-| `CONFIG_RB_CTRL_VALVE_WIRELESS` | Wireless valve node (ESP-NOW keep-open heartbeat) | `n` |  |  |
-| `CONFIG_RB_CTRL_VALVE_NODE_MAC` | Valve node Wi-Fi STA MAC address | `"FF:FF:FF:FF:FF:FF"` |  |  |
-| `CONFIG_RB_CTRL_VALVE_NODE_ID` | Valve node ID | `4` | 1 – 65535 |  |
-| `CONFIG_RB_CTRL_VALVE_KEEPALIVE_MS` | Keep-open / command period (ms) | `1000` | 100 – 5000 |  |
-| `CONFIG_RB_CTRL_VALVE_STATUS_TIMEOUT_MS` | Warn when no VALVE_STATUS arrives for (ms) | `3000` | 500 – 60000 |  |
 
 ## Controller board (Waveshare ESP32-S3-POE-ETH-8DI-8DO) → Time / RTC
 

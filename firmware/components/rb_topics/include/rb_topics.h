@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * RB4107 MQTT topic tree (TODO section 20). Documented in docs/mqtt_topics.md.
+ * RB4107 MQTT topic tree (TODO section 20). Documented in docs/mqtt_schema.md.
  *
  *   <prefix>/controller/{status,heartbeat,state,faults,log}
  *   <prefix>/sensors/<node>/{presence,thermal,status,c4002_config,thermal_frame}
