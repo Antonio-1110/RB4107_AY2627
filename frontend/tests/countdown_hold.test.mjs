@@ -44,14 +44,16 @@ function show(values) {
 test("a cooling hold says the controller is sure no heat is going in, and its limit", () => {
   const card = show({ hold: "cooling", cookware_tau_s: 600, cooking_room_c: 36 });
   assert.match(card.label, /^hold: cooling/);
-  assert.match(card.title, /pan cooling down \(no heat input\)/);
+  assert.match(card.title, /pan cooling down/);
+  assert.doesNotMatch(card.label + card.title, /\(/);
   assert.match(card.detail, /Hold type: COOLING/);
   assert.match(card.detail, /Limit: 40 min/); // 4 x 10 min
 });
 
 test("a falling hold says the controller is not sure yet, and its limit", () => {
   const card = show({ hold: "falling" });
-  assert.match(card.label, /^hold: falling \(not sure yet\)/);
+  assert.match(card.label, /^hold: falling$/);
+  assert.doesNotMatch(card.label + card.title, /\(/);
   assert.match(card.detail, /Hold type: FALLING/);
   assert.match(card.detail, /cannot yet tell/);
   assert.match(card.detail, /Limit: 90 s/);
