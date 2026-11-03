@@ -240,12 +240,55 @@ itself: run `sqlite3 db.sqlite3 VACUUM` once after a big clean-up.
 
 ## Stall history
 
-The **Stall history** tab lists every stall with its count of incidents,
-buzzer warnings and shutdowns, and for the chosen stall each incident: when it
-started, how far it escalated (unattended, buzzer warning, shutdown), after how
-long the buzzer and shutdown came, how long it lasted, how it ended and the
-hottest reading. The stall page's **Incident history** button opens it on that
-stall.
+The **Stall history** tab is for deciding which stall to visit or watch, for
+example by a fire-safety inspector. It answers four questions per stall over a
+chosen period (**Last 2 weeks**, **Last 4 weeks** (default) or **Last 3
+months**, picked at the top; every number on the page follows it):
+
+1. **How often the countdown starts.** A countdown starts each time the cook
+   leaves a hot stove (one *incident*, below). Shown as a count, per week
+   (count ÷ weeks in the period) and per cooking day (see below).
+2. **How many reached the buzzer**: a count, and a share of the countdowns.
+3. **How many escalated to a gas shut-off**: a count, and a share of the
+   buzzer warnings.
+4. **How long recovery usually takes**: the median (the middle value: half
+   were quicker, half slower) and the slowest.
+
+Laid out for a laptop screen: on the left, every stall in a table
+(countdowns per week, buzzer, shut-off, usual recovery), riskiest first (most
+shut-offs, then most buzzer warnings); click a heading to sort by it, again to
+go back. On the right, the chosen stall: the four figures, a week-by-week bar
+chart (Monday to Sunday, server time zone; each bar split into *countdown
+only*, *buzzer* and *shut-off*; a week only partly in the period is marked
+"part"), a table of how the countdowns ended, and the list of every countdown
+with what happened next (how far it escalated, after how long the buzzer and
+shut-off came, how long it lasted, how it ended, the hottest reading). Below
+1200 px wide the two sides stack. The stall page's **Incident history** button
+opens the tab on that stall.
+
+**Recovery times.** Each way a countdown can end is timed from a different
+moment:
+
+| Ended how | Timed from → to |
+|---|---|
+| Back before the buzzer (person returned or stove off) | countdown start → back to normal |
+| Back after the buzzer (person returned) | buzzer → back to normal |
+| Stove turned off after the buzzer | buzzer → back to normal |
+| Reset after a shut-off | shut-off → the operator's reset |
+| Controller restarted | not timed, only counted |
+
+Countdowns still going on are counted but not timed. A **controller restart**
+during a countdown is counted on its own row and never timed: it can mean
+someone switched the controller off and on to get round it. *Usual recovery*
+in the stall table and the headline is the median from countdown start to back
+to normal, over every ended countdown except restarts.
+
+**Per cooking day.** A cooking day is a day (server time) with at least one
+stored telemetry reading in a cooking state (MONITORING, UNATTENDED or
+WARNING). Telemetry readings are deleted after `RB4107_RETENTION_DAYS` (30 by
+default, see Storage), so for the 3-month period only the last 30 days have
+cooking days; the figure divides the countdowns that started *on* those days
+by the number of those days, and the page says how many cooking days it used.
 
 An incident is one unattended-cooking episode (`ingest/incidents.py`). Django
 builds it from the controller's live telemetry, which the firmware publishes on
@@ -255,16 +298,23 @@ IDLE (heating stopped, or "reset after shutdown" from SHUTDOWN) or the
 controller restarts. FAULT keeps it open. The end reason is inferred from the
 next state, not reported by the controller. Retained snapshots and out-of-order
 messages never open one. Incidents are never pruned, so a stall keeps its
-record for as long as the database exists (but `tools/run_dev.sh` still erases
-the database when it stops).
+record for as long as the database exists. **In development no history builds
+up:** `tools/run_dev.sh` (and `tools/stop_dev.sh`) delete the database when
+they stop, so every run starts empty apart from the demo history below.
 
-API: `GET /api/stall-history/` (every stall's counts) and
-`GET /api/stall-history/?stall=<stall_id>` (plus its newest 500 incidents).
+API: `GET /api/stall-history/` (every stall's all-time counts),
+`GET /api/stall-history/?days=28` (plus each stall's `period` summary: counts,
+shares, `weeks`, `recovery`, cooking days; `days` must be 14, 28 or 90,
+anything else is a 400) and `&stall=<stall_id>` (plus that stall's newest 500
+incidents, kept to the period when `days` is given).
 
 Demo: `tools/run_dev.sh --demo` runs `python manage.py seed_incident_history`,
-which gives each simulated stall about two months of made-up past incidents,
-marked "demo" in the list. `--clear` deletes them. The real controller's
-history is only what it actually did.
+which gives each simulated stall three months of made-up past incidents,
+marked "demo" in the list, and one made-up cooking reading per day it was open
+over the last 30 days. Each stall gets one of four made-up habits (careful,
+typical, busy, risky) so the stalls differ. `--days N` changes how far back it
+goes; `--clear` deletes the made-up incidents and cooking days. The real
+controller's history is only what it actually did.
 
 ## Active cooking
 

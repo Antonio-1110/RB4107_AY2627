@@ -72,3 +72,74 @@ export function drawTemperatureChart(canvas, emptyMessage, points, gapSeconds) {
     `${points.length} temperature readings. Latest ${last.temperature_c} degrees Celsius.`,
   );
 }
+
+// Stacked bar chart, one bar per week, drawn the same way. `weeks` are the API's
+// period weeks ({week_start, days_in_period, ...counts}); `series` is a list of
+// {key, color} stacked bottom to top. A week only partly inside the period gets
+// a lighter label ("part").
+export function drawStackedWeeks(canvas, emptyMessage, weeks, series) {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 50) return;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = rect.width * ratio;
+  canvas.height = rect.height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  const total = (week) => series.reduce((sum, { key }) => sum + week[key], 0),
+    most = Math.max(0, ...weeks.map(total));
+  emptyMessage.hidden = most > 0;
+  if (!most) {
+    canvas.setAttribute("aria-label", "No countdowns in this period");
+    return;
+  }
+  const width = rect.width,
+    height = rect.height,
+    left = 34,
+    right = width - 8,
+    top = 12,
+    bottom = height - 30,
+    step = Math.max(1, Math.ceil(most / 4)),
+    max = step * Math.ceil(most / step),
+    y = (value) => bottom - (value / max) * (bottom - top),
+    slot = (right - left) / weeks.length,
+    bar = Math.min(48, slot * 0.68);
+  ctx.font = "10px system-ui";
+  ctx.lineWidth = 1;
+  for (let value = 0; value <= max; value += step) {
+    ctx.strokeStyle = cssVar("--line");
+    ctx.beginPath();
+    ctx.moveTo(left, y(value));
+    ctx.lineTo(right, y(value));
+    ctx.stroke();
+    ctx.fillStyle = cssVar("--muted");
+    ctx.textAlign = "right";
+    ctx.fillText(String(value), left - 8, y(value) + 3);
+  }
+  const labelEvery = Math.ceil(weeks.length / Math.max(1, Math.floor((right - left) / 46)));
+  weeks.forEach((week, index) => {
+    const x = left + slot * index + (slot - bar) / 2;
+    let base = 0;
+    for (const { key, color } of series) {
+      if (!week[key]) continue;
+      ctx.fillStyle = cssVar(color);
+      // 1 px gap between segments keeps adjacent colours apart.
+      ctx.fillRect(x, y(base + week[key]), bar, y(base) - y(base + week[key]) - (base ? 1 : 0));
+      base += week[key];
+    }
+    if (base) {
+      ctx.fillStyle = cssVar("--ink");
+      ctx.textAlign = "center";
+      ctx.fillText(String(base), x + bar / 2, y(base) - 4);
+    }
+    if (index % labelEvery) return;
+    const start = new Date(`${week.week_start}T00:00:00`);
+    ctx.fillStyle = cssVar("--muted");
+    ctx.textAlign = "center";
+    ctx.fillText(start.toLocaleDateString([], { day: "numeric", month: "short" }), x + bar / 2, bottom + 14);
+    if (week.days_in_period < 7) ctx.fillText("(part)", x + bar / 2, bottom + 26);
+  });
+  canvas.setAttribute(
+    "aria-label",
+    `Countdowns per week: ${weeks.map((week) => `week of ${week.week_start}, ${total(week)}`).join("; ")}.`,
+  );
+}

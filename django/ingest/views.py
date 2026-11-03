@@ -418,6 +418,13 @@ def thermal_frame(request, device_id):
 @require_GET
 @never_cache
 def stall_history(request):
-    """Per-stall history of unattended / buzzer warning / shutdown incidents (ingest/incidents.py)."""
+    """Per-stall history of unattended / buzzer warning / shutdown incidents (ingest/incidents.py).
+    ?days=14|28|90 adds each stall's summary of that period; without it, all-time counts only."""
     stall_id = request.GET.get("stall") or None
-    return JsonResponse(incidents.stall_history(timezone.now(), stall_id))
+    days = request.GET.get("days")
+    if days is not None:
+        if days not in {str(d) for d in incidents.PERIOD_DAYS}:
+            return JsonResponse({"error": f"days must be one of {', '.join(map(str, incidents.PERIOD_DAYS))}"},
+                                status=400)
+        days = int(days)
+    return JsonResponse(incidents.stall_history(timezone.now(), stall_id, days=days))
