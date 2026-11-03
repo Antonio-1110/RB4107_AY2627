@@ -87,6 +87,10 @@ commands from anyone who can reach it.
   against the buzzer and shut-off marks, sensor chips), condition tiles, the
   readings with their freshness, a small heat map, temperature history, system
   status with **Reset shut-off**, the last events and a read-only **Safety logic** strip.
+  When a due buzzer or shut-off is held back, the Countdown card names the
+  kind of hold, what ends it and its limit: **cooling** (sure there is no heat
+  input), **falling** (not sure yet whether it is cooling or a lowered flame, at
+  most the falling hold maximum) or **return** (a person is being confirmed).
 - **Tuning** adds tabs: **Safety** (settings and rules), **Radar** (C4002
   tuning and live view), **Thermal** (heat map, outline and pixel-size
   controls), **Diagnostics** and **Logs** ([logging.md](logging.md#logs-tab)).

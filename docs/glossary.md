@@ -19,7 +19,8 @@
 | **SHUTDOWN** | Countdown reached the shutdown time: output 1 drops, appliance off. Latched until an operator reset |
 | **FAULT** | The controller's own failure (self-test or output read-back). A lost sensor is a flag, not a FAULT |
 | **Tier** | The temperature band that sets the warning and shutdown times. Hotter means shorter |
-| **Hold / pause** | A short freeze of the countdown, for example while a passer-by is detected. Limited by a budget per countdown |
+| **Hold** | A due buzzer or shut-off that waits ([safety_state_machine.md](safety_state_machine.md#holds-a-due-buzzer-or-shutdown-that-waits)). Three kinds: **cooling** (sure no heat is going in; long), **falling** (temperature falling, not sure yet whether it is cooling or a lowered flame; at most 90 s) and **return** (a person is being confirmed; a few seconds). The Countdown card names the kind |
+| **Pause** | The countdown clock standing still while someone is at the stove (a passer-by). Limited by a budget per countdown |
 | **Flag** | A sensor-problem marker (*presence unknown*, *thermal lost*). Shown on the dashboard; never turns into a fault |
 | **Latched** | Stays in force until someone resets it |
 | **Fail-safe** | The output's resting state is "appliance off": a power loss or wire break shuts it down |

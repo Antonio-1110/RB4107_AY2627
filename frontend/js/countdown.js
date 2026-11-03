@@ -107,24 +107,36 @@ function phase(values, age, elapsed) {
       out.style = "cd-run";
       out.clock = null;
       out.clockText = "hold";
+      const stage = state === "warning" ? "Buzzer warning" : "Unattended",
+        params = values.params || {};
       if (values.hold === "cooling") {
-        out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: on hold, pan cooling`;
+        // The pan is judged to be cooling: long hold, ends when it levels off hot or cooking stops.
+        const tau = number(values.cookware_tau_s) && values.cookware_tau_s > 0 ? 4 * values.cookware_tau_s : null,
+          cap = number(params.cooling_hold_max_ms) ? params.cooling_hold_max_ms / 1000 : 3600,
+          limit = tau ? Math.min(tau, cap) : cap;
+        out.title = `${stage}: on hold, pan cooling down (no heat input)`;
         out.detail =
-          "No heat input: the pan temperature is falling at the rate of a pan with the burner off, towards " +
+          "Hold type: COOLING. The controller is sure no heat is going in: the pan is falling at the rate of a pan with the burner off, towards " +
           `room temperature${number(values.cooking_room_c) ? ` (${values.cooking_room_c.toFixed(0)} °C)` : ""}. ` +
-          "The next stage starts if the temperature levels off while still hot; the countdown ends once cooking stops.";
-        out.label = "on hold: cooling";
+          "Ends when the temperature levels off while still hot (the next stage then starts) or when cooking stops (the countdown is cancelled). " +
+          `Limit: ${span(limit)} (4 × the cookware time constant, at most the cooling hold maximum).`;
+        out.label = "hold: cooling (sure, no heat input)";
       } else if (values.hold === "falling") {
-        out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: on hold, temperature falling`;
+        // The temperature is falling but the trend cannot yet tell cooling from a lowered flame: short hold.
+        const max = number(params.falling_hold_max_ms) ? `${Math.round(params.falling_hold_max_ms / 1000)} s` : "the falling hold maximum";
+        out.title = `${stage}: on hold, temperature falling (not sure yet)`;
         out.detail =
-          "The pan is losing heat quickly for its temperature above the room, so the risk is decreasing. The next stage starts " +
-          "immediately if the temperature rises again or the trend shows continued heat input (a lowered flame), and at the latest after " +
-          `${number(values.params && values.params.falling_hold_max_ms) ? `${Math.round(values.params.falling_hold_max_ms / 1000)} s` : "the maximum falling hold"}.`;
-        out.label = "on hold: falling";
+          "Hold type: FALLING. The pan is losing heat quickly for its temperature above the room, but the controller cannot yet tell " +
+          "a pan that is cooling down from one on a lowered flame. Ends as soon as the temperature rises again or the trend shows heat " +
+          "still going in (the next stage then starts at once), or when the trend decides the pan is cooling (it becomes a COOLING hold). " +
+          `Limit: ${max} per countdown.`;
+        out.label = "hold: falling (not sure yet)";
       } else {
-        out.title = `${state === "warning" ? "Buzzer warning" : "Unattended"}: on hold, confirming return`;
-        out.detail = "A radar detects someone; the controller is confirming the return (a few seconds at most).";
-        out.label = "on hold: return";
+        out.title = `${stage}: on hold, confirming a return`;
+        out.detail =
+          "Hold type: RETURN. A radar sees someone now and the controller is confirming that they have returned. Ends when the return is " +
+          "confirmed (the countdown is cancelled) or the radar loses them (the next stage then starts at once). Limit: the return time plus the gap, a few seconds.";
+        out.label = "hold: return (person detected)";
       }
       return out;
     }
@@ -211,8 +223,8 @@ function liveLines(values, age, elapsed) {
   else if (cooking === false) [cook, cookSub] = ["Not detected", `Hottest pixel ${hot}`];
   else if (cooking === true) {
     if (values.hold === "cooling" || values.cooking_phase === "cooling")
-      [cook, cookSub] = ["Cooling down", `${hot} · no heat input; a due buzzer warning or shut-off is held`];
-    else if (values.hold === "falling") [cook, cookSub] = ["Temperature falling", `${hot}, ${trend} · a due buzzer warning or shut-off is held`];
+      [cook, cookSub] = ["Cooling down", `${hot} · no heat input; a due buzzer warning or shut-off is held (cooling hold)`];
+    else if (values.hold === "falling") [cook, cookSub] = ["Temperature falling", `${hot}, ${trend} · not sure yet whether heat is going in; a due buzzer warning or shut-off waits (falling hold, short)`];
     else if (values.cooking_phase === "heating") [cook, cookSub] = ["Heating up", `${hot}, ${trend}`];
     else [cook, cookSub] = ["Active, heat input", `${hot}, ${values.cooking_phase === "checking" ? "evaluating the trend" : trend}`];
   }
