@@ -30,4 +30,4 @@
 | **Schema version** | Version of the MQTT JSON format (2). The ESP-NOW **protocol version** (3) is separate |
 | **Kconfig / menuconfig** | ESP-IDF's build-time settings. Every tunable is in `firmware/components/rb_config/Kconfig` |
 | **`rb_params.def`** | The list of safety settings the dashboard can change at run time |
-| **Monitor / Tuning** | The dashboard's two modes: watch only, or watch and tune |
+| **Developer mode** | The dashboard's tuning tools (Safety, Radar, Thermal, Diagnostics, Logs), switched on with a password that is not a secret. Without it the page is watch-only |

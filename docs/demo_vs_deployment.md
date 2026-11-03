@@ -18,7 +18,7 @@ measured it; *not checked* means it is an assumption.
 | Remote **reset** of a latched shutdown | any dashboard user can restore the gas | reset only at the stall (physical button), or an authenticated and logged operator action | *checked*: [remote_reset.md](remote_reset.md) |
 | Remote safety settings (presence filter, timers, cooking temperature, cookware) | accepted within wide limits, so they can be set to weaken the protection | hard floors and ceilings on the S3 that the dashboard can't override; settings may only make things stricter without a physical key | *checked*: limits in `rb_ctrl_cmd.h` (warning/shutdown up to 1 h, cooking temperature up to 300 °C) |
 | ESP-NOW between nodes and controller | unencrypted and unauthenticated (CRC only) | ESP-NOW encryption (PMK/LMK) or a message authentication code, plus replay protection | *checked*: `.encrypt = false` in `rb_espnow.c` |
-| "Monitor / Tuning" switch on the dashboard | cosmetic: it hides the tools, it does not lock the API | server-side permission on the tuning endpoints | *checked*: [dashboard.md](dashboard.md#stall-page) |
+| "Developer mode" on the dashboard | cosmetic: it hides the tools, it does not lock the API | server-side permission on the tuning endpoints | *checked*: [dashboard.md](dashboard.md#stall-page) |
 | Personal data | presence of staff is logged | retention and access rules for presence and thermal data | retention exists (see Data); policy *not checked* |
 
 ## Safety hardware and fail-safe behaviour

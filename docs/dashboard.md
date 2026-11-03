@@ -70,9 +70,18 @@ controller can report IDLE while the dashboard shows Fault.
 
 ## Stall page
 
-A **Monitor | Tuning** switch in the header (remembered per browser, or open
-`/?mode=tuning`) is cosmetic: Monitor hides the tuning tools but does not stop
-the API accepting commands.
+The header has three buttons: **Stall history**, **Developer mode** and the
+colour theme (**Auto** / Light / Dark); the RB4107 logo goes back to all stalls.
+The connection status (server, MQTT, location catalogue, last report) is in the
+footer.
+
+**Developer mode** turns the tuning tools (Tuning) on and off. The first time in
+a browser tab it asks for the password, `RB4107`, and after that it switches
+straight back and forth until the tab is closed (`/?mode=tuning` asks for it
+too). The password is in the dashboard's code on purpose: it is not a secret and
+not security. Like Monitor itself it is cosmetic: it keeps the commissioning
+tools out of a stall operator's or inspector's way, but the API still accepts
+commands from anyone who can reach it.
 
 - **Monitor** fits one laptop screen: the Countdown card (phase, clock and bar
   against the buzzer and shut-off marks, sensor chips), condition tiles, the
@@ -90,7 +99,7 @@ the API accepting commands.
   flag, times in force, uptime), and what the controller sent (raw telemetry).
   The countdown, temperature history and event log are on Monitor.
 
-The overview has a Tiles | Table switch and a Light | Dark | Auto theme.
+The overview has a Tiles | Table switch.
 
 **Safety tab.** A flow strip (Idle → Monitoring → Unattended → Warning →
 Shutdown) with the values in force, then three cards: *Cooking*, *Presence
