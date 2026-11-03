@@ -1,20 +1,27 @@
 # Remote C4002 tuning
 
 You can tune each presence node's C4002 radar from the dashboard's **Radar tuning** card:
-range, gate size, sensitivity, report period, turning
-individual distance gates on or off, per-gate thresholds, and environment
-calibration. Above the settings, a live view shows what the radar reports,
+range, gate size, sensitivity, turning individual distance gates on or off,
+and environment calibration (which sets the per-gate thresholds; the gate
+table shows them read-only). Above the settings, a live view shows what the radar reports,
 result by result, so the effect of a change shows at once. It's built for
 demos and bench tuning (issue #20, false presence),
 not for production: anyone who can reach the API or publish to the broker can
 change a safety sensor.
 
 **Send to** picks the target. With two or more presence nodes it starts on
-**All radars**: every button (apply, read, reset, calibrate, gates,
-thresholds) sends the same command to each node at once, and the status lists
-each node's answer. The form, gate table and live view then show the first
-node. Sending thresholds to all replaces what each node learned in its own
-calibration, so the dashboard asks first. Pick a single node to tune it alone.
+**All radars**: every button (apply, read, reset, calibrate, gates) sends the
+same command to each node at once, and the status lists each node's answer.
+The form, gate table and live view then show the first node. Pick a single
+node to tune it alone.
+
+**Not on the dashboard.** The disappear delay, lock time and report period
+are design decisions, not tuning knobs: the S3 does all the debouncing, and
+nodes report on every change plus every 500 ms (see "About the two holds"
+below). The per-gate thresholds come from **Calibrate empty room**, not from
+typing them in. The command still accepts all four (see Settings), so
+`mosquitto_pub` or a script can set them for an experiment; **Reset** puts a
+node back on its menuconfig values.
 
 ```text
 dashboard ── POST /api/devices/<controller>/nodes/<node>/c4002/ ──► Django
@@ -61,7 +68,7 @@ applied. The column on the right is the share of results in which each gate
 fired.
 
 To check for false positives, leave the room empty and watch which gates
-fire. Then turn those gates off or raise their thresholds, and watch them go
+fire. Then turn those gates off or calibrate again, and watch them go
 quiet. Live results never reach the safety logic, which still uses the
 node's filtered PRESENCE_DATA.
 
@@ -77,9 +84,9 @@ to 0 on the node to turn the stream off.
 | `range_min_cm`, `range_max_cm` | detection range | 0–1100, min ≤ max |
 | `resolution_cm` | gate size: 80 (15 gates, ~11 m) or 20 (25 gates, ~4.9 m) | 20, 80 |
 | `motion_sensitivity`, `presence_sensitivity` | threshold group | `low` `mid` `high` `custom` |
-| `disappear_delay_s` | how long the radar keeps reporting a target after it leaves | 0–65535 s (default 1; try 0–2) |
-| `lock_time_ds` | detection paused after occupied → empty, 0.1 s units | 2–100 (default 10 = 1 s; the sensor's minimum is 0.2 s) |
-| `report_period_ds` | result report period, 0.1 s units | 1–5 (default 5) |
+| `disappear_delay_s` | how long the radar keeps reporting a target after it leaves (not on the dashboard) | 0–65535 s (menuconfig default 1) |
+| `lock_time_ds` | detection paused after occupied → empty, 0.1 s units (not on the dashboard) | 2–100 (menuconfig default 10 = 1 s; the sensor's minimum is 0.2 s) |
+| `report_period_ds` | result report period, 0.1 s units (not on the dashboard) | 1–5 (default 5) |
 
 **About the two holds.** The S3 is the only place that decides whether
 someone is present and it does all the debouncing (`absence_debounce_ms`,
@@ -87,18 +94,22 @@ someone is present and it does all the debouncing (`absence_debounce_ms`,
 dashboard's presence filter). A hold inside the radar is a delay the S3 can't
 see: while the radar holds a target for 1 s, the S3's own 1 s absence debounce
 starts 1 s late, and the lock time makes the radar blind to someone who steps
-back in. Both are settable again because a hold of 0 may make a **still person**
-flicker to "none" (the radar may need a moment to confirm a stationary target;
-not confirmed for the C4002). Keep them small: against 150 s / 300 s timers a
-1-2 s hold costs about 1 %. To test: raise the hold on one node (0, 1, 2 s),
-stand still at the stove and watch for orange cells in the live view.
+back in. Both stay at the menuconfig default of 1 s
+(`RB_C4002_DISAPPEAR_DELAY_S` = 1, `RB_C4002_LOCK_TIME_DS` = 10), and the
+dashboard doesn't offer them. 0 s / 0.2 s would show absence about 1 s
+sooner, but a hold of 0 may make a **still person** flicker to "none" (the
+radar may need a moment to confirm a stationary target; not confirmed for the
+C4002). Against 150 s / 300 s timers the 1 s costs well under 1 %. The command
+still takes both: to try another value, send `disappear_delay_s` 0, 1, 2 to
+one node from a script, stand still
+at the stove and watch for orange cells in the live view.
 
 | `motion_gates`, `presence_gates` | 25 × 0/1, gate *i* on or off | |
-| `motion_thresholds`, `presence_thresholds` | 25 × 0–99 per gate (higher = less sensitive); sending them sets that sensitivity to `custom` | |
+| `motion_thresholds`, `presence_thresholds` | 25 × 0–99 per gate (higher = less sensitive); sending them sets that sensitivity to `custom`. The dashboard only shows them; calibration sets them | |
 
 Arrays always have 25 entries. With 80 cm gates only the first 15 are used.
 `custom` is only accepted once the node knows thresholds for that type, from a
-calibration, from **Read from sensor**, or from sending them.
+calibration, from **Read from sensor**, or from sending them in a command.
 
 ## Detections behind or beside the sensor
 
@@ -111,8 +122,8 @@ do is act on distance:
   the strongest software lever, but it only helps if the people behind the
   sensor are farther away than the cook.
 - **Gates** (`motion_gates`, `presence_gates`) and per-gate thresholds: switch
-  off the distance bands where a passer-by or a fan shows up, or raise their
-  thresholds. A band that holds both the cook and the passer-by can't be
+  off the distance bands where a passer-by or a fan shows up, or calibrate the
+  empty room so their thresholds rise. A band that holds both the cook and the passer-by can't be
   separated this way.
 - **Sensitivity** lower: fewer weak echoes, also fewer real ones.
 

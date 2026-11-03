@@ -58,7 +58,7 @@ MLX90640 → ESP32-C6 thermal node    (node ID 3) ─┘            ├── sa
   with no working radar (a flag; counts as absent only while cooking, never
   FAULT). "Either radar" is a menuconfig/dashboard option
   (`RB_CTRL_PRESENCE_FUSION`).
-- The S3 decides and does all the presence debouncing; nodes only send raw readings, on every change plus every 500 ms. The C4002 disappear delay / lock time are fixed at 0 / 0.2 s.
+- The S3 decides and does all the presence debouncing; nodes only send raw readings, on every change plus every 500 ms. The C4002 disappear delay / lock time stay at the menuconfig default of 1 s / 1 s (decided 2026-11-03; 0 / 0.2 s was considered) and are not on the dashboard.
 - Missing data is never "safe": UNKNOWN / invalid / JSON `null`.
 - ESP-NOW protocol v2 and MQTT schema v2. Django only accepts schema v2.
 - Unconfirmed hardware values stay configurable and are flagged

@@ -1263,8 +1263,7 @@ footer {
 }
 .tuning-grid input,
 .tuning-grid select,
-.tuning-actions input,
-.tuning-gates input[type="number"] {
+.tuning-actions input {
   width: 100%;
   color: var(--ink);
   background: var(--card);
@@ -1272,10 +1271,6 @@ footer {
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 12px;
-}
-.tuning-gates input[type="number"] {
-  max-width: 90px;
-  padding: 4px 8px;
 }
 .tuning-actions {
   display: flex;

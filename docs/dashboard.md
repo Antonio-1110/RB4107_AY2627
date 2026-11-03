@@ -124,7 +124,8 @@ accepting commands.
   it can be edited.
 - **Tuning** keeps a slim countdown strip on top and adds tabs: **Safety** (the
   settings, in two levels, and the rules; see [Safety tab](#safety-tab)), **Radar** (C4002
-  settings and the live radar view), **Thermal** (heat map with the outline and
+  range, gate size, sensitivity, gates on/off, calibration and the live radar
+  view; the per-gate thresholds are shown read-only), **Thermal** (heat map with the outline and
   pixel-size controls), **Diagnostics** (readings, history, system status,
   events, sensor reports, raw telemetry), **Logs** (the controller's own log
 lines, live, with level/tag/text filters, and its per-tag log levels, editable;
