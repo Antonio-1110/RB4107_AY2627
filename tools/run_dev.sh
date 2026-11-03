@@ -16,8 +16,11 @@
 # from a demo is kept.
 # This is a dev helper, not a deployment method.
 #
-# Usage:   tools/run_dev.sh            the real controller(s)
-#          tools/run_dev.sh --demo     plus simulated stalls
+# Usage:   tools/run_dev.sh                 the real controller(s)
+#          tools/run_dev.sh --demo          plus simulated stalls
+#          tools/run_dev.sh --no-telegram   no Telegram alerts this run, even if
+#                                           django/.env has a bot token (combine
+#                                           with --demo: --demo --no-telegram)
 # Options (environment variables):
 #   RB4107_HTTP_ADDR=0.0.0.0:8000     address for runserver (127.0.0.1:8000 = this Mac only)
 #   RB4107_SKIP_BROKER=1              don't start Mosquitto (use one already running)
@@ -40,11 +43,20 @@ PID_FILE="${TMPDIR:-/tmp}/rb4107_dev.pid" # read by tools/stop_dev.sh
 export PYTHONUNBUFFERED=1
 
 DEMO=0
-case "${1:-}" in
-    "") ;;
-    --demo) DEMO=1 ;;
-    *) echo "usage: $0 [--demo]" >&2; exit 2 ;;
-esac
+NO_TELEGRAM=0
+for arg in "$@"; do
+    case "$arg" in
+        --demo) DEMO=1 ;;
+        --no-telegram) NO_TELEGRAM=1 ;;
+        *) echo "usage: $0 [--demo] [--no-telegram]" >&2; exit 2 ;;
+    esac
+done
+if [[ "$NO_TELEGRAM" == 1 ]]; then
+    # Alerts are off while the token is empty. Set here, it wins over the token
+    # in django/.env (settings.py loads .env without overriding), and .env is
+    # left as it is for the next run.
+    export RB4107_TELEGRAM_BOT_TOKEN=""
+fi
 if [[ "$DEMO" == 1 ]]; then
     export RB4107_LOCATION_CATALOG_FILE=locations.demo.json
     export RB4107_SQLITE_PATH="$DJANGO_DIR/demo.sqlite3"
@@ -142,7 +154,7 @@ echo $$ > "$PID_FILE"
 
 # --- Keep the Mac awake ----------------------------------------------------------
 # Idle sleep would stop the broker, subscriber and dashboard (the controller
-# keeps protecting the kitchen, but telemetry is lost and Reset shutdown is
+# keeps protecting the kitchen, but telemetry is lost and Reset shut-off is
 # gone). caffeinate -i blocks idle sleep, -s blocks system sleep on mains
 # power, and -w ends it with this script even if the script is killed.
 # Closing the lid still sleeps the Mac; see docs/setup.md.
@@ -156,6 +168,9 @@ fi
 # --- 1. Broker -----------------------------------------------------------------
 if [[ "$DEMO" == 1 ]]; then
     echo "[dev] demo: simulated stalls from locations.demo.json next to the real controller"
+fi
+if [[ "$NO_TELEGRAM" == 1 ]]; then
+    echo "[dev] --no-telegram: Telegram alerts are off for this run"
 fi
 if [[ "${RB4107_SKIP_BROKER:-0}" == 1 ]]; then
     echo "[dev] RB4107_SKIP_BROKER=1, not starting Mosquitto"

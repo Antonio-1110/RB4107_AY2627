@@ -2,10 +2,11 @@
 # Run every test that doesn't need hardware:
 #   0. the safety rules table vs docs/safety_rules.md (tools/safety_rules.py check),
 #   1. firmware unit tests (firmware/testing/unit_tests) built for ESP-IDF's linux target,
-#   2. Django backend tests (the broker round trip runs only if Mosquitto is up).
+#   2. Django backend tests (the broker round trip runs only if Mosquitto is up),
+#   3. dashboard tests (frontend/tests, Node's built-in test runner, no npm packages).
 #
 # Needs: ESP-IDF v6.1 environment (. $IDF_PATH/export.sh), libbsd-dev on Linux,
-#        Python with django/requirements.txt installed.
+#        Python with django/requirements.txt installed, Node 22 or newer.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -21,3 +22,7 @@ idf.py -B build_linux -DSDKCONFIG=build_linux/sdkconfig build >/dev/null
 echo "== Django backend tests =="
 cd "$ROOT/django"
 python3 manage.py test ingest
+
+echo "== dashboard tests =="
+cd "$ROOT"
+node --test frontend/tests/

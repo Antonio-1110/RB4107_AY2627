@@ -61,6 +61,12 @@ Every task, before you finish (and before opening or updating a PR):
    (seconds, no idf.py build) or `tools/run_host_tests.sh` (everything).
    Add or update a test in `firmware/testing/unit_tests/main/test_safety.c`
    for any rule you add or change.
-4. If the table and the code's behaviour disagree and you didn't cause it,
+4. After any change to the dashboard (`frontend/`), run
+   `node --test frontend/tests/` (a second, no packages; Node 22+). It checks
+   that every id a script uses exists once in `index.html`, the tabs and grid
+   layouts line up, colours are defined in both themes, side-by-side fields are
+   the same height, and what each Safety-tab Apply sends. Add a test there for
+   a new part of the page.
+5. If the table and the code's behaviour disagree and you didn't cause it,
    tell the user. Never change behaviour just to match the doc without asking.
-5. Say in the PR description that the check passed.
+6. Say in the PR description that the check passed.
