@@ -75,7 +75,7 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
  * a hot oven wall in view must not move it far), and ROOM_FALLBACK_C when the node has no reading. A pan heading
  * for less than ROOM_MARGIN_C above the room is only cooling (never above the cooking temperature, though).
  */
-#define ROOM_MIN_C 30.0f
+#define ROOM_MIN_C 36.0f
 #define ROOM_MAX_C 45.0f
 #define ROOM_FALLBACK_C 38.0f
 #define ROOM_MARGIN_C 10.0f

@@ -131,7 +131,7 @@ export default {
     {
      "id": "B5",
      "when": "Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame)",
-     "result": "The room temperature in use, kept between {{ROOM_MIN_C|30 °C}} and {{ROOM_MAX_C|45 °C}}; {{ROOM_FALLBACK_C|38 °C}} without a camera reading. D1 and D5 compare the pan with it",
+     "result": "The room temperature in use, kept between {{ROOM_MIN_C|36 °C}} and {{ROOM_MAX_C|45 °C}}; {{ROOM_FALLBACK_C|38 °C}} without a camera reading. D1 and D5 compare the pan with it",
      "code": "room_update()"
     }
    ]

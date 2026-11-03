@@ -112,7 +112,7 @@ for a shiny pan that reads too cold:
 
 **The room temperature** is measured: the thermal node sends the 10th-percentile
 pixel of each frame (the pan and a few cold pixels, such as a window or a cold
-drink, don't move it). The controller clamps it to 30-45 °C and uses 38 °C when
+drink, don't move it). The controller clamps it to 36-45 °C and uses 38 °C when
 the camera has no reading. In a hot kitchen the line moves up with the room, so
 a pan cooling toward a 40 °C room is not mistaken for heat going in. These
 numbers are fixed in `safety.c`.

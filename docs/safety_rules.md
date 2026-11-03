@@ -44,7 +44,7 @@ reasons behind the rules are in [safety_state_machine.md](safety_state_machine.m
 | B2 | Not cooking, above the off temperature and rising at least the heat-on rate (**0 °C/min**; 0 = this rule is off) | Cooking | `safety_step()` in `safety/src/safety.c` |
 | B3 | Cooking, and the hottest pixel falls below the off temperature **40 °C** | Not cooking | `safety_step()` in `safety/src/safety.c` |
 | B4 | The dashboard sets a new cooking temperature | The off temperature moves with it, keeping the menuconfig gap (**50 °C** - **40 °C**) | `apply_cooking_temp()` in `rb_controller/src/rb_controller.c` |
-| B5 | Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame) | The room temperature in use, kept between **30 °C** and **45 °C**; **38 °C** without a camera reading. D1 and D5 compare the pan with it | `room_update()` in `safety/src/safety.c` |
+| B5 | Every step: the thermal node's room temperature (the 10th-percentile pixel of the frame) | The room temperature in use, kept between **36 °C** and **45 °C**; **38 °C** without a camera reading. D1 and D5 compare the pan with it | `room_update()` in `safety/src/safety.c` |
 
 ## C. Timers
 
@@ -172,7 +172,7 @@ Menuconfig: RB4107 configuration. Values in Kconfig units.
 | `TREND_OUTLIER_MIN_C` | 0.5 | ... but never one closer than this |
 | `TREND_HALF_LIFE_MS` | 30000.0 | recent samples count more: a pan that was steady and now cools shows up sooner |
 | `SETTLE_MARGIN_C` | 3.0 | hysteresis on the cooling decision |
-| `ROOM_MIN_C` | 30.0 |  |
+| `ROOM_MIN_C` | 36.0 |  |
 | `ROOM_MAX_C` | 45.0 |  |
 | `ROOM_FALLBACK_C` | 38.0 |  |
 | `ROOM_MARGIN_C` | 10.0 |  |

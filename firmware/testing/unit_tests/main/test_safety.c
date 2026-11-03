@@ -1240,7 +1240,7 @@ static void test_room_temperature_is_clamped_with_a_fallback(void)
     h.in.thermal_valid = true;
     h.in.cooking_temp_c = 25.0f;
     const float seen[] = {20.0f, 50.0f, 36.0f, NAN};
-    const float used[] = {30.0f, 45.0f, 36.0f, 38.0f};
+    const float used[] = {36.0f, 45.0f, 36.0f, 38.0f};
     for (int k = 0; k < 4; k++) {
         h.in.ambient_c = seen[k];
         th_run(&h, TH_STEP_MS);
@@ -1466,7 +1466,7 @@ static void test_built_in_tuning_is_filled_in(void)
     TEST_ASSERT_EQUAL_UINT32(30000, cfg.tier_rate_window_ms);
     TEST_ASSERT_EQUAL_FLOAT(1.0f, cfg.falling_rate_c_per_min);
     TEST_ASSERT_EQUAL_FLOAT(2.0f, cfg.falling_share_pct_per_min);
-    TEST_ASSERT_EQUAL_FLOAT(30.0f, cfg.room_min_c);
+    TEST_ASSERT_EQUAL_FLOAT(36.0f, cfg.room_min_c);
     TEST_ASSERT_EQUAL_FLOAT(45.0f, cfg.room_max_c);
     TEST_ASSERT_EQUAL_FLOAT(38.0f, cfg.room_fallback_c);
     TEST_ASSERT_EQUAL_FLOAT(10.0f, cfg.room_margin_c);
