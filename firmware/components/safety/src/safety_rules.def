@@ -64,14 +64,17 @@ SAFETY_SIGNAL(A8, "safety/src/safety.c", safety_step,
 
 /* ---- B. cooking on or off ---- */
 SAFETY_SIGNAL(B1, "safety/src/safety.c", safety_step,
-    "Not cooking, and the hottest pixel reaches the cooking temperature {RB_SAFETY_HEAT_ON_DC} (dashboard can change it)",
-    "Cooking")
+    "Not cooking, and the hottest pixel reaches the cooking temperature {RB_SAFETY_HEAT_ON_DC} (dashboard can change it), unless it is still falling (B6)",
+    "Cooking. A pan that is hot but falling (one just put in view, or switched off) is not cooking yet; it counts as cooking once the fall is under {=HEAT_FALLING_END_C_PER_MIN} per minute. An unknown rate never blocks")
 SAFETY_SIGNAL(B2, "safety/src/safety.c", safety_step,
-    "Not cooking, above the off temperature and rising at least the heat-on rate ({=RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN}; 0 = this rule is off)",
+    "Not cooking, above the off temperature and rising at least the heat-on rate ({=RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN}; 0 = this rule is off), and not still falling (B6)",
     "Cooking")
 SAFETY_SIGNAL(B3, "safety/src/safety.c", safety_step,
-    "Cooking, and the hottest pixel falls below the off temperature {RB_SAFETY_HEAT_OFF_DC}",
+    "Cooking, and the hottest pixel falls below the off temperature {RB_SAFETY_HEAT_OFF_DC}: a pan that holds steady or is turned down has to fall this far",
     "Not cooking")
+SAFETY_SIGNAL(B6, "safety/src/safety.c", safety_step,
+    "Cooking, the hottest pixel below {=HEAT_FALLING_OFF_C} and the thermal node's rate falling by {=HEAT_FALLING_C_PER_MIN} per minute or more",
+    "Not cooking, even above the off temperature (B3). A pan that is still hot but cooling down stops counting as cooking")
 SAFETY_SIGNAL(B4, "rb_controller/src/rb_controller.c", apply_cooking_temp,
     "The dashboard sets a new cooking temperature",
     "The off temperature moves with it, keeping the menuconfig gap ({RB_SAFETY_HEAT_ON_DC} - {RB_SAFETY_HEAT_OFF_DC})")

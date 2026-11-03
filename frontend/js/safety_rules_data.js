@@ -106,26 +106,32 @@ export default {
    "rows": [
     {
      "id": "B1",
-     "when": "Not cooking, and the hottest pixel reaches the cooking temperature {{RB_SAFETY_HEAT_ON_DC|50 °C}} (dashboard can change it)",
-     "result": "Cooking",
+     "when": "Not cooking, and the hottest pixel reaches the cooking temperature {{RB_SAFETY_HEAT_ON_DC|50 °C}} (dashboard can change it), unless it is still falling (B6)",
+     "result": "Cooking. A pan that is hot but falling (one just put in view, or switched off) is not cooking yet; it counts as cooking once the fall is under {{HEAT_FALLING_END_C_PER_MIN|0.2 °C/min}} per minute. An unknown rate never blocks",
      "code": "safety_step()"
     },
     {
      "id": "B2",
-     "when": "Not cooking, above the off temperature and rising at least the heat-on rate ({{RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN|0 °C/min}}; 0 = this rule is off)",
+     "when": "Not cooking, above the off temperature and rising at least the heat-on rate ({{RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN|0 °C/min}}; 0 = this rule is off), and not still falling (B6)",
      "result": "Cooking",
      "code": "safety_step()"
     },
     {
      "id": "B3",
-     "when": "Cooking, and the hottest pixel falls below the off temperature {{RB_SAFETY_HEAT_OFF_DC|40 °C}}",
+     "when": "Cooking, and the hottest pixel falls below the off temperature {{RB_SAFETY_HEAT_OFF_DC|50 °C}}: a pan that holds steady or is turned down has to fall this far",
      "result": "Not cooking",
+     "code": "safety_step()"
+    },
+    {
+     "id": "B6",
+     "when": "Cooking, the hottest pixel below {{HEAT_FALLING_OFF_C|60 °C}} and the thermal node's rate falling by {{HEAT_FALLING_C_PER_MIN|0.5 °C/min}} per minute or more",
+     "result": "Not cooking, even above the off temperature (B3). A pan that is still hot but cooling down stops counting as cooking",
      "code": "safety_step()"
     },
     {
      "id": "B4",
      "when": "The dashboard sets a new cooking temperature",
-     "result": "The off temperature moves with it, keeping the menuconfig gap ({{RB_SAFETY_HEAT_ON_DC|50 °C}} - {{RB_SAFETY_HEAT_OFF_DC|40 °C}})",
+     "result": "The off temperature moves with it, keeping the menuconfig gap ({{RB_SAFETY_HEAT_ON_DC|50 °C}} - {{RB_SAFETY_HEAT_OFF_DC|50 °C}})",
      "code": "apply_cooking_temp()"
     },
     {
@@ -442,7 +448,7 @@ export default {
    "kind": "DC",
    "min": 0,
    "max": 1000,
-   "default": 100,
+   "default": 0,
    "label": "Cooking ends this far below the cooking temperature",
    "source": "RB_SAFETY_HEAT_ON_DC - RB_SAFETY_HEAT_OFF_DC",
    "options": null,

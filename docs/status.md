@@ -15,7 +15,7 @@ nodes, or Django against a real broker. *Bench* = run on the real boards.
 | Shutdown output (output 1) | yes | active level confirmed on the bench (low pin = output on) | boot state is an **open question**; no hardware watchdog if the safety task hangs |
 | Buzzer, RTC, board bring-up | n/a | bench-test projects exist in `firmware/testing/` | some bench-found pins are not yet the Kconfig defaults (issue #19) |
 | C4002 radars | protocol and tuning logic tested | bench-test project exists | detection thresholds, angle and enclosure not measured; radar rules are placeholders, shown but not enforced by default |
-| MLX90640 thermal camera | feature extraction tested | bench-test project exists | cooking temperature (50 °C on, 40 °C off) is a placeholder (issue #21); shiny pans read cold; one trend for the whole frame |
+| MLX90640 thermal camera | feature extraction tested | bench-test project exists | cooking temperature (50 °C on and off, 60 °C when falling) is a placeholder; the new direction rule is tested in emulation only (issue #21); shiny pans read cold; one trend for the whole frame |
 | Cooking judgment (is heat still going in?) | yes, simulated cooling curves | needs several minutes on real hardware | cookware time constants are estimates |
 | Presence fusion and passer-by pause | yes | not recorded | needs recorded real walk-bys; a false target on either radar keeps the stove on (issue #20) |
 | ESP-NOW link and protocol v3 | yes | in use on the bench | unencrypted, CRC only |

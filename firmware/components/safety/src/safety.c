@@ -71,6 +71,17 @@ bool safety_cookware_from_name(const char *name, safety_cookware_t *out)
 #define TREND_HALF_LIFE_MS 30000.0f    /* recent samples count more: a pan that was steady and now cools shows up sooner */
 #define SETTLE_MARGIN_C 3.0f           /* hysteresis on the cooling decision */
 /*
+ * Cooking on and off by direction. A pan above the cooking temperature that is still falling is not cooking yet
+ * (a hot pan put in view, or one that was switched off), and a cooking pan that is below HEAT_FALLING_OFF_C and
+ * falling is not cooking any more. The rate is the thermal node's own (hot region, per minute), which exists
+ * whether or not cooking is on. Falling is a drop of HEAT_FALLING_C_PER_MIN; cooking comes back on only once the
+ * drop is smaller than HEAT_FALLING_END_C_PER_MIN, so a pan hovering at the edge does not flip every reading.
+ * An unknown rate blocks nothing: the pan counts as cooking whenever it is hot.
+ */
+#define HEAT_FALLING_OFF_C 60.0f
+#define HEAT_FALLING_C_PER_MIN 0.5f
+#define HEAT_FALLING_END_C_PER_MIN 0.2f
+/*
  * The room: the thermal node's 10th-percentile pixel, kept between ROOM_MIN_C and ROOM_MAX_C (a cold window or
  * a hot oven wall in view must not move it far), and ROOM_FALLBACK_C when the node has no reading. A pan heading
  * for less than ROOM_MARGIN_C above the room is only cooling (never above the cooking temperature, though).
@@ -1081,7 +1092,16 @@ const safety_outputs_t *safety_step(safety_sm_t *sm, const safety_inputs_t *in, 
         const bool rising_fast = sm->cfg.heat_on_rate_c_per_min > 0.0f && isfinite(in->temp_rate_c_per_min) &&
                                  in->temp_rate_c_per_min >= sm->cfg.heat_on_rate_c_per_min &&
                                  t >= sm->cfg.heat_off_temp_c;
-        sm->heat_active = sm->heat_active ? t >= sm->cfg.heat_off_temp_c : (t >= sm->cfg.heat_on_temp_c || rising_fast);
+        const float rate = in->temp_rate_c_per_min;
+        const bool dropping = isfinite(rate) && rate <= -HEAT_FALLING_C_PER_MIN;
+        const bool still_falling = isfinite(rate) && rate <= -HEAT_FALLING_END_C_PER_MIN;
+        if (sm->heat_active) {
+            /* Over below the off temperature, or below HEAT_FALLING_OFF_C and dropping. */
+            sm->heat_active = t >= sm->cfg.heat_off_temp_c && !(t < HEAT_FALLING_OFF_C && dropping);
+        } else {
+            /* On at the cooking temperature (or a fast rise), unless the pan is still falling. */
+            sm->heat_active = (t >= sm->cfg.heat_on_temp_c || rising_fast) && !still_falling;
+        }
     }
     judge_heat(sm, in, now_ms);
     update_tier(sm, in, now_ms);

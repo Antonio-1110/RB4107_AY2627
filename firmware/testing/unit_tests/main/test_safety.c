@@ -117,6 +117,100 @@ static void test_idle_to_monitoring(void)
     TH_EXPECT(&h, SAFETY_IDLE);
 }
 
+/* ---- cooking on and off by direction (B1, B3, B6) ---- */
+
+static safety_config_t direction_config(void)
+{
+    safety_config_t cfg = th_default_config();
+    cfg.heat_off_temp_c = 50.0f; /* the menuconfig default: no gap, a steady or turned-down pan must drop below 50 */
+    cfg.cooling_policy = SAFETY_COOLING_RETURN_TO_IDLE;
+    return cfg;
+}
+
+static void test_a_hot_pan_that_is_still_falling_is_not_cooking_yet(void)
+{
+    th_t h;
+    const safety_config_t cfg = direction_config();
+    th_start(&h, &cfg, 0);
+    h.in.cooking_temp_c = 80.0f;
+    h.in.temp_rate_c_per_min = -3.0f; /* switched off, or just put in view */
+    th_run(&h, 5000);
+    TH_EXPECT(&h, SAFETY_IDLE);
+    h.in.temp_rate_c_per_min = -0.3f; /* still falling (hysteresis: not yet under 0.2 per minute) */
+    th_run(&h, 1000);
+    TH_EXPECT(&h, SAFETY_IDLE);
+    h.in.temp_rate_c_per_min = 0.0f; /* steady: a lowered flame, cooking */
+    th_run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_a_cooking_pan_below_60_and_falling_stops_being_cooking(void)
+{
+    th_t h;
+    const safety_config_t cfg = direction_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.cooking_temp_c = 65.0f; /* falling but still above 60: cooking */
+    h.in.temp_rate_c_per_min = -2.0f;
+    th_run(&h, 2000);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    h.in.cooking_temp_c = 59.0f; /* below 60 and dropping */
+    th_run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_IDLE);
+    h.in.cooking_temp_c = 55.0f; /* still falling in the band: stays off */
+    th_run(&h, 3000);
+    TH_EXPECT(&h, SAFETY_IDLE);
+    h.in.temp_rate_c_per_min = 0.0f; /* the fall stops at 55: cooking again */
+    th_run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_a_steady_pan_must_drop_below_the_off_temperature(void)
+{
+    th_t h;
+    const safety_config_t cfg = direction_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.cooking_temp_c = 55.0f; /* turned down and steady (rate 0): still cooking */
+    h.in.temp_rate_c_per_min = 0.0f;
+    th_run(&h, 5000);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    h.in.cooking_temp_c = 49.9f;
+    th_run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_IDLE);
+}
+
+static void test_an_unknown_rate_never_stops_cooking(void)
+{
+    th_t h;
+    const safety_config_t cfg = direction_config();
+    th_start(&h, &cfg, 0);
+    h.in.temp_rate_c_per_min = NAN;
+    h.in.cooking_temp_c = 80.0f; /* no rate to say it is falling: hot means cooking */
+    th_run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    h.in.cooking_temp_c = 55.0f; /* and nothing to say it is dropping, so it stays on */
+    th_run(&h, 5000);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+}
+
+static void test_a_countdown_ends_when_the_pan_cools_below_60(void)
+{
+    th_t h;
+    const safety_config_t cfg = direction_config();
+    th_start(&h, &cfg, 0);
+    th_cook(&h);
+    h.in.cooking_temp_c = 80.0f;
+    h.in.temp_rate_c_per_min = 0.0f;
+    h.in.presence = RB_FALSE;
+    th_run(&h, 3000);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    h.in.cooking_temp_c = 59.0f; /* switched off and cooling: the countdown is cancelled */
+    h.in.temp_rate_c_per_min = -1.5f;
+    th_run(&h, TH_STEP_MS);
+    TH_EXPECT(&h, SAFETY_IDLE);
+}
+
 static void test_monitoring_to_unattended_after_debounce(void)
 {
     th_t h;
@@ -1647,6 +1741,11 @@ void run_safety_tests(void)
     RUN_TEST(test_boot_selftest_pass_to_idle);
     RUN_TEST(test_boot_selftest_fail_or_timeout_to_fault);
     RUN_TEST(test_idle_to_monitoring);
+    RUN_TEST(test_a_hot_pan_that_is_still_falling_is_not_cooking_yet);
+    RUN_TEST(test_a_cooking_pan_below_60_and_falling_stops_being_cooking);
+    RUN_TEST(test_a_steady_pan_must_drop_below_the_off_temperature);
+    RUN_TEST(test_an_unknown_rate_never_stops_cooking);
+    RUN_TEST(test_a_countdown_ends_when_the_pan_cools_below_60);
     RUN_TEST(test_monitoring_to_unattended_after_debounce);
     RUN_TEST(test_unattended_to_monitoring_person_returns);
     RUN_TEST(test_unattended_to_warning);

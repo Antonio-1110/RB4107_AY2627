@@ -77,8 +77,16 @@ not tuned on real walks or cooks ([demo_vs_deployment.md](demo_vs_deployment.md)
 
 ## Cooking judgment: is heat still going in?
 
-"Cooking" starts when the hottest pixel reaches the cooking temperature (on and
-off thresholds are settings). Once on, the S3 asks a second question: is heat
+"Cooking" is decided by the temperature and its direction (rules B1, B3, B6). It
+starts when the hottest pixel reaches the cooking temperature (50 °C) unless the
+pan is still falling, so a hot pan just put in view, or one that was switched
+off, is not cooking until the fall stops. It ends when the pan falls below the
+off temperature (50 °C by default), or sooner when it is below 60 °C and
+falling by 0.5 °C/min or more. A pan that holds steady or is turned down
+therefore stays cooking until it is below 50 °C; and a pan in the 50-60 °C band
+that stops falling counts as cooking again. The direction is the thermal node's
+own rate; an unknown rate never stops cooking. These rate limits and the 60 °C
+are fixed in `safety.c`. Once on, the S3 asks a second question: is heat
 still going in, or is the pan just cooling down? The two mistakes cost very
 different amounts. Calling a cooling pan "cooking" is a nuisance (the burner is
 already off); calling a lowered flame "off" is the dangerous one. A falling

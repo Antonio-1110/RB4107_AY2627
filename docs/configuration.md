@@ -240,7 +240,7 @@ Items flagged ⚠ are not yet confirmed on hardware or still open (see the GitHu
 |---|---|---|---|---|
 | `CONFIG_RB_SAFETY_SELF_TEST_TIMEOUT_MS` | Self-test timeout (ms) | `10000` | 1000 – 120000 |  |
 | `CONFIG_RB_SAFETY_HEAT_ON_DC` | Cooking detected at hottest-pixel temperature (0.1 degC) | `500` | 0 – 3000 | ⚠ |
-| `CONFIG_RB_SAFETY_HEAT_OFF_DC` | Cooking over below hottest-pixel temperature (0.1 degC) | `400` | 0 – 3000 | ⚠ |
+| `CONFIG_RB_SAFETY_HEAT_OFF_DC` | Cooking over below hottest-pixel temperature (0.1 degC) | `500` | 0 – 3000 | ⚠ |
 | `CONFIG_RB_SAFETY_HEAT_ON_RATE_DC_PER_MIN` | Also detect cooking when rising at least (0.1 degC/min), 0 = off | `0` | 0 – 10000 | ⚠ |
 | `CONFIG_RB_SAFETY_ABSENCE_DEBOUNCE_MS` | Absence must last (ms) before UNATTENDED | `1000` | 0 – 60000 |  |
 | `CONFIG_RB_SAFETY_PRESENCE_RETURN_DEBOUNCE_MS` | Presence must last (ms) to cancel UNATTENDED/WARNING | `5000` | 0 – 60000 |  |

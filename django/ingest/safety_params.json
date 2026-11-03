@@ -6,7 +6,7 @@
    "kind": "DC",
    "min": 0,
    "max": 1000,
-   "default": 100,
+   "default": 0,
    "label": "Cooking ends this far below the cooking temperature",
    "source": "RB_SAFETY_HEAT_ON_DC - RB_SAFETY_HEAT_OFF_DC",
    "options": null,
