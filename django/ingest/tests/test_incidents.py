@@ -101,12 +101,23 @@ class IncidentTest(TestCase):
             self.send(state)
         body = self.client.get("/api/stall-history/").json()
         stall = next(s for s in body["stalls"] if "controller_01" in s["device_ids"])
-        self.assertEqual((stall["incidents"], stall["warnings"], stall["shutdowns"], stall["ongoing"]), (2, 1, 1, 1))
+        # Both episodes are stored, but only the one that reached the buzzer is counted and listed: the
+        # other is still a countdown inside the time the cook is allowed to be away.
+        self.assertEqual(Incident.objects.count(), 2)
+        self.assertEqual((stall["incidents"], stall["warnings"], stall["shutdowns"], stall["ongoing"]), (1, 1, 1, 0))
         self.assertNotIn("incidents", body)  # only with ?stall=
         listed = self.client.get("/api/stall-history/", {"stall": stall["stall_id"]}).json()
-        self.assertEqual([i["peak"] for i in listed["incidents"]], ["unattended", "shutdown"])
-        self.assertTrue(listed["incidents"][0]["ongoing"])
-        self.assertEqual(listed["incidents"][1]["end_reason_text"], "Reset after shut-off")
+        self.assertEqual([i["peak"] for i in listed["incidents"]], ["shutdown"])
+        self.assertEqual(listed["incidents"][0]["end_reason_text"], "Reset after shut-off")
+
+    def test_a_countdown_that_never_reached_the_buzzer_is_not_counted(self):
+        for state in ("UNATTENDED", "MONITORING", "UNATTENDED", "IDLE"):  # two short countdowns, nobody buzzed
+            self.send(state)
+        self.assertEqual(Incident.objects.count(), 2)
+        stall = next(s for s in self.client.get("/api/stall-history/", {"days": "7"}).json()["stalls"]
+                     if "controller_01" in s["device_ids"])
+        self.assertEqual((stall["incidents"], stall["period"]["buzzer"]), (0, 0))
+        self.assertIsNone(stall["last_incident_at"])
 
 
 class PeriodTest(TestCase):
@@ -119,7 +130,7 @@ class PeriodTest(TestCase):
         rows = (  # days ago, peak, buzzer after s, shut-off after s, ended after s, end reason
             (2, "unattended", None, None, 60, "person_returned"),
             (3, "unattended", None, None, 100, "heating_stopped"),
-            (5, "unattended", None, None, 40, "controller_restarted"),
+            (5, "warning", 30, None, 40, "controller_restarted"),
             (10, "warning", 120, None, 150, "person_returned"),
             (12, "warning", 60, None, 150, "person_returned"),
             (20, "shutdown", 60, 180, 780, "operator_reset"),
@@ -141,39 +152,40 @@ class PeriodTest(TestCase):
 
     def test_four_weeks_by_hand(self):
         p = self.period(28)
-        self.assertEqual((p["countdowns"], p["buzzer"], p["shutoff"], p["ongoing"]), (7, 3, 1, 1))
-        self.assertEqual(p["countdowns_per_week"], 1.75)  # 7 in 4 weeks
-        self.assertAlmostEqual(p["buzzer_share"], 3 / 7)
-        self.assertAlmostEqual(p["shutoff_share"], 1 / 3)  # of the buzzer events
-        # Cooking on 2 days (2 and 10 days ago); one countdown started on each.
-        self.assertEqual((p["cooking_days"], p["countdowns_on_cooking_days"], p["countdowns_per_cooking_day"]),
-                         (2, 2, 1.0))
+        # Only the countdowns that reached the buzzer count: the 3 short ones and the ongoing one are left out.
+        self.assertNotIn("countdowns", p)
+        self.assertEqual((p["buzzer"], p["shutoff"], p["ongoing"]), (4, 1, 0))
+        self.assertEqual(p["buzzer_per_week"], 1.0)  # 4 in 4 weeks
+        self.assertAlmostEqual(p["shutoff_share"], 1 / 4)  # of the buzzer warnings
+        # Cooking on 2 days (2 and 10 days ago); one buzzer warning started on the second.
+        self.assertEqual((p["cooking_days"], p["buzzer_on_cooking_days"], p["buzzer_per_cooking_day"]), (2, 1, 0.5))
         r = p["recovery"]
-        self.assertEqual([r["before_buzzer"][k] for k in ("count", "median_seconds", "slowest_seconds")], [2, 80, 100])
+        self.assertNotIn("before_buzzer", r)
         self.assertEqual([r["after_buzzer"][k] for k in ("count", "median_seconds", "slowest_seconds")], [2, 60, 90])
         self.assertEqual([r["after_shutoff"][k] for k in ("count", "median_seconds", "slowest_seconds")], [1, 600, 600])
         self.assertEqual(r["controller_restarted"]["count"], 1)
         self.assertIsNone(r["controller_restarted"]["median_seconds"])
         self.assertEqual(r["stove_off_after_buzzer"]["count"], 0)
-        # Start to end of the 5 recovered countdowns: 60, 100, 150, 150, 780 (not the restart, not ongoing).
-        self.assertEqual((p["usual_recovery"]["median_seconds"], p["usual_recovery"]["slowest_seconds"]), (150, 780))
+        # Buzzer to back to normal when the buzzer was enough: 30 and 90 s (not the restart, not the shut-off).
+        self.assertEqual((p["usual_recovery"]["count"], p["usual_recovery"]["median_seconds"],
+                          p["usual_recovery"]["slowest_seconds"]), (2, 60, 90))
+        self.assertEqual((p["reset_after_shutoff"]["count"], p["reset_after_shutoff"]["median_seconds"]), (1, 600))
         # Monday weeks from Mon 5 Oct (the period starts Wed 7 Oct) to Mon 2 Nov (today is Wed 4 Nov).
-        self.assertEqual([(w["week_start"], w["days_in_period"], w["countdown_only"], w["buzzer"], w["shutoff"])
-                          for w in p["weeks"]],
-                         [("2026-10-05", 5, 0, 0, 0), ("2026-10-12", 7, 0, 0, 1), ("2026-10-19", 7, 0, 2, 0),
-                          ("2026-10-26", 7, 2, 0, 0), ("2026-11-02", 3, 2, 0, 0)])
+        self.assertEqual([(w["week_start"], w["days_in_period"], w["buzzer"], w["shutoff"]) for w in p["weeks"]],
+                         [("2026-10-05", 5, 0, 0), ("2026-10-12", 7, 0, 1), ("2026-10-19", 7, 2, 0),
+                          ("2026-10-26", 7, 1, 0), ("2026-11-02", 3, 0, 0)])
 
     def test_the_period_changes_the_numbers(self):
-        self.assertEqual((self.period(14)["countdowns"], self.period(14)["buzzer"]), (6, 2))  # incl. the ongoing one
+        self.assertEqual((self.period(14)["buzzer"], self.period(14)["shutoff"]), (3, 0))
         three_months = self.period(90)
-        self.assertEqual((three_months["countdowns"], three_months["shutoff"]), (8, 2))
+        self.assertEqual((three_months["buzzer"], three_months["shutoff"]), (5, 2))
         self.assertEqual(three_months["recovery"]["after_shutoff"]["median_seconds"], 410)  # 600 and 220
         self.assertEqual(len(three_months["weeks"]), 14)
 
     def test_any_number_of_days(self):
         week = self.period(7)
-        self.assertEqual((week["countdowns"], week["countdowns_per_week"], week["days"]), (4, 4.0, 7))  # 2, 3, 5 days ago + ongoing
-        self.assertEqual((self.period(1)["countdowns"], self.period(1)["countdowns_per_week"]), (1, 7.0))
+        self.assertEqual((week["buzzer"], week["buzzer_per_week"], week["days"]), (1, 1.0, 7))  # the one 5 days ago
+        self.assertEqual((self.period(1)["buzzer"], self.period(1)["buzzer_per_week"]), (0, 0.0))
 
     def test_date_range_by_hand(self):
         # Tue 20 Oct to Sun 25 Oct, whole days: the warnings 12 days ago (Fri 23) and 10 days ago (Sun 25).
@@ -181,20 +193,20 @@ class PeriodTest(TestCase):
         self.assertEqual(period, (timezone.make_aware(datetime(2026, 10, 20)), timezone.make_aware(datetime(2026, 10, 26))))
         body = stall_history(self.NOW, period=period)
         p = next(s for s in body["stalls"] if "controller_01" in s["device_ids"])["period"]
-        self.assertEqual((p["countdowns"], p["buzzer"], p["shutoff"], p["days"]), (2, 2, 0, 6))
-        self.assertEqual(p["countdowns_per_week"], round(2 / (6 / 7), 2))
-        self.assertEqual((p["cooking_days"], p["countdowns_on_cooking_days"]), (1, 1))  # the reading on Sun 25
+        self.assertEqual((p["buzzer"], p["shutoff"], p["days"]), (2, 0, 6))
+        self.assertEqual(p["buzzer_per_week"], round(2 / (6 / 7), 2))
+        self.assertEqual((p["cooking_days"], p["buzzer_on_cooking_days"]), (1, 1))  # the reading on Sun 25
         self.assertEqual([(w["week_start"], w["days_in_period"], w["buzzer"]) for w in p["weeks"]],
                          [("2026-10-19", 6, 2)])
         # A range ending today stops at now; one ending Sat 24 leaves out Sunday's warning.
         self.assertEqual(period_bounds(self.NOW, start=date(2026, 11, 1))[1], self.NOW)
         saturday = stall_history(self.NOW, period=period_bounds(self.NOW, start=date(2026, 10, 20), end=date(2026, 10, 24)))
-        self.assertEqual(next(s for s in saturday["stalls"] if s["period"]["countdowns"])["period"]["countdowns"], 1)
+        self.assertEqual(next(s for s in saturday["stalls"] if s["period"]["buzzer"])["period"]["buzzer"], 1)
 
-    def test_no_countdowns_gives_no_shares(self):
+    def test_no_buzzer_warnings_gives_no_share(self):
         Incident.objects.all().delete()
         p = self.period(14)
-        self.assertEqual((p["countdowns"], p["buzzer_share"], p["shutoff_share"]), (0, None, None))
+        self.assertEqual((p["buzzer"], p["shutoff_share"]), (0, None))
         self.assertIsNone(p["usual_recovery"]["median_seconds"])
 
     def test_api_days_parameter(self):
@@ -240,7 +252,7 @@ class SeedTest(TestCase):
         call_command("seed_incident_history", stdout=StringIO())
         body = stall_history(timezone.now(), days=28)
         demo = [s["period"] for s in body["stalls"] if s["demo_only"]]
-        self.assertGreater(len({p["countdowns"] for p in demo}), 2)
+        self.assertGreater(len({p["buzzer"] for p in demo}), 2)
         self.assertTrue(any(p["shutoff"] for p in demo))
         self.assertTrue(all(p["cooking_days"] >= 20 for p in demo))  # open most days
 

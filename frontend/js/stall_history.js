@@ -1,8 +1,9 @@
-// Stall history: for a fire-safety inspector, how often each stall's unattended-cooking countdown
-// started over a chosen period, how many reached the buzzer and the gas shut-off, and how long
-// recovery usually took; every stall side by side to pick the one to visit or watch. Django builds
-// the incidents from the controller's telemetry and sums them up per period
-// (django/ingest/incidents.py); this view only reads them.
+// Stall history: for a fire-safety inspector, how often each stall's buzzer warning sounded over a
+// chosen period, how many of those reached the gas shut-off, and how long recovery took; every stall
+// side by side to pick the one to visit or watch. A countdown that ends before the buzzer is the time
+// the cook is allowed to be away, so it is not counted. Django builds the incidents from the
+// controller's telemetry and sums them up per period (django/ingest/incidents.py); this view only
+// reads them.
 
 import { fetchStallHistory } from "./api.js";
 import { drawStackedWeeks } from "./chart.js";
@@ -10,14 +11,12 @@ import { $, make, makeBadge, set } from "./dom.js";
 import { DATE_LOCALE, locationLine, number } from "./format.js";
 
 const PEAK = {
-  unattended: ["Countdown only", "fault"],
   warning: ["Buzzer warning", "warning"],
   shutdown: ["Gas shut-off", "critical"],
 };
 const PRESETS = { 14: "the last 2 weeks", 28: "the last 4 weeks", 90: "the last 3 months" };
 const MAX_DAYS = 366; // the server's limit (MAX_PERIOD_DAYS)
 const BARS = [
-  { key: "countdown_only", color: "--teal" },
   { key: "buzzer", color: "--amber" },
   { key: "shutoff", color: "--red" },
 ];
@@ -36,37 +35,29 @@ export function duration(totalSeconds) {
   return `${h} h${m ? ` ${m} min` : ""}`;
 }
 
-// Everything the stalls can be ranked by. For each, a bigger value is worse (more countdowns,
+// Everything the stalls can be ranked by. For each, a bigger value is worse (more buzzer warnings,
 // slower recovery). `value` reads it from a stall's period summary; null means "no data" and
 // always sorts last.
 const MEASURES = {
   risk: { label: "Highest risk" }, // most shut-offs, then most buzzer warnings
-  countdowns_per_week: { label: "Countdowns per week", value: (p) => p.countdowns_per_week, text: rate },
-  countdowns_per_cooking_day: {
-    label: "Countdowns per cooking day",
-    value: (p) => p.countdowns_per_cooking_day,
+  buzzer_per_week: { label: "Buzzer warnings per week", value: (p) => p.buzzer_per_week, text: rate },
+  buzzer_per_cooking_day: {
+    label: "Buzzer warnings per cooking day",
+    value: (p) => p.buzzer_per_cooking_day,
     text: rate,
   },
-  countdowns: { label: "Total countdowns", value: (p) => p.countdowns, text: String },
-  buzzer_per_week: { label: "Buzzer warnings per week", value: (p) => p.buzzer_per_week, text: rate },
   buzzer: { label: "Total buzzer warnings", value: (p) => p.buzzer, text: String },
-  buzzer_share: { label: "Buzzer warnings as % of countdowns", value: (p) => p.buzzer_share, text: percent },
   shutoff_per_week: { label: "Shut-offs per week", value: (p) => p.shutoff_per_week, text: rate },
   shutoff: { label: "Total shut-offs", value: (p) => p.shutoff, text: String },
   shutoff_share: { label: "Shut-offs as % of buzzer warnings", value: (p) => p.shutoff_share, text: percent },
   usual_recovery: {
-    label: "Median recovery",
+    label: "Median recovery after a buzzer warning",
     value: (p) => p.usual_recovery.median_seconds,
     text: duration,
   },
   slowest_recovery: {
-    label: "Slowest recovery",
+    label: "Slowest recovery after a buzzer warning",
     value: (p) => p.usual_recovery.slowest_seconds,
-    text: duration,
-  },
-  after_buzzer: {
-    label: "Median return time after a buzzer warning",
-    value: (p) => p.recovery.after_buzzer.median_seconds,
     text: duration,
   },
   after_shutoff: {
@@ -82,7 +73,7 @@ const MEASURES = {
   name: { label: "Stall name" },
 };
 // Measures with a column of their own; any other ranking adds one more column for itself.
-const COLUMNS = new Set(["name", "countdowns_per_week", "buzzer", "shutoff", "usual_recovery"]);
+const COLUMNS = new Set(["name", "buzzer_per_week", "shutoff", "usual_recovery", "after_shutoff"]);
 const SHOW = {
   watched: (stall) => watched.has(stall.stall_id),
   shutoff: (stall) => stall.period.shutoff > 0,
@@ -153,7 +144,7 @@ function periodName() {
 const byRisk = (a, b) =>
   b.period.shutoff - a.period.shutoff ||
   b.period.buzzer - a.period.buzzer ||
-  b.period.countdowns - a.period.countdowns ||
+  b.period.buzzer_per_week - a.period.buzzer_per_week ||
   a.stall_name.localeCompare(b.stall_name);
 
 function compare(a, b) {
@@ -211,8 +202,8 @@ function renderPeriod() {
     !data?.since
       ? ""
       : period.from
-        ? `${day(period.from)} to ${period.to === today ? "now" : `the end of ${day(period.to)}`}. Counts include countdowns still in progress.`
-        : `${date(data.since, false)} to now${length ? ` (${plural(Math.round(length), "day")})` : ""}. Counts include countdowns still in progress.`,
+        ? `${day(period.from)} to ${period.to === today ? "now" : `the end of ${day(period.to)}`}. Counts include buzzer warnings still in progress.`
+        : `${date(data.since, false)} to now${length ? ` (${plural(Math.round(length), "day")})` : ""}. Counts include buzzer warnings still in progress.`,
   );
 }
 
@@ -281,7 +272,7 @@ function renderStalls() {
   // Each figure gets a thin bar against the biggest value shown, to compare stalls at a glance.
   const biggest = (key) => Math.max(0, ...shown.map((stall) => MEASURES[key].value(stall.period) ?? 0));
   const scale = Object.fromEntries(
-    ["countdowns_per_week", "buzzer", "shutoff", "usual_recovery", ...(extra ? [sortKey] : [])].map((key) => [
+    ["buzzer_per_week", "shutoff", "usual_recovery", "after_shutoff", ...(extra ? [sortKey] : [])].map((key) => [
       key,
       biggest(key),
     ]),
@@ -337,11 +328,10 @@ function renderStalls() {
       bar.append(fill);
       td.append(make("strong", main), make("small", note), bar);
     };
-    figure("countdowns_per_week", rate(p.countdowns_per_week), `${p.countdowns} total`, "hist-count");
     figure(
-      "buzzer",
-      String(p.buzzer),
-      p.countdowns ? `${percent(p.buzzer_share)} of countdowns` : "",
+      "buzzer_per_week",
+      rate(p.buzzer_per_week),
+      `${p.buzzer} total`,
       `hist-buzz${p.buzzer ? " hist-warn" : ""}`,
     );
     figure(
@@ -356,26 +346,37 @@ function renderStalls() {
       p.usual_recovery.count ? `slowest ${duration(p.usual_recovery.slowest_seconds)}` : "",
       "hist-time",
     );
+    figure(
+      "after_shutoff",
+      duration(p.reset_after_shutoff.median_seconds),
+      p.reset_after_shutoff.count ? `slowest ${duration(p.reset_after_shutoff.slowest_seconds)}` : "",
+      "hist-time",
+    );
     if (extra) figure(sortKey, MEASURES[sortKey].text(MEASURES[sortKey].value(p)), "", "hist-rank-cell");
   }
 }
 
 function renderFigures(p) {
-  set("hist-per-week", `${rate(p.countdowns_per_week)} / week`);
+  set("hist-per-week", `${rate(p.buzzer_per_week)} / week`);
   const cooking = p.cooking_days
-    ? `${rate(p.countdowns_per_cooking_day)} per cooking day (${plural(p.cooking_days, "cooking day")} recorded)`
+    ? `${rate(p.buzzer_per_cooking_day)} per cooking day (${plural(p.cooking_days, "cooking day")} recorded)`
     : "per cooking day: no cooking recorded";
-  set("hist-per-week-note", `${p.countdowns} in ${periodName()} · ${cooking}`);
-  set("hist-buzzer", String(p.buzzer));
-  set("hist-buzzer-note", p.countdowns ? `${percent(p.buzzer_share)} of the countdowns` : "No countdowns");
+  set("hist-per-week-note", `${p.buzzer} in ${periodName()} · ${cooking}`);
+  set("hist-buzzer", duration(p.usual_recovery.median_seconds));
+  set(
+    "hist-buzzer-note",
+    p.usual_recovery.count
+      ? `Buzzer warning to back to normal · slowest ${duration(p.usual_recovery.slowest_seconds)}`
+      : "No completed recoveries in this period",
+  );
   set("hist-shutoff", String(p.shutoff));
   set("hist-shutoff-note", p.buzzer ? `${percent(p.shutoff_share)} of the buzzer warnings` : "No buzzer warnings");
-  set("hist-recovery", duration(p.usual_recovery.median_seconds));
+  set("hist-recovery", duration(p.reset_after_shutoff.median_seconds));
   set(
     "hist-recovery-note",
-    p.usual_recovery.count
-      ? `Median from countdown start to return to normal · slowest ${duration(p.usual_recovery.slowest_seconds)}`
-      : "No completed recoveries in this period",
+    p.reset_after_shutoff.count
+      ? `Shut-off to the operator's reset · slowest ${duration(p.reset_after_shutoff.slowest_seconds)}`
+      : "No shut-offs reset in this period",
   );
 }
 
@@ -388,7 +389,7 @@ function renderRecovery(p) {
     name.textContent = group.label;
     if (key === "controller_restarted" && group.count) {
       row.className = "hist-restart";
-      name.append(make("small", "May indicate that the controller was power-cycled to bypass the countdown."));
+      name.append(make("small", "May indicate that the controller was power-cycled to get round the buzzer."));
     }
     for (const text of [
       String(group.count),
@@ -432,7 +433,7 @@ function renderIncidents() {
     emptyRow(
       body,
       7,
-      incidents.length ? "No countdowns match this filter." : "No countdowns at this stall in this period.",
+      incidents.length ? "No buzzer warnings match this filter." : "No buzzer warnings at this stall in this period.",
     );
   for (const incident of shown) {
     const row = body.insertRow();
@@ -457,8 +458,8 @@ function renderIncidents() {
   set(
     "hist-note",
     data.truncated
-      ? `Showing the newest ${incidents.length} countdowns of the period.`
-      : `${plural(incidents.length, "countdown")} in ${periodName()}.`,
+      ? `Showing the newest ${incidents.length} buzzer warnings of the period.`
+      : `${plural(incidents.length, "buzzer warning")} in ${periodName()}.`,
   );
 }
 

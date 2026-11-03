@@ -6,6 +6,10 @@ leaves MONITORING for UNATTENDED, may climb to WARNING (buzzer) and SHUTDOWN
 the controller's telemetry, which the firmware publishes on every state change,
 so no firmware change is needed. Display only, and a demo-level record: the end
 reason is inferred from the state the controller went to, not reported by it.
+
+Every episode is stored, but the Stall history only counts the ones that reached the
+buzzer warning. A countdown that ends before the buzzer is the time the cook is allowed
+to step away, so it is not a finding and is left out (see REACHED_BUZZER).
 """
 import random
 from datetime import datetime, time, timedelta
@@ -20,6 +24,7 @@ from .locations import COOKING_STATES, load_location_catalog, location_for
 from .models import Device, InboundMessage, Incident, Reading
 
 ACTIVE = {"unattended": 1, "warning": 2, "shutdown": 3}  # state -> escalation rank
+REACHED_BUZZER = ("warning", "shutdown")  # the peaks the Stall history counts and lists
 RESTART = {"boot", "self_test"}
 END_REASONS = {
     "person_returned": "Person returned",
@@ -85,12 +90,12 @@ def serialize(incident, now):
 
 
 MAX_PERIOD_DAYS = 366  # the longest period the Stall history page asks for (its own days or dates)
-# How a finished countdown ended, for the recovery table: (key, label, peak, end reasons, timed from).
-# "Timed from" is the moment the clock starts: the countdown's start, the buzzer or the shut-off.
+# How a countdown that reached the buzzer ended, for the recovery table:
+# (key, label, peak, end reasons, timed from). "Timed from" is the moment the clock starts: the
+# buzzer warning or the shut-off.
 RECOVERY = (
-    ("before_buzzer", "Return or cooking stop before buzzer warning", "unattended", ("person_returned", "heating_stopped"), "started_at"),
-    ("after_buzzer", "Return after buzzer warning", "warning", ("person_returned",), "warning_at"),
-    ("stove_off_after_buzzer", "Cooking stopped after buzzer warning", "warning", ("heating_stopped",), "warning_at"),
+    ("after_buzzer", "Person returned after the buzzer warning", "warning", ("person_returned",), "warning_at"),
+    ("stove_off_after_buzzer", "Cooking stopped after the buzzer warning", "warning", ("heating_stopped",), "warning_at"),
     ("after_shutoff", "Reset after a shut-off", "shutdown", ("operator_reset",), "shutdown_at"),
     ("controller_restarted", "Controller restarted (not timed)", None, ("controller_restarted",), None),
 )
@@ -140,12 +145,12 @@ def cooking_days(device_pks, since, until):
 
 
 def period_summary(incidents, since, until, cooking):
-    """What a fire-safety inspector asks about one stall over the period: how often the
-    countdown started, how many reached the buzzer and the shut-off, how long recovery took."""
-    count = len(incidents)
+    """What a fire-safety inspector asks about one stall over the period: how often the buzzer
+    sounded, how many of those reached the shut-off, and how long recovery took. `incidents`
+    are only the ones that reached the buzzer; a countdown that ended before it is not counted."""
+    buzzer = len(incidents)
     days = (until - since).total_seconds() / 86400
     weeks_long = days / 7
-    buzzer = sum(1 for i in incidents if i.peak in ("warning", "shutdown"))
     shutoff = sum(1 for i in incidents if i.peak == "shutdown")
     weeks = {}
     week = _week_start(since)
@@ -153,36 +158,38 @@ def period_summary(incidents, since, until, cooking):
     while week <= _week_start(until - timedelta(microseconds=1)):
         first, last = max(week, timezone.localtime(since).date()), min(week + timedelta(days=6), last_day)
         weeks[week] = {"week_start": week.isoformat(), "days_in_period": (last - first).days + 1,
-                       "countdown_only": 0, "buzzer": 0, "shutoff": 0}
+                       "buzzer": 0, "shutoff": 0}
         week += timedelta(days=7)
-    bar = {"unattended": "countdown_only", "warning": "buzzer", "shutdown": "shutoff"}
     for incident in incidents:
-        weeks[_week_start(incident.started_at)][bar.get(incident.peak, "countdown_only")] += 1
-    recovery, recovered = {}, []
+        weeks[_week_start(incident.started_at)]["shutoff" if incident.peak == "shutdown" else "buzzer"] += 1
+    recovery = {}
     for key, label, peak, reasons, start_field in RECOVERY:
         matched = [i for i in incidents if i.ended_at and i.end_reason in reasons and (peak is None or i.peak == peak)]
         timed = [(i.ended_at - getattr(i, start_field)).total_seconds() for i in matched
                  if start_field and getattr(i, start_field)]
         recovery[key] = {"label": label, **_spread(timed), "count": len(matched)}
-        if start_field:
-            recovered += [(i.ended_at - i.started_at).total_seconds() for i in matched]
     on_cooking_days = sum(1 for i in incidents if timezone.localtime(i.started_at).date() in cooking)
     return {
         "days": round(days, 2), "since": since, "until": until,
-        "countdowns": count, "buzzer": buzzer, "shutoff": shutoff,
+        "buzzer": buzzer, "shutoff": shutoff,
         "ongoing": sum(1 for i in incidents if i.ended_at is None),
-        "countdowns_per_week": round(count / weeks_long, 2),
         "buzzer_per_week": round(buzzer / weeks_long, 2),
         "shutoff_per_week": round(shutoff / weeks_long, 2),
-        "buzzer_share": buzzer / count if count else None,
         "shutoff_share": shutoff / buzzer if buzzer else None,
-        "cooking_days": len(cooking), "countdowns_on_cooking_days": on_cooking_days,
-        "countdowns_per_cooking_day": round(on_cooking_days / len(cooking), 2) if cooking else None,
-        # Countdown start to the end, over every recovery except a controller restart.
-        "usual_recovery": _spread(recovered),
+        "cooking_days": len(cooking), "buzzer_on_cooking_days": on_cooking_days,
+        "buzzer_per_cooking_day": round(on_cooking_days / len(cooking), 2) if cooking else None,
+        # Buzzer to back to normal, when the buzzer was enough (no shut-off); a restart is not timed.
+        "usual_recovery": _spread(_timed(incidents, "warning", ("person_returned", "heating_stopped"), "warning_at")),
+        # Shut-off to the operator's reset.
+        "reset_after_shutoff": {k: recovery["after_shutoff"][k] for k in ("count", "median_seconds", "slowest_seconds")},
         "recovery": recovery,
         "weeks": list(weeks.values()),
     }
+
+
+def _timed(incidents, peak, reasons, start_field):
+    return [(i.ended_at - getattr(i, start_field)).total_seconds() for i in incidents
+            if i.ended_at and i.end_reason in reasons and i.peak == peak and getattr(i, start_field)]
 
 
 def stall_history(now, stall_id=None, limit=500, days=None, period=None):
@@ -192,14 +199,15 @@ def stall_history(now, stall_id=None, limit=500, days=None, period=None):
     `days` days) every stall also gets a `period` summary, and the incident list
     keeps to that period."""
     catalog = load_location_catalog()
-    counts = {row["device"]: row for row in Incident.objects.values("device").annotate(
+    counted = Incident.objects.filter(peak__in=REACHED_BUZZER)
+    counts = {row["device"]: row for row in counted.values("device").annotate(
         incidents=Count("id"), warnings=Count("id", filter=Q(peak__in=("warning", "shutdown"))),
         shutdowns=Count("id", filter=Q(peak="shutdown")), last=Max("started_at"),
         ongoing=Count("id", filter=Q(ended_at__isnull=True)))}
     since, until = period or (period_bounds(now, days) if days else (None, None))
     in_period, cooking = {}, {}
     if since:
-        for incident in Incident.objects.filter(started_at__gte=since, started_at__lt=until).order_by("started_at"):
+        for incident in counted.filter(started_at__gte=since, started_at__lt=until).order_by("started_at"):
             in_period.setdefault(incident.device_id, []).append(incident)
     stalls, devices = {}, {}
     for device in Device.objects.order_by("device_id"):
@@ -229,11 +237,11 @@ def stall_history(now, stall_id=None, limit=500, days=None, period=None):
     if stall_id is not None:
         stall = stalls.get(stall_id)
         ids = stall["device_ids"] if stall else []
-        listed = Incident.objects.filter(device__device_id__in=ids)
+        listed = counted.filter(device__device_id__in=ids)
         if since:
             listed = listed.filter(started_at__gte=since, started_at__lt=until)
         rows = list(listed.select_related("device").order_by("-started_at", "-id")[:limit + 1])
-        first = Incident.objects.filter(device__device_id__in=ids).order_by("started_at").first()
+        first = counted.filter(device__device_id__in=ids).order_by("started_at").first()
         if stall:
             stall["first_incident_at"] = first.started_at if first else None
         result.update(stall=stall, truncated=len(rows) > limit, incidents=[serialize(i, now) for i in rows[:limit]])

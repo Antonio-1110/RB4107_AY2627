@@ -25,7 +25,7 @@
 | **Latched** | Stays in force until someone resets it |
 | **Fail-safe** | The output's resting state is "appliance off": a power loss or wire break shuts it down |
 | **Shutdown output / relay** | Output 1 of the controller, driving an external relay coil |
-| **Incident** | One unattended-cooking episode, from the first UNATTENDED to its end. The Stall history tab counts them |
+| **Incident** | One unattended-cooking episode, from the first UNATTENDED to its end. All are stored; the Stall history tab counts only those that reached the buzzer warning, because a countdown that ends before it is the time the cook is allowed to be away |
 | **Telemetry** | The controller's JSON snapshots published over MQTT about once a second |
 | **MQTT / broker** | The messaging layer between controller and backend. Mosquitto runs on the laptop |
 | **Schema version** | Version of the MQTT JSON format (2). The ESP-NOW **protocol version** (3) is separate |

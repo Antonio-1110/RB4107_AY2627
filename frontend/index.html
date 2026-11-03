@@ -235,10 +235,10 @@
                   <tr>
                     <th class="hist-star-col"><span class="visually-hidden">Starred</span></th>
                     <th aria-sort="none"><button type="button" class="hist-sort" data-sort="name">Stall</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="countdowns_per_week">Countdowns / week</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="buzzer">Buzzer warnings</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="buzzer_per_week">Buzzer warnings / week</button></th>
                     <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="shutoff">Shut-offs</button></th>
                     <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="usual_recovery">Median recovery</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="after_shutoff">Reset after shut-off</button></th>
                     <th id="hist-rank-col" aria-sort="none" class="num" hidden></th>
                   </tr>
                 </thead>
@@ -260,13 +260,13 @@
               <span id="hist-demo" class="pill demo" hidden>INCLUDES SIMULATED DEMO HISTORY</span>
             </div>
             <section class="summary-grid hist-summary" aria-label="Stall figures for the period">
-              <article class="summary-card">
-                <p>Countdowns started</p>
+              <article class="summary-card warning">
+                <p>Buzzer warnings</p>
                 <strong id="hist-per-week">—</strong>
                 <small id="hist-per-week-note"></small>
               </article>
-              <article class="summary-card warning">
-                <p>Reached buzzer warning</p>
+              <article class="summary-card">
+                <p>Median recovery after a buzzer warning</p>
                 <strong id="hist-buzzer">—</strong>
                 <small id="hist-buzzer-note"></small>
               </article>
@@ -276,7 +276,7 @@
                 <small id="hist-shutoff-note"></small>
               </article>
               <article class="summary-card">
-                <p>Median recovery</p>
+                <p>Median reset after a shut-off</p>
                 <strong id="hist-recovery">—</strong>
                 <small id="hist-recovery-note"></small>
               </article>
@@ -284,27 +284,26 @@
             <section class="card" aria-labelledby="hist-weeks-title">
               <div class="section-heading">
                 <div>
-                  <h2 id="hist-weeks-title">Countdowns per week</h2>
-                  <p class="muted">Countdowns started each week (Monday to Sunday), by the furthest stage reached.</p>
+                  <h2 id="hist-weeks-title">Buzzer warnings per week</h2>
+                  <p class="muted">Buzzer warnings each week (Monday to Sunday), by the furthest stage reached. A countdown that ended before the buzzer is the time the cook is allowed to be away and is not counted.</p>
                 </div>
                 <ul class="hist-legend" aria-label="Legend">
-                  <li><i class="countdown"></i>Countdown only</li>
                   <li><i class="buzzer"></i>Buzzer warning</li>
                   <li><i class="shutoff"></i>Gas shut-off</li>
                 </ul>
               </div>
               <div class="hist-chart-wrap">
-                <canvas id="hist-week-chart" role="img" aria-label="Countdowns per week"></canvas>
-                <p id="hist-week-empty" class="chart-empty" hidden>No countdowns in this period.</p>
+                <canvas id="hist-week-chart" role="img" aria-label="Buzzer warnings per week"></canvas>
+                <p id="hist-week-empty" class="chart-empty" hidden>No buzzer warnings in this period.</p>
               </div>
             </section>
             <section class="card" aria-labelledby="hist-recovery-title">
               <div class="section-heading">
                 <div>
-                  <h2 id="hist-recovery-title">How countdowns ended</h2>
+                  <h2 id="hist-recovery-title">How buzzer warnings ended</h2>
                   <p class="muted">
-                    Recovery time runs from the start of the countdown, the buzzer warning or the
-                    shut-off to the moment the controller returned to a normal state.
+                    Recovery time runs from the buzzer warning, or from the shut-off, to the moment
+                    the controller returned to a normal state.
                   </p>
                 </div>
               </div>
@@ -325,16 +324,15 @@
             <section class="card" aria-labelledby="hist-list-title">
               <div class="section-heading">
                 <div>
-                  <h2 id="hist-list-title">Countdown log</h2>
+                  <h2 id="hist-list-title">Buzzer warning log</h2>
                   <p class="muted">
-                    One row per countdown: the furthest stage it reached and how it ended. The
+                    One row per buzzer warning: the furthest stage it reached and how it ended. The
                     outcome is inferred from the controller's next state.
                   </p>
                 </div>
                 <label class="hist-filter"
                   >Show<select id="hist-filter">
-                    <option value="">All countdowns</option>
-                    <option value="warning">Buzzer warning or shut-off</option>
+                    <option value="">All buzzer warnings</option>
                     <option value="shutdown">Shut-offs only</option>
                   </select></label
                 >

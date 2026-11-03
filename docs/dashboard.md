@@ -167,35 +167,40 @@ fire-safety inspector. Over a period chosen at the top (2 weeks, 4 weeks by
 default, 3 months, or custom: last N days or a date range, at most 366 days) it
 shows, per stall:
 
-1. how often a countdown starts (count, per week, per cooking day);
-2. how many reached the buzzer (count, share of countdowns);
-3. how many escalated to a gas shut-off (count, share of buzzer warnings);
-4. how long recovery takes (median and slowest).
+1. how often the buzzer warning sounded (count, per week, per cooking day);
+2. how many of those reached the gas shut-off (count, share of buzzer warnings);
+3. how long recovery took after the buzzer warning (median and slowest);
+4. how long the operator took to reset after a shut-off (median and slowest).
+
+**What is not counted.** A countdown that ends before the buzzer is the time
+the cook is allowed to step away (fetch an ingredient, answer a customer), so it
+is not a finding. It is still stored, but the history leaves it out. This also
+keeps out a switched-off pan that is still hot when the cook leaves, because its
+buzzer is held while it cools. The buzzer warning is the first level of "this is
+unsafe"; the shut-off is the second.
 
 **Compare stalls** lists every stall with a bar per figure, with search, area
 and "show" filters, ranking (default: most shut-offs, then buzzer warnings),
 and a ☆ star kept in the browser. Clicking a row opens that stall: its figures,
-countdowns per week, how countdowns ended, and the countdown log.
+buzzer warnings per week, how they ended, and the buzzer warning log.
 
 An *incident* is one unattended-cooking episode (`ingest/incidents.py`), built
 from live telemetry: it opens when the state first becomes UNATTENDED, WARNING
 or SHUTDOWN and closes when the state returns to MONITORING or IDLE, or the
 controller restarts. FAULT keeps it open. The end reason is inferred from the
-next state, not reported by the controller. Incidents are never pruned.
+next state, not reported by the controller. Incidents are never pruned. The
+history lists and counts only those that reached WARNING or SHUTDOWN.
 
-Recovery is timed per outcome: countdown start → normal (back before the
-buzzer); buzzer → normal (back after the buzzer, or stove turned off);
-shut-off → the operator's reset. A **controller restart** during a countdown is
-counted on its own row and never timed, since it can mean someone power-cycled
-the controller to get round it. A *cooking day* is a day with at least one
-stored reading in a cooking state, so only the last `RB4107_RETENTION_DAYS`
-have any.
-
-**Known limit.** A switched-off pan that is still above the cooking temperature when the cook walks away starts a countdown (the buzzer is held while it cools). Django still counts it as a countdown, which inflates the figures; leaving those out is [issue #72](https://github.com/Antonio-1110/RB4107_AY2627/issues/72).
+Recovery is timed from the buzzer warning to normal (person returned, or
+cooking stopped) and from the shut-off to the operator's reset. A **controller
+restart** during a buzzer warning is counted on its own row and never timed,
+since it can mean someone power-cycled the controller to get round it. A
+*cooking day* is a day with at least one stored reading in a cooking state, so
+only the last `RB4107_RETENTION_DAYS` have any.
 
 API: `GET /api/stall-history/` (all-time counts); add `?days=28` or
 `?from=2026-10-01&to=2026-10-14` for each stall's `period` summary, and
-`&stall=<stall_id>` for that stall's newest 500 incidents. Other combinations are a 400.
+`&stall=<stall_id>` for that stall's newest 500 buzzer warnings. Other combinations are a 400.
 
 **Demo data.** `tools/run_dev.sh --demo` runs `seed_incident_history`: three
 months of made-up incidents per simulated stall (marked "demo"), cooking days
