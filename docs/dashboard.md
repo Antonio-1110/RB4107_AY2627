@@ -242,8 +242,11 @@ itself: run `sqlite3 db.sqlite3 VACUUM` once after a big clean-up.
 
 The **Stall history** tab is for deciding which stall to visit or watch, for
 example by a fire-safety inspector. It answers four questions per stall over a
-chosen period (**Last 2 weeks**, **Last 4 weeks** (default) or **Last 3
-months**, picked at the top; every number on the page follows it):
+chosen period, picked at the top: **Last 2 weeks**, **Last 4 weeks**
+(default), **Last 3 months**, or **Your own…**: the last N days (1 to 366), or
+from one date to another (whole days, at most 366, ending today at the
+latest). Every number on the page follows it, and the browser remembers the
+choice.
 
 1. **How often the countdown starts.** A countdown starts each time the cook
    leaves a hot stove (one *incident*, below). Shown as a count, per week
@@ -254,10 +257,29 @@ months**, picked at the top; every number on the page follows it):
 4. **How long recovery usually takes**: the median (the middle value: half
    were quicker, half slower) and the slowest.
 
-Laid out for a laptop screen: on the left, every stall in a table
-(countdowns per week, buzzer, shut-off, usual recovery), riskiest first (most
-shut-offs, then most buzzer warnings); click a heading to sort by it, again to
-go back. On the right, the chosen stall: the four figures, a week-by-week bar
+Laid out for a laptop screen. On the left, **Compare stalls**: every stall in
+a table (countdowns per week, buzzer, shut-off, usual recovery), each figure
+with a thin bar against the biggest one shown, so the stall that stands out is
+easy to spot. To narrow it down and rank it:
+
+- **Find**: stall name, terminal, level or area.
+- **Where**: one site and building (terminal).
+- **Show**: all stalls, starred only, or only stalls with a shut-off, a buzzer
+  warning or a controller restart in the period.
+- **Rank by**: riskiest (most shut-offs, then most buzzer warnings; the
+  default), or any one measure: countdowns per week, per cooking day or in
+  total; buzzer warnings per week, in total or as a share of countdowns;
+  shut-offs per week, in total or as a share of buzzer warnings; usual or
+  slowest recovery; usual time back after the buzzer; usual reset after a
+  shut-off; controller restarts; or name. A measure without a column of its
+  own gets an extra column. **Worst first / Best first** flips the order
+  (stalls with no data for the measure stay last). Clicking a column heading
+  ranks by it too, and again flips it.
+- **☆ star** a stall to keep an eye on it (remembered in this browser only),
+  then pick *Starred only*.
+
+Click anywhere on a stall's row (or Tab to it and press Enter) to open it on
+the right: the four figures, a week-by-week bar
 chart (Monday to Sunday, server time zone; each bar split into *countdown
 only*, *buzzer* and *shut-off*; a week only partly in the period is marked
 "part"), a table of how the countdowns ended, and the list of every countdown
@@ -303,10 +325,12 @@ up:** `tools/run_dev.sh` (and `tools/stop_dev.sh`) delete the database when
 they stop, so every run starts empty apart from the demo history below.
 
 API: `GET /api/stall-history/` (every stall's all-time counts),
-`GET /api/stall-history/?days=28` (plus each stall's `period` summary: counts,
-shares, `weeks`, `recovery`, cooking days; `days` must be 14, 28 or 90,
-anything else is a 400) and `&stall=<stall_id>` (plus that stall's newest 500
-incidents, kept to the period when `days` is given).
+`GET /api/stall-history/?days=28` (the last 28 days; any whole number 1 to 366)
+or `?from=2026-10-01&to=2026-10-14` (whole days in the server's time zone;
+`to` not after today, at most 366 days) adds each stall's `period` summary:
+counts, per-week rates, shares, `weeks`, `recovery`, cooking days. Anything
+else, or `days` together with dates, is a 400. Add `&stall=<stall_id>` for
+that stall's newest 500 incidents, kept to the period when one is given.
 
 Demo: `tools/run_dev.sh --demo` runs `python manage.py seed_incident_history`,
 which gives each simulated stall three months of made-up past incidents,

@@ -2275,6 +2275,69 @@ body[data-view="history"] .ov-view-switch {
   margin: 0;
   font-size: 13px;
 }
+.hist-field {
+  box-sizing: border-box;
+  height: 36px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--bd-info);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.hist-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  flex-basis: 100%;
+}
+.hist-custom[hidden] {
+  display: none;
+}
+.hist-custom-form,
+.hist-custom-form label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+#hist-days {
+  width: 80px;
+}
+.hist-custom-form .secondary-button {
+  height: 36px;
+}
+.hist-custom-error {
+  flex-basis: 100%;
+  color: var(--red);
+}
+.hist-custom-error:empty {
+  display: none;
+}
+.hist-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 10px;
+  margin-bottom: 10px;
+}
+.hist-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.hist-filter-search {
+  flex: 1 1 160px;
+}
+.hist-filters select {
+  max-width: 230px;
+}
+.hist-rank-dir {
+  height: 36px;
+}
 /* Two columns on a laptop screen: all stalls on the left, the chosen one on the right. */
 .hist-layout {
   display: grid;
@@ -2284,7 +2347,7 @@ body[data-view="history"] .ov-view-switch {
 }
 @media (min-width: 1200px) {
   .hist-layout {
-    grid-template-columns: minmax(540px, 1fr) minmax(0, 1.25fr);
+    grid-template-columns: minmax(640px, 1.1fr) minmax(0, 1fr);
   }
   .hist-stalls {
     position: sticky;
@@ -2334,11 +2397,73 @@ body[data-view="history"] .ov-view-switch {
 .hist-recovery-table td {
   font-size: 12px;
 }
-.hist-stall-table td:first-child {
-  max-width: 220px;
+/* The whole row opens the stall; the first cell keeps clear of the selected-row marker. */
+.hist-stall-row {
+  cursor: pointer;
+}
+.hist-stall-row:hover td {
+  background: var(--surface-2);
+}
+.hist-stall-row:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
+}
+.hist-stall-table .hist-star-col {
+  width: 30px;
+  padding-left: 10px;
+  padding-right: 4px;
+}
+.hist-star {
+  border: 0;
+  background: none;
+  padding: 2px;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--muted);
+}
+.hist-star:hover,
+.hist-star.on {
+  color: var(--amber);
+}
+.hist-stall-table td.hist-name {
+  max-width: 230px;
+}
+.hist-stall-table td.hist-name strong {
+  font-size: 13px;
 }
 .hist-stall-table td.num {
   white-space: nowrap;
+  min-width: 78px;
+}
+/* A thin bar under each figure, against the biggest value shown, to compare stalls at a glance. */
+.hist-bar {
+  display: block;
+  height: 4px;
+  margin-top: 5px;
+  margin-left: auto;
+  width: 72px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.hist-bar span {
+  display: block;
+  height: 100%;
+  margin-left: auto;
+  border-radius: 2px;
+  background: var(--muted);
+}
+.hist-count .hist-bar span {
+  background: var(--teal);
+}
+.hist-buzz .hist-bar span {
+  background: var(--amber);
+}
+.hist-cut .hist-bar span {
+  background: var(--red);
+}
+.hist-rank-cell .hist-bar span {
+  background: var(--purple);
 }
 .hist-stall-table td.num strong {
   font-size: 15px;
@@ -2355,8 +2480,19 @@ body[data-view="history"] .ov-view-switch {
 .hist-stall-table tr.selected td:first-child {
   box-shadow: inset 4px 0 0 var(--teal);
 }
+.hist-stall-table thead th:first-child {
+  padding-left: 10px;
+}
 .hist-summary {
+  display: grid; /* .summary-grid is a flex row elsewhere */
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+/* Beside the stall table (laptop widths) the four figures sit two by two. */
+@media (min-width: 1200px) and (max-width: 1799px) {
+  .hist-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .hist-summary .summary-card {
   display: block;

@@ -168,6 +168,22 @@
             <button type="button" class="hist-period-btn" data-days="14">Last 2 weeks</button>
             <button type="button" class="hist-period-btn" data-days="28">Last 4 weeks</button>
             <button type="button" class="hist-period-btn" data-days="90">Last 3 months</button>
+            <button type="button" class="hist-period-btn" id="hist-custom-btn" aria-expanded="false"
+              aria-controls="hist-custom">Your own…</button>
+          </div>
+          <div id="hist-custom" class="hist-custom" hidden>
+            <form id="hist-days-form" class="hist-custom-form">
+              <label>Last<input id="hist-days" class="hist-field" type="number" min="1" max="366" step="1"
+                required />days</label>
+              <button type="submit" class="secondary-button">Show</button>
+            </form>
+            <span class="muted">or</span>
+            <form id="hist-dates-form" class="hist-custom-form">
+              <label>From<input id="hist-from" class="hist-field" type="date" required /></label>
+              <label>to<input id="hist-to" class="hist-field" type="date" required /></label>
+              <button type="submit" class="secondary-button">Show</button>
+            </form>
+            <p id="hist-custom-error" class="hist-custom-error" role="alert"></p>
           </div>
           <p id="hist-range" class="muted"></p>
         </section>
@@ -175,31 +191,60 @@
           <section class="card hist-stalls" aria-labelledby="hist-stalls-title">
             <div class="section-heading">
               <div>
-                <h2 id="hist-stalls-title">All stalls</h2>
+                <h2 id="hist-stalls-title">Compare stalls</h2>
                 <p class="muted">
-                  A countdown starts each time the cook leaves a hot stove. Riskiest first: most
-                  shut-offs, then most buzzer warnings. Click a heading to sort, a stall to open it.
+                  A countdown starts each time the cook leaves a hot stove. Rank the stalls by any
+                  measure, narrow them down, and star the ones to keep an eye on. Click a stall to
+                  open it.
                 </p>
               </div>
+            </div>
+            <div class="hist-filters">
+              <label class="hist-filter-search"
+                >Find<input id="hist-search" class="hist-field" type="search"
+                  placeholder="Stall, terminal, area"
+              /></label>
+              <label
+                >Where<select id="hist-area" class="hist-field">
+                  <option value="">Everywhere</option>
+                </select></label
+              >
+              <label
+                >Show<select id="hist-show" class="hist-field">
+                  <option value="">All stalls</option>
+                  <option value="watched">Starred only</option>
+                  <option value="shutoff">With a shut-off</option>
+                  <option value="buzzer">With a buzzer warning</option>
+                  <option value="restart">With a controller restart</option>
+                </select></label
+              >
+              <label
+                >Rank by<select id="hist-rank" class="hist-field"></select></label
+              >
+              <button id="hist-rank-dir" type="button" class="secondary-button hist-rank-dir"
+                aria-label="Sort order">Worst first</button>
             </div>
             <div class="table-scroll">
               <table class="hist-stall-table">
                 <thead>
                   <tr>
+                    <th class="hist-star-col"><span class="visually-hidden">Starred</span></th>
                     <th aria-sort="none"><button type="button" class="hist-sort" data-sort="name">Stall</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="countdowns">Countdowns / week</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="countdowns_per_week">Countdowns / week</button></th>
                     <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="buzzer">Buzzer</button></th>
-                    <th aria-sort="descending" class="num"><button type="button" class="hist-sort" data-sort="shutoff">Shut-off</button></th>
-                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="recovery">Usual recovery</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="shutoff">Shut-off</button></th>
+                    <th aria-sort="none" class="num"><button type="button" class="hist-sort" data-sort="usual_recovery">Usual recovery</button></th>
+                    <th id="hist-rank-col" aria-sort="none" class="num" hidden></th>
                   </tr>
                 </thead>
                 <tbody id="hist-stall-rows">
                   <tr>
-                    <td colspan="5" class="empty-cell">Loading…</td>
+                    <td colspan="7" class="empty-cell">Loading…</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+            <p id="hist-stall-note" class="muted small"></p>
           </section>
           <section id="hist-detail" class="hist-detail" hidden>
             <div class="section-heading">

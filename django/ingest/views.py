@@ -1,7 +1,7 @@
 import json
 import math
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 from django.conf import settings
 from django.db.models import Q
 from django.http import JsonResponse
@@ -419,12 +419,16 @@ def thermal_frame(request, device_id):
 @never_cache
 def stall_history(request):
     """Per-stall history of unattended / buzzer warning / shutdown incidents (ingest/incidents.py).
-    ?days=14|28|90 adds each stall's summary of that period; without it, all-time counts only."""
+    ?days=N (the last N days) or ?from=YYYY-MM-DD&to=YYYY-MM-DD (whole local days) adds each
+    stall's summary of that period; without either, all-time counts only."""
     stall_id = request.GET.get("stall") or None
-    days = request.GET.get("days")
-    if days is not None:
-        if days not in {str(d) for d in incidents.PERIOD_DAYS}:
-            return JsonResponse({"error": f"days must be one of {', '.join(map(str, incidents.PERIOD_DAYS))}"},
-                                status=400)
-        days = int(days)
-    return JsonResponse(incidents.stall_history(timezone.now(), stall_id, days=days))
+    now, period = timezone.now(), None
+    days, start, end = (request.GET.get(key) for key in ("days", "from", "to"))
+    if days is not None or start is not None or end is not None:
+        try:
+            period = incidents.period_bounds(
+                now, days=int(days) if days is not None else None,
+                start=date.fromisoformat(start) if start else None, end=date.fromisoformat(end) if end else None)
+        except ValueError as error:
+            return JsonResponse({"error": str(error)}, status=400)
+    return JsonResponse(incidents.stall_history(now, stall_id, period=period))

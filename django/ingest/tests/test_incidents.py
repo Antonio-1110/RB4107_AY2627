@@ -1,7 +1,7 @@
 """Per-stall incident history built from controller telemetry (ingest/incidents.py)."""
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from io import StringIO
 
 from django.core.management import call_command
@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from ingest.demo import demo_telemetry
 from ingest.handlers import handle
-from ingest.incidents import DEMO_TOPIC, stall_history, seed_demo
+from ingest.incidents import DEMO_TOPIC, period_bounds, stall_history, seed_demo
 from ingest.models import Device, InboundMessage, Incident, Reading
 from ingest.storage import persist, worker_status
 from ingest.validation import parse
@@ -170,6 +170,27 @@ class PeriodTest(TestCase):
         self.assertEqual(three_months["recovery"]["after_shutoff"]["median_seconds"], 410)  # 600 and 220
         self.assertEqual(len(three_months["weeks"]), 14)
 
+    def test_any_number_of_days(self):
+        week = self.period(7)
+        self.assertEqual((week["countdowns"], week["countdowns_per_week"], week["days"]), (4, 4.0, 7))  # 2, 3, 5 days ago + ongoing
+        self.assertEqual((self.period(1)["countdowns"], self.period(1)["countdowns_per_week"]), (1, 7.0))
+
+    def test_date_range_by_hand(self):
+        # Tue 20 Oct to Sun 25 Oct, whole days: the warnings 12 days ago (Fri 23) and 10 days ago (Sun 25).
+        period = period_bounds(self.NOW, start=date(2026, 10, 20), end=date(2026, 10, 25))
+        self.assertEqual(period, (timezone.make_aware(datetime(2026, 10, 20)), timezone.make_aware(datetime(2026, 10, 26))))
+        body = stall_history(self.NOW, period=period)
+        p = next(s for s in body["stalls"] if "controller_01" in s["device_ids"])["period"]
+        self.assertEqual((p["countdowns"], p["buzzer"], p["shutoff"], p["days"]), (2, 2, 0, 6))
+        self.assertEqual(p["countdowns_per_week"], round(2 / (6 / 7), 2))
+        self.assertEqual((p["cooking_days"], p["countdowns_on_cooking_days"]), (1, 1))  # the reading on Sun 25
+        self.assertEqual([(w["week_start"], w["days_in_period"], w["buzzer"]) for w in p["weeks"]],
+                         [("2026-10-19", 6, 2)])
+        # A range ending today stops at now; one ending Sat 24 leaves out Sunday's warning.
+        self.assertEqual(period_bounds(self.NOW, start=date(2026, 11, 1))[1], self.NOW)
+        saturday = stall_history(self.NOW, period=period_bounds(self.NOW, start=date(2026, 10, 20), end=date(2026, 10, 24)))
+        self.assertEqual(next(s for s in saturday["stalls"] if s["period"]["countdowns"])["period"]["countdowns"], 1)
+
     def test_no_countdowns_gives_no_shares(self):
         Incident.objects.all().delete()
         p = self.period(14)
@@ -179,13 +200,24 @@ class PeriodTest(TestCase):
     def test_api_days_parameter(self):
         body = self.client.get("/api/stall-history/", {"days": "28"}).json()
         stall = next(s for s in body["stalls"] if "controller_01" in s["device_ids"])
-        self.assertEqual(body["days"], 28)
+        self.assertEqual(stall["period"]["days"], 28)
         self.assertIn("period", stall)
         listed = self.client.get("/api/stall-history/", {"days": "14", "stall": stall["stall_id"]}).json()
         self.assertTrue(listed["incidents"])
         self.assertTrue(all(i["started_at"] >= listed["since"] for i in listed["incidents"]))
-        for bad in ("7", "30", "abc", ""):
+        self.assertEqual(self.client.get("/api/stall-history/", {"days": "7"}).status_code, 200)
+        for bad in ("0", "367", "abc", "", "2.5"):
             self.assertEqual(self.client.get("/api/stall-history/", {"days": bad}).status_code, 400)
+        today = timezone.localdate()
+        ranged = self.client.get("/api/stall-history/", {"from": str(today - timedelta(days=13)), "to": str(today)})
+        self.assertEqual(ranged.status_code, 200)
+        self.assertEqual(ranged.json()["since"][:10], str(today - timedelta(days=13)))
+        for bad in ({"from": str(today), "to": str(today - timedelta(days=1))},  # backwards
+                    {"from": str(today), "to": str(today + timedelta(days=1))},  # the future
+                    {"to": str(today)}, {"from": "yesterday"},
+                    {"from": str(today - timedelta(days=366)), "to": str(today)},  # 367 days
+                    {"days": "7", "from": str(today)}):
+            self.assertEqual(self.client.get("/api/stall-history/", bad).status_code, 400, bad)
         self.assertNotIn("period", self.client.get("/api/stall-history/").json()["stalls"][0])  # all-time as before
 
 

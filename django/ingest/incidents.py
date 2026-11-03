@@ -84,7 +84,7 @@ def serialize(incident, now):
             "max_temp_c": incident.max_temp_c, "demo": incident.demo}
 
 
-PERIOD_DAYS = (14, 28, 90)  # the dashboard's period picker: 2 weeks, 4 weeks, 3 months
+MAX_PERIOD_DAYS = 366  # the longest period the Stall history page asks for (its own days or dates)
 # How a finished countdown ended, for the recovery table: (key, label, peak, end reasons, timed from).
 # "Timed from" is the moment the clock starts: the countdown's start, the buzzer or the shut-off.
 RECOVERY = (
@@ -107,13 +107,31 @@ def _week_start(at):
     return day - timedelta(days=day.weekday())  # Monday, in the server's time zone
 
 
-def cooking_days(device_pks, since):
+def period_bounds(now, days=None, start=None, end=None):
+    """(since, until) of a Stall history period: the last `days` days up to now, or the whole
+    local days `start` to `end` (dates; `end` defaults to today, and a period never runs past
+    now). Raises ValueError for anything the page would not ask for."""
+    if days is not None and (start or end):
+        raise ValueError("give days, or from and to dates, not both")
+    if days is not None:
+        if not 1 <= days <= MAX_PERIOD_DAYS:
+            raise ValueError(f"days must be 1 to {MAX_PERIOD_DAYS}")
+        return now - timedelta(days=days), now
+    today = timezone.localtime(now).date()
+    end = end or today
+    if start is None or start > end or end > today or (end - start).days + 1 > MAX_PERIOD_DAYS:
+        raise ValueError(f"from must be on or before to, to not after today, at most {MAX_PERIOD_DAYS} days")
+    midnight = lambda day: timezone.make_aware(datetime.combine(day, time()))
+    return midnight(start), min(now, midnight(end + timedelta(days=1)))
+
+
+def cooking_days(device_pks, since, until):
     """{device pk: set of local dates} with at least one stored Reading in a cooking state.
 
     Readings are thinned and deleted after RB4107_RETENTION_DAYS (30 by default), so for
     a longer period this only covers the newest part of it."""
     days = {}
-    rows = (Reading.objects.filter(device__in=device_pks, received_at__gte=since,
+    rows = (Reading.objects.filter(device__in=device_pks, received_at__gte=since, received_at__lt=until,
                                    values__safety_state__in=list(COOKING_STATES))
             .annotate(day=TruncDate("received_at")).values_list("device", "day").distinct())
     for device, day in rows:
@@ -121,17 +139,19 @@ def cooking_days(device_pks, since):
     return days
 
 
-def period_summary(incidents, now, since, days, cooking):
+def period_summary(incidents, since, until, cooking):
     """What a fire-safety inspector asks about one stall over the period: how often the
     countdown started, how many reached the buzzer and the shut-off, how long recovery took."""
     count = len(incidents)
+    days = (until - since).total_seconds() / 86400
+    weeks_long = days / 7
     buzzer = sum(1 for i in incidents if i.peak in ("warning", "shutdown"))
     shutoff = sum(1 for i in incidents if i.peak == "shutdown")
     weeks = {}
     week = _week_start(since)
-    while week <= _week_start(now):
-        first, last = max(week, timezone.localtime(since).date()), min(week + timedelta(days=6),
-                                                                         timezone.localtime(now).date())
+    last_day = timezone.localtime(until - timedelta(microseconds=1)).date()
+    while week <= _week_start(until - timedelta(microseconds=1)):
+        first, last = max(week, timezone.localtime(since).date()), min(week + timedelta(days=6), last_day)
         weeks[week] = {"week_start": week.isoformat(), "days_in_period": (last - first).days + 1,
                        "countdown_only": 0, "buzzer": 0, "shutoff": 0}
         week += timedelta(days=7)
@@ -148,10 +168,12 @@ def period_summary(incidents, now, since, days, cooking):
             recovered += [(i.ended_at - i.started_at).total_seconds() for i in matched]
     on_cooking_days = sum(1 for i in incidents if timezone.localtime(i.started_at).date() in cooking)
     return {
-        "days": days, "since": since,
+        "days": round(days, 2), "since": since, "until": until,
         "countdowns": count, "buzzer": buzzer, "shutoff": shutoff,
         "ongoing": sum(1 for i in incidents if i.ended_at is None),
-        "countdowns_per_week": round(count * 7 / days, 2),
+        "countdowns_per_week": round(count / weeks_long, 2),
+        "buzzer_per_week": round(buzzer / weeks_long, 2),
+        "shutoff_per_week": round(shutoff / weeks_long, 2),
         "buzzer_share": buzzer / count if count else None,
         "shutoff_share": shutoff / buzzer if buzzer else None,
         "cooking_days": len(cooking), "countdowns_on_cooking_days": on_cooking_days,
@@ -163,20 +185,21 @@ def period_summary(incidents, now, since, days, cooking):
     }
 
 
-def stall_history(now, stall_id=None, limit=500, days=None):
+def stall_history(now, stall_id=None, limit=500, days=None, period=None):
     """Counts for every stall, and the incidents of `stall_id` (newest first).
 
-    With `days` (one of PERIOD_DAYS) every stall also gets a `period` summary of
-    its last `days` days, and the incident list keeps to that period."""
+    With a `period` ((since, until), from period_bounds()) or `days` (the last
+    `days` days) every stall also gets a `period` summary, and the incident list
+    keeps to that period."""
     catalog = load_location_catalog()
     counts = {row["device"]: row for row in Incident.objects.values("device").annotate(
         incidents=Count("id"), warnings=Count("id", filter=Q(peak__in=("warning", "shutdown"))),
         shutdowns=Count("id", filter=Q(peak="shutdown")), last=Max("started_at"),
         ongoing=Count("id", filter=Q(ended_at__isnull=True)))}
-    since = now - timedelta(days=days) if days else None
+    since, until = period or (period_bounds(now, days) if days else (None, None))
     in_period, cooking = {}, {}
-    if days:
-        for incident in Incident.objects.filter(started_at__gte=since).order_by("started_at"):
+    if since:
+        for incident in Incident.objects.filter(started_at__gte=since, started_at__lt=until).order_by("started_at"):
             in_period.setdefault(incident.device_id, []).append(incident)
     stalls, devices = {}, {}
     for device in Device.objects.order_by("device_id"):
@@ -194,21 +217,21 @@ def stall_history(now, stall_id=None, limit=500, days=None):
                 stall[key] += row[key]
             if stall["last_incident_at"] is None or row["last"] > stall["last_incident_at"]:
                 stall["last_incident_at"] = row["last"]
-    if days:
-        cooking = cooking_days([pk for pks in devices.values() for pk in pks], since)
+    if since:
+        cooking = cooking_days([pk for pks in devices.values() for pk in pks], since, until)
         for key, stall in stalls.items():
             # A stall with two controllers cooks on a day when either of them does.
             stall["period"] = period_summary(
                 sorted((i for pk in devices[key] for i in in_period.get(pk, [])), key=lambda i: i.started_at),
-                now, since, days, set().union(*(cooking.get(pk, set()) for pk in devices[key])))
+                since, until, set().union(*(cooking.get(pk, set()) for pk in devices[key])))
     result = {"stalls": sorted(stalls.values(), key=lambda s: (s["location"].get("site_name", ""), s["stall_name"])),
-              "end_reasons": END_REASONS, "days": days, "since": since}
+              "end_reasons": END_REASONS, "since": since, "until": until}
     if stall_id is not None:
         stall = stalls.get(stall_id)
         ids = stall["device_ids"] if stall else []
         listed = Incident.objects.filter(device__device_id__in=ids)
         if since:
-            listed = listed.filter(started_at__gte=since)
+            listed = listed.filter(started_at__gte=since, started_at__lt=until)
         rows = list(listed.select_related("device").order_by("-started_at", "-id")[:limit + 1])
         first = Incident.objects.filter(device__device_id__in=ids).order_by("started_at").first()
         if stall:

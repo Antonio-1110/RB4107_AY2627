@@ -27,11 +27,16 @@ export const fetchEvents = (deviceId, hours = 24, limit = 30) =>
   get(`${device(deviceId)}/events/?hours=${hours}&limit=${limit}`);
 
 // Every stall's incident counts, plus the incidents of one stall (unattended, buzzer warning, shutdown).
-// With `days` (14, 28 or 90) each stall also gets a summary of that period, and the list keeps to it.
-export const fetchStallHistory = (stallId = "", days = null) => {
+// With a `period` ({days} for the last N days, or {from, to} as YYYY-MM-DD dates) each stall also
+// gets a summary of that period, and the list keeps to it.
+export const fetchStallHistory = (stallId = "", period = null) => {
   const query = new URLSearchParams();
   if (stallId) query.set("stall", stallId);
-  if (days) query.set("days", days);
+  if (period?.days) query.set("days", period.days);
+  else if (period?.from) {
+    query.set("from", period.from);
+    query.set("to", period.to);
+  }
   return get(`/api/stall-history/${query.size ? `?${query}` : ""}`);
 };
 
