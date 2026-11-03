@@ -2549,3 +2549,33 @@ body[data-view="history"] .ov-view-switch {
     display: none;
   }
 }
+
+/* Every dropdown the same height as the text fields beside it: a native select box comes out a pixel or more
+   shorter than an input with the same padding, so both get an explicit height. */
+.filter-card input,
+.filter-card select,
+.station-label select,
+.tuning-grid input,
+.tuning-grid select,
+.tuning-actions input,
+.tuning-actions select,
+.logs-level-form .range-label select,
+.tier-table input {
+  box-sizing: border-box;
+  height: 36px;
+}
+.range-label select {
+  box-sizing: border-box;
+  height: 32px;
+}
+.heatmap-footprint input,
+.heatmap-footprint select {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 4px 8px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--bd-info);
+  border-radius: 6px;
+  font-size: 13px;
+}
