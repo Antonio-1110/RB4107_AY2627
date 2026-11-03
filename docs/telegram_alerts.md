@@ -121,3 +121,5 @@ keeps presses for 24 hours.
 
 Telegram's limits (about 1 message a second per chat, 20 a minute per group) are
 far above what a stall produces.
+
+`manage.py test` never uses the bot: it clears the token while the tests run, whatever `django/.env` holds. `tools/run_dev.sh --no-telegram` does the same for a dev run.

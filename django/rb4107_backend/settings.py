@@ -7,6 +7,7 @@ variable, so nothing about the MacBook or broker is hard-coded.
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -148,6 +149,8 @@ if not LOCATION_CATALOG_FILE.is_absolute():
 # Off until both the bot token and at least one chat ID are set. Keep the
 # token in django/.env, never in the repository.
 RB4107_TELEGRAM_BOT_TOKEN = env("RB4107_TELEGRAM_BOT_TOKEN", "")
+if "test" in sys.argv[1:2]:  # `manage.py test`: never reach the real bot, whatever django/.env holds
+    RB4107_TELEGRAM_BOT_TOKEN = ""
 RB4107_TELEGRAM_CHAT_IDS = [c.strip() for c in env("RB4107_TELEGRAM_CHAT_IDS", "").split(",") if c.strip()]
 # Which escalations send a message: unattended, warning (buzzer), shutdown, fault.
 RB4107_ALERT_EVENTS = [e.strip() for e in env("RB4107_ALERT_EVENTS", "warning,shutdown").split(",") if e.strip()]
