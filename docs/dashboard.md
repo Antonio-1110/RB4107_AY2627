@@ -125,7 +125,8 @@ accepting commands.
   cooking temperature, person filter and timers, editable), **Logic** (every
   safety rule from the controller's rules table, with the current state's rules,
   any hold and the last rule that fired highlighted), **Radar** (C4002
-  settings and the live radar view), **Thermal** (heat map with the outline and
+  range, gate size, sensitivity, gates on/off, calibration and the live radar
+  view; the per-gate thresholds are shown read-only), **Thermal** (heat map with the outline and
   pixel-size controls), **Diagnostics** (readings, history, system status,
   events, sensor reports, raw telemetry), **Logs** (the controller's own log
 lines, live, with level/tag/text filters, and its per-tag log levels, editable;

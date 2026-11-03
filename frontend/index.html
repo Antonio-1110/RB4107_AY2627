@@ -868,32 +868,6 @@
                 <option value="custom">Custom (per gate)</option>
               </select></label
             >
-            <label
-              >Hold after target leaves (s)<input
-                id="tune-hold"
-                type="number"
-                min="0"
-                max="60"
-                step="1"
-                title="How long the radar keeps a target after it leaves. Small values: the S3 does the presence debouncing"
-            /></label>
-            <label
-              >Lock time (s)<input
-                id="tune-lock"
-                type="number"
-                min="0.2"
-                max="10"
-                step="0.1"
-                title="Detection is paused this long after occupied turns empty (the sensor's minimum is 0.2)"
-            /></label>
-            <label
-              >Report period (s)<input
-                id="tune-period"
-                type="number"
-                min="0.1"
-                max="0.5"
-                step="0.1"
-            /></label>
           </fieldset>
           <div class="tuning-actions">
             <button id="tune-apply" class="primary-button" type="button" disabled>
@@ -922,11 +896,12 @@
             </button>
           </div>
           <details class="tuning-gates">
-            <summary>Per-gate settings (switch bands on or off, custom thresholds)</summary>
+            <summary>Per-gate settings (switch bands on or off)</summary>
             <p class="muted">
               Each gate is one distance band. Untick a band to ignore it (for example the band where
-              a fan sits). Thresholds are 0–99, higher means less sensitive; sending them switches
-              that sensitivity to custom. "Read from sensor" fills in the values the sensor uses now.
+              a fan sits). The thresholds (0–99, higher means less sensitive) are shown for
+              reference only: "Calibrate empty room" sets them, and "Read from sensor" shows the
+              values the sensor uses now.
             </p>
             <div class="table-scroll">
               <table>
@@ -946,9 +921,6 @@
             <div class="tuning-actions">
               <button id="tune-apply-gates" class="secondary-button" type="button" disabled>
                 Apply gates on/off
-              </button>
-              <button id="tune-apply-thresholds" class="secondary-button" type="button" disabled>
-                Apply thresholds
               </button>
             </div>
           </details>

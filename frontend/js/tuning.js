@@ -2,6 +2,9 @@
 // Radar tuning panel: reads a presence node's C4002 settings from the device's
 // values (sensors.<node>.c4002) and sends tuning commands (docs/c4002_tuning.md).
 // The form is only refilled from the node when nobody is editing it.
+// The disappear delay, lock time and report period are fixed on the node, and
+// the per-gate thresholds come from "Calibrate", so the panel doesn't set them
+// (the gate table shows the thresholds read-only).
 // "All radars" sends every command to each presence node; the form, gate table
 // and live view then show the first node, and the status lists each node's answer.
 
@@ -26,9 +29,8 @@ let deviceId = "",
   reports = {}; // node -> sensors.<node>.c4002 as last rendered
 
 const FIELDS = ["tune-range-min", "tune-range-max", "tune-resolution", "tune-motion-sens",
-  "tune-presence-sens", "tune-hold", "tune-lock", "tune-period"];
-const BUTTONS = ["tune-apply", "tune-read", "tune-reset", "tune-calibrate", "tune-apply-gates",
-  "tune-apply-thresholds"];
+  "tune-presence-sens"];
+const BUTTONS = ["tune-apply", "tune-read", "tune-reset", "tune-calibrate", "tune-apply-gates"];
 
 function presenceNodes(device) {
   return Object.entries(device.values.sensors || {})
@@ -75,9 +77,6 @@ function fillForm(s) {
   $("tune-resolution").value = String(s.resolution_cm);
   $("tune-motion-sens").value = s.motion_sensitivity;
   $("tune-presence-sens").value = s.presence_sensitivity;
-  $("tune-hold").value = s.disappear_delay_s;
-  $("tune-lock").value = (s.lock_time_ds / 10).toFixed(1);
-  $("tune-period").value = (s.report_period_ds / 10).toFixed(1);
   formDirty = false;
 }
 
@@ -101,16 +100,8 @@ function renderGateRows(settings) {
       box.checked = settings ? settings[key][i] === 1 : true;
       row.insertCell().append(box);
     }
-    for (const [kind, key] of [["motion-thr", "motion_thresholds"], ["still-thr", "presence_thresholds"]]) {
-      const input = make("input");
-      input.type = "number";
-      input.min = "0";
-      input.max = "99";
-      input.id = `tune-${kind}-${i}`;
-      input.placeholder = "?";
-      if (settings && settings[key]) input.value = settings[key][i];
-      row.insertCell().append(input);
-    }
+    for (const key of ["motion_thresholds", "presence_thresholds"])
+      row.insertCell().textContent = settings && settings[key] ? String(settings[key][i]) : "—";
   }
   gatesDirty = false;
 }
@@ -131,8 +122,7 @@ function nodeStatus(id) {
 
 // Settings the form sets, to spot nodes that are tuned differently.
 const FORM_KEYS = ["range_min_cm", "range_max_cm", "resolution_cm", "motion_sensitivity",
-  "presence_sensitivity", "disappear_delay_s", "lock_time_ds", "report_period_ds",
-  "motion_gates", "presence_gates"];
+  "presence_sensitivity", "motion_gates", "presence_gates"];
 const formPart = (id) => {
   const s = reports[id] && reports[id].settings;
   return s ? JSON.stringify(FORM_KEYS.map((k) => s[k])) : "";
@@ -261,9 +251,6 @@ $("tune-apply").addEventListener("click", () =>
     resolution_cm: Number($("tune-resolution").value),
     motion_sensitivity: $("tune-motion-sens").value,
     presence_sensitivity: $("tune-presence-sens").value,
-    disappear_delay_s: intValue("tune-hold"),
-    lock_time_ds: intValue("tune-lock", 10),
-    report_period_ds: intValue("tune-period", 10),
   }),
 );
 $("tune-read").addEventListener("click", () => send({ action: "read" }));
@@ -291,25 +278,4 @@ $("tune-apply-gates").addEventListener("click", () => {
     still[i] = $(`tune-still-on-${i}`).checked ? 1 : 0;
   }
   send({ action: "apply", motion_gates: motion, presence_gates: still });
-});
-$("tune-apply-thresholds").addEventListener("click", () => {
-  const motion = currentArray("motion_thresholds", 99),
-    still = currentArray("presence_thresholds", 99);
-  for (let i = 0; i < gateCount(); i++) {
-    const m = $(`tune-motion-thr-${i}`).value,
-      s = $(`tune-still-thr-${i}`).value;
-    if (m === "" || s === "") {
-      formError = `Fill in every threshold first (gate ${i} is empty), or press "Read from sensor".`;
-      setStatus(formError, "bad");
-      return;
-    }
-    motion[i] = Number(m);
-    still[i] = Number(s);
-  }
-  if (
-    node === ALL &&
-    !confirm(`Send these thresholds to ${targetName()}? This replaces what each node learned in its own calibration.`)
-  )
-    return;
-  send({ action: "apply", motion_thresholds: motion, presence_thresholds: still });
 });
