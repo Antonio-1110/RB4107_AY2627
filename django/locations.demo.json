@@ -110,7 +110,7 @@
       "station_name": "Cooking station B",
       "response_route": "Terminal 3 → Public → Basement 2 → Demo food court stall",
       "demo_only": true,
-      "demo_scenario": "monitoring",
+      "demo_scenario": "checking",
       "location_source": "Synthetic demo entry"
     },
     "demo-t3-04": {

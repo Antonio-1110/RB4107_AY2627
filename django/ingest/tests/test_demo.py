@@ -48,6 +48,13 @@ class DemoScenarioTests(SimpleTestCase):
         self.assertGreaterEqual(hot["thermal"]["max_c"], 200.0)
         for tick in range(0, 60, 3):
             self.assertLess(state("hot_pan", tick)["safety"]["unattended_ms"], 60000)
+        # Switched off and left: no countdown yet while the pan falls (rule D6), and the time away runs.
+        for tick in range(0, 60, 4):
+            check = state("checking", tick)
+            self.assertEqual((check["safety"]["state"], check["safety"]["hold"]), ("MONITORING", "checking"))
+            self.assertEqual(check["presence_state"], "ABSENT")
+            self.assertLess(check["thermal"]["rate_c_per_min"], 0)
+            self.assertTrue(2000 <= check["safety"]["absent_ms"] < 90000)
         for scenario in ("monitoring", "unattended", "warning", "cooling", "idle"):
             self.assertEqual(state(scenario)["safety"]["tier"], "tier1")
             self.assertEqual(state(scenario)["safety"]["effective_warning_ms"], 150000)

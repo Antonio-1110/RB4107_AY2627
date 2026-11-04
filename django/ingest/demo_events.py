@@ -90,7 +90,7 @@ def seed_demo_events(device, scenario, now=None, seed=None):
     rng = random.Random(seed if seed is not None else f"events-{device.device_id}")
     since = now - timedelta(hours=24)
     before = SafetyEvent.objects.filter(device=device).count()
-    cooking_now = scenario in COOKING_STATES
+    cooking_now = scenario in COOKING_STATES or scenario == "checking"  # checking is MONITORING
     today = timezone.localtime(now).replace(hour=0, minute=0, second=0, microsecond=0)
     for day in (today - timedelta(days=1), today):
         for start_h, end_h in SESSIONS:

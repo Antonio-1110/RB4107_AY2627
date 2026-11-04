@@ -14,17 +14,21 @@ from django.utils import timezone
 from .commands import safety_params
 
 SCENARIOS = ("monitoring", "unattended", "warning", "shutdown", "idle", "fault_radars",
-             "fault_node_offline", "network_loss", "cooling", "hot_pan", "passing")
+             "fault_node_offline", "network_loss", "cooling", "hot_pan", "passing", "checking")
 # Without a scenario (tests, older catalogues) the index picks one, as before.
 BY_INDEX = ("monitoring", "shutdown", "unattended", "warning", "monitoring", "idle", "fault_radars",
             "warning", "monitoring")
 STATE = {"monitoring": "MONITORING", "unattended": "UNATTENDED", "warning": "WARNING",
          "shutdown": "SHUTDOWN", "idle": "IDLE", "fault_radars": "UNATTENDED", "fault_node_offline": "MONITORING",
-         "network_loss": "MONITORING", "cooling": "UNATTENDED", "hot_pan": "UNATTENDED", "passing": "UNATTENDED"}
+         "network_loss": "MONITORING", "cooling": "UNATTENDED", "hot_pan": "UNATTENDED", "passing": "UNATTENDED",
+         "checking": "MONITORING"}
 TICK_S = 2  # simulate_fleet's default interval
 COOK_C = 28.0  # a cold stove reads about room temperature
 SHUTDOWN_CYCLE_S = 600
 COOLING_CYCLE_S = 420
+# checking: the cook switched the burner off and left; the countdown waits while the pan falls (rule D6, at most
+# the falling hold's 90 s). The demo starts over just before the limit, so the stall stays in the check.
+CHECKING_FROM_C, CHECKING_TAU_S, CHECKING_CYCLE_S = 180.0, 600, 86
 # The firmware defaults: buzzer 2.5 min and shutdown 5 min after the person left (tier 1).
 WARNING_S, SHUTDOWN_AFTER_S = 150, 300
 # The temperature tiers 2..5 (firmware defaults): hotter pans get shorter times.
@@ -67,11 +71,19 @@ def _pan_temperature(scenario, index, tick):
         since_cut = seconds % SHUTDOWN_CYCLE_S
         excess = (110 - COOK_C) * math.exp(-since_cut / 240)
         return COOK_C + excess, -excess / 240 * 60
+    if scenario == "checking":  # burner just switched off at 180 °C, mixed cookware (tau 10 min)
+        excess = (CHECKING_FROM_C - COOK_C) * math.exp(-_checking_s(tick) / CHECKING_TAU_S)
+        return COOK_C + excess, -excess / CHECKING_TAU_S * 60
     if scenario == "hot_pan":  # oil in a pan, burner on, nobody there: 200-225 °C
         return 212 + math.sin(tick / 5 + index) * 8, math.cos(tick / 5 + index) * 2
     base = 78 + (index * 7) % 18  # different dishes, simmering: 74-99 °C, tier 1 (the base times)
     phase = tick / 5 + index
     return base + math.sin(phase) * 4, math.cos(phase) * 4 / (5 * TICK_S) * 60
+
+
+def _checking_s(tick):
+    """Seconds since the cook left, in the checking scenario (the 2 s absence debounce is already past)."""
+    return 2 + (tick * TICK_S) % CHECKING_CYCLE_S
 
 
 def _timers(scenario, tick):
@@ -139,7 +151,8 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                    "shutdown": state == "SHUTDOWN", "test_timers": False},
         "faults": faults,
     }
-    phase = "off" if scenario in {"idle", "shutdown"} else "cooling" if scenario == "cooling" else "holding"
+    phase = ("off" if scenario in {"idle", "shutdown"} else "cooling" if scenario == "cooling"
+             else "checking" if scenario == "checking" else "holding")
     if boot_id:
         data["boot_id"] = boot_id
         data["safety"].update(reset_required=state == "SHUTDOWN", warning_after_ms=WARNING_S * 1000,
@@ -153,7 +166,7 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                                        "cool_rate_c_per_min": round((temp - 37.0) / 300 * 60, 2) if temp > 37.0 else None,
                                        "room_c": 30.0, "on_c": 50.0, "off_c": 40.0, "source": "menuconfig"},
                               cookware={"profile": "light", "tau_s": 300, "source": "menuconfig"},
-                              hold="cooling" if scenario == "cooling" else "none",
+                              hold={"cooling": "cooling", "checking": "checking"}.get(scenario, "none"),
                               tier="tier4" if scenario == "hot_pan" else "tier1",
                               effective_warning_ms=HOT_WARNING_S * 1000 if scenario == "hot_pan" else WARNING_S * 1000,
                               effective_shutdown_ms=HOT_TIER["shutdown_ms"] if scenario == "hot_pan" else SHUTDOWN_AFTER_S * 1000,
@@ -163,7 +176,7 @@ def demo_telemetry(controller_id, index=0, tick=0, boot_id=None, scenario=None):
                               paused=scenario == "passing", pause_used_ms=4000 if scenario == "passing" else 0,
                               pause_budget_ms=30000,
                               presence_unknown=presence == "UNKNOWN", thermal_lost=False,
-                              absent_ms=0, returning_ms=0,
+                              absent_ms=_checking_s(tick) * 1000 if scenario == "checking" else 0, returning_ms=0,
                               params={p["key"]: p["default"] for p in safety_params()}, params_source="menuconfig")
     return data
 
