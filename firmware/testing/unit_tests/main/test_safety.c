@@ -1271,7 +1271,7 @@ static void test_switching_off_a_hot_pan_holds_the_short_tier(void)
     bool saw_falling = false;
     for (int s = 0; s < 1200 && h.sm.state != SAFETY_IDLE; s++) {
         run_curve(&h, 1000, off_from_260);
-        saw_falling = saw_falling || h.sm.hold == SAFETY_HOLD_FALLING;
+        saw_falling = saw_falling || h.sm.hold == SAFETY_HOLD_FALLING || h.sm.hold == SAFETY_HOLD_CHECKING;
         TEST_ASSERT_TRUE(h.sm.state != SAFETY_SHUTDOWN); /* never cuts a stove that is already off */
     }
     TEST_ASSERT_TRUE(saw_falling);
@@ -1322,6 +1322,95 @@ static void test_a_falling_hold_is_bounded(void)
     TH_EXPECT(&h, SAFETY_WARNING);
     TEST_ASSERT_TRUE(held_from != 0);
     TEST_ASSERT_UINT32_WITHIN(2000, 90000, h.now - held_from);
+}
+
+/* ---- checking (D6): the countdown waits to start while the pan may have been switched off ---- */
+
+/* Leave a pan that has been steady at temp_c for 200 s. */
+static void leave_steady(th_t *h, float temp_c)
+{
+    const safety_config_t cfg = tier_config(true);
+    th_start(h, &cfg, 0);
+    const_temp_c = temp_c;
+    th_cook(h);
+    curve_start(h);
+    run_curve(h, 200000, constant_temp);
+    h->in.presence = RB_FALSE;
+    curve_start(h);
+}
+
+static void test_switching_off_and_leaving_starts_no_countdown_while_it_falls(void)
+{
+    th_t h;
+    leave_steady(&h, 260.0f);
+    for (int s = 0; s < 60; s++) {
+        run_curve(&h, 1000, off_from_260);
+        if (s >= 2) { /* past the 1 s absence debounce */
+            TH_EXPECT(&h, SAFETY_MONITORING);
+            TEST_ASSERT_EQUAL(SAFETY_HOLD_CHECKING, h.sm.hold);
+        }
+    }
+}
+
+static void test_a_check_is_bounded_and_counts_from_the_absence(void)
+{
+    th_t h;
+    leave_steady(&h, 260.0f);
+    const uint32_t t0 = h.now;
+    while (h.sm.state == SAFETY_MONITORING && h.now - t0 < 200000) {
+        run_curve(&h, 1000, off_from_260);
+    }
+    /* 90 s at most (from about 1 s in); tier 5's 30 s buzzer is long due, so it sounds at once */
+    TEST_ASSERT_UINT32_WITHIN(3000, 92000, h.now - t0);
+    TEST_ASSERT_TRUE(h.sm.held_once);
+    run_curve(&h, 1000, off_from_260);
+    TEST_ASSERT_TRUE(h.sm.state == SAFETY_WARNING || h.sm.hold == SAFETY_HOLD_COOLING);
+}
+
+static void test_leaving_a_steady_pan_checks_briefly_without_moving_the_buzzer(void)
+{
+    th_t h;
+    leave_steady(&h, 120.0f); /* tier 2: buzzer after 120 s */
+    run_curve(&h, 5000, constant_temp);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    TEST_ASSERT_EQUAL(SAFETY_HOLD_CHECKING, h.sm.hold);
+    run_curve(&h, 15000, constant_temp); /* half the 30 s rate window: steady, so the countdown starts */
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+    TEST_ASSERT_FALSE(h.sm.held_once);
+    const uint32_t t0 = h.now - 20000;
+    while (h.sm.state == SAFETY_UNATTENDED) {
+        run_curve(&h, 1000, constant_temp);
+    }
+    TH_EXPECT(&h, SAFETY_WARNING);
+    TEST_ASSERT_UINT32_WITHIN(2000, 120000, h.now - t0); /* counted from when the absence began */
+}
+
+static float rising_from_120(float t) { return 120.0f + 0.2f * t; }
+
+static void test_a_rising_pan_is_not_checked(void)
+{
+    th_t h;
+    leave_steady(&h, 120.0f);
+    curve_start(&h);
+    h.in.presence = RB_TRUE;
+    run_curve(&h, 30000, rising_from_120); /* rising while the cook is still there */
+    h.in.presence = RB_FALSE;
+    run_curve(&h, 2000, rising_from_120);
+    TH_EXPECT(&h, SAFETY_UNATTENDED);
+}
+
+static void test_a_return_during_a_check_ends_it(void)
+{
+    th_t h;
+    leave_steady(&h, 260.0f);
+    run_curve(&h, 30000, off_from_260);
+    TEST_ASSERT_EQUAL(SAFETY_HOLD_CHECKING, h.sm.hold);
+    h.in.presence = RB_TRUE;
+    run_curve(&h, 2000, off_from_260);
+    TH_EXPECT(&h, SAFETY_MONITORING);
+    TEST_ASSERT_EQUAL(SAFETY_HOLD_NONE, h.sm.hold);
+    TEST_ASSERT_FALSE(h.sm.checking);
+    TEST_ASSERT_FALSE(h.sm.falling_hold_started); /* the next absence gets its own check */
 }
 
 /* ---- the room temperature (B5) in the cooling judgment (D1) and the falling hold (D5) ---- */
@@ -1804,6 +1893,11 @@ void run_safety_tests(void)
     RUN_TEST(test_switching_off_a_hot_pan_holds_the_short_tier);
     RUN_TEST(test_food_dropped_in_hot_oil_waits_then_buzzes_when_it_recovers);
     RUN_TEST(test_a_falling_hold_is_bounded);
+    RUN_TEST(test_switching_off_and_leaving_starts_no_countdown_while_it_falls);
+    RUN_TEST(test_a_check_is_bounded_and_counts_from_the_absence);
+    RUN_TEST(test_leaving_a_steady_pan_checks_briefly_without_moving_the_buzzer);
+    RUN_TEST(test_a_rising_pan_is_not_checked);
+    RUN_TEST(test_a_return_during_a_check_ends_it);
     RUN_TEST(test_room_temperature_is_clamped_with_a_fallback);
     RUN_TEST(test_a_pan_cooling_to_a_hot_room_is_held);
     RUN_TEST(test_a_slow_fall_near_the_room_counts_as_falling);

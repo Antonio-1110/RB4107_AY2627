@@ -120,6 +120,9 @@ class Incident(models.Model):
     shutdown_at = models.DateTimeField(null=True, blank=True)
     end_reason = models.CharField(max_length=40, blank=True)
     max_temp_c = models.FloatField(null=True, blank=True)
+    max_tier = models.PositiveSmallIntegerField(null=True, blank=True)  # hottest tier reported (1-5)
+    # A cooling or falling hold was reported: the pan was losing heat, so the stove may already have been off.
+    held = models.BooleanField(default=False)
     demo = models.BooleanField(default=False)  # made up by seed_incident_history
 
     class Meta:

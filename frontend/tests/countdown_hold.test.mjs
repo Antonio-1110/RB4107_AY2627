@@ -69,3 +69,12 @@ test("no hold shows no hold wording", () => {
   const card = show({ hold: "none" });
   assert.doesNotMatch(card.label, /hold/);
 });
+
+test("checking: no countdown yet, the time away already counts, and its limit", () => {
+  const card = show({ safety_state: "monitoring", hold: "checking", absent_seconds: 12, unattended_seconds: 0 });
+  assert.equal(card.title, "Checking: stove off or turned down?");
+  assert.match(card.label, /^away 12 s, already counted$/);
+  assert.match(card.detail, /Limit: 90 s/);
+  assert.equal($("cd-seconds").textContent, "check");
+  assert.equal($("cd-timer-live").textContent, "Not started yet");
+});

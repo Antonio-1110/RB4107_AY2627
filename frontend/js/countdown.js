@@ -178,6 +178,21 @@ function phase(values, age, elapsed) {
   }
   if (state === "monitoring") {
     const absent = runningValue(values.absent_seconds, age("absent_seconds"), number(values.absent_seconds) && values.absent_seconds > 0, elapsed);
+    if (values.hold === "checking") {
+      // Nobody there, but the pan may just have been switched off: the countdown waits to start (rule D6).
+      const params = values.params || {},
+        max = number(params.falling_hold_max_ms) ? `${Math.round(params.falling_hold_max_ms / 1000)} s` : "the falling hold maximum";
+      out.style = "cd-run";
+      out.title = "Checking: stove off or turned down?";
+      out.detail =
+        "Nobody at the stove. Before the countdown starts, the controller watches the pan for a few seconds, and for as long as it keeps falling: " +
+        "a switched-off stove cools, a lowered flame levels off. If the pan levels off or rises, the countdown starts with the time away already counted, " +
+        `so the buzzer is not delayed. If cooking stops or the cook returns, no countdown is recorded. Limit: ${max}.`;
+      out.clockText = "check";
+      out.label = number(absent) ? `away ${span(absent)}, already counted` : "checking";
+      out.fill = total && number(absent) ? absent / total : 0;
+      return out;
+    }
     if (number(absent) && absent > 0 && filter && number(filter.absence_seconds)) {
       out.style = "cd-run";
       out.title = "Cooking: confirming absence";
@@ -224,6 +239,7 @@ function liveLines(values, age, elapsed) {
   else if (cooking === true) {
     if (values.hold === "cooling" || values.cooking_phase === "cooling")
       [cook, cookSub] = ["Cooling down", `${hot} · no heat input; a due buzzer warning or shut-off is held`];
+    else if (values.hold === "checking") [cook, cookSub] = ["Stove off or turned down?", `${hot}, ${trend} · checking before the countdown starts`];
     else if (values.hold === "falling") [cook, cookSub] = ["Temperature falling", `${hot}, ${trend} · not sure yet whether heat is going in; a due buzzer warning or shut-off waits`];
     else if (values.cooking_phase === "heating") [cook, cookSub] = ["Heating up", `${hot}, ${trend}`];
     else [cook, cookSub] = ["Active, heat input", `${hot}, ${values.cooking_phase === "checking" ? "evaluating the trend" : trend}`];
@@ -255,6 +271,8 @@ function liveLines(values, age, elapsed) {
     personSub =
       running && number(unattended)
         ? `Absent for ${span(unattended)}`
+        : values.hold === "checking" && number(absent)
+          ? `Absent for ${span(absent)}`
         : filter && number(absent) && absent > 0
           ? `Confirming absence: ${s1(Math.min(absent, filter.absence_seconds))} of ${s1(filter.absence_seconds)}`
           : values.nearby === true
@@ -273,6 +291,7 @@ function liveLines(values, age, elapsed) {
   else if (running && values.hold === "cooling") [times, timesSub] = ["On hold", "Pan cooling"];
   else if (running && values.hold === "falling") [times, timesSub] = ["On hold", "Temperature falling"];
   else if (running && values.hold === "return") [times, timesSub] = ["On hold", "Confirming return"];
+  else if (values.hold === "checking") [times, timesSub] = ["Not started yet", "Checking the pan; the time away already counts"];
   else if (values.paused === true) [times, timesSub] = ["Paused", "Someone passing"];
   else if (cooking !== true) [times, timesSub] = ["Not running", "Starts when cooking is detected and nobody is at the stove"];
   else if (shortTier(values.tier))

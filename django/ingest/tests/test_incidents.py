@@ -23,13 +23,14 @@ class IncidentTest(TestCase):
         self.tick = 0
         self.at = timezone.now() - timedelta(hours=1)
 
-    def send(self, state, boot_id="b00t", seconds=10, max_c=None):
+    def send(self, state, boot_id="b00t", seconds=10, max_c=None, tier="tier1", hold="none"):
         """One live telemetry message, `seconds` after the previous one."""
         self.tick += 1
         self.at += timedelta(seconds=seconds)
         data = demo_telemetry("controller_01", tick=self.tick, boot_id=boot_id)
         data["safety"].update(state=state, shutdown=state == "SHUTDOWN",
                               buzzer=state if state in {"SHUTDOWN", "WARNING", "FAULT"} else "OFF")
+        data["safety"].update(tier=tier, hold=hold)
         if max_c is not None:
             data["thermal"]["max_c"] = max_c
         persist(parse("rb4107/controller/state", json.dumps(data).encode()), received_at=self.at)
@@ -118,6 +119,50 @@ class IncidentTest(TestCase):
                      if "controller_01" in s["device_ids"])
         self.assertEqual((stall["incidents"], stall["period"]["buzzer"]), (0, 0))
         self.assertIsNone(stall["last_incident_at"])
+
+    def stall(self):
+        return next(s for s in self.client.get("/api/stall-history/", {"days": "7"}).json()["stalls"]
+                    if "controller_01" in s["device_ids"])
+
+    def test_a_buzzer_while_the_pan_was_losing_heat_is_unclear(self):
+        # The stove may already have been off: listed and flagged, but not counted as a finding.
+        self.send("MONITORING")
+        self.send("UNATTENDED", tier="tier3")
+        self.send("UNATTENDED", tier="tier3", hold="falling")
+        self.send("WARNING", tier="tier2")
+        self.send("IDLE")
+        incident = self.only()
+        self.assertEqual((incident.max_tier, incident.held), (3, True))
+        stall = self.stall()
+        self.assertEqual((stall["incidents"], stall["unclear"]), (0, 1))
+        self.assertEqual((stall["period"]["buzzer"], stall["period"]["unclear"]), (0, 1))
+        listed = self.client.get("/api/stall-history/", {"stall": stall["stall_id"]}).json()["incidents"]
+        self.assertEqual([(i["peak"], i["unclear"], i["max_tier"]) for i in listed], [("warning", True, 3)])
+
+    def test_a_tier_5_buzzer_always_counts(self):
+        self.send("UNATTENDED", tier="tier5")
+        self.send("UNATTENDED", tier="tier5", hold="cooling")
+        self.send("WARNING", tier="tier4")
+        self.send("MONITORING")
+        self.assertEqual((self.only().max_tier, self.only().held), (5, True))
+        stall = self.stall()
+        self.assertEqual((stall["incidents"], stall["unclear"], stall["period"]["buzzer"]), (1, 0, 1))
+
+    def test_checking_opens_no_incident(self):
+        # The controller waits in MONITORING while the pan may have been switched off (D6).
+        self.send("MONITORING")
+        self.send("MONITORING", hold="checking")
+        self.send("IDLE")
+        self.assertEqual(Incident.objects.count(), 0)
+        self.assertEqual(Reading.objects.filter(values__hold="checking").count(), 1)
+
+    def test_a_return_hold_is_not_unclear(self):
+        self.send("UNATTENDED")
+        self.send("UNATTENDED", hold="return")
+        self.send("WARNING")
+        self.send("MONITORING")
+        self.assertFalse(self.only().held)
+        self.assertEqual((self.stall()["incidents"], self.stall()["unclear"]), (1, 0))
 
 
 class PeriodTest(TestCase):
@@ -271,3 +316,13 @@ class SeedTest(TestCase):
             self.assertEqual(incident.warning_at is not None, incident.peak != "unattended")
             if incident.peak == "shutdown":
                 self.assertIn(incident.end_reason, ("operator_reset", "controller_restarted"))
+            self.assertIn(incident.max_tier, (1, 2, 3, 4, 5))
+            self.assertTrue(incident.peak != "unattended" or not incident.held)
+
+    def test_seeded_history_shows_unclear_buzzer_warnings(self):
+        device = Device.objects.create(device_id="demo-x")
+        seed_demo(device, timezone.now(), days=90, profile="risky")
+        buzzer = Incident.objects.filter(peak__in=("warning", "shutdown"))
+        unclear = [i for i in buzzer if i.held and i.max_tier < 5]
+        self.assertTrue(unclear)  # there is something to show
+        self.assertLess(len(unclear), buzzer.count() / 2)  # but most still count

@@ -10,6 +10,12 @@ reason is inferred from the state the controller went to, not reported by it.
 Every episode is stored, but the Stall history only counts the ones that reached the
 buzzer warning. A countdown that ends before the buzzer is the time the cook is allowed
 to step away, so it is not a finding and is left out (see REACHED_BUZZER).
+
+A buzzer episode during which the controller held a step because the pan was losing
+heat (a cooling or falling hold) may be a stove that was already switched off: the
+controller can't tell that from a lowered flame. Those are "unclear": listed, but
+counted apart from the findings, except at tier 5 (oil at its smoke point), which
+always counts (see is_unclear).
 """
 import random
 from datetime import datetime, time, timedelta
@@ -25,6 +31,8 @@ from .models import Device, InboundMessage, Incident, Reading
 
 ACTIVE = {"unattended": 1, "warning": 2, "shutdown": 3}  # state -> escalation rank
 REACHED_BUZZER = ("warning", "shutdown")  # the peaks the Stall history counts and lists
+LOSING_HEAT_HOLDS = ("cooling", "falling")  # holds that mean the pan was losing heat
+ALWAYS_COUNTS_TIER = 5  # oil at its smoke point: a buzzer counts even if the pan was losing heat
 RESTART = {"boot", "self_test"}
 END_REASONS = {
     "person_returned": "Person returned",
@@ -43,8 +51,25 @@ def close(incident, at, reason):
     incident.save()
 
 
-def record_state(device, state, at, temperature_c=None):
-    """Advance the device's incident for one live telemetry state (lower case, as normalised)."""
+def tier_number(tier):
+    """5 for "tier5"; None for anything else."""
+    if isinstance(tier, str) and tier.startswith("tier") and tier[4:].isdigit():
+        return int(tier[4:])
+    return None
+
+
+def is_unclear(incident):
+    """The pan was losing heat when a step was held, and it never reached tier 5."""
+    return incident.held and (incident.max_tier or 0) < ALWAYS_COUNTS_TIER
+
+
+# The database form of is_unclear().
+UNCLEAR = Q(held=True) & (Q(max_tier__isnull=True) | Q(max_tier__lt=ALWAYS_COUNTS_TIER))
+
+
+def record_state(device, state, at, temperature_c=None, tier=None, hold=None):
+    """Advance the device's incident for one live telemetry state (lower case, as normalised),
+    with the tier ("tier1".."tier5") and hold the same message reported."""
     incident = open_incident(device)
     if state in ACTIVE:
         if incident is None:
@@ -57,6 +82,9 @@ def record_state(device, state, at, temperature_c=None):
             incident.shutdown_at = at
         if temperature_c is not None:
             incident.max_temp_c = max(temperature_c, incident.max_temp_c or temperature_c)
+        if tier_number(tier) is not None:
+            incident.max_tier = max(tier_number(tier), incident.max_tier or 0)
+        incident.held = incident.held or hold in LOSING_HEAT_HOLDS
         incident.last_state = state
         incident.save()
     elif incident is None:
@@ -86,7 +114,8 @@ def serialize(incident, now):
             "duration_seconds": max(0, (end - incident.started_at).total_seconds()),
             "end_reason": incident.end_reason or None,
             "end_reason_text": END_REASONS.get(incident.end_reason, "In progress" if not incident.ended_at else "—"),
-            "max_temp_c": incident.max_temp_c, "demo": incident.demo}
+            "max_temp_c": incident.max_temp_c, "max_tier": incident.max_tier, "held": incident.held,
+            "unclear": is_unclear(incident), "demo": incident.demo}
 
 
 MAX_PERIOD_DAYS = 366  # the longest period the Stall history page asks for (its own days or dates)
@@ -144,10 +173,11 @@ def cooking_days(device_pks, since, until):
     return days
 
 
-def period_summary(incidents, since, until, cooking):
+def period_summary(incidents, since, until, cooking, unclear=0):
     """What a fire-safety inspector asks about one stall over the period: how often the buzzer
     sounded, how many of those reached the shut-off, and how long recovery took. `incidents`
-    are only the ones that reached the buzzer; a countdown that ended before it is not counted."""
+    are only the ones that reached the buzzer and are not unclear (`unclear` counts those);
+    a countdown that ended before the buzzer is not counted."""
     buzzer = len(incidents)
     days = (until - since).total_seconds() / 86400
     weeks_long = days / 7
@@ -171,7 +201,7 @@ def period_summary(incidents, since, until, cooking):
     on_cooking_days = sum(1 for i in incidents if timezone.localtime(i.started_at).date() in cooking)
     return {
         "days": round(days, 2), "since": since, "until": until,
-        "buzzer": buzzer, "shutoff": shutoff,
+        "buzzer": buzzer, "shutoff": shutoff, "unclear": unclear,
         "ongoing": sum(1 for i in incidents if i.ended_at is None),
         "buzzer_per_week": round(buzzer / weeks_long, 2),
         "shutoff_per_week": round(shutoff / weeks_long, 2),
@@ -199,26 +229,32 @@ def stall_history(now, stall_id=None, limit=500, days=None, period=None):
     `days` days) every stall also gets a `period` summary, and the incident list
     keeps to that period."""
     catalog = load_location_catalog()
-    counted = Incident.objects.filter(peak__in=REACHED_BUZZER)
+    reached = Incident.objects.filter(peak__in=REACHED_BUZZER)  # listed, unclear ones flagged
+    counted = reached.exclude(UNCLEAR)  # the findings
     counts = {row["device"]: row for row in counted.values("device").annotate(
         incidents=Count("id"), warnings=Count("id", filter=Q(peak__in=("warning", "shutdown"))),
         shutdowns=Count("id", filter=Q(peak="shutdown")), last=Max("started_at"),
         ongoing=Count("id", filter=Q(ended_at__isnull=True)))}
+    unclear = dict(reached.filter(UNCLEAR).values("device").annotate(n=Count("id")).values_list("device", "n"))
     since, until = period or (period_bounds(now, days) if days else (None, None))
-    in_period, cooking = {}, {}
+    in_period, unclear_in_period, cooking = {}, {}, {}
     if since:
-        for incident in counted.filter(started_at__gte=since, started_at__lt=until).order_by("started_at"):
-            in_period.setdefault(incident.device_id, []).append(incident)
+        for incident in reached.filter(started_at__gte=since, started_at__lt=until).order_by("started_at"):
+            if is_unclear(incident):
+                unclear_in_period[incident.device_id] = unclear_in_period.get(incident.device_id, 0) + 1
+            else:
+                in_period.setdefault(incident.device_id, []).append(incident)
     stalls, devices = {}, {}
     for device in Device.objects.order_by("device_id"):
         location = location_for(device.device_id, catalog)
         stall = stalls.setdefault(location["stall_id"], {
             "stall_id": location["stall_id"], "stall_name": location["stall_name"], "location": location,
             "demo_only": bool(location.get("demo_only")), "device_ids": [],
-            "incidents": 0, "warnings": 0, "shutdowns": 0, "ongoing": 0, "last_incident_at": None,
+            "incidents": 0, "warnings": 0, "shutdowns": 0, "ongoing": 0, "unclear": 0, "last_incident_at": None,
             "first_incident_at": None})
         stall["device_ids"].append(device.device_id)
         devices.setdefault(location["stall_id"], []).append(device.pk)
+        stall["unclear"] += unclear.get(device.pk, 0)
         row = counts.get(device.pk)
         if row:
             for key in ("incidents", "warnings", "shutdowns", "ongoing"):
@@ -231,13 +267,14 @@ def stall_history(now, stall_id=None, limit=500, days=None, period=None):
             # A stall with two controllers cooks on a day when either of them does.
             stall["period"] = period_summary(
                 sorted((i for pk in devices[key] for i in in_period.get(pk, [])), key=lambda i: i.started_at),
-                since, until, set().union(*(cooking.get(pk, set()) for pk in devices[key])))
+                since, until, set().union(*(cooking.get(pk, set()) for pk in devices[key])),
+                sum(unclear_in_period.get(pk, 0) for pk in devices[key]))
     result = {"stalls": sorted(stalls.values(), key=lambda s: (s["location"].get("site_name", ""), s["stall_name"])),
               "end_reasons": END_REASONS, "since": since, "until": until}
     if stall_id is not None:
         stall = stalls.get(stall_id)
         ids = stall["device_ids"] if stall else []
-        listed = counted.filter(device__device_id__in=ids)
+        listed = reached.filter(device__device_id__in=ids)
         if since:
             listed = listed.filter(started_at__gte=since, started_at__lt=until)
         rows = list(listed.select_related("device").order_by("-started_at", "-id")[:limit + 1])
@@ -257,6 +294,13 @@ DEMO_PROFILES = {
     "risky": ((8, 36), 0.55, 0.40),
 }
 DEMO_TOPIC = "demo/cooking_day"  # the made-up cooking-day Readings' message topic
+DEMO_HELD_SHARE = 0.25  # buzzer warnings during which the pan was losing heat (a cooling or falling hold)
+DEMO_TIER_TEMPS = (100.0, 150.0, 200.0, 250.0)  # the firmware's default tiers 2 to 5
+
+
+def demo_tier(temp_c):
+    """The tier a made-up hottest temperature falls in (1 below every hotter tier)."""
+    return 1 + sum(1 for at in DEMO_TIER_TEMPS if temp_c >= at)
 
 
 def seed_demo(device, now, days=90, seed=None, profile="typical"):
@@ -264,6 +308,8 @@ def seed_demo(device, now, days=90, seed=None, profile="typical"):
     cooking Reading per day the stall was open (for "countdowns per cooking day").
     Returns how many incidents."""
     rng = random.Random(seed if seed is not None else device.device_id)
+    # Its own stream, so marking some unclear leaves the rest of the made-up history as it was.
+    held_rng = random.Random(f"held-{seed if seed is not None else device.device_id}")
     gap, buzzer_share, shutoff_share = DEMO_PROFILES[profile]
     rows, day, last_end = [], timezone.localtime(now) - timedelta(days=days), None
     while True:
@@ -298,6 +344,13 @@ def seed_demo(device, now, days=90, seed=None, profile="typical"):
             if incident.warning_at and start + timedelta(seconds=end_s) < incident.warning_at:
                 incident.peak = incident.last_state = "unattended"
                 incident.warning_at = None
+        incident.max_tier = demo_tier(incident.max_temp_c)
+        if incident.peak != "unattended" and held_rng.random() < DEMO_HELD_SHARE:
+            # The pan was losing heat when the buzzer came due: likely a stove switched off, so it mostly
+            # ends with cooking stopping (the controller still can't be sure: unclear, not counted).
+            incident.held = True
+            if incident.peak == "warning" and reason == "person_returned" and held_rng.random() < 0.7:
+                reason = "heating_stopped"
         incident.ended_at, incident.end_reason = start + timedelta(seconds=end_s), reason
         last_end = incident.ended_at
         rows.append(incident)

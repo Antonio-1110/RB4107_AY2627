@@ -91,6 +91,9 @@ commands from anyone who can reach it.
   kind of hold, what ends it and its limit: **cooling** (sure there is no heat
   input), **falling** (not sure yet whether it is cooling or a lowered flame, at
   most the falling hold maximum) or **return** (a person is being confirmed).
+  Before a countdown starts it may show **Checking: stove off or turned
+  down?**: nobody is there and the pan may have been switched off, so the
+  controller watches it first (rule D6). The time away already counts.
 - **Tuning** adds tabs: **Safety** (settings and rules), **Radar** (C4002
   tuning and live view), **Thermal** (heat map, outline and pixel-size
   controls), **Diagnostics** and **Logs** ([logging.md](logging.md#logs-tab)).
@@ -174,10 +177,18 @@ shows, per stall:
 
 **What is not counted.** A countdown that ends before the buzzer is the time
 the cook is allowed to step away (fetch an ingredient, answer a customer), so it
-is not a finding. It is still stored, but the history leaves it out. This also
-keeps out a switched-off pan that is still hot when the cook leaves, because its
-buzzer is held while it cools. The buzzer warning is the first level of "this is
-unsafe"; the shut-off is the second.
+is not a finding. It is still stored, but the history leaves it out. A cook
+who switches off and leaves usually never opens one: the controller checks a
+falling pan before starting the countdown (rule D6), and its buzzer is held
+while it cools. The buzzer warning is the first level of "this is unsafe"; the
+shut-off is the second.
+
+**Unclear buzzer warnings.** The controller can't reliably tell a stove
+switched off from one turned down. A buzzer warning during which it held a step
+because the pan was losing heat (a cooling or falling hold) is marked
+**unclear**: listed in the log with a tag, shown as "+ N unclear" beside the
+counts, but not counted. At tier 5 (oil at its smoke point) it always counts.
+The log's **Show** choice can list only the counted or only the unclear ones.
 
 **Compare stalls** lists every stall with a bar per figure, with search, area
 and "show" filters, ranking (default: most shut-offs, then buzzer warnings),
@@ -189,7 +200,9 @@ from live telemetry: it opens when the state first becomes UNATTENDED, WARNING
 or SHUTDOWN and closes when the state returns to MONITORING or IDLE, or the
 controller restarts. FAULT keeps it open. The end reason is inferred from the
 next state, not reported by the controller. Incidents are never pruned. The
-history lists and counts only those that reached WARNING or SHUTDOWN.
+history lists only those that reached WARNING or SHUTDOWN, and counts those of
+them that are not unclear. Each incident keeps the hottest tier and whether a
+cooling or falling hold was reported.
 
 Recovery is timed from the buzzer warning to normal (person returned, or
 cooking stopped) and from the shut-off to the operator's reset. A **controller
@@ -215,7 +228,11 @@ Edit `django/locations.json`, keyed by the firmware's `controller_id`
 unassigned. `django/locations.demo.json` holds made-up stalls for
 `simulate_fleet` (`tools/run_dev.sh --demo`); each plays a `demo_scenario`
 (monitoring, unattended, warning, shutdown, idle, fault_radars,
-fault_node_offline, network_loss) and is tagged SIMULATED.
+fault_node_offline, network_loss, checking; also cooling, hot_pan and passing,
+unassigned) and is tagged SIMULATED. Cooking station B of the Demo food court
+stall plays *checking*: a burner switched off at 180 °C, the countdown waiting
+to start. The made-up history marks about a quarter of the buzzer warnings as
+held while the pan was losing heat, so the unclear tags and counts show.
 
 Controllers can share a `stall_id` with different `station_name`s; the overview
 shows their worst severity. Each controller publishes under its own prefix

@@ -25,6 +25,11 @@ const percent = (share) => (number(share) ? `${Math.round(share * 100)}%` : "—
 const rate = (value) => (number(value) ? value.toFixed(1) : "—");
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
+// A buzzer warning while the pan was losing heat (a cooling or falling hold): the stove may already have
+// been off, which the controller can't tell from a lowered flame. Listed, but not in the counts, except at tier 5.
+const UNCLEAR_TEXT =
+  "the pan was losing heat when the buzzer came due, so the stove may already have been off. These are listed but not counted (a tier 5 pan, oil at its smoke point, always counts).";
+
 export function duration(totalSeconds) {
   if (!number(totalSeconds)) return "—";
   const s = Math.round(totalSeconds);
@@ -331,7 +336,7 @@ function renderStalls() {
     figure(
       "buzzer_per_week",
       rate(p.buzzer_per_week),
-      `${p.buzzer} total`,
+      `${p.buzzer} total${p.unclear ? ` + ${p.unclear} unclear` : ""}`,
       `hist-buzz${p.buzzer ? " hist-warn" : ""}`,
     );
     figure(
@@ -361,7 +366,7 @@ function renderFigures(p) {
   const cooking = p.cooking_days
     ? `${rate(p.buzzer_per_cooking_day)} per cooking day (${plural(p.cooking_days, "cooking day")} recorded)`
     : "per cooking day: no cooking recorded";
-  set("hist-per-week-note", `${p.buzzer} in ${periodName()} · ${cooking}`);
+  set("hist-per-week-note", `${p.buzzer} in ${periodName()} · ${cooking}${p.unclear ? ` · ${p.unclear} unclear, not counted` : ""}`);
   set("hist-buzzer", duration(p.usual_recovery.median_seconds));
   set(
     "hist-buzzer-note",
@@ -418,15 +423,18 @@ function renderChart() {
   drawStackedWeeks($("hist-week-chart"), $("hist-week-empty"), p.weeks, BARS);
 }
 
+// The incident log's "Show" choice: everything, shut-offs, the counted ones or the unclear ones.
+export function matchesFilter(incident, filter) {
+  if (filter === "shutdown") return incident.peak === "shutdown";
+  if (filter === "counted") return !incident.unclear;
+  if (filter === "unclear") return Boolean(incident.unclear);
+  return true;
+}
+
 function renderIncidents() {
   const incidents = data.incidents || [];
   const filter = $("hist-filter").value,
-    shown = incidents.filter(
-      (incident) =>
-        !filter ||
-        incident.peak === "shutdown" ||
-        (filter === "warning" && incident.peak === "warning"),
-    );
+    shown = incidents.filter((incident) => matchesFilter(incident, filter));
   const body = $("hist-rows");
   body.replaceChildren();
   if (!shown.length)
@@ -442,7 +450,13 @@ function renderIncidents() {
     started.textContent = date(incident.started_at);
     if (incident.demo) started.append(" ", make("span", "demo", "hist-demo-tag"));
     const [label, style] = PEAK[incident.peak] || [incident.peak, "unknown"];
-    row.insertCell().append(makeBadge(label, style));
+    const stage = row.insertCell();
+    stage.append(makeBadge(label, style));
+    if (incident.unclear) {
+      const tag = make("span", "unclear", "hist-unclear-tag");
+      tag.title = UNCLEAR_TEXT;
+      stage.append(" ", tag);
+    }
     row.insertCell().textContent = after(incident.started_at, incident.warning_at);
     row.insertCell().textContent = after(incident.started_at, incident.shutdown_at);
     row.insertCell().textContent = `${duration(incident.duration_seconds)}${incident.ongoing ? " so far" : ""}`;
@@ -455,11 +469,13 @@ function renderIncidents() {
       ? `${incident.max_temp_c.toFixed(0)} °C`
       : "—";
   }
+  const unclear = incidents.filter((incident) => incident.unclear).length;
   set(
     "hist-note",
-    data.truncated
+    (data.truncated
       ? `Showing the newest ${incidents.length} buzzer warnings of the period.`
-      : `${plural(incidents.length, "buzzer warning")} in ${periodName()}.`,
+      : `${plural(incidents.length, "buzzer warning")} in ${periodName()}.`) +
+      (unclear ? ` ${unclear} marked unclear: ${UNCLEAR_TEXT}` : ""),
   );
 }
 

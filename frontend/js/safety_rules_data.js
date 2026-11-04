@@ -227,8 +227,14 @@ export default {
     {
      "id": "D5",
      "when": "A buzzer or shutdown comes due while the temperature is falling (over the last {{TIER_RATE_WINDOW_MS|30 s}}) by at least {{FALLING_SHARE_PCT_PER_MIN|2}} % per minute of its heat above the room (B5), and at least {{FALLING_RATE_C_PER_MIN|1 °C/min}}; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the fit of D1 falling slower than a pan settling {{SETTLE_MARGIN_C|3 °C}} above the only-cooling line would, and T + tau x rate moving at most {{SETTLE_MAX_DRIFT_C_PER_MIN|8 °C/min}})",
-     "result": "It waits (falling hold; {{RB_SAFETY_FALLING_HOLD|on}} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {{FALLING_HOLD_MAX_MS|90 s}} at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead",
+     "result": "It waits (falling hold; {{RB_SAFETY_FALLING_HOLD|on}} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {{FALLING_HOLD_MAX_MS|90 s}} at most per countdown (a check before it, D6, uses up the same limit). A pan that is only cooling (D1) gets the cooling hold instead",
      "code": "falling_hold()"
+    },
+    {
+     "id": "D6",
+     "when": "Absence confirmed while cooking (MONITORING): for the first half of {{TIER_RATE_WINDOW_MS|30 s}} of the absence (a fall takes that long to show), unless the pan is rising or the buzzer is already due; after that, while the pan falls as for the falling hold (D5)",
+     "result": "The countdown waits to start (checking: stove off or turned down?), so no unattended episode opens. It still counts from when the absence began (C2), so the buzzer is never later for it. Ends when the pan is not falling after the first look (the countdown starts), when cooking stops (T08, B6), on a confirmed return, and after {{FALLING_HOLD_MAX_MS|90 s}} at most, shared with D5. A countdown that starts after a check that saw the pan falling counts as held: the buzzer lasts {{WARNING_MIN_AFTER_HOLD_MS|30 s}} before a shutdown",
+     "code": "g_absent_unheld()"
     }
    ]
   },
@@ -331,7 +337,7 @@ export default {
    ],
    "to": "UNATTENDED",
    "reason": "person absent",
-   "when": "ABSENT for {{RB_SAFETY_ABSENCE_DEBOUNCE_MS|1 s}} (C1)"
+   "when": "ABSENT for {{RB_SAFETY_ABSENCE_DEBOUNCE_MS|1 s}} (C1), and not checking (D6)"
   },
   {
    "id": "T10",

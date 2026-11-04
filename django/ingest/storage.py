@@ -118,7 +118,8 @@ def persist(message, received_at=None):
                     device.reported_online = True
                 if not message.retained and message.type == "telemetry":
                     device.last_snapshot_source_at = min(now, source) if source else None
-                    incidents.record_state(device, fields["safety_state"], now, fields.get("temperature_c"))
+                    incidents.record_state(device, fields["safety_state"], now, fields.get("temperature_c"),
+                                           fields.get("tier"), fields.get("hold"))
             elif order == "live":
                 row.outcome = "historical"
                 row.save(update_fields=["outcome"])

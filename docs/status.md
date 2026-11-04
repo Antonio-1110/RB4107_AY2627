@@ -20,7 +20,7 @@ nodes, or Django against a real broker. *Bench* = run on the real boards.
 | Presence fusion and passer-by pause | yes | not recorded | needs recorded real walk-bys; a false target on either radar keeps the stove on (issue #20) |
 | ESP-NOW link and protocol v3 | yes | in use on the bench | unencrypted, CRC only |
 | MQTT, Django, dashboard | yes, with a real broker | in use with the bench controller | no login, no TLS; the dashboard can reset a shutdown remotely |
-| Retention and stall history | yes; demo data for several stalls | n/a | retention numbers to be confirmed with the data owner; only countdowns that reached the buzzer are counted (issue #72) |
+| Retention and stall history | yes; demo data for several stalls | n/a | retention numbers to be confirmed with the data owner; only countdowns that reached the buzzer are counted (issue #72), and those while the pan was losing heat are marked unclear (not counted below tier 5) |
 | Telegram alerts | built | not recorded | depends on the laptop and internet; SMS would need a registered sender ID |
 | Full build (`idf.py`) | n/a | n/a | passed on `main` when last recorded; not re-run since the valve node was removed |
 

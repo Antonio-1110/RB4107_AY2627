@@ -123,7 +123,10 @@ SAFETY_SIGNAL(D4, "safety/src/safety.c", present_confirmed,
     "Return confirmed (used by T10, T13)")
 SAFETY_SIGNAL(D5, "safety/src/safety.c", falling_hold,
     "A buzzer or shutdown comes due while the temperature is falling (over the last {=TIER_RATE_WINDOW_MS}) by at least {=FALLING_SHARE_PCT_PER_MIN} % per minute of its heat above the room (B5), and at least {=FALLING_RATE_C_PER_MIN}; near the room even a switched-off pan falls slowly. And the trend has not confirmed heat going in (the fit of D1 falling slower than a pan settling {=SETTLE_MARGIN_C} above the only-cooling line would, and T + tau x rate moving at most {=SETTLE_MAX_DRIFT_C_PER_MIN})",
-    "It waits (falling hold; {RB_SAFETY_FALLING_HOLD} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {FALLING_HOLD_MAX_MS} at most per countdown. A pan that is only cooling (D1) gets the cooling hold instead")
+    "It waits (falling hold; {RB_SAFETY_FALLING_HOLD} by default): a falling pan is moving away from danger. Ends at once when the temperature stops falling or heat is confirmed (a lowered flame), and after {FALLING_HOLD_MAX_MS} at most per countdown (a check before it, D6, uses up the same limit). A pan that is only cooling (D1) gets the cooling hold instead")
+SAFETY_SIGNAL(D6, "safety/src/safety.c", g_absent_unheld,
+    "Absence confirmed while cooking (MONITORING): for the first half of {=TIER_RATE_WINDOW_MS} of the absence (a fall takes that long to show), unless the pan is rising or the buzzer is already due; after that, while the pan falls as for the falling hold (D5)",
+    "The countdown waits to start (checking: stove off or turned down?), so no unattended episode opens. It still counts from when the absence began (C2), so the buzzer is never later for it. Ends when the pan is not falling after the first look (the countdown starts), when cooking stops (T08, B6), on a confirmed return, and after {FALLING_HOLD_MAX_MS} at most, shared with D5. A countdown that starts after a check that saw the pan falling counts as held: the buzzer lasts {WARNING_MIN_AFTER_HOLD_MS} before a shutdown")
 
 /* ---- T. state transitions, in the order they are checked ---- */
 SAFETY_RULE(T01, ST(SAFETY_BOOT), g_always, SAFETY_SELF_TEST, NULL, "boot complete",
@@ -144,8 +147,8 @@ SAFETY_RULE(T07, ST(SAFETY_IDLE), g_cooking, SAFETY_MONITORING, NULL, "heating d
     "Cooking (B1, B2)")
 SAFETY_RULE(T08, ST(SAFETY_MONITORING), g_not_cooking, SAFETY_IDLE, NULL, "heating stopped",
     "Not cooking (B3)")
-SAFETY_RULE(T09, ST(SAFETY_MONITORING), g_absent_confirmed, SAFETY_UNATTENDED, NULL, "person absent",
-    "ABSENT for {RB_SAFETY_ABSENCE_DEBOUNCE_MS} (C1)")
+SAFETY_RULE(T09, ST(SAFETY_MONITORING), g_absent_unheld, SAFETY_UNATTENDED, NULL, "person absent",
+    "ABSENT for {RB_SAFETY_ABSENCE_DEBOUNCE_MS} (C1), and not checking (D6)")
 SAFETY_RULE(T10, ST(SAFETY_UNATTENDED), g_person_returned, SAFETY_MONITORING, NULL, "person returned",
     "Return confirmed (D4). The countdown is cancelled")
 SAFETY_RULE(T11, ST(SAFETY_UNATTENDED), g_cooled_down, SAFETY_IDLE, NULL, "heating stopped while unattended",

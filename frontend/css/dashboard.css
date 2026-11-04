@@ -2718,7 +2718,8 @@ body[data-view="history"] .ov-view-switch {
   font-size: var(--fs-small);
   color: var(--muted);
 }
-.hist-demo-tag {
+.hist-demo-tag,
+.hist-unclear-tag {
   font-size: var(--fs-meta);
   text-transform: uppercase;
   color: var(--muted);

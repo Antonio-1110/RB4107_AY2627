@@ -107,6 +107,7 @@ typedef enum {
     SAFETY_HOLD_RETURN,       /* the radar sees someone and the return is being confirmed (bounded) */
     SAFETY_HOLD_COOLING,      /* the pan is cooling down: the timers wait for a plateau or for it to end */
     SAFETY_HOLD_FALLING,      /* the temperature is falling and the trend can't tell yet whether heat is going in */
+    SAFETY_HOLD_CHECKING,     /* nobody there and the pan falling: the countdown waits to start (stove off or turned down?) */
 } safety_hold_t;
 
 /*
@@ -303,6 +304,8 @@ typedef struct {
     bool late_warning;                /* the shutdown was already due when the warning came (a tier got shorter) */
     bool falling_hold_started;        /* a falling hold happened on this timeline ... */
     uint32_t falling_hold_since_ms;   /* ... starting then (its limit counts from the first one) */
+    bool checking;                    /* MONITORING, absence confirmed, pan falling: UNATTENDED waits ... */
+    uint32_t checking_since_ms;       /* ... since then (it uses up the falling hold's limit) */
 
     bool paused;                      /* the clock is stopped because someone is at the stove */
     uint32_t pause_used_ms;           /* time paused on this timeline */
@@ -373,7 +376,7 @@ uint32_t safety_pause_budget_ms(const safety_sm_t *sm);
 
 const char *safety_state_name(safety_state_t state);
 const char *safety_heat_phase_name(safety_heat_phase_t phase); /* "off" "checking" "heating" "holding" "cooling" */
-const char *safety_hold_name(safety_hold_t hold);              /* "none" "return" "cooling" "falling" */
+const char *safety_hold_name(safety_hold_t hold);              /* "none" "return" "cooling" "falling" "checking" */
 const char *safety_buzzer_name(safety_buzzer_t buzzer);
 
 #ifdef __cplusplus

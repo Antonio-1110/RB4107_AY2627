@@ -299,6 +299,18 @@ slowest, liquid, is 40 min), so any switched-off pan counts as falling. A pan at
 burner, and is not held. The 1 °C/min floor keeps camera noise near the room
 from counting as a fall.
 
+**Checking: before the countdown starts.** A cook who switches off and walks
+away is confirmed absent within a second, but a fall needs about 15 s (half the
+30 s rate window) to show. So when the absence is confirmed, the controller
+first looks for up to 15 s (not if the pan is rising, or the buzzer is already
+due), then keeps waiting only while the pan falls, at most the falling hold's
+90 s, which a later falling hold shares. The state stays MONITORING with `hold`
+= `checking` and the dashboard says "Checking: stove off or turned down?". No
+unattended episode opens, so a stove that was switched off and cools below
+60 °C (B6) never reaches the Stall history. The time away still counts from when
+the absence began, so a buzzer is never later because of a check: a steady pan
+gets its countdown after the look with those seconds already counted.
+
 The unattended clock keeps counting while a transition is held. After any hold,
 the buzzer sounds for **at least 30 s** before the shutdown, even if the shutdown
 was due long ago, so the first thing someone nearby hears is the warning. The

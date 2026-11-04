@@ -229,6 +229,7 @@ static void clear_unattended(safety_sm_t *sm)
     sm->held_once = false;
     sm->late_warning = false;
     sm->falling_hold_started = false;
+    sm->checking = false;
     sm->pause_used_ms = 0;
     sm->paused = false;
 }
@@ -588,10 +589,15 @@ static float falling_rate_needed(const safety_sm_t *sm, float temp_c)
     return by_share > floor_c ? by_share : floor_c;
 }
 
+static bool pan_falling(const safety_sm_t *sm, const safety_inputs_t *in)
+{
+    return sm->cfg.falling_hold && sm->heat_active && in->thermal_valid && isfinite(sm->fast_rate_c_per_min) &&
+           sm->fast_rate_c_per_min <= -falling_rate_needed(sm, in->cooking_temp_c) && !heat_confirmed(sm);
+}
+
 static bool falling_hold(safety_sm_t *sm, const safety_inputs_t *in, uint32_t now)
 {
-    if (!sm->cfg.falling_hold || !sm->heat_active || !in->thermal_valid || !isfinite(sm->fast_rate_c_per_min) ||
-        sm->fast_rate_c_per_min > -falling_rate_needed(sm, in->cooking_temp_c) || heat_confirmed(sm)) {
+    if (!pan_falling(sm, in)) {
         return false;
     }
     if (!sm->falling_hold_started) {
@@ -784,6 +790,9 @@ static void on_enter(safety_sm_t *sm, safety_state_t to, uint32_t now_ms)
              */
             sm->unattended_active = true;
             sm->unattended_start_ms = sm->absent_timing ? later(sm->absent_since_ms, sm->monitoring_since_ms) : now_ms;
+            /* A check that saw the pan falling was a falling hold: the buzzer lasts its minimum before a shutdown. */
+            sm->held_once = sm->held_once || (sm->checking && sm->falling_hold_started);
+            sm->checking = false;
         }
         break;
     case SAFETY_WARNING:
@@ -933,9 +942,46 @@ static bool g_not_cooking(safety_sm_t *sm, const safety_inputs_t *in, const eval
     return !sm->heat_active;
 }
 
-static bool g_absent_confirmed(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
+/*
+ * CHECKING: the absence is confirmed, but the pan may just have been switched off, so the countdown waits to
+ * start and no unattended episode opens. Someone who switches off and walks away is confirmed absent in a
+ * second, long before a fall can show in the short-window rate, so it first takes a look: half that window from
+ * when the absence began, unless the pan is rising or the buzzer would already be due. After that it waits only
+ * while the pan is falling (as for the falling hold), at most falling_hold_max_ms, which a falling hold later on
+ * the same countdown shares. The countdown is counted from when the absence began all the same (C2), so a
+ * check never makes a buzzer later than it would be without it.
+ */
+static bool g_absent_unheld(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
 {
-    return e->absent_confirmed;
+    if (!e->absent_confirmed) {
+        if (sm->checking) {
+            sm->checking = false;
+            sm->falling_hold_started = false; /* a return during the check: the next absence gets its own */
+        }
+        return false;
+    }
+    const uint32_t away_since = later(sm->absent_since_ms, sm->monitoring_since_ms);
+    const bool rising = isfinite(sm->fast_rate_c_per_min) && sm->fast_rate_c_per_min > 0.0f;
+    const bool look = sm->cfg.falling_hold && sm->heat_active && in->thermal_valid && !rising &&
+                      !elapsed(now, away_since, TUNED(tier_rate_window_ms, TIER_RATE_WINDOW_MS) / 2u) &&
+                      !elapsed(now, away_since, sm->eff_warning_ms);
+    const bool falling = pan_falling(sm, in);
+    if (!look && !falling) {
+        return true;
+    }
+    if (!sm->checking) {
+        sm->checking = true;
+        sm->checking_since_ms = now;
+    }
+    if (falling && !sm->falling_hold_started) {
+        sm->falling_hold_started = true; /* the check is the falling hold's first part */
+        sm->falling_hold_since_ms = sm->checking_since_ms;
+    }
+    if (elapsed(now, sm->checking_since_ms, TUNED(falling_hold_max_ms, FALLING_HOLD_MAX_MS))) {
+        return true;
+    }
+    sm->hold = SAFETY_HOLD_CHECKING;
+    return false;
 }
 
 static bool g_person_returned(safety_sm_t *sm, const safety_inputs_t *in, const eval_t *e, uint32_t now)
@@ -1180,7 +1226,7 @@ const char *safety_heat_phase_name(safety_heat_phase_t phase)
 
 const char *safety_hold_name(safety_hold_t hold)
 {
-    static const char *const names[] = {"none", "return", "cooling", "falling"};
+    static const char *const names[] = {"none", "return", "cooling", "falling", "checking"};
     return (unsigned)hold < sizeof(names) / sizeof(names[0]) ? names[hold] : "?";
 }
 

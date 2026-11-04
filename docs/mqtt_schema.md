@@ -142,7 +142,7 @@ Subscribe to everything: `mosquitto_sub -h <broker> -t 'rb4107/#' -v`
   times in force now, never longer than the base `warning_after_ms` /
   `shutdown_after_ms`, and `tiers` holds the settings of tiers 2 to 5 and whether
   a rising pan gets the tier it is heading for (`rate`; `null` if tiers are off).
-  `hold` is what holds a due step back: `none`, `return`, `cooling` or `falling`. See [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time).
+  `hold` is what holds a due step back: `none`, `return`, `cooling`, `falling` or `checking` (in MONITORING: the countdown waits to start while the pan may have been switched off). See [safety_state_machine.md](safety_state_machine.md#temperature-tiers-the-hotter-the-pan-the-shorter-the-time).
   `cooking.phase` is the judgment from the temperature trend (`off`, `checking`,
   `heating`, `holding`, `cooling`), with the fitted `rate_c_per_min`, its standard
   error `rate_err_c_per_min`, the fall `cool_rate_c_per_min` that counts as only
@@ -150,8 +150,8 @@ Subscribe to everything: `mosquitto_sub -h <broker> -t 'rb4107/#' -v`
   check the profile fits), against the room temperature in use
   (`room_c`: the thermal camera's 10th-percentile pixel, kept between 30 and 45 °C,
   38 °C without a reading); `cookware` is the profile that sets the
-  cooling time constant; `hold` says why a due buzzer or shutdown is held back
-  (`none`, `return`, `cooling`, `falling`). See
+  cooling time constant; `hold` says why a due step is held back
+  (`none`, `return`, `cooling`, `falling`, `checking`). See
   [safety_state_machine.md](safety_state_machine.md#holds-a-due-buzzer-or-shutdown-that-waits).
   The controller publishes `controller/state` immediately whenever presence,
   cooking or one of these flags changes (at most every 200 ms), in addition to
